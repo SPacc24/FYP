@@ -1,30 +1,41 @@
 import requests
 
 class CalderaClient:
-    def __init__(self, base_url, api_key):
+    def __init__(self, base_url, api_key, verify_ssl=False):
         self.base_url = base_url.rstrip("/")
-        self.headers = {
+        self.session = requests.Session()
+        self.session.headers.update({
             "KEY": api_key,
             "Content-Type": "application/json"
-        }
+        })
+        self.verify_ssl = verify_ssl
 
-    def get(self, endpoint):
-        url = f"{self.base_url}{endpoint}"
-        response = requests.get(url, headers=self.headers, timeout=15)
-        response.raise_for_status()
-        return response.json()
-
-    def post(self, endpoint, payload):
-        url = f"{self.base_url}{endpoint}"
-        response = requests.post(url, json=payload, headers=self.headers, timeout=15)
-        response.raise_for_status()
-        return response.json()
+    def health_check(self):
+        r = self.session.get(f"{self.base_url}/api/v2/health", verify=self.verify_ssl)
+        return r.status_code == 200
 
     def list_agents(self):
-        return self.get("/api/v2/agents")
+        r = self.session.get(f"{self.base_url}/api/v2/agents", verify=self.verify_ssl)
+        r.raise_for_status()
+        return r.json()
 
-    def list_abilities(self):
-        return self.get("/api/v2/abilities")
+    def get_online_agents(self):
+        agents = self.list_agents()
+        return [a for a in agents if a.get("trusted") is True]
 
-    def create_operation(self, payload):
-        return self.post("/api/v2/operations", payload)
+    def create_operation(self, name, adversary_id, group="red"):
+        payload = {
+            "name": name,
+            "adversary": {"adversary_id": adversary_id},
+            "group": group,
+            "state": "running",
+            "autonomous": 1
+        }
+        r = self.session.post(f"{self.base_url}/api/v2/operations", json=payload, verify=self.verify_ssl)
+        r.raise_for_status()
+        return r.json()
+
+    def get_operation(self, operation_id):
+        r = self.session.get(f"{self.base_url}/api/v2/operations/{operation_id}", verify=self.verify_ssl)
+        r.raise_for_status()
+        return r.json()
