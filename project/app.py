@@ -5,44 +5,59 @@ import os
 import atexit
 import signal
 import sys
-from utils.cleanup import full_cleanup
-
-# register cleanup on exit
-atexit.register(full_cleanup)
 
 app = Flask(__name__)
 
-# Initialize Caldera client
-caldera_url = os.getenv("CALDERA_URL", "http://localhost:8888")
-caldera_api_key = os.getenv("CALDERA_API_KEY", "ADMIN123")
-caldera_client = CalderaClient(caldera_url, caldera_api_key)
 
-def handle_exit(signum, frame):
-    full_cleanup()
-    sys.exit(0)
+def get_operation_manager():
+    client = CalderaClient()
+    return OperationManager(client)
 
-signal.signal(signal.SIGINT, handle_exit)   # Ctrl+C
-signal.signal(signal.SIGTERM, handle_exit)  # kill
 
-@app.route("/caldera/status")
+@app.route("/")
+def index():
+    return "AutoPenTest Flask app is running."
+
+
+@app.route("/caldera/status", methods=["GET"])
 def caldera_status():
-    manager = OperationManager(caldera_client)
-    return jsonify(manager.verify_agent_ready())
+    manager = get_operation_manager()
+    return jsonify(manager.check_readiness())
+
 
 @app.route("/caldera/run", methods=["POST"])
 def caldera_run():
-    data = request.json
-    adversary_id = data["adversary_id"]
-    techniques = data.get("techniques", [])
+    data = request.get_json() or {}
 
-    manager = OperationManager(caldera_client)
-    result = manager.run_operation(adversary_id, techniques)
-    return jsonify(result)
+    adversary_id = data.get("adversary_id")
+    selected_techniques = data.get("selected_techniques", [])
+    group = data.get("group", "red")
+    planner_id = data.get("planner_id")
 
-@app.route("/caldera/operation/<operation_id>")
+    if not adversary_id:
+        return jsonify({
+            "ok": False,
+            "message": "Missing adversary_id."
+        }), 400
+
+    manager = get_operation_manager()
+
+    result = manager.start_operation(
+        adversary_id=adversary_id,
+        selected_techniques=selected_techniques,
+        group=group,
+        planner_id=planner_id
+    )
+
+    status_code = 200 if result["ok"] else 400
+    return jsonify(result), status_code
+
+
+@app.route("/caldera/operation/<operation_id>", methods=["GET"])
 def caldera_operation(operation_id):
-    manager = OperationManager(caldera_client)
+    manager = get_operation_manager()
     return jsonify(manager.poll_operation(operation_id))
 
+
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True)
