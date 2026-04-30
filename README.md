@@ -51,20 +51,18 @@ project/
 3. Set up environment variables:
    Create a `.env` file in the project root with:
    ```
-   CALDERA_URL=http://127.0.0.1:8888
-   CALDERA_API_KEY=your-api-key-here
 
    SECRET_KEY=some-random-secret
-DEBUG=true
-CALDERA_URL=http://127.0.0.1:8888
-CALDERA_API_KEY=your-caldera-api-key
-AGENT_GROUP=red
-KALI_IP=192.168.86.128
-OPERATION_TIMEOUT=180
-MYSQL_HOST=192.168.86.xx
-MYSQL_USER=autopentest
-MYSQL_PASS=your-password
-MYSQL_DB=autopentest
+   DEBUG=true
+   CALDERA_URL=http://127.0.0.1:8888
+   CALDERA_API_KEY=your-caldera-api-key
+   AGENT_GROUP=red
+   KALI_IP=192.168.xx.xx
+   OPERATION_TIMEOUT=180
+   MYSQL_HOST=192.168.xx.xx
+   MYSQL_USER=autopentest
+   MYSQL_PASS=your-password
+   MYSQL_DB=autopentest
    ```
 
 4. Ensure MITRE Caldera is running and accessible.

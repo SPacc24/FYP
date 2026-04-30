@@ -169,7 +169,7 @@ def test_risk_scorer(operation_results):
 def test_mysql():
     separator("TEST 7 — MySQL Storage")
     try:
-        from project.db import Database
+        from project.storage.db import Database
 
         db = Database(MYSQL_HOST, MYSQL_USER, MYSQL_PASS, MYSQL_DB)
 
