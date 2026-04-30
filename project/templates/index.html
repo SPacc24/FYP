@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoPenTest Scanner</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">AutoPenTest · P2/P3</p>
+      <h1>Scanner + Vulnerability Mapping</h1>
+      <p class="muted">Run controlled Nmap enumeration, parse port states, map services to vulnerability context, and prepare recommendations for Caldera attack-mode selection.</p>
+    </section>
+
+    <section class="card form-card">
+      <form action="{{ url_for('scan') }}" method="POST">
+        <label>
+          <span class="label">Target IP / Hostname</span>
+          <input type="text" name="target" placeholder="192.168.86.127" required />
+        </label>
+
+        <label>
+          <span class="label">Ports</span>
+          <input type="text" name="ports" value="1-1000" placeholder="80,443,3389 or 1-5000" />
+        </label>
+
+        <label>
+          <span class="label">Intensity</span>
+          <select name="intensity">
+            <option value="2">T2 - Careful</option>
+            <option value="3" selected>T3 - Balanced</option>
+            <option value="4">T4 - Faster</option>
+            <option value="5">T5 - Aggressive</option>
+          </select>
+        </label>
+
+        <label>
+          <span class="label">Scan Profile</span>
+          <select name="profile">
+            <option value="quick">Quick - basic version detection</option>
+            <option value="standard" selected>Standard - version + default scripts</option>
+            <option value="deep">Deep - OS + aggressive version detection</option>
+          </select>
+        </label>
+
+        <button class="button" type="submit">Run Scan</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
+<!-- done by nao & mat -->
