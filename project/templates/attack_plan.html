@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Attack Plan</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main class="page">
+  <section class="hero">
+    <p class="eyebrow">AutoPenTest · Step 05</p>
+    <h1>Final Attack Plan</h1>
+    <p class="muted">{{ attack_plan.description }}</p>
+  </section>
+
+  <section class="card">
+    <span class="label">Selected Mode</span>
+    <h2>{{ attack_plan.mode | upper }}</h2>
+
+    {% if attack_plan.attack_plan %}
+    <div class="table-wrap top-gap">
+      <table>
+        <thead>
+          <tr>
+            <th>Technique ID</th>
+            <th>Name</th>
+            <th>Count</th>
+            <th>Max Severity</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for technique in attack_plan.attack_plan %}
+          <tr>
+            <td><strong>{{ technique.id }}</strong></td>
+            <td>{{ technique.name }}</td>
+            <td>{{ technique.count }}</td>
+            <td>{{ technique.max_severity }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">No techniques selected.</p>
+    {% endif %}
+  </section>
+
+  <div class="actions">
+    <a class="button secondary" href="{{ url_for('index') }}">Run Another Scan</a>
+  </div>
+</main>
+</body>
+</html>

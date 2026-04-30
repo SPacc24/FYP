@@ -1,0 +1,335 @@
+<!-- done by nao & mat -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scanner Results</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">AutoPenTest · Scanner Results</p>
+      <h1>Nmap Findings + Vulnerability Mapping</h1>
+      <p class="muted">Detected hosts, service exposure, filtered ports, vulnerability context, severity indicators, and Caldera-ready technique recommendations.</p>
+    </section>
+
+    <section class="grid summary-grid">
+      <div class="card"><span class="label">Target</span><strong>{{ scan.target }}</strong></div>
+      <div class="card"><span class="label">Ports</span><strong>{{ scan.ports }}</strong></div>
+      <div class="card"><span class="label">Intensity</span><strong>T{{ scan.intensity }}</strong></div>
+      <div class="card"><span class="label">Profile</span><strong>{{ scan.profile }}</strong></div>
+      <div class="card"><span class="label">Open</span><strong>{{ results.total_open_ports }}</strong></div>
+      <div class="card"><span class="label">Filtered</span><strong>{{ results.total_filtered_ports }}</strong></div>
+      <div class="card"><span class="label">Closed</span><strong>{{ results.total_closed_ports }}</strong></div>
+      <div class="card"><span class="label">Hosts Up</span><strong>{{ results.metadata.hosts_up }}</strong></div>
+    </section>
+
+    <section class="grid summary-grid severity-grid">
+      <div class="card critical"><span class="label">Critical</span><strong>{{ mapping.severity_counts.Critical }}</strong></div>
+      <div class="card high"><span class="label">High</span><strong>{{ mapping.severity_counts.High }}</strong></div>
+      <div class="card medium"><span class="label">Medium</span><strong>{{ mapping.severity_counts.Medium }}</strong></div>
+      <div class="card low"><span class="label">Low</span><strong>{{ mapping.severity_counts.Low }}</strong></div>
+      <div class="card info"><span class="label">Info</span><strong>{{ mapping.severity_counts.Info }}</strong></div>
+    </section>
+
+    <section class="card command-box">
+      <span class="label">Executed Command</span>
+      <code>{{ scan.command }}</code>
+      <span class="label top-gap">XML Output</span>
+      <code>{{ results.scan_file }}</code>
+    </section>
+
+    {% for host in results.hosts %}
+    <section class="card host-card">
+      <div class="host-header">
+        <div>
+          <span class="label">Host</span>
+          <h2>{{ host.address.primary }}</h2>
+          {% if host.hostnames %}<p class="muted">{{ host.hostnames | join(', ') }}</p>{% endif %}
+        </div>
+        <div class="pill">{{ host.status }}</div>
+      </div>
+
+      <div class="os-box">
+        <span class="label">Detected OS</span>
+        <p>{{ host.os.name }}{% if host.os.accuracy %} · {{ host.os.accuracy }}% accuracy{% endif %}</p>
+      </div>
+
+      {% if host.port_findings %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Port</th>
+              <th>State</th>
+              <th>Meaning</th>
+              <th>Protocol</th>
+              <th>Service</th>
+              <th>Product</th>
+              <th>Version</th>
+              <th>CPE</th>
+              <th>Scripts</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in host.port_findings %}
+            <tr>
+              <td><strong>{{ item.port }}</strong></td>
+              <td><span class="state {{ item.state }}">{{ item.state | upper }}</span></td>
+              <td>{{ item.state_explanation }}</td>
+              <td>{{ item.protocol }}</td>
+              <td>{{ item.service or '-' }}</td>
+              <td>{{ item.product or '-' }}</td>
+              <td>{{ item.version or '-' }}</td>
+              <td>
+                {% if item.cpe %}
+                  {% for cpe in item.cpe %}<div class="mono small">{{ cpe }}</div>{% endfor %}
+                {% else %}-{% endif %}
+              </td>
+              <td>
+                {% if item.scripts %}
+                  {% for script in item.scripts %}<div class="mono small">{{ script.id }}</div>{% endfor %}
+                {% else %}-{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="muted">No reportable ports detected for this host.</p>
+      {% endif %}
+    </section>
+    {% endfor %}
+
+    <section class="card">
+      <span class="label">Step 02.5 — Vulnerability Mapping</span>
+      <h2>Vulnerability Context</h2>
+      <p class="muted">Open services are mapped to known lab CVE matches, NVD lookup hints, severity, remediation, and ATT&CK-style technique recommendations.</p>
+
+      {% if mapping.top_risks %}
+      <h3>Top Prioritised Risks</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Priority</th>
+              <th>Severity</th>
+              <th>Host</th>
+              <th>Port</th>
+              <th>Finding</th>
+              <th>CVE IDs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for risk in mapping.top_risks %}
+            <tr>
+              <td><strong>{{ risk.priority_score }}/10</strong></td>
+              <td><span class="severity {{ risk.severity | lower }}">{{ risk.severity }}</span></td>
+              <td>{{ risk.host }}</td>
+              <td>{{ risk.port }}/{{ risk.protocol }}</td>
+              <td>{{ risk.title }}</td>
+              <td>
+                {% if risk.cve_ids %}
+                  {% for cve in risk.cve_ids %}<div class="mono small">{{ cve }}</div>{% endfor %}
+                {% else %}-{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if mapping.vulnerabilities %}
+      <div class="table-wrap top-gap">
+        <table>
+          <thead>
+            <tr>
+              <th>Severity</th>
+              <th>Score</th>
+              <th>Host</th>
+              <th>Port</th>
+              <th>Service</th>
+              <th>Finding</th>
+              <th>CVE / NVD Context</th>
+              <th>Recommendation</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for vuln in mapping.vulnerabilities %}
+            <tr>
+              <td><span class="severity {{ vuln.severity | lower }}">{{ vuln.severity }}</span></td>
+              <td>{{ vuln.priority_score }}/10</td>
+              <td>{{ vuln.host }}</td>
+              <td>{{ vuln.port }}/{{ vuln.protocol }}</td>
+              <td>{{ vuln.service }}</td>
+              <td>
+                <strong>{{ vuln.title }}</strong>
+                <div class="mono small">{{ vuln.evidence }}</div>
+                {% if vuln.cve_ids %}
+                  <div class="top-gap">
+                    {% for cve in vuln.cve_ids %}<span class="severity high">{{ cve }}</span>{% endfor %}
+                  </div>
+                {% endif %}
+              </td>
+              <td>{{ vuln.cve_hint }}</td>
+              <td>{{ vuln.recommendation }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="muted">No vulnerability context generated. This usually means no open or filtered services were reported.</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <span class="label">Step 05 — Technique Recommendation</span>
+      <form action="{{ url_for('confirm_attack_plan') }}" method="POST">
+  <h3>Choose Attack Mode</h3>
+
+  <input type="hidden" name="scan_file" value="{{ results.scan_file }}">
+
+  <button class="button" type="submit" name="mode" value="auto">
+    Auto Mode
+  </button>
+
+  <h4>Hybrid Mode ⭐</h4>
+  <p class="muted">System recommends. Analyst reviews and edits before confirming.</p>
+
+  {% for technique in mapping.attack_modes.hybrid.techniques %}
+  <label>
+    <input type="checkbox" name="selected_techniques" value="{{ technique.id }}" checked>
+    {{ technique.id }} - {{ technique.name }} 
+    ({{ technique.max_severity }})
+  </label>
+  <br>
+  {% endfor %}
+
+  <button class="button" type="submit" name="mode" value="hybrid">
+    Confirm Hybrid Plan
+  </button>
+
+  <h4>Manual Mode</h4>
+  <p class="muted">Expert browses all available techniques and selects manually.</p>
+
+  {% for technique in mapping.attack_modes.manual.techniques %}
+  <label>
+    <input type="checkbox" name="selected_techniques" value="{{ technique.id }}">
+    {{ technique.id }} - {{ technique.name }}
+    ({{ technique.max_severity }})
+  </label>
+  <br>
+  {% endfor %}
+
+  <button class="button secondary" type="submit" name="mode" value="manual">
+    Confirm Manual Plan
+  </button>
+</form>
+
+
+      <h2>Caldera Attack-Mode Preparation</h2>
+      <p class="muted">These recommendations prepare the next stage. They do not execute attacks; they provide candidate techniques for Auto, Hybrid, or Manual mode.</p>
+{% if attack_plan %}
+<div class="card top-gap">
+  <span class="label">Selected Attack Mode</span>
+  <h3>{{ attack_plan.mode | upper }}</h3>
+  <p>{{ attack_plan.description }}</p>
+
+  {% if attack_plan.attack_plan %}
+  <div class="table-wrap top-gap">
+    <table>
+      <thead>
+        <tr>
+          <th>Technique ID</th>
+          <th>Name</th>
+          <th>Max Severity</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for technique in attack_plan.attack_plan %}
+        <tr>
+          <td><strong>{{ technique.id }}</strong></td>
+          <td>{{ technique.name }}</td>
+          <td>{{ technique.max_severity }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No techniques selected.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+
+      {% if mapping.attack_chain %}
+      <h3 class="top-gap">Suggested Attack Chain Logic</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Stage</th>
+              <th>Reasoning</th>
+              <th>Technique Candidates</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for stage in mapping.attack_chain %}
+            <tr>
+              <td><strong>{{ stage.stage }}</strong></td>
+              <td>{{ stage.logic }}</td>
+              <td>{{ stage.techniques }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if mapping.caldera_plan %}
+      <h3 class="top-gap">Caldera-Ready Plan</h3>
+      <p class="muted">{{ mapping.caldera_plan.selection_reason }}</p>
+      <p class="muted">{{ mapping.caldera_plan.blocked_note }}</p>
+      {% endif %}
+
+      {% if mapping.recommended_techniques %}
+      <div class="table-wrap top-gap">
+        <table>
+          <thead>
+            <tr>
+              <th>Technique ID</th>
+              <th>Name</th>
+              <th>Count</th>
+              <th>Max Severity</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for technique in mapping.recommended_techniques %}
+            <tr>
+              <td><strong>{{ technique.id }}</strong></td>
+              <td>{{ technique.name }}</td>
+              <td>{{ technique.count }}</td>
+              <td><span class="severity {{ technique.max_severity | lower }}">{{ technique.max_severity }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="muted">No techniques recommended yet.</p>
+      {% endif %}
+    </section>
+
+    <div class="actions">
+      <a class="button secondary" href="{{ url_for('index') }}">Run Another Scan</a>
+    </div>
+  </main>
+</body>
+</html>
+<!-- done by nao & mat -->

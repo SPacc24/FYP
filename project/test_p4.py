@@ -136,7 +136,7 @@ def test_operation_manager():
 
 def test_risk_scorer(operation_results):
     separator("TEST 6 — Risk Scoring")
-    from utils.risk_scorer import RiskScorer
+    from project.caldera.risk_scorer import RiskScorer
 
     scorer = RiskScorer()
 
