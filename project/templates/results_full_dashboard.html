@@ -9,10 +9,14 @@
 </head>
 <body>
   <main class="page">
+
     <section class="hero">
       <p class="eyebrow">AutoPenTest · Full Flow</p>
       <h1>Scanning, Caldera, Risk, and Report</h1>
-      <p class="muted">Review scan results, pick an attack mode, launch Caldera, watch live execution, and export the final report.</p>
+      <p class="muted">
+        Review scan results, pick an attack mode, launch Caldera,
+        watch live execution, and export the final report.
+      </p>
     </section>
 
     <section class="grid summary-grid">
@@ -39,6 +43,7 @@
       <div id="calderaStatusBox" class="os-box">
         <p class="muted">Checking Caldera agent status...</p>
       </div>
+
       <div id="deployCommandBox" class="command-box top-gap" style="display:none;">
         <h3>Deploy Command</h3>
         <code id="deployCommandText"></code>
@@ -47,11 +52,19 @@
 
     <section class="card top-gap">
       <h2>Scan Findings</h2>
+
       {% if results %}
       <div class="os-box">
-        <p><span class="label">Operating System</span> {{ results.os if results.os is defined else results.get('os', 'Unknown') }}</p>
-        <p><span class="label">Open Ports</span> {{ results.ports|length if results.ports is defined else results.get('ports', [])|length }}</p>
+        <p>
+          <span class="label">Operating System</span>
+          {{ results.os if results.os is defined else results.get('os', 'Unknown') }}
+        </p>
+        <p>
+          <span class="label">Open Ports</span>
+          {{ results.ports|length if results.ports is defined else results.get('ports', [])|length }}
+        </p>
       </div>
+
       <div class="table-wrap">
         <table>
           <thead>
@@ -85,7 +98,8 @@
 
     <section class="card top-gap">
       <h2>Vulnerability Mapping</h2>
-      {% if mapping %}
+
+      {% if mapping and mapping.vulnerabilities %}
       <div class="table-wrap">
         <table>
           <thead>
@@ -99,14 +113,22 @@
             </tr>
           </thead>
           <tbody>
-            {% for item in mapping %}
+            {% for item in mapping.vulnerabilities %}
             <tr>
               <td class="mono">{{ item.port }}</td>
               <td>{{ item.service }}</td>
-              <td class="mono">{{ item.cve_id }}</td>
-              <td><span class="severity {{ item.severity|lower }}">{{ item.severity }}</span></td>
-              <td>{{ item.cve_score }}</td>
-              <td class="small">{{ item.description }}</td>
+              <td>
+                {% if item.cve_ids %}
+                  {{ item.cve_ids | join(', ') }}
+                {% else %}
+                  None
+                {% endif %}
+              </td>
+              <td>
+                <span class="severity {{ item.severity|lower }}">{{ item.severity }}</span>
+              </td>
+              <td>{{ item.priority_score }}</td>
+              <td>{{ item.title }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -118,31 +140,38 @@
     </section>
 
     <section class="card top-gap">
-      <h2>Attack Mode</h2>
-      <p class="muted">Choose how the technique set should be built from the scan and vulnerability context.</p>
+      <h2>Recommended Attack Mode</h2>
+      <p class="muted">
+        Choose how the technique set should be built from the scan and vulnerability context.
+      </p>
+
       <div class="mode-grid">
         <label class="mode-card">
-          <input type="radio" name="mode" value="auto" form="attackPlanForm" checked />
+          <input type="radio" name="mode" value="auto" form="attackPlanForm" />
           <h3>Auto</h3>
-          <p class="small">Rule-based selection from port and vulnerability findings.</p>
+          <p class="small">Rule-based selection from findings.</p>
         </label>
+
         <label class="mode-card preferred">
-          <input type="radio" name="mode" value="hybrid" form="attackPlanForm" />
+          <input type="radio" name="mode" value="hybrid" form="attackPlanForm" checked />
           <h3>Hybrid ⭐</h3>
-          <p class="small">System recommends. You review and edit before confirming.</p>
+          <p class="small">Recommended. Review before confirming.</p>
         </label>
+
         <label class="mode-card">
           <input type="radio" name="mode" value="manual" form="attackPlanForm" />
           <h3>Manual</h3>
-          <p class="small">Browse all available techniques and select manually.</p>
+          <p class="small">Select techniques yourself.</p>
         </label>
       </div>
     </section>
 
     <section class="card top-gap">
       <h2>Technique Selection</h2>
+
       <form id="attackPlanForm" action="{{ url_for('confirm_attack_plan') }}" method="POST">
         <input type="hidden" name="scan_file" value="{{ scan.output_file if scan and scan.output_file else '' }}" />
+
         <div class="table-wrap">
           <table>
             <thead>
@@ -154,23 +183,52 @@
                 <th>Reason</th>
               </tr>
             </thead>
+
             <tbody>
+              {% set techniques = [] %}
+
               {% if attack_plan and attack_plan.techniques %}
-              {% for tech in attack_plan.techniques %}
-              <tr>
-                <td><input type="checkbox" name="selected_techniques" value="{{ tech.technique_id }}" checked /></td>
-                <td class="mono">{{ tech.technique_id }}</td>
-                <td>{{ tech.technique_name }}</td>
-                <td>{{ tech.tactic }}</td>
-                <td class="small">{{ tech.reason|default('Recommended by the planner') }}</td>
-              </tr>
-              {% endfor %}
+                {% set techniques = attack_plan.techniques %}
+              {% elif attack_plan and attack_plan.available_techniques %}
+                {% set techniques = attack_plan.available_techniques %}
+              {% elif mapping and mapping.recommended_techniques %}
+                {% set techniques = mapping.recommended_techniques %}
+              {% endif %}
+
+              {% if techniques %}
+                {% for tech in techniques %}
+                <tr>
+                  <td>
+                    <input
+                      type="checkbox"
+                      name="selected_techniques"
+                      value="{{ tech.technique_id if tech.technique_id is defined else tech.id }}"
+                      checked
+                    />
+                  </td>
+                  <td class="mono">
+                    {{ tech.technique_id if tech.technique_id is defined else tech.id }}
+                  </td>
+                  <td>
+                    {{ tech.technique_name if tech.technique_name is defined else tech.name }}
+                  </td>
+                  <td>
+                    {{ tech.tactic if tech.tactic is defined else 'N/A' }}
+                  </td>
+                  <td class="small">
+                    {{ tech.reason if tech.reason is defined else 'Recommended by planner' }}
+                  </td>
+                </tr>
+                {% endfor %}
               {% else %}
-              <tr><td colspan="5" class="small">No techniques selected yet.</td></tr>
+                <tr>
+                  <td colspan="5" class="small">No techniques selected yet.</td>
+                </tr>
               {% endif %}
             </tbody>
           </table>
         </div>
+
         <div class="actions top-gap">
           <button class="button" type="submit">Confirm Attack Plan</button>
         </div>
@@ -179,52 +237,21 @@
 
     <section class="card top-gap">
       <h2>Caldera Execution</h2>
+
       <div class="actions">
         <button class="button" id="runCalderaBtn" type="button">Run Caldera</button>
         <button class="button secondary" id="refreshStatusBtn" type="button">Refresh Status</button>
       </div>
-      <div id="operationBox" class="os-box top-gap">
-        <p class="muted">No operation has been started yet.</p>
-      </div>
-    </section>
 
-    <section class="card top-gap">
-      <h2>Risk Summary</h2>
-      <div class="grid summary-grid">
-        <article class="card">
-          <span class="label">Score</span>
-          <strong id="riskScoreValue">{{ risk.score if risk and risk.score is defined else session.get('risk_score', {}).get('score', 'N/A') }}</strong>
-        </article>
-        <article class="card">
-          <span class="label">Label</span>
-          <strong id="riskLabelValue">{{ risk.label if risk and risk.label is defined else session.get('risk_score', {}).get('label', 'N/A') }}</strong>
-        </article>
-        <article class="card">
-          <span class="label">Colour</span>
-          <strong id="riskColourValue">{{ risk.colour if risk and risk.colour is defined else session.get('risk_score', {}).get('colour', 'N/A') }}</strong>
-        </article>
-        <article class="card">
-          <span class="label">Badge</span>
-          <strong id="riskBadgeValue">{{ risk.badge if risk and risk.badge is defined else session.get('risk_score', {}).get('badge', 'N/A') }}</strong>
-        </article>
-      </div>
-      <div id="riskBreakdown" class="os-box top-gap">
-        {% if risk and risk.breakdown %}
-        <p><strong>CVE Component:</strong> {{ risk.breakdown.cve_component }}</p>
-        <p><strong>Attack Component:</strong> {{ risk.breakdown.attack_component }}</p>
-        <p><strong>Final Score:</strong> {{ risk.breakdown.final_score }}</p>
-        <p><strong>CVE Count:</strong> {{ risk.breakdown.cve_count }}</p>
-        <p><strong>Techniques Run:</strong> {{ risk.breakdown.techniques_run }}</p>
-        <p><strong>Successful Techniques:</strong> {{ risk.breakdown.techniques_success }}</p>
-        {% else %}
-        <p class="muted">Risk breakdown will appear after execution.</p>
-        {% endif %}
+      <div id="operationBox" class="os-box top-gap">
+        <p class="muted">No operation started yet.</p>
       </div>
     </section>
 
     <section class="card top-gap">
       <h2>Execution Results</h2>
-      <div class="table-wrap">
+
+      <div class="table-wrap" id="executionResults">
         <table>
           <thead>
             <tr>
@@ -237,125 +264,202 @@
             </tr>
           </thead>
           <tbody id="techniqueResultsBody">
-            {% if operation_results and operation_results.techniques_run %}
-            {% for t in operation_results.techniques_run %}
             <tr>
-              <td class="mono">{{ t.technique_id }}</td>
-              <td>{{ t.technique_name }}</td>
-              <td>{{ t.tactic }}</td>
-              <td><span class="state {{ t.status|lower }}">{{ t.status }}</span></td>
-              <td class="small">{{ t.timestamp }}</td>
-              <td class="small mono">{{ t.output }}</td>
+              <td colspan="6" class="small">No execution results yet.</td>
             </tr>
-            {% endfor %}
-            {% else %}
-            <tr><td colspan="6" class="small">No execution results yet.</td></tr>
-            {% endif %}
           </tbody>
         </table>
       </div>
     </section>
-
     <section class="card top-gap">
-      <h2>Remediation Advice</h2>
-      <div id="remediationBox">
-        {% if remediations %}
-        {% for item in remediations %}
-        <div class="os-box top-gap">
-          <h3>{{ item.title }}</h3>
-          <p class="muted">{{ item.summary }}</p>
-          <p><strong>Technique:</strong> {{ item.technique_id }} — {{ item.technique_name }}</p>
-          <ul>
-            {% for fix in item.fixes %}
-            <li>{{ fix }}</li>
-            {% endfor %}
-          </ul>
-          <p class="small">MITRE Defend: {{ item.mitre_defend }}</p>
-        </div>
-        {% endfor %}
-        {% else %}
-        <p class="muted">Remediation advice will appear after successful execution.</p>
-        {% endif %}
-      </div>
-    </section>
-
-    <section class="card top-gap">
-      <h2>Report</h2>
-      <div class="actions">
-        <a class="button" href="{{ url_for('export_report') }}">Export PDF Report</a>
-      </div>
-    </section>
+  <h2>Risk Summary</h2>
+  <div class="grid summary-grid">
+    <article class="card">
+      <span class="label">Score</span>
+      <strong id="riskScoreValue">
+        {{ risk.score if risk and risk.score is defined else 'N/A' }}
+      </strong>
+    </article>
+    <article class="card">
+      <span class="label">Label</span>
+      <strong id="riskLabelValue">
+        {{ risk.label if risk and risk.label is defined else 'N/A' }}
+      </strong>
+    </article>
+    <article class="card">
+      <span class="label">Colour</span>
+      <strong id="riskColourValue">
+        {{ risk.colour if risk and risk.colour is defined else 'N/A' }}
+      </strong>
+    </article>
+    <article class="card">
+      <span class="label">Badge</span>
+      <strong id="riskBadgeValue">
+        {{ risk.badge if risk and risk.badge is defined else 'N/A' }}
+      </strong>
+    </article>
+  </div>
+</section>
   </main>
 
   <script>
+    function applyModeBehavior() {
+      const selectedMode =
+        document.querySelector('input[name="mode"]:checked')?.value;
+
+      const checkboxes =
+        document.querySelectorAll('input[name="selected_techniques"]');
+
+      if (!selectedMode || !checkboxes.length) return;
+
+      if (selectedMode === "auto") {
+        checkboxes.forEach(cb => {
+          cb.checked = true;
+          cb.disabled = true;
+        });
+      } else if (selectedMode === "hybrid") {
+        checkboxes.forEach(cb => {
+          cb.checked = true;
+          cb.disabled = false;
+        });
+      } else if (selectedMode === "manual") {
+        checkboxes.forEach(cb => {
+          cb.checked = false;
+          cb.disabled = false;
+        });
+      }
+    }
+
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+      radio.addEventListener("change", applyModeBehavior);
+    });
+
+    window.addEventListener("DOMContentLoaded", () => {
+      applyModeBehavior();
+      loadCalderaStatus();
+    });
+
     async function loadCalderaStatus() {
-      const box = document.getElementById('calderaStatusBox');
-      const deployBox = document.getElementById('deployCommandBox');
-      const deployText = document.getElementById('deployCommandText');
+      const box = document.getElementById("calderaStatusBox");
+      const deployBox = document.getElementById("deployCommandBox");
+      const deployText = document.getElementById("deployCommandText");
+
       try {
-        const res = await fetch('{{ url_for('caldera_status') }}');
+        const res = await fetch("{{ url_for('caldera_status') }}");
         const data = await res.json();
+
         if (data.agent_ready) {
-          box.innerHTML = `<p><strong>Ready</strong> — ${data.online_agents ? data.online_agents.length : 1} agent(s) online.</p>`;
-          deployBox.style.display = 'none';
+          box.innerHTML =
+            `<p><strong>Ready</strong> — ${data.online_agents?.length || 1} agent(s) online.</p>`;
+          deployBox.style.display = "none";
         } else {
-          box.innerHTML = `<p><strong>Not Ready</strong> — ${data.message || 'No agent found.'}</p>`;
+          box.innerHTML =
+            `<p><strong>Not Ready</strong> — ${data.message || "No agent found."}</p>`;
+
           if (data.deploy_command) {
             deployText.textContent = data.deploy_command;
-            deployBox.style.display = 'block';
+            deployBox.style.display = "block";
           }
         }
       } catch (e) {
-        box.innerHTML = '<p class="muted">Unable to reach Caldera status endpoint.</p>';
+        box.innerHTML =
+          '<p class="muted">Unable to reach Caldera status endpoint.</p>';
       }
     }
 
     async function runCaldera() {
-      const operationBox = document.getElementById('operationBox');
-      const selected = Array.from(document.querySelectorAll('input[name="selected_techniques"]:checked')).map(el => el.value);
-      const body = {
-        adversary_id: '{{ session.get("adversary_id", "") }}',
-        selected_techniques: selected,
-        group: '{{ config.get("AGENT_GROUP", "red") if config else "red" }}'
-      };
-      operationBox.innerHTML = '<p class="muted">Starting Caldera operation...</p>';
+      const operationBox = document.getElementById("operationBox");
+
+      const selected = Array.from(
+        document.querySelectorAll(
+          'input[name="selected_techniques"]:checked'
+        )
+      ).map(el => el.value);
+
+      if (!selected.length) {
+        operationBox.innerHTML =
+          "<p><strong>No techniques selected.</strong></p>";
+        return;
+      }
+
+      operationBox.innerHTML =
+        "<p class='muted'>Starting Caldera operation...</p>";
+
       try {
-        const res = await fetch('{{ url_for('caldera_run') }}', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(body)
+        const res = await fetch("{{ url_for('caldera_run') }}", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            selected_techniques: selected
+          })
         });
+
         const data = await res.json();
+        
         if (data.ok || data.success) {
-          operationBox.innerHTML = `<p><strong>Operation started</strong></p><p class="small mono">${JSON.stringify(data, null, 2)}</p>`;
-          setTimeout(refreshOperationStatus, 2000);
-        } else {
-          operationBox.innerHTML = `<p><strong>Failed</strong> — ${data.message || data.error || 'Unable to start operation'}</p>`;
-        }
-      } catch (e) {
-        operationBox.innerHTML = '<p class="muted">Error starting Caldera operation.</p>';
+  operationBox.innerHTML =
+    `<p><strong>Operation completed successfully.</strong></p>`;
+
+  // ===== UPDATE EXECUTION RESULTS =====
+  const tbody = document.getElementById("techniqueResultsBody");
+
+  if (data.techniques_run && data.techniques_run.length > 0) {
+    tbody.innerHTML = data.techniques_run.map(t => `
+      <tr>
+        <td class="mono">${t.technique_id}</td>
+        <td>${t.technique_name}</td>
+        <td>${t.tactic}</td>
+        <td>${t.status}</td>
+        <td>${t.timestamp || "-"}</td>
+        <td class="small">${t.output || "-"}</td>
+      </tr>
+    `).join("");
+  } else {
+    tbody.innerHTML =
+      `<tr><td colspan="6" class="small">No execution results returned.</td></tr>`;
+  }
+
+  // ===== UPDATE RISK SUMMARY =====
+  if (data.risk) {
+    document.getElementById("riskScoreValue").textContent =
+      data.risk.score ?? "N/A";
+
+    document.getElementById("riskLabelValue").textContent =
+      data.risk.label ?? "N/A";
+
+    document.getElementById("riskColourValue").textContent =
+      data.risk.colour ?? "N/A";
+
+    document.getElementById("riskBadgeValue").textContent =
+      data.risk.badge ?? "N/A";
+  }
+}
+      } catch (err) {
+        operationBox.innerHTML =
+          "<p><strong>Error starting operation.</strong></p>";
       }
     }
 
     async function refreshOperationStatus() {
-      const operationBox = document.getElementById('operationBox');
-      const resultsBody = document.getElementById('techniqueResultsBody');
-      const riskScoreValue = document.getElementById('riskScoreValue');
-      const riskLabelValue = document.getElementById('riskLabelValue');
+      const operationBox = document.getElementById("operationBox");
+
       try {
-        const opId = '{{ session.get("operation_results", {}).get("operation_id", "") }}';
-        if (!opId) return;
-        const res = await fetch(`/caldera/operation/${opId}`);
+        const res = await fetch("{{ url_for('operation_status') }}");
         const data = await res.json();
-        operationBox.innerHTML = `<p><strong>Operation Status</strong></p><pre class="small mono">${JSON.stringify(data, null, 2)}</pre>`;
+
+        operationBox.innerHTML =
+          `<pre class="small mono">${JSON.stringify(data, null, 2)}</pre>`;
       } catch (e) {
-        operationBox.innerHTML = '<p class="muted">Could not refresh operation status.</p>';
+        operationBox.innerHTML =
+          "<p class='muted'>Could not refresh operation status.</p>";
       }
     }
 
-    document.getElementById('runCalderaBtn')?.addEventListener('click', runCaldera);
-    document.getElementById('refreshStatusBtn')?.addEventListener('click', refreshOperationStatus);
-    loadCalderaStatus();
+    document.getElementById("runCalderaBtn")
+      ?.addEventListener("click", runCaldera);
+
+    document.getElementById("refreshStatusBtn")
+      ?.addEventListener("click", refreshOperationStatus);
   </script>
 </body>
 </html>

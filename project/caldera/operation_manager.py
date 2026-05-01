@@ -205,7 +205,7 @@ class OperationManager:
                 return self._parse_results(op if isinstance(op, dict) else {}, links, timed_out=False)
             time.sleep(poll_interval)
         self.client.stop_operation(op_id)
-        time.sleep(2)
+        time.sleep(20)
         op = self.client.get_operation(op_id)
         links = self.client.get_operation_links(op_id)
         return self._parse_results(op if isinstance(op, dict) else {}, links, timed_out=True)
@@ -226,9 +226,14 @@ class OperationManager:
                 'timestamp': link.get('finish', link.get('decide', '')),
                 'link_id': link.get('id', ''),
             })
+
         success_count = sum(1 for t in techniques_run if t['status'] == 'success')
         fail_count = sum(1 for t in techniques_run if t['status'] == 'failed')
+        running_count = sum(1 for t in techniques_run if t['status'] == 'running')
+        discarded_count = sum(1 for t in techniques_run if t['status'] == 'discarded')
         total = len(techniques_run)
+
+
         return {
             'success': True,
             'operation_id': operation.get('id', ''),
@@ -240,7 +245,7 @@ class OperationManager:
             'fail_count': fail_count,
             'timed_out': timed_out,
             'agent_host': '',
-            'agent_paw': '',
+            'agent_paw': ''
         }
 
     def _error_result(self, message):

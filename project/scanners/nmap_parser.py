@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
+
 class NmapParseError(Exception):
     """Raised when Nmap XML parsing fails."""
 
@@ -197,4 +198,11 @@ def parse_nmap_xml(xml_file: str | Path) -> dict[str, Any]:
         results["total_reported_ports"] += len(port_findings)
         results["hosts"].append(host_data)
 
+    if results["hosts"]:
+        first_host = results["hosts"][0]
+        results["os"] = first_host["os"]["name"]
+        results["ports"] = first_host["port_findings"]
+    else:
+        results["os"] = "Unknown"
+        results["ports"] = []
     return results
