@@ -9,6 +9,7 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
+
 class CalderaAPIError(Exception):
     """Raised when Caldera API returns an error or cannot be reached."""
     pass
@@ -89,7 +90,44 @@ class CalderaClient:
 
     def list_operations(self):
         return self._request("GET", "/api/v2/operations")
+    def get_abilities(self):
+        return self._request("GET", "/api/v2/abilities")
 
+
+    def create_adversary(self, name, ability_ids):
+        payload = {
+        "name": name,
+        "description": "Auto-generated adversary profile",
+        "atomic_ordering": ability_ids
+        }
+        return self._request("POST", "/api/v2/adversaries", json=payload)
+
+
+    def delete_adversary(self, adversary_id):
+        return self._request("DELETE", f"/api/v2/adversaries/{adversary_id}")
+
+
+    def get_adversary_by_name(self, name):
+        adversaries = self._request("GET", "/api/v2/adversaries")
+
+        if isinstance(adversaries, dict):
+            adversaries = adversaries.get("adversaries", [])
+
+        for adv in adversaries:
+            if adv.get("name", "").lower() == name.lower():
+                return adv
+
+        return None
+
+
+    def get_operation_links(self, operation_id):
+        return self._request("GET", f"/api/v2/operations/{operation_id}/links")
+
+
+    def stop_operation(self, operation_id):
+        payload = {"state": "finished"}
+        return self._request("PATCH", f"/api/v2/operations/{operation_id}", json=payload)
+    
     def get_operation(self, operation_id):
         return self._request("GET", f"/api/v2/operations/{operation_id}")
 
@@ -110,12 +148,18 @@ class CalderaClient:
             }
 
         return self._request("POST", "/api/v2/operations", json=payload)
+    
     def get_abilities_by_technique(self, technique_id):
         abilities = self.get_abilities()
 
+        if isinstance(abilities, dict):
+            abilities = abilities.get("abilities", [])
+
         matches = []
+
         for ability in abilities:
             attack = ability.get("technique_id") or ability.get("technique", {})
+
             if isinstance(attack, dict):
                 tid = attack.get("attack_id")
             else:

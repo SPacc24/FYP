@@ -140,7 +140,7 @@
     </section>
 
     <section class="card top-gap">
-      <h2>Attack Mode</h2>
+      <h2>Recommended Attack Mode</h2>
       <p class="muted">
         Choose how the technique set should be built from the scan and vulnerability context.
       </p>
@@ -251,7 +251,7 @@
     <section class="card top-gap">
       <h2>Execution Results</h2>
 
-      <div class="table-wrap">
+      <div class="table-wrap" id="executionResults">
         <table>
           <thead>
             <tr>
@@ -395,14 +395,45 @@
         });
 
         const data = await res.json();
-
+        
         if (data.ok || data.success) {
-          operationBox.innerHTML =
-            `<p><strong>Operation started successfully.</strong></p>`;
-        } else {
-          operationBox.innerHTML =
-            `<p><strong>Failed:</strong> ${data.message || data.error}</p>`;
-        }
+  operationBox.innerHTML =
+    `<p><strong>Operation completed successfully.</strong></p>`;
+
+  // ===== UPDATE EXECUTION RESULTS =====
+  const tbody = document.getElementById("techniqueResultsBody");
+
+  if (data.techniques_run && data.techniques_run.length > 0) {
+    tbody.innerHTML = data.techniques_run.map(t => `
+      <tr>
+        <td class="mono">${t.technique_id}</td>
+        <td>${t.technique_name}</td>
+        <td>${t.tactic}</td>
+        <td>${t.status}</td>
+        <td>${t.timestamp || "-"}</td>
+        <td class="small">${t.output || "-"}</td>
+      </tr>
+    `).join("");
+  } else {
+    tbody.innerHTML =
+      `<tr><td colspan="6" class="small">No execution results returned.</td></tr>`;
+  }
+
+  // ===== UPDATE RISK SUMMARY =====
+  if (data.risk) {
+    document.getElementById("riskScoreValue").textContent =
+      data.risk.score ?? "N/A";
+
+    document.getElementById("riskLabelValue").textContent =
+      data.risk.label ?? "N/A";
+
+    document.getElementById("riskColourValue").textContent =
+      data.risk.colour ?? "N/A";
+
+    document.getElementById("riskBadgeValue").textContent =
+      data.risk.badge ?? "N/A";
+  }
+}
       } catch (err) {
         operationBox.innerHTML =
           "<p><strong>Error starting operation.</strong></p>";

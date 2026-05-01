@@ -90,6 +90,7 @@ def _safe_risk_calculate(vulns, op_results):
             "score": 50,
             "label": "Medium",
             "colour": "orange",
+             "badge": "warning",
         }
 
 
@@ -222,7 +223,7 @@ def caldera_run():
             return jsonify(result), 500
 
         # Risk score
-        vulns = session.get("vulnerabilities", [])
+        vulns = data.get("vulnerabilities") or session.get("vulnerabilities", [])
         risk = _safe_risk_calculate(vulns, result)
 
         # Remediation
@@ -236,17 +237,12 @@ def caldera_run():
         session["remediations"] = remediations
 
         return jsonify({
-            "ok": True,
-            "success": True,
-            "operation_id": result.get("operation_id"),
-            "total": result.get("total", 0),
-            "success_count": result.get("success_count", 0),
-            "fail_count": result.get("fail_count", 0),
-            "risk_score": risk["score"],
-            "risk_label": risk["label"],
-            "risk_colour": risk["colour"],
-            "remediations": remediations,
-        })
+    "ok": True,
+    "success": True,
+    **result,
+    "risk": risk,
+    "remediations": remediations,
+})
 
     except Exception as e:
         return jsonify({
