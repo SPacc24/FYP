@@ -110,4 +110,18 @@ class CalderaClient:
             }
 
         return self._request("POST", "/api/v2/operations", json=payload)
-    
+    def get_abilities_by_technique(self, technique_id):
+        abilities = self.get_abilities()
+
+        matches = []
+        for ability in abilities:
+            attack = ability.get("technique_id") or ability.get("technique", {})
+            if isinstance(attack, dict):
+                tid = attack.get("attack_id")
+            else:
+                tid = attack
+
+            if tid == technique_id:
+                matches.append(ability)
+
+        return matches

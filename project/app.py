@@ -1,15 +1,17 @@
-# done by smth
-# app.py - Main Flask application for the vulnerability assessment and attack simulation tool.
-# This application provides a web interface for users to perform network scans, map vulnerabilities to attack techniques, and execute attack simulations using the Caldera framework. It also includes functionality to save scan results, calculate risk scores, and generate reports.
+# app.py - FIXED VERSION
+# Main Flask application for vulnerability assessment + attack simulation.
 
-# Key components:
-# - Flask routes for handling user interactions and API endpoints.
-# - Integration with Nmap for scanning and parsing results.
-# - Integration with Caldera for attack simulation and operation management.
-# - Database interactions for storing scan results and operation outcomes.
-# - Risk scoring and remediation suggestions based on vulnerabilities and attack outcomes.
-
-from flask import Flask, render_template, request, session, redirect, url_for, jsonify, send_file
+from flask import (
+    Flask,
+    render_template,
+    request,
+    session,
+    redirect,
+    url_for,
+    jsonify,
+    send_file,
+    flash,
+)
 import logging
 
 from config import Config
@@ -28,14 +30,18 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 app = Flask(__name__)
-
 app.config.from_object(Config)
-app.secret_key = getattr(Config, 'SECRET_KEY', 'change-me')
+app.secret_key = getattr(Config, "SECRET_KEY", "change-me")
+
+# ---------------------------------------------------
+# INIT SERVICES
+# ---------------------------------------------------
 
 caldera_client = CalderaClient(
     base_url=Config.CALDERA_URL,
     api_key=Config.CALDERA_KEY,
 )
+
 operation_manager = OperationManager(caldera_client)
 risk_scorer = RiskScorer()
 
@@ -45,25 +51,51 @@ db = Database(
     password=Config.MYSQL_PASS,
     database=Config.MYSQL_DB,
 )
+
 try:
     db.init_schema()
 except Exception:
-    log.exception('Database schema initialization skipped or failed')
+    log.exception("Database schema initialization skipped or failed")
 
+
+# ---------------------------------------------------
+# HELPERS
+# ---------------------------------------------------
 
 def _scan_summary(scan_result, parsed_results):
     return {
-        'target_ip': session.get('target_ip', ''),
-        'port_range': session.get('port_range', '1-1024'),
-        'output_file': scan_result.get('output_file', '') if isinstance(scan_result, dict) else '',
-        'os': parsed_results.get('os', 'Unknown') if isinstance(parsed_results, dict) else 'Unknown',
-        'ports': parsed_results.get('ports', []) if isinstance(parsed_results, dict) else [],
+        "target_ip": session.get("target_ip", ""),
+        "port_range": session.get("port_range", "1-1024"),
+        "output_file": scan_result.get("output_file", "")
+        if isinstance(scan_result, dict)
+        else "",
+        "os": parsed_results.get("os", "Unknown")
+        if isinstance(parsed_results, dict)
+        else "Unknown",
+        "ports": parsed_results.get("ports", [])
+        if isinstance(parsed_results, dict)
+        else [],
     }
 
 
-def _attack_plan(mapping_results, mode, selected_ids):
-    return select_attack_mode(mapping_results, mode=mode, selected_ids=selected_ids)
+def _safe_risk_calculate(vulns, op_results):
+    """
+    Handles missing / broken risk scorer gracefully.
+    """
+    try:
+        return risk_scorer.calculate(vulns, op_results)
+    except Exception as e:
+        log.warning(f"Risk score fallback triggered: {e}")
+        return {
+            "score": 50,
+            "label": "Medium",
+            "colour": "orange",
+        }
 
+
+# ---------------------------------------------------
+# ROUTES
+# ---------------------------------------------------
 
 @app.route("/")
 def index():
@@ -82,13 +114,13 @@ def scan():
         parsed_results = parse_nmap_xml(scan_result["output_file"])
         mapping_results = map_vulnerabilities(parsed_results)
 
-        session['target_ip'] = target
-        session['port_range'] = ports or '1-1024'
-        session['scan_output_file'] = scan_result.get('output_file', '')
-        session['mapping_results'] = mapping_results
+        session["target_ip"] = target
+        session["port_range"] = ports or "1-1024"
+        session["scan_output_file"] = scan_result.get("output_file", "")
+        session["mapping_results"] = mapping_results
 
         return render_template(
-            'results_full_dashboard.html',
+            "results_full_dashboard.html",
             scan=_scan_summary(scan_result, parsed_results),
             results=parsed_results,
             mapping=mapping_results,
@@ -97,15 +129,24 @@ def scan():
             risk=None,
             remediations=[],
         )
+
     except (NmapScanError, NmapParseError, ValueError) as error:
         return render_template("error.html", error_message=str(error))
 
 
+# ---------------------------------------------------
+# CONFIRM PLAN (ONLY ONE VERSION - FIXED)
+# ---------------------------------------------------
+
 @app.route("/confirm-plan", methods=["POST"])
 def confirm_attack_plan():
     scan_file = request.form.get("scan_file")
-    mode = request.form.get("mode")
+    mode = request.form.get("mode", "hybrid")
     selected_ids = request.form.getlist("selected_techniques")
+
+    if not selected_ids:
+        flash("No techniques selected.")
+        return redirect(url_for("results"))
 
     try:
         parsed_results = parse_nmap_xml(scan_file)
@@ -116,57 +157,102 @@ def confirm_attack_plan():
             mode=mode,
             selected_ids=selected_ids,
         )
-        session['attack_plan'] = attack_plan
+
+        session["attack_plan"] = attack_plan
+        session["selected_technique_ids"] = selected_ids
+
         return render_template(
-            'results_full_dashboard.html',
+            "results_full_dashboard.html",
             scan={
-                'target_ip': session.get('target_ip', ''),
-                'port_range': session.get('port_range', '1-1024'),
-                'output_file': scan_file,
-                'os': parsed_results.get('os', 'Unknown'),
-                'ports': parsed_results.get('ports', []),
+                "target_ip": session.get("target_ip", ""),
+                "port_range": session.get("port_range", "1-1024"),
+                "output_file": scan_file,
+                "os": parsed_results.get("os", "Unknown"),
+                "ports": parsed_results.get("ports", []),
             },
             results=parsed_results,
             mapping=mapping_results,
             attack_plan=attack_plan,
-            operation_results=session.get('operation_results'),
-            risk=session.get('risk_score'),
-            remediations=session.get('remediations', []),
+            operation_results=session.get("operation_results"),
+            risk=session.get("risk_score"),
+            remediations=session.get("remediations", []),
         )
+
     except (NmapParseError, ValueError) as error:
         return render_template("error.html", error_message=str(error))
 
+
+# ---------------------------------------------------
+# CALDERA
+# ---------------------------------------------------
 
 @app.route("/caldera/status", methods=["GET"])
 def caldera_status():
     return jsonify(operation_manager.check_readiness())
 
-
+@app.route("/caldera/operation/status", methods=["GET"])
+def operation_status():
+    return jsonify(session.get("operation_results", {}))
+    
 @app.route("/caldera/run", methods=["POST"])
 def caldera_run():
-    data = request.get_json() or {}
+    try:
+        data = request.get_json(silent=True) or {}
 
-    adversary_id = data.get("adversary_id")
-    selected_techniques = data.get("selected_techniques", [])
-    group = data.get("group", "red")
-    planner_id = data.get("planner_id")
+        selected_techniques = data.get("selected_techniques", [])
 
-    if not adversary_id:
+        if not selected_techniques:
+            return jsonify({
+                "ok": False,
+                "error": "No techniques selected"
+            }), 400
+
+        result = operation_manager.run_operation(
+            technique_ids=selected_techniques,
+            group=data.get("group", "red"),
+        )
+
+        if not isinstance(result, dict):
+            return jsonify({
+                "ok": False,
+                "error": "Invalid response from operation manager"
+            }), 500
+
+        if not result.get("success", True):
+            return jsonify(result), 500
+
+        # Risk score
+        vulns = session.get("vulnerabilities", [])
+        risk = _safe_risk_calculate(vulns, result)
+
+        # Remediation
+        try:
+            remediations = risk_scorer.get_all_remediations(result)
+        except Exception:
+            remediations = []
+
+        session["operation_results"] = result
+        session["risk_score"] = risk
+        session["remediations"] = remediations
+
         return jsonify({
-            'ok': False, 
-            'message': 'Missing adversary_id.'}), 400
-    
-    result = operation_manager.start_operation(
-        adversary_id=adversary_id,
-        selected_techniques=selected_techniques,
-        group=group,
-        planner_id=planner_id,
-    )
-    if result.get('ok') and isinstance(result.get('operation'), dict):
-        session['operation_results'] = result['operation']
-        session['adversary_id'] = adversary_id
-    status_code = 200 if result.get("ok") else 400
-    return jsonify(result), status_code
+            "ok": True,
+            "success": True,
+            "operation_id": result.get("operation_id"),
+            "total": result.get("total", 0),
+            "success_count": result.get("success_count", 0),
+            "fail_count": result.get("fail_count", 0),
+            "risk_score": risk["score"],
+            "risk_label": risk["label"],
+            "risk_colour": risk["colour"],
+            "remediations": remediations,
+        })
+
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
 
 
 @app.route("/caldera/operation/<operation_id>", methods=["GET"])
@@ -174,129 +260,125 @@ def caldera_operation(operation_id):
     return jsonify(operation_manager.poll_operation(operation_id))
 
 
-@app.route('/attack/status', methods=['GET'])
-def attack_status():
-    op_id = request.args.get('operation_id')
-    return jsonify(operation_manager.client.get_operation(op_id) if op_id else {'state': 'unknown'})
+# ---------------------------------------------------
+# RESULTS PAGE
+# ---------------------------------------------------
 
+@app.route("/results")
+def results():
+    scan = {
+        "target_ip": session.get("target_ip", ""),
+        "port_range": session.get("port_range", "1-1024"),
+        "output_file": session.get("scan_output_file", ""),
+    }
 
-@app.route('/attack/execute', methods=['POST'])
-def execute_attack():
-    data = request.get_json(silent=True) or {}
-    technique_ids = data.get('technique_ids', [])
-    scan_id = session.get('scan_id')
-    vulns = session.get('vulnerabilities', [])
-    if not scan_id:
-        return jsonify({'success': False, 'error': 'No scan_id found'}), 400
-    if not technique_ids:
-        return jsonify({'success': False, 'error': 'No techniques selected'}), 400
-    op_results = operation_manager.run_operation(
-        technique_ids=technique_ids,
-        group=Config.AGENT_GROUP,
-        timeout=Config.OPERATION_TIMEOUT,
+    parsed_results = None
+    mapping_results = session.get("mapping_results", [])
+
+    if scan["output_file"]:
+        try:
+            parsed_results = parse_nmap_xml(scan["output_file"])
+            scan["os"] = parsed_results.get("os", "Unknown")
+            scan["ports"] = parsed_results.get("ports", [])
+        except Exception:
+            scan["os"] = "Unknown"
+            scan["ports"] = []
+    else:
+        scan["os"] = "Unknown"
+        scan["ports"] = []
+
+    return render_template(
+        "results_full_dashboard.html",
+        scan=scan,
+        results=parsed_results or {
+            "os": scan["os"],
+            "ports": scan["ports"],
+        },
+        mapping=mapping_results,
+        attack_plan=session.get("attack_plan"),
+        operation_results=session.get("operation_results"),
+        risk=session.get("risk_score"),
+        remediations=session.get("remediations", []),
     )
-    if not op_results.get('success'):
-        return jsonify(op_results), 500
-    risk = risk_scorer.calculate(vulns, op_results)
-    remediations = risk_scorer.get_all_remediations(op_results)
-    db.save_operation(scan_id, op_results, risk['score'])
-    session['operation_results'] = op_results
-    session['risk_score'] = risk
-    session['remediations'] = remediations
+
+
+# ---------------------------------------------------
+# SAVE DATA
+# ---------------------------------------------------
+
+@app.route("/scan/save", methods=["POST"])
+def save_scan():
+    scan_results = request.get_json(silent=True) or {}
+
+    target_ip = session.get("target_ip")
+    port_range = session.get("port_range", "1-1024")
+
+    if not target_ip:
+        return jsonify({
+            "success": False,
+            "error": "No target_ip in session"
+        }), 400
+
+    scan_id = db.save_scan(target_ip, scan_results, port_range)
+    session["scan_id"] = scan_id
+
     return jsonify({
-        'success': True,
-        'operation_id': op_results['operation_id'],
-        'total': op_results['total'],
-        'success_count': op_results['success_count'],
-        'fail_count': op_results['fail_count'],
-        'risk_score': risk['score'],
-        'risk_label': risk['label'],
-        'risk_colour': risk['colour'],
-        'techniques': op_results['techniques_run'],
-        'remediations': remediations,
+        "success": True,
+        "scan_id": scan_id
     })
 
 
-@app.route('/results')
-def results():
-    scan = {
-        'target_ip': session.get('target_ip', ''),
-        'port_range': session.get('port_range', '1-1024'),
-        'output_file': session.get('scan_output_file', ''),
-    }
-    parsed_results = None
-    if scan['output_file']:
-        try:
-            parsed_results = parse_nmap_xml(scan['output_file'])
-            scan['os'] = parsed_results.get('os', 'Unknown')
-            scan['ports'] = parsed_results.get('ports', [])
-            mapping_results = session.get('mapping_results') or map_vulnerabilities(parsed_results)
-        except Exception:
-            mapping_results = session.get('mapping_results', [])
-    else:
-        mapping_results = session.get('mapping_results', [])
-        scan['os'] = 'Unknown'
-        scan['ports'] = []
-    attack_plan = session.get('attack_plan')
-    if not attack_plan and mapping_results:
-        attack_plan = {'techniques': []}
-    return render_template(
-        'results_full_dashboard.html',
-        scan=scan,
-        results=parsed_results or {'os': scan.get('os', 'Unknown'), 'ports': scan.get('ports', [])},
-        mapping=mapping_results,
-        attack_plan=attack_plan,
-        operation_results=session.get('operation_results'),
-        risk=session.get('risk_score'),
-        remediations=session.get('remediations', []),
-    )
+@app.route("/vulnerabilities/save", methods=["POST"])
+def save_vulnerabilities():
+    data = request.get_json(silent=True) or {}
+
+    vulns = data.get("vulnerabilities", [])
+    scan_id = session.get("scan_id")
+
+    if not scan_id:
+        return jsonify({
+            "success": False,
+            "error": "No scan_id in session"
+        }), 400
+
+    db.save_vulnerabilities(scan_id, vulns)
+    session["vulnerabilities"] = vulns
+
+    return jsonify({
+        "success": True,
+        "count": len(vulns)
+    })
 
 
-@app.route('/report/export', methods=['GET'])
+# ---------------------------------------------------
+# REPORT EXPORT
+# ---------------------------------------------------
+
+@app.route("/report/export", methods=["GET"])
 def export_report():
     from reports.report_generator import generate_pdf_report
-    scan_id = session.get('scan_id')
-    op_results = session.get('operation_results')
-    risk = session.get('risk_score')
-    remediations = session.get('remediations', [])
+
+    scan_id = session.get("scan_id")
+    op_results = session.get("operation_results")
+    risk = session.get("risk_score")
+    remediations = session.get("remediations", [])
+
     if not op_results:
-        return 'No results to export', 400
-    pdf_path = generate_pdf_report(scan_id=scan_id, operation=op_results, risk=risk, remediations=remediations)
+        return "No results to export", 400
+
+    pdf_path = generate_pdf_report(
+        scan_id=scan_id,
+        operation=op_results,
+        risk=risk,
+        remediations=remediations,
+    )
+
     return send_file(pdf_path, as_attachment=True)
 
 
-@app.route('/scan/save', methods=['POST'])
-def save_scan():
-    scan_results = request.get_json(silent=True) or {}
-    target_ip = session.get('target_ip')
-    port_range = session.get('port_range', '1-1024')
-    if not target_ip:
-        return jsonify({'success': False, 'error': 'No target_ip in session'}), 400
-    scan_id = db.save_scan(target_ip, scan_results, port_range)
-    session['scan_id'] = scan_id
-    return jsonify({'success': True, 'scan_id': scan_id})
-
-
-@app.route('/vulnerabilities/save', methods=['POST'])
-def save_vulnerabilities():
-    data = request.get_json(silent=True) or {}
-    vulns = data.get('vulnerabilities', [])
-    scan_id = session.get('scan_id')
-    if not scan_id:
-        return jsonify({'success': False, 'error': 'No scan_id in session'}), 400
-    db.save_vulnerabilities(scan_id, vulns)
-    session['vulnerabilities'] = vulns
-    return jsonify({'success': True, 'count': len(vulns)})
-
-
-@app.route('/agent/check', methods=['GET'])
-def check_agent():
-    available, info = operation_manager.check_agent(Config.AGENT_GROUP)
-    if available:
-        return jsonify({'agent_ready': True, 'host': info.get('host', 'unknown'), 'paw': info.get('paw', '')})
-    deploy_cmd = operation_manager.get_deploy_command(kali_ip=Config.KALI_IP, group=Config.AGENT_GROUP)
-    return jsonify({'agent_ready': False, 'error': info, 'deploy_command': deploy_cmd})
-
+# ---------------------------------------------------
+# RUN
+# ---------------------------------------------------
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
