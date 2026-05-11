@@ -4,14 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AutoPenTest Scanner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <main class="page">
+  <main class="page input-page">
     <section class="hero">
-      <p class="eyebrow">AutoPenTest · P2/P3</p>
-      <h1>Scanner + Vulnerability Mapping</h1>
-      <p class="muted">Run controlled Nmap enumeration, parse port states, map services to vulnerability context, and prepare recommendations for Caldera attack-mode selection.</p>
+      <p class="eyebrow">Automated Penetration Testing Platform</p>
+      <h1>Scan Configuration</h1>
+      <p class="muted">
+        Configure your scan settings to start analyzing the target system.
+      </p>
     </section>
 
     <section class="card form-card">
@@ -49,6 +52,11 @@
       </form>
     </section>
   </main>
+  <footer class="footer">
+  <p>
+    Automated Penetration Testing · Group 6 · Last updated: 5 May 2026
+  </p>
+</footer>
 </body>
 </html>
 <!-- done by nao & mat -->

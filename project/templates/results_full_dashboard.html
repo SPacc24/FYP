@@ -10,14 +10,40 @@
 <body>
   <main class="page">
 
-    <section class="hero">
-      <p class="eyebrow">AutoPenTest · Full Flow</p>
-      <h1>Scanning, Caldera, Risk, and Report</h1>
-      <p class="muted">
-        Review scan results, pick an attack mode, launch Caldera,
-        watch live execution, and export the final report.
-      </p>
-    </section>
+  <nav class="navbar">
+  <div class="nav-inner">
+    <a class="nav-brand" href="{{ url_for('index') }}">
+      <span class="nav-logo">◆</span>
+      <span>AutoPenTest</span>
+    </a>
+
+    <div class="nav-links">
+      <a href="#caldera">Caldera</a>
+      <a href="#scan">Scan</a>
+      <a href="#vuln">Vulnerabilities</a>
+      <a href="#attack">Attack Mode</a>
+      <a href="#techniques">Techniques</a>
+      <a href="#execution">Execution</a>
+      <a href="#results">Results</a>
+      <a href="#risk">Risk</a>
+    </div>
+
+    <a class="nav-action" href="{{ url_for('index') }}">
+      Run Another Scan
+    </a>
+  </div>
+</nav>
+
+   <section class="hero">
+  <p class="eyebrow">AUTOMATED PENETRATION TESTING PLATFORM</p>
+
+  <h1>Security Assessment Dashboard</h1>
+
+  <p class="muted">
+    Review scan findings, analyze vulnerabilities, build attack plans,
+    execute Caldera operations, and evaluate overall risk posture.
+  </p>
+</section>
 
     <section class="grid summary-grid">
       <article class="card">
@@ -38,7 +64,7 @@
       </article>
     </section>
 
-    <section class="card top-gap">
+    <section class="card top-gap" id="caldera">
       <h2>Caldera Status</h2>
       <div id="calderaStatusBox" class="os-box">
         <p class="muted">Checking Caldera agent status...</p>
@@ -50,7 +76,7 @@
       </div>
     </section>
 
-    <section class="card top-gap">
+    <section class="card top-gap" id="scan">
       <h2>Scan Findings</h2>
 
       {% if results %}
@@ -96,7 +122,7 @@
       {% endif %}
     </section>
 
-    <section class="card top-gap">
+    <section class="card top-gap" id="vuln">
       <h2>Vulnerability Mapping</h2>
 
       {% if mapping and mapping.vulnerabilities %}
@@ -139,7 +165,7 @@
       {% endif %}
     </section>
 
-    <section class="card top-gap">
+    <section class="card top-gap" id="attack">
       <h2>Recommended Attack Mode</h2>
       <p class="muted">
         Choose how the technique set should be built from the scan and vulnerability context.
@@ -154,7 +180,7 @@
 
         <label class="mode-card preferred">
           <input type="radio" name="mode" value="hybrid" form="attackPlanForm" checked />
-          <h3>Hybrid ⭐</h3>
+          <h3>Hybrid</h3>
           <p class="small">Recommended. Review before confirming.</p>
         </label>
 
@@ -166,7 +192,7 @@
       </div>
     </section>
 
-    <section class="card top-gap">
+    <section class="card top-gap" id="techniques">
       <h2>Technique Selection</h2>
 
       <form id="attackPlanForm" action="{{ url_for('confirm_attack_plan') }}" method="POST">
@@ -235,7 +261,7 @@
       </form>
     </section>
 
-    <section class="card top-gap">
+    <section class="card top-gap" id="execution">
       <h2>Caldera Execution</h2>
 
       <div class="actions">
@@ -248,7 +274,7 @@
       </div>
     </section>
 
-    <section class="card top-gap">
+    <section class="card top-gap" id="results">
       <h2>Execution Results</h2>
 
       <div class="table-wrap" id="executionResults">
@@ -271,7 +297,7 @@
         </table>
       </div>
     </section>
-    <section class="card top-gap">
+    <section class="card top-gap" id="risk">
   <h2>Risk Summary</h2>
   <div class="grid summary-grid">
     <article class="card">
@@ -301,6 +327,10 @@
   </div>
 </section>
   </main>
+
+  <footer class="footer">
+    <p>Automated Penetration Testing · Group 6 · Last updated: 5 May 2026</p>
+  </footer>
 
   <script>
     function applyModeBehavior() {
