@@ -58,6 +58,9 @@ project/
    CALDERA_API_KEY=your-caldera-api-key
    AGENT_GROUP=red
    KALI_IP=192.168.xx.xx
+   OLLAMA_URL=http://localhost:11434/api/generate
+   OLLAMA_MODEL=llama3.2:1b
+   OLLAMA_TIMEOUT=120
    OPERATION_TIMEOUT=180
    MYSQL_HOST=192.168.xx.xx
    MYSQL_USER=autopentest
@@ -66,6 +69,17 @@ project/
    ```
 
 4. Ensure MITRE Caldera is running and accessible.
+
+5. If you want AI-assisted technique reasoning, install and start Ollama, then
+   pull the configured model:
+   ```bash
+   ollama serve
+   ollama pull llama3.2:1b
+   ```
+
+   The app uses `http://localhost:11434/api/generate` by default. If Ollama is
+   unavailable, scans still complete and AutoPenTest falls back to deterministic
+   mapped technique selection.
 
 ## Usage
 

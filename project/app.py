@@ -4,7 +4,9 @@
 # edited
 from ai.technique_planner import generate_ai_technique_plan
 from ai.llm_client import ask_llm_text
+from ai.safety import SAFE_REFUSAL, is_unsafe_user_request, sanitize_llm_reply
 import json
+import os
 
 from flask import (
     Flask,
@@ -29,6 +31,7 @@ from caldera.api_client import CalderaClient
 from caldera.operation_manager import OperationManager
 
 from caldera.risk_scorer import RiskScorer
+from reports.report_generator import build_report_summary
 from storage.db import Database
 
 logging.basicConfig(level=logging.INFO)
@@ -115,6 +118,12 @@ def ai_chat():
                 "reply": "Please enter a question."
             }), 400
 
+        if is_unsafe_user_request(user_message):
+            return jsonify({
+                "ok": False,
+                "reply": SAFE_REFUSAL
+            }), 400
+
         mapping_results = session.get("mapping_results", {})
         ai_plan = session.get("ai_plan", {})
         attack_plan = session.get("attack_plan", {})
@@ -196,7 +205,7 @@ User question:
 Reply:
 """
 
-        reply = ask_llm_text(prompt)
+        reply = sanitize_llm_reply(ask_llm_text(prompt))
 
         return jsonify({
             "ok": True,
@@ -235,11 +244,13 @@ def scan():
         parsed_results = parse_nmap_xml(scan_result["output_file"])
         mapping_results = map_vulnerabilities(parsed_results) ##edited
         ai_plan = generate_ai_technique_plan(mapping_results, preferred_mode=technique_mode) ##edited
+        risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), {})
 
         session["target_ip"] = target
         session["port_range"] = ports or "1-1024"
         session["scan_output_file"] = scan_result.get("output_file", "")
         session["mapping_results"] = mapping_results
+        session["risk_score"] = risk
 
         #edited
         session["technique_mode"] = technique_mode
@@ -256,7 +267,7 @@ def scan():
             selected_mode=technique_mode,  #edited
             attack_plan=None,
             operation_results=None,
-            risk=None,
+            risk=risk,
             remediations=[],
         )
 
@@ -304,26 +315,37 @@ def caldera_run():
             return jsonify(result), 500
 
         # Risk score
-        vulns = data.get("vulnerabilities") or session.get("vulnerabilities", [])
+        mapping_results = session.get("mapping_results", {})
+        vulns = data.get("vulnerabilities") or session.get("vulnerabilities") or mapping_results.get("vulnerabilities", [])
+        session["vulnerabilities"] = vulns
         risk = _safe_risk_calculate(vulns, result)
 
         # Remediation
+        vulnerability_remediations = []
         try:
-            remediations = risk_scorer.get_all_remediations(result)
+            vulnerability_remediations = risk_scorer.get_vulnerability_remediations(mapping_results)
         except Exception:
-            remediations = []
+            vulnerability_remediations = []
+
+        technique_remediations = []
+        try:
+            technique_remediations = risk_scorer.get_all_remediations(result)
+        except Exception:
+            technique_remediations = []
+
+        remediations = vulnerability_remediations + technique_remediations
 
         session["operation_results"] = result
         session["risk_score"] = risk
         session["remediations"] = remediations
 
         return jsonify({
-    "ok": True,
-    "success": True,
-    **result,
-    "risk": risk,
-    "remediations": remediations,
-})
+            "ok": True,
+            "success": True,
+            **result,
+            "risk": risk,
+            "remediations": remediations,
+        })
 
     except Exception as e:
         return jsonify({
@@ -351,6 +373,7 @@ def results():
 
     parsed_results = None
     mapping_results = session.get("mapping_results", [])
+    risk = session.get("risk_score")
 
     if scan["output_file"]:
         try:
@@ -364,6 +387,10 @@ def results():
         scan["os"] = "Unknown"
         scan["ports"] = []
 
+    if not risk and isinstance(mapping_results, dict):
+        risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), {})
+        session["risk_score"] = risk
+
     return render_template(
         "results_full_dashboard.html",
         scan=scan,
@@ -376,9 +403,39 @@ def results():
         selected_mode=session.get("technique_mode", "hybrid"), #edited
         attack_plan=session.get("attack_plan"),
         operation_results=session.get("operation_results"),
-        risk=session.get("risk_score"),
+        risk=risk,
         remediations=session.get("remediations", []),
     )
+
+
+@app.route("/generate_report", methods=["POST"])
+def generate_report():
+    data = request.get_json(silent=True) or {}
+
+    scan = {
+        "target_ip": session.get("target_ip", data.get("target") or "Unknown"),
+        "port_range": session.get("port_range", data.get("port_range") or "1-1024"),
+        "output_file": session.get("scan_output_file", ""),
+    }
+
+    mapping_results = session.get("mapping_results", {})
+    operation_results = session.get("operation_results", {})
+    risk = session.get("risk_score", {})
+    remediations = session.get("remediations", [])
+
+    report = build_report_summary(
+        scan=scan,
+        mapping=mapping_results,
+        operation=operation_results,
+        risk=risk,
+        remediations=remediations,
+    )
+
+    return jsonify({
+        "ok": True,
+        "report": report,
+        "download_url": url_for("export_report") if operation_results else None,
+    })
 
 
 # ---------------------------------------------------
@@ -435,24 +492,35 @@ def save_vulnerabilities():
 
 @app.route("/report/export", methods=["GET"])
 def export_report():
-    from reports.report_generator import generate_pdf_report
+    from reports.report_generator import generate_text_report
 
-    scan_id = session.get("scan_id")
+    scan = {
+        "target_ip": session.get("target_ip", "Unknown"),
+        "port_range": session.get("port_range", "1-1024"),
+        "output_file": session.get("scan_output_file", ""),
+    }
+    mapping_results = session.get("mapping_results", {})
     op_results = session.get("operation_results")
-    risk = session.get("risk_score")
+    risk = session.get("risk_score", {})
     remediations = session.get("remediations", [])
 
     if not op_results:
         return "No results to export", 400
 
-    pdf_path = generate_pdf_report(
-        scan_id=scan_id,
+    report_path = generate_text_report(
+        scan=scan,
+        mapping=mapping_results,
         operation=op_results,
         risk=risk,
         remediations=remediations,
     )
 
-    return send_file(pdf_path, as_attachment=True)
+    return send_file(
+        report_path,
+        as_attachment=True,
+        download_name=os.path.basename(report_path),
+        mimetype="text/plain",
+    )
 
 
 # ---------------------------------------------------

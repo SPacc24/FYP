@@ -26,6 +26,15 @@ MITRE_CACHE_TTL_SECONDS = 60 * 60 * 24 * 7
 CVE_CACHE_TTL_SECONDS = 60 * 60 * 24
 
 REQUEST_TIMEOUT = 12
+MAX_SELECTED_TECHNIQUES = 5
+
+
+DEFAULT_AI_NEXT_STEPS = [
+    "Review the mapped MITRE ATT&CK techniques and linked CVEs.",
+    "Check CALDERA ability coverage for each selected technique.",
+    "Run only supported techniques within the authorised lab environment.",
+    "Flag unsupported techniques as manual validation or reporting items.",
+]
 
 
 def build_mitre_url(technique_id: str) -> str:
@@ -498,8 +507,8 @@ def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
 
 def safe_json_loads(raw: str) -> dict:
     try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
+        parsed = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
         return {
             "selected_technique_ids": [],
             "reasoning": (
@@ -507,13 +516,35 @@ def safe_json_loads(raw: str) -> dict:
                 "mapped techniques for analyst review."
             ),
             "technique_explanations": [],
-            "next_steps": [
-                "Review the mapped MITRE ATT&CK techniques and linked CVEs.",
-                "Check CALDERA ability coverage for each selected technique.",
-                "Run only supported techniques within the authorised lab environment.",
-                "Flag unsupported techniques as manual validation or reporting items.",
-            ],
+            "next_steps": DEFAULT_AI_NEXT_STEPS,
         }
+
+    if not isinstance(parsed, dict):
+        return {
+            "selected_technique_ids": [],
+            "reasoning": (
+                "The LLM returned an unexpected JSON shape. Falling back to the "
+                "highest-priority mapped techniques for analyst review."
+            ),
+            "technique_explanations": [],
+            "next_steps": DEFAULT_AI_NEXT_STEPS,
+        }
+
+    return parsed
+
+
+def clean_text_list(value: Any, fallback: list[str]) -> list[str]:
+    if not isinstance(value, list):
+        return fallback
+
+    cleaned = []
+
+    for item in value:
+        text = shorten_text(str(item), 220)
+        if text:
+            cleaned.append(text)
+
+    return cleaned or fallback
 
 
 def normalise_technique_explanations(
@@ -612,7 +643,7 @@ def choose_fallback_selected_ids(allowed_techniques: list[dict]) -> list[str]:
         if technique_id and technique_id not in selected:
             selected.append(technique_id)
 
-        if len(selected) >= 5:
+        if len(selected) >= MAX_SELECTED_TECHNIQUES:
             break
 
     return selected
@@ -713,11 +744,21 @@ Return JSON exactly in this shape:
         if tech.get("id")
     }
 
-    selected_ids = [
-        tid
-        for tid in plan.get("selected_technique_ids", [])
-        if tid in allowed_ids
-    ]
+    raw_selected_ids = plan.get("selected_technique_ids", [])
+
+    if not isinstance(raw_selected_ids, list):
+        raw_selected_ids = []
+
+    selected_ids = []
+
+    for tid in raw_selected_ids:
+        technique_id = str(tid).strip()
+
+        if technique_id in allowed_ids and technique_id not in selected_ids:
+            selected_ids.append(technique_id)
+
+        if len(selected_ids) >= MAX_SELECTED_TECHNIQUES:
+            break
 
     if not selected_ids:
         selected_ids = choose_fallback_selected_ids(allowed_techniques)
@@ -736,16 +777,16 @@ Return JSON exactly in this shape:
         "recommended_mode": preferred_mode,
 
         "selected_technique_ids": selected_ids,
-        "reasoning": plan.get(
+        "reasoning": shorten_text(plan.get(
             "reasoning",
             (
                 "The selected techniques were prioritised because they match the mapped scan "
                 "findings, linked CVE context, and MITRE ATT&CK relevance."
             ),
-        ),
+        ), 900),
         "technique_explanations": technique_explanations,
-        "next_steps": plan.get(
-            "next_steps",
+        "next_steps": clean_text_list(
+            plan.get("next_steps"),
             [
                 "Check CALDERA ability coverage for the selected technique IDs.",
                 "Run only supported techniques inside the authorised lab.",
