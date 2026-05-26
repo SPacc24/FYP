@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///C:/Program Files (x86)/Nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Mon May 25 14:44:05 2026 as: &quot;C:\\Program Files (x86)\\Nmap\\nmap.exe&quot; -Pn -T 3 -p 443 -oX C:\\Users\\65848\\Desktop\\FYP\\FYP\\project\\storage\\scans\\scan_192.168.86.130_20260525_144405_2d2cb0d0.xml -sV -sC 192.168.86.130 -->
+<nmaprun scanner="nmap" args="&quot;C:\\Program Files (x86)\\Nmap\\nmap.exe&quot; -Pn -T 3 -p 443 -oX C:\\Users\\65848\\Desktop\\FYP\\FYP\\project\\storage\\scans\\scan_192.168.86.130_20260525_144405_2d2cb0d0.xml -sV -sC 192.168.86.130" start="1779691445" startstr="Mon May 25 14:44:05 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="1" services="443"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<host starttime="1779691446" endtime="1779691453"><status state="up" reason="user-set" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<hostnames>
+</hostnames>
+<ports><port protocol="tcp" portid="443"><state state="filtered" reason="no-response" reason_ttl="0"/><service name="https" method="table" conf="3"/></port>
+</ports>
+</host>
+<runstats><finished time="1779691453" timestr="Mon May 25 14:44:13 2026" summary="Nmap done at Mon May 25 14:44:13 2026; 1 IP address (1 host up) scanned in 8.02 seconds" elapsed="8.02" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

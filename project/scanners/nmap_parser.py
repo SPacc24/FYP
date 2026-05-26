@@ -63,20 +63,56 @@ def parse_hostnames(host: ET.Element) -> list[str]:
 
 def parse_os_info(host: ET.Element) -> dict[str, str]:
     osmatch = host.find("os/osmatch")
-    if osmatch is None:
-        return {"name": "Unknown", "accuracy": "", "line": ""}
+    if osmatch is not None:
+        return {
+            "name": osmatch.get("name", "Unknown"),
+            "accuracy": osmatch.get("accuracy", ""),
+            "line": osmatch.get("line", ""),
+        }
 
-    return {
-        "name": osmatch.get("name", "Unknown"),
-        "accuracy": osmatch.get("accuracy", ""),
-        "line": osmatch.get("line", ""),
-    }
+    smb_os = host.find("hostscript/script[@id='smb-os-discovery']/elem[@key='os']")
+    if smb_os is not None and _text(smb_os):
+        return {"name": _text(smb_os), "accuracy": "script", "line": ""}
+
+    for service in host.findall("ports/port/service"):
+        ostype = service.get("ostype", "")
+        product = service.get("product", "")
+
+        if ostype:
+            if product and ostype.lower() in product.lower():
+                return {"name": product, "accuracy": "service", "line": ""}
+            return {"name": ostype, "accuracy": "service", "line": ""}
+
+        for cpe in service.findall("cpe"):
+            cpe_text = _text(cpe)
+            if cpe_text.startswith("cpe:/o:"):
+                return {"name": cpe_text.replace("cpe:/o:", "").replace(":", " "), "accuracy": "cpe", "line": ""}
+
+    return {"name": "Unknown", "accuracy": "", "line": ""}
 
 
 def parse_scripts(port: ET.Element) -> list[dict[str, str]]:
     scripts = []
     for script in port.findall("script"):
         scripts.append({"id": script.get("id", ""), "output": script.get("output", "")})
+    return scripts
+
+
+def parse_host_scripts(host: ET.Element) -> list[dict[str, Any]]:
+    scripts = []
+
+    for script in host.findall("hostscript/script"):
+        elems = {
+            elem.get("key", ""): _text(elem)
+            for elem in script.findall("elem")
+            if elem.get("key")
+        }
+        scripts.append({
+            "id": script.get("id", ""),
+            "output": script.get("output", ""),
+            "elements": elems,
+        })
+
     return scripts
 
 
@@ -178,6 +214,7 @@ def parse_nmap_xml(xml_file: str | Path) -> dict[str, Any]:
             "status": _attr(status, "state", "unknown"),
             "status_reason": _attr(status, "reason"),
             "os": parse_os_info(host),
+            "host_scripts": parse_host_scripts(host),
             "open_ports": [p for p in port_findings if p["state"] == "open"],
             "filtered_ports": [p for p in port_findings if p["state"] == "filtered"],
             "closed_ports": [p for p in port_findings if p["state"] == "closed"],

@@ -12,6 +12,16 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
+
+def build_mitre_url(technique_id: str) -> str:
+    technique_id = str(technique_id or "").strip()
+    if not technique_id:
+        return "https://attack.mitre.org/"
+    if "." in technique_id:
+        main_id, sub_id = technique_id.split('.', 1)
+        return f"https://attack.mitre.org/techniques/{main_id}/{sub_id}/"
+    return f"https://attack.mitre.org/techniques/{technique_id}/"
+
 # ── Tactic weights (how dangerous each ATT&CK tactic is) ───────────────────
 # Based on MITRE ATT&CK impact assessment + industry standards
 TACTIC_WEIGHTS = {
@@ -30,6 +40,13 @@ TACTIC_WEIGHTS = {
 }
 
 DEFAULT_TACTIC_WEIGHT = 1.0
+SEVERITY_SCORE = {
+    'critical': 10.0,
+    'high': 8.0,
+    'medium': 5.0,
+    'low': 2.0,
+    'info': 0.0,
+}
 
 # Risk label thresholds 
 def get_risk_label(score: float) -> dict:
@@ -102,7 +119,8 @@ class RiskScorer:
         """
         if not vulnerabilities:
             return 0.0
-        scores = sorted([float(v.get('cve_score', 0.0) or 0.0) for v in vulnerabilities], reverse=True)
+
+        scores = sorted([self._finding_score(v) for v in vulnerabilities], reverse=True)
         
         if not scores:
             return 0.0
@@ -115,6 +133,36 @@ class RiskScorer:
 
         # Normalize to 0-5 (CVE contributes up to 50% of final score)
         return min(avg / 2.0, 5.0)
+
+    def _finding_score(self, finding: dict) -> float:
+        """
+        Convert mapper findings into a 0-10 risk value.
+
+        Older code expected cve_score only, but the mapper primarily emits
+        severity and priority_score. Supporting both keeps scan-stage risk
+        useful before any CALDERA operation runs.
+        """
+        for key in ('cve_score', 'cvss_score', 'priority_score'):
+            try:
+                score = float(finding.get(key, 0.0) or 0.0)
+            except (TypeError, ValueError):
+                score = 0.0
+
+            if score > 0:
+                return min(score, 10.0)
+
+        cve_scores = []
+        for match in finding.get('cve_matches', []) or []:
+            try:
+                cve_scores.append(float(match.get('score', 0.0) or match.get('cvss', 0.0) or 0.0))
+            except (TypeError, ValueError):
+                continue
+
+        if cve_scores:
+            return min(max(cve_scores), 10.0)
+
+        severity = str(finding.get('severity', 'info')).lower()
+        return SEVERITY_SCORE.get(severity, 0.0)
 
     # ATT&CK technique scoring
     def _score_attack(self, operation_results: dict) -> float:
@@ -251,7 +299,9 @@ class RiskScorer:
         # Match on partial technique ID
         for key, advice in remediation.items():
             if technique_id.startswith(key):
-                return advice
+                advice_copy = advice.copy()
+                advice_copy['mitre_url'] = build_mitre_url(technique_id)
+                return advice_copy
             
         # Default generic advice
         return {
@@ -263,8 +313,9 @@ class RiskScorer:
                 'Apply Principle of Least Privilege',
             ],
             'mitre_defend': 'See https://attack.mitre.org',
+            'mitre_url': build_mitre_url(technique_id),
         }
-
+    
     def get_all_remediations(self, operation_results: dict) -> list:
         remediations = []
         seen = set()
@@ -276,6 +327,33 @@ class RiskScorer:
                     advice['technique_id'] = tid
                     advice['technique_name'] = t.get('technique_name', '')
                     advice['tactic'] = t.get('tactic', '')
+                    advice['type'] = 'technique'
                     remediations.append(advice)
                     seen.add(tid)
         return remediations
+
+    def get_vulnerability_remediations(self, mapping_results: dict) -> list:
+        remediations = []
+        seen = set()
+
+        for vuln in mapping_results.get('vulnerabilities', []):
+            host = vuln.get('host', 'Unknown host')
+            port = vuln.get('port', 'Unknown port')
+            service = vuln.get('service', 'Unknown service')
+            key = (host, port, service, vuln.get('title'))
+
+            if key in seen:
+                continue
+            seen.add(key)
+
+            remediations.append({
+                'type': 'vulnerability',
+                'title': vuln.get('title', 'Vulnerability finding'),
+                'summary': vuln.get('cve_hint', vuln.get('recommendation', 'Review the finding and apply hardening.')),
+                'fixes': [vuln.get('recommendation', 'Review configuration and patch software.')],
+                'affected_host': host,
+                'affected_port': port,
+                'affected_service': service,
+                'severity': vuln.get('severity', 'Unknown'),
+            })
+

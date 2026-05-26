@@ -1,0 +1,135 @@
+<section class="flow-card large-flow-card" id="scan-vuln">
+  <div class="flow-card-header">
+    <span class="label">Assessment Stage 1</span>
+    <h2>Scan Findings & Vulnerability Mapping</h2>
+  </div>
+
+  <div class="summary-strip">
+    <article>
+      <span class="label">Target</span>
+      <strong>
+        {{ scan.target_ip if scan and scan.target_ip else session.get('target_ip', 'Unknown') }}
+      </strong>
+    </article>
+
+    <article>
+      <span class="label">Port Range</span>
+      <strong>
+        {{ scan.port_range if scan and scan.port_range else session.get('port_range', '1-1024') }}
+      </strong>
+    </article>
+
+    <article>
+      <span class="label">Selected Mode</span>
+      <strong>{{ active_mode | upper }}</strong>
+    </article>
+
+    <article>
+      <span class="label">Risk Score</span>
+      <strong>
+        {{ risk.score if risk and risk.score is defined else session.get('risk_score', {}).get('score', 'N/A') }}
+      </strong>
+    </article>
+  </div>
+
+  {% if results %}
+    <div class="mini-panel">
+      <p>
+        <span class="label">Operating System</span>
+        {{ results.os if results.os is defined else results.get('os', 'Unknown') }}
+      </p>
+
+      <p>
+        <span class="label">Open Ports</span>
+        {{ results.ports|length if results.ports is defined else results.get('ports', [])|length }}
+      </p>
+    </div>
+
+    <details class="details-block" open>
+      <summary>View Scan Findings</summary>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Port</th>
+              <th>State</th>
+              <th>Service</th>
+              <th>Version</th>
+              <th>Product</th>
+              <th>Extra</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for port in results.ports if results.ports %}
+              <tr>
+                <td class="mono">{{ port.port }}</td>
+                <td>
+                  <span class="state {{ port.state|lower }}">
+                    {{ port.state }}
+                  </span>
+                </td>
+                <td>{{ port.service }}</td>
+                <td>{{ port.version }}</td>
+                <td>{{ port.product }}</td>
+                <td class="small">{{ port.extrainfo }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  {% else %}
+    <p class="muted">No scan data available yet.</p>
+  {% endif %}
+
+  <details class="details-block" open>
+    <summary>View Vulnerability Mapping</summary>
+
+    {% if mapping and mapping.vulnerabilities %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Port</th>
+              <th>Service</th>
+              <th>CVE</th>
+              <th>Severity</th>
+              <th>Score</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for item in mapping.vulnerabilities %}
+              <tr>
+                <td class="mono">{{ item.port }}</td>
+                <td>{{ item.service }}</td>
+
+                <td>
+                  {% if item.cve_ids %}
+                    {{ item.cve_ids | join(', ') }}
+                  {% else %}
+                    None
+                  {% endif %}
+                </td>
+
+                <td>
+                  <span class="severity {{ item.severity|lower }}">
+                    {{ item.severity }}
+                  </span>
+                </td>
+
+                <td>{{ item.priority_score }}</td>
+                <td>{{ item.title }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No vulnerability matches yet.</p>
+    {% endif %}
+  </details>
+</section>

@@ -11,8 +11,6 @@ import logging
 from contextlib import closing
 from datetime import datetime
 
-import mysql.connector
-
 log = logging.getLogger(__name__)
 
 SCHEMA_SQL = """
@@ -83,6 +81,14 @@ class Database:
         }
 
     def _connect(self, include_db: bool = True):
+        try:
+            import mysql.connector
+        except ImportError as exc:
+            raise RuntimeError(
+                "mysql-connector-python is required for database access. "
+                "Install it with 'pip install mysql-connector-python'."
+            ) from exc
+
         cfg = dict(self.config)
         if not include_db:
             cfg.pop('database', None)

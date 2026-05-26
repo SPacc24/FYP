@@ -47,7 +47,18 @@
             <option value="deep">Deep - OS + aggressive version detection</option>
           </select>
         </label>
-
+        
+        <!-- edited -->
+<label>
+  <span class="label">Attack Technique Mode</span>
+  <select name="technique_mode" required>
+    <option value="auto">Auto - AI selects techniques automatically</option>
+    <option value="hybrid" selected>Hybrid - AI recommends, analyst can edit</option>
+    <option value="manual">Manual - analyst selects techniques manually</option>
+  </select>
+</label>
+<!-- edited -->
+ 
         <button class="button" type="submit">Run Scan</button>
       </form>
     </section>
@@ -59,5 +70,3 @@
 </footer>
 </body>
 </html>
-<!-- done by nao & mat -->
- 

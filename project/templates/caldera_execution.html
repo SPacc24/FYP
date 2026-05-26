@@ -1,0 +1,60 @@
+<section class="flow-card thin-flow-card" id="caldera-execution">
+  <div class="flow-card-header">
+    <span class="label">Assessment Stage 3</span>
+    <h2>Caldera Execution Based on Selected Techniques</h2>
+  </div>
+
+  <div id="calderaStatusBox" class="mini-panel">
+    <p class="muted">Checking Caldera agent status...</p>
+  </div>
+
+  <div id="deployCommandBox" class="command-box top-gap" style="display:none;">
+    <h3>Deploy Command</h3>
+    <code id="deployCommandText"></code>
+  </div>
+
+  <div class="actions">
+    <button class="button" id="runCalderaBtn" type="button">
+      Run Caldera
+    </button>
+
+    <button class="button secondary" id="refreshStatusBtn" type="button">
+      Refresh Status
+    </button>
+  </div>
+
+  <div id="operationBox" class="mini-panel top-gap">
+    <p class="muted">No operation started yet.</p>
+  </div>
+</section>
+
+<!-- EXECUTION RESULTS -->
+ <section class="flow-card" id="execution-results">
+  <div class="flow-card-header">
+    <span class="label">Assessment Stage 4</span>
+    <h2>Execution Results</h2>
+  </div>
+
+  <div class="table-wrap" id="executionResults">
+    <table>
+      <thead>
+        <tr>
+          <th>Technique</th>
+          <th>Name</th>
+          <th>Tactic</th>
+          <th>Status</th>
+          <th>Timestamp</th>
+          <th>Output</th>
+        </tr>
+      </thead>
+
+      <tbody id="techniqueResultsBody">
+        <tr>
+          <td colspan="6" class="small">
+            No execution results yet.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -1,0 +1,55 @@
+<section class="flow-card thin-flow-card" id="report">
+  <div class="flow-card-header">
+    <span class="label">Assessment Stage 5</span>
+    <h2>Generate AI-Assisted Report & Download Report</h2>
+  </div>
+
+  <p class="muted">
+    Generate a report summary from scan findings, AI recommendations, selected MITRE techniques,
+    Caldera execution results, and risk score.
+  </p>
+
+  <div class="summary-strip">
+    <article>
+      <span class="label">Score</span>
+      <strong id="riskScoreValue">
+        {{ risk.score if risk and risk.score is defined else 'N/A' }}
+      </strong>
+    </article>
+
+    <article>
+      <span class="label">Label</span>
+      <strong id="riskLabelValue">
+        {{ risk.label if risk and risk.label is defined else 'N/A' }}
+      </strong>
+    </article>
+
+    <article>
+      <span class="label">Colour</span>
+      <strong id="riskColourValue">
+        {{ risk.colour if risk and risk.colour is defined else 'N/A' }}
+      </strong>
+    </article>
+
+    <article>
+      <span class="label">Badge</span>
+      <strong id="riskBadgeValue">
+        {{ risk.badge if risk and risk.badge is defined else 'N/A' }}
+      </strong>
+    </article>
+  </div>
+
+  <div class="actions">
+    <button class="button" id="generateReportBtn" type="button">
+      Generate Report
+    </button>
+
+    <button class="button secondary" id="downloadReportBtn" type="button" disabled>
+      Download Report
+    </button>
+  </div>
+
+  <div id="reportBox" class="mini-panel top-gap">
+    <p class="muted">No report generated yet.</p>
+  </div>
+</section>
