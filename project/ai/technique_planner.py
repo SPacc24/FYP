@@ -2,7 +2,7 @@ import json
 import os
 import re
 import time
-from typing import Any
+from typing import Any, Optional
 
 import requests
 
@@ -649,7 +649,51 @@ def choose_fallback_selected_ids(allowed_techniques: list[dict]) -> list[str]:
     return selected
 
 
-def generate_ai_technique_plan(mapping_result: dict, preferred_mode: str = "hybrid") -> dict:
+def enrich_explanations_with_coverage(
+    technique_explanations: list[dict],
+    coverage_info: Optional[dict] = None,
+) -> list[dict]:
+    """
+    Enrich technique explanations with CALDERA coverage status.
+    If coverage_info is provided, add coverage details to each explanation.
+    If not provided (coverage checker unavailable), add a note to check manually.
+    """
+    if not coverage_info:
+        # Coverage checker not available or not called
+        for explanation in technique_explanations:
+            explanation["caldera_coverage"] = {
+                "supported": None,
+                "ability_count": None,
+                "abilities": [],
+                "note": "Coverage status could not be determined. Check CALDERA manually.",
+            }
+        return technique_explanations
+
+    techniques_coverage = coverage_info.get("techniques", {})
+
+    for explanation in technique_explanations:
+        technique_id = explanation.get("technique_id", "").upper()
+        coverage_data = techniques_coverage.get(technique_id, {})
+
+        explanation["caldera_coverage"] = {
+            "supported": coverage_data.get("supported", False),
+            "ability_count": coverage_data.get("ability_count", 0),
+            "abilities": coverage_data.get("abilities", []),
+            "note": (
+                f"CALDERA has {coverage_data.get('ability_count', 0)} ability/ies for this technique."
+                if coverage_data.get("supported")
+                else "This technique has no matching abilities in CALDERA. Consider manual validation."
+            ),
+        }
+
+    return technique_explanations
+
+
+def generate_ai_technique_plan(
+    mapping_result: dict,
+    preferred_mode: str = "hybrid",
+    caldera_client=None,
+) -> dict:
     preferred_mode = str(preferred_mode).lower()
 
     if preferred_mode not in ALLOWED_MODES:
@@ -772,6 +816,24 @@ Return JSON exactly in this shape:
         allowed_techniques=allowed_techniques,
     )
 
+    # Try to check CALDERA coverage if client is provided
+    coverage_info = None
+    if caldera_client:
+        try:
+            from caldera.coverage_checker import CoverageChecker
+            checker = CoverageChecker(caldera_client)
+            coverage_info = checker.check_technique_coverage(selected_ids)
+        except Exception as e:
+            import logging
+            logging.warning(f"Could not check CALDERA coverage: {e}")
+            coverage_info = None
+
+    # Enrich explanations with coverage data
+    technique_explanations = enrich_explanations_with_coverage(
+        technique_explanations,
+        coverage_info,
+    )
+
     return {
         # Keep this internally because other routes/templates may still expect it.
         "recommended_mode": preferred_mode,
@@ -796,4 +858,5 @@ Return JSON exactly in this shape:
         ),
         "allowed_techniques": allowed_techniques,
         "raw_llm_response": raw,
+        "caldera_coverage": coverage_info,
     }

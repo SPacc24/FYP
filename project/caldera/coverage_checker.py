@@ -1,3 +1,13 @@
+"""
+CALDERA Coverage Checker
+
+Validates whether specific MITRE ATT&CK technique IDs have corresponding
+CALDERA abilities available on the Caldera instance.
+
+This allows us to warn users about unsupported techniques before execution
+and only run techniques that Caldera can actually perform.
+"""
+
 import logging
 from typing import Any
 from caldera.api_client import CalderaAPIError, CalderaClient

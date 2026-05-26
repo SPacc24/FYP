@@ -13,6 +13,10 @@
     <code id="deployCommandText"></code>
   </div>
 
+  <div id="coverageWarningBox" class="mini-panel top-gap" style="display:none;">
+    <p><strong>⚠️ Coverage Note:</strong> <span id="coverageWarningText"></span></p>
+  </div>
+
   <div class="actions">
     <button class="button" id="runCalderaBtn" type="button">
       Run Caldera
@@ -33,6 +37,28 @@
   <div class="flow-card-header">
     <span class="label">Assessment Stage 4</span>
     <h2>Execution Results</h2>
+  </div>
+
+  <div id="executionSummary" class="summary-strip" style="display:none;">
+    <article>
+      <span class="label">Total Techniques</span>
+      <strong id="totalTechniques">0</strong>
+    </article>
+
+    <article>
+      <span class="label">Successful</span>
+      <strong id="successfulTechniques" style="color: green;">0</strong>
+    </article>
+
+    <article>
+      <span class="label">Failed</span>
+      <strong id="failedTechniques" style="color: red;">0</strong>
+    </article>
+
+    <article>
+      <span class="label">Discarded</span>
+      <strong id="discardedTechniques" style="color: orange;">0</strong>
+    </article>
   </div>
 
   <div class="table-wrap" id="executionResults">

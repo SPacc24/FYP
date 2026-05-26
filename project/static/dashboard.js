@@ -118,11 +118,27 @@ async function runCaldera() {
 
     const data = await res.json();
 
+    // Handle coverage warnings
+    const coverageWarningBox = document.getElementById("coverageWarningBox");
+    const coverageWarningText = document.getElementById("coverageWarningText");
+    if (data.coverage_info) {
+      const { unsupported_count, unsupported, supported } = data.coverage_info;
+      if (unsupported_count > 0) {
+        if (coverageWarningBox && coverageWarningText) {
+          coverageWarningText.textContent = 
+            `${unsupported_count} technique(s) not supported by CALDERA (${unsupported.join(", ")}). ` +
+            `Executing only ${supported.length} supported technique(s).`;
+          coverageWarningBox.style.display = "block";
+        }
+      }
+    }
+
     if (data.ok || data.success) {
       operationBox.innerHTML =
         `<p><strong>Operation completed successfully.</strong></p>`;
 
       const tbody = document.getElementById("techniqueResultsBody");
+      const executionSummary = document.getElementById("executionSummary");
 
       if (tbody && data.techniques_run && data.techniques_run.length > 0) {
         tbody.innerHTML = data.techniques_run.map(t => `
@@ -130,11 +146,25 @@ async function runCaldera() {
             <td class="mono">${escapeHtml(t.technique_id)}</td>
             <td>${escapeHtml(t.technique_name)}</td>
             <td>${escapeHtml(t.tactic)}</td>
-            <td>${escapeHtml(t.status)}</td>
-            <td>${escapeHtml(t.timestamp || "-")}</td>
-            <td class="small">${escapeHtml(t.output || "-")}</td>
+            <td><strong>${escapeHtml(t.status)}</strong></td>
+            <td class="small">${escapeHtml(t.timestamp || "-")}</td>
+            <td class="small">${escapeHtml(t.output ? t.output.substring(0, 100) + (t.output.length > 100 ? "..." : "") : "-")}</td>
           </tr>
         `).join("");
+
+        // Update execution summary
+        if (executionSummary) {
+          const total = data.total || data.techniques_run.length;
+          const successful = data.success_count || 0;
+          const failed = data.fail_count || 0;
+          const discarded = data.discarded_count || 0;
+
+          document.getElementById("totalTechniques").textContent = total;
+          document.getElementById("successfulTechniques").textContent = successful;
+          document.getElementById("failedTechniques").textContent = failed;
+          document.getElementById("discardedTechniques").textContent = discarded;
+          executionSummary.style.display = "grid";
+        }
       }
 
       else if (tbody) {
@@ -164,7 +194,12 @@ async function runCaldera() {
     else {
       operationBox.innerHTML =
         `<p><strong>Operation failed.</strong></p>
-         <p class="small">${escapeHtml(data.message || "No error message returned.")}</p>`;
+         <p class="small">${escapeHtml(data.message || data.error || "No error message returned.")}</p>`;
+      
+      if (data.coverage) {
+        operationBox.innerHTML += 
+          `<p class="small"><strong>Coverage Info:</strong> ${data.coverage.unsupported} technique(s) not supported.</p>`;
+      }
     }
   }
 

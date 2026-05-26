@@ -29,6 +29,7 @@ from scanners.nmap_runner import NmapScanError, run_nmap_scan
 
 from caldera.api_client import CalderaClient
 from caldera.operation_manager import OperationManager
+from caldera.coverage_checker import CoverageChecker
 
 from caldera.risk_scorer import RiskScorer
 from reports.report_generator import build_report_summary
@@ -51,6 +52,7 @@ caldera_client = CalderaClient(
 )
 
 operation_manager = OperationManager(caldera_client)
+coverage_checker = CoverageChecker(caldera_client)
 risk_scorer = RiskScorer()
 
 db = Database(
@@ -243,7 +245,11 @@ def scan():
         scan_result = run_nmap_scan(target, ports, intensity, profile)
         parsed_results = parse_nmap_xml(scan_result["output_file"])
         mapping_results = map_vulnerabilities(parsed_results) ##edited
-        ai_plan = generate_ai_technique_plan(mapping_results, preferred_mode=technique_mode) ##edited
+        ai_plan = generate_ai_technique_plan(
+            mapping_results,
+            preferred_mode=technique_mode,
+            caldera_client=caldera_client,
+        ) ##edited
         risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), {})
 
         session["target_ip"] = target
@@ -286,6 +292,60 @@ def caldera_status():
 @app.route("/caldera/operation/status", methods=["GET"])
 def operation_status():
     return jsonify(session.get("operation_results", {}))
+
+@app.route("/api/caldera/check-coverage", methods=["POST"])
+def check_coverage():
+    """
+    Check CALDERA ability coverage for given technique IDs.
+    
+    Request:
+    {
+        "technique_ids": ["T1046", "T1110", "T1078"]
+    }
+    
+    Response:
+    {
+        "ok": True,
+        "total": 3,
+        "supported": 2,
+        "unsupported": 1,
+        "techniques": {
+            "T1046": {
+                "supported": True,
+                "ability_count": 2,
+                "abilities": [...]
+            },
+            "T1110": {
+                "supported": False,
+                "ability_count": 0,
+                "abilities": []
+            }
+        }
+    }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        technique_ids = data.get("technique_ids", [])
+        
+        if not technique_ids:
+            return jsonify({
+                "ok": False,
+                "error": "technique_ids list is required"
+            }), 400
+        
+        coverage = coverage_checker.check_technique_coverage(technique_ids)
+        
+        return jsonify({
+            "ok": True,
+            **coverage,
+        })
+    
+    except Exception as e:
+        log.error(f"Coverage check failed: {e}")
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
     
 @app.route("/caldera/run", methods=["POST"])
 def caldera_run():
@@ -300,8 +360,28 @@ def caldera_run():
                 "error": "No techniques selected"
             }), 400
 
+        # Check coverage first
+        coverage = coverage_checker.check_technique_coverage(selected_techniques)
+        supported_techniques = coverage_checker.get_supported_techniques(selected_techniques)
+        unsupported_count = coverage["unsupported"]
+
+        if unsupported_count > 0:
+            log.warning(
+                f"User requested {len(selected_techniques)} techniques; "
+                f"{unsupported_count} not supported by CALDERA. "
+                f"Will execute only {len(supported_techniques)} supported techniques."
+            )
+
+        if not supported_techniques:
+            return jsonify({
+                "ok": False,
+                "error": "None of the selected techniques are supported by CALDERA. "
+                         "Please check coverage and select supported techniques.",
+                "coverage": coverage,
+            }), 400
+
         result = operation_manager.run_operation(
-            technique_ids=selected_techniques,
+            technique_ids=supported_techniques,
             group=data.get("group", "red"),
         )
 
@@ -335,6 +415,15 @@ def caldera_run():
 
         remediations = vulnerability_remediations + technique_remediations
 
+        # Add coverage info to results for display
+        result["coverage_info"] = {
+            "requested": selected_techniques,
+            "supported": supported_techniques,
+            "unsupported": [t for t in selected_techniques if t not in supported_techniques],
+            "unsupported_count": unsupported_count,
+            "coverage_details": coverage,
+        }
+
         session["operation_results"] = result
         session["risk_score"] = risk
         session["remediations"] = remediations
@@ -348,6 +437,7 @@ def caldera_run():
         })
 
     except Exception as e:
+        log.error(f"CALDERA execution failed: {e}")
         return jsonify({
             "ok": False,
             "error": str(e)
