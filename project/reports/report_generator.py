@@ -82,6 +82,33 @@ def _summarize_operation(operation: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _summarize_validation(validation: dict[str, Any]) -> list[str]:
+    if not validation:
+        return ["No lab exploitability validation has been executed yet."]
+
+    lines = [
+        f"Mode: {validation.get('mode', 'lab_safe_validation')}",
+        f"Target: {validation.get('target', 'Unknown')}",
+        f"Checks executed: {validation.get('total_checked', 0)}",
+        f"Confirmed findings: {validation.get('confirmed', 0)}",
+        f"Potential exposures: {validation.get('potential', 0)}",
+        f"Failed checks: {validation.get('failed', 0)}",
+        f"Summary: {validation.get('narrative', 'N/A')}",
+    ]
+
+    if validation.get("findings"):
+        lines.append("\nValidation evidence:")
+        for finding in validation.get("findings", []):
+            lines.append(
+                f"- {finding.get('status', 'unknown').upper()} "
+                f"{finding.get('service', 'unknown')}:{finding.get('port', 'N/A')} "
+                f"{finding.get('title', '')}"
+            )
+            lines.append(f"  Evidence: {finding.get('evidence', '')}")
+            lines.append(f"  Next step: {finding.get('next_step', '')}")
+    return lines
+
+
 def _summarize_risk(risk: dict[str, Any]) -> list[str]:
     if not risk:
         return ["Risk score has not been calculated."]
@@ -128,6 +155,7 @@ def build_report_summary(
     operation: dict[str, Any],
     risk: dict[str, Any],
     remediations: list[dict[str, Any]],
+    validation: dict[str, Any] | None = None,
 ) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [f"AutoPenTest Report", f"Generated: {now}", ""]
@@ -140,6 +168,7 @@ def build_report_summary(
 
     lines.append(_section("Vulnerability Mapping", _summarize_vulnerabilities(mapping)))
     lines.append(_section("Attack Plan", _summarize_attack_plan(mapping)))
+    lines.append(_section("Lab Exploitability Validation", _summarize_validation(validation or {})))
     lines.append(_section("Operation Results", _summarize_operation(operation)))
     lines.append(_section("Risk Summary", _summarize_risk(risk)))
     lines.append(_section("Remediation Guidance", _summarize_remediations(remediations)))
@@ -153,8 +182,9 @@ def generate_text_report(
     operation: dict[str, Any],
     risk: dict[str, Any],
     remediations: list[dict[str, Any]],
+    validation: dict[str, Any] | None = None,
 ) -> str:
-    report_text = build_report_summary(scan, mapping, operation, risk, remediations)
+    report_text = build_report_summary(scan, mapping, operation, risk, remediations, validation)
     path = REPORT_DIR / f"autopentest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     path.write_text(report_text, encoding="utf-8")
     return str(path)
@@ -164,6 +194,7 @@ def generate_pdf_report(
     scan_id=None,
     scan=None,
     mapping=None,
+    validation=None,
     operation=None,
     risk=None,
     remediations=None,
@@ -172,6 +203,8 @@ def generate_pdf_report(
         scan = {}
     if mapping is None:
         mapping = {}
+    if validation is None:
+        validation = {}
     if operation is None:
         operation = {}
     if risk is None:
@@ -179,4 +212,4 @@ def generate_pdf_report(
     if remediations is None:
         remediations = []
 
-    return generate_text_report(scan, mapping, operation, risk, remediations)
+    return generate_text_report(scan, mapping, operation, risk, remediations, validation)

@@ -20,6 +20,15 @@ function getExecutionRowsAsText() {
   }).join("\n");
 }
 
+function getValidationRowsAsText() {
+  const rows = Array.from(document.querySelectorAll("#validationResultsBody tr"));
+
+  return rows.map(row => {
+    const cells = Array.from(row.querySelectorAll("td"));
+    return cells.map(cell => cell.innerText.trim()).join(" | ");
+  }).join("\n");
+}
+
 function getEndpoint(name, fallback) {
   return window.DASHBOARD_ENDPOINTS?.[name] || fallback;
 }
@@ -41,6 +50,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("runCalderaBtn")
     ?.addEventListener("click", runCaldera);
+
+  document.getElementById("runValidationBtn")
+    ?.addEventListener("click", runExploitabilityValidation);
 
   document.getElementById("refreshStatusBtn")
     ?.addEventListener("click", refreshOperationStatus);
@@ -84,6 +96,75 @@ async function loadCalderaStatus() {
   catch (e) {
     box.innerHTML =
       '<p class="muted">Unable to reach Caldera status endpoint.</p>';
+  }
+}
+
+async function runExploitabilityValidation() {
+  const tbody = document.getElementById("validationResultsBody");
+  const narrative = document.getElementById("validationNarrative");
+
+  if (!tbody) return;
+
+  tbody.innerHTML =
+    `<tr>
+      <td colspan="6" class="small">Running lab-safe validation checks...</td>
+    </tr>`;
+
+  try {
+    const res = await fetch(getEndpoint("exploitationRun", "/exploitation/run"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({})
+    });
+
+    const data = await res.json();
+
+    if (!data.ok) {
+      tbody.innerHTML =
+        `<tr>
+          <td colspan="6" class="small">${escapeHtml(data.error || "Validation failed.")}</td>
+        </tr>`;
+      return;
+    }
+
+    document.getElementById("validationConfirmed").textContent = data.confirmed || 0;
+    document.getElementById("validationPotential").textContent = data.potential || 0;
+    document.getElementById("validationTotal").textContent = data.total_checked || 0;
+
+    if (narrative) {
+      narrative.textContent = data.narrative || "Validation completed.";
+    }
+
+    if (data.findings && data.findings.length) {
+      tbody.innerHTML = data.findings.map(item => `
+        <tr>
+          <td><span class="state ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></td>
+          <td>${escapeHtml(item.service)}</td>
+          <td class="mono">${escapeHtml(item.port)}</td>
+          <td>${escapeHtml(item.title)}</td>
+          <td class="small">${escapeHtml(item.evidence)}</td>
+          <td class="small">${escapeHtml(item.next_step)}</td>
+        </tr>
+      `).join("");
+    }
+
+    else {
+      tbody.innerHTML =
+        `<tr>
+          <td colspan="6" class="small">
+            No allowlisted validation checks matched the current scan.
+          </td>
+        </tr>`;
+    }
+  }
+
+  catch (err) {
+    tbody.innerHTML =
+      `<tr>
+        <td colspan="6" class="small">Could not run validation checks.</td>
+      </tr>`;
   }
 }
 
@@ -239,6 +320,7 @@ async function generateReport() {
     : [];
 
   const executionText = getExecutionRowsAsText();
+  const validationText = getValidationRowsAsText();
   const context = getDashboardContext();
 
   reportBox.innerHTML = "<p class='muted'>Generating report...</p>";
@@ -250,6 +332,7 @@ async function generateReport() {
     risk_score: document.getElementById("riskScoreValue")?.innerText || "N/A",
     risk_label: document.getElementById("riskLabelValue")?.innerText || "N/A",
     selected_techniques: selectedTechniques,
+    validation_results: validationText,
     execution_results: executionText
   };
 
@@ -316,8 +399,11 @@ ${data.selected_techniques.length ? data.selected_techniques.join(", ") : "No se
 Execution Results:
 ${data.execution_results || "No execution results generated yet."}
 
+Lab Exploitability Validation:
+${data.validation_results || "No validation evidence generated yet."}
+
 Summary:
-The scan findings and vulnerability mapping were reviewed together with the selected technique mode. The selected MITRE ATT&CK techniques were prepared for Caldera execution. The execution results above should be used to validate exposure, document findings, and support remediation planning.
+The scan findings, vulnerability mapping, lab validation evidence, and selected technique mode were reviewed together. The selected MITRE ATT&CK techniques were prepared for Caldera execution. The execution results above should be used to validate exposure, document findings, and support remediation planning.
   `.trim();
 }
 
