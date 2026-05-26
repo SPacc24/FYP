@@ -403,13 +403,13 @@ def caldera_run():
         # Remediation
         vulnerability_remediations = []
         try:
-            vulnerability_remediations = risk_scorer.get_vulnerability_remediations(mapping_results)
+            vulnerability_remediations = risk_scorer.get_vulnerability_remediations(mapping_results) or []
         except Exception:
             vulnerability_remediations = []
 
         technique_remediations = []
         try:
-            technique_remediations = risk_scorer.get_all_remediations(result)
+            technique_remediations = risk_scorer.get_all_remediations(result) or []
         except Exception:
             technique_remediations = []
 
