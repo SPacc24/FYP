@@ -1,3 +1,4 @@
+
 let generatedReportContent = "";
 
 function escapeHtml(value) {
@@ -215,16 +216,8 @@ async function runCaldera() {
     }
 
     if (data.ok || data.success) {
-      const total = data.total || data.techniques_run?.length || 0;
-      const successful = data.success_count || 0;
-      const failed = data.fail_count || 0;
-      const discarded = data.discarded_count || 0;
-      const running = data.running_count || 0;
       operationBox.innerHTML =
-        `<p><strong>Operation ${escapeHtml(data.state || "completed")}.</strong></p>
-         <p class="small">
-           Technique results: ${successful} successful, ${failed} failed, ${discarded} discarded, ${running} running.
-         </p>`;
+        `<p><strong>Operation completed successfully.</strong></p>`;
 
       const tbody = document.getElementById("techniqueResultsBody");
       const executionSummary = document.getElementById("executionSummary");
@@ -243,14 +236,11 @@ async function runCaldera() {
 
         // Update execution summary
         if (executionSummary) {
-<<<<<<< HEAD
-=======
           const total = data.total || data.techniques_run.length;
           const successful = data.success_count || 0;
           const failed = data.fail_count || 0;
           const discarded = data.discarded_count || 0;
 
->>>>>>> 4ea34df5f54f19d5c70186ada8bb87d9bf543f04
           document.getElementById("totalTechniques").textContent = total;
           document.getElementById("successfulTechniques").textContent = successful;
           document.getElementById("failedTechniques").textContent = failed;

@@ -152,7 +152,6 @@ SERVICE_KNOWLEDGE_BASE: dict[str, dict[str, Any]] = {
             {"id": "T1046", "name": "Network Service Discovery"},
             {"id": "T1021.002", "name": "Remote Services: SMB/Windows Admin Shares"},
             {"id": "T1135", "name": "Network Share Discovery"},
-            {"id": "T1210", "name": "Exploitation of Remote Services"},
         ],
     },
     "netbios-ssn": {
@@ -164,7 +163,6 @@ SERVICE_KNOWLEDGE_BASE: dict[str, dict[str, Any]] = {
             {"id": "T1046", "name": "Network Service Discovery"},
             {"id": "T1021.002", "name": "Remote Services: SMB/Windows Admin Shares"},
             {"id": "T1135", "name": "Network Share Discovery"},
-            {"id": "T1210", "name": "Exploitation of Remote Services"},
         ],
     },
     "ms-wbt-server": {
@@ -451,7 +449,6 @@ def map_vulnerabilities(parsed_results: dict[str, Any]) -> dict[str, Any]:
                 recommendation=recommendation,
                 attack_techniques=kb_entry["techniques"],
             ).to_dict()
-            finding["technique_categories"] = _categorise_techniques(finding["attack_techniques"])
             vulnerabilities.append(finding)
 
             for technique in finding["attack_techniques"]:
@@ -659,14 +656,4 @@ def manual_attack_mode(recommended_techniques, selected_ids=None):
         "available_techniques": recommended_techniques,
         "attack_plan": selected,
         "editable": True
-    }
-
-
-def _categorise_techniques(techniques: list[dict[str, str]]) -> dict[str, list[dict[str, str]]]:
-    validation_ids = {"T1046", "T1135", "T1018"}
-    controlled_emulation_ids = {"T1210", "T1059", "T1021", "T1021.001", "T1021.002", "T1021.004", "T1021.006"}
-
-    return {
-        "validation": [t for t in techniques if t.get("id") in validation_ids],
-        "controlled_emulation": [t for t in techniques if t.get("id") in controlled_emulation_ids],
     }
