@@ -1,29 +1,60 @@
 <section class="flow-card thin-flow-card" id="caldera-execution">
   <div class="flow-card-header">
     <span class="label">Assessment Stage 4</span>
-    <h2>Caldera Execution Based on Selected Techniques</h2>
+    <h2>Agent Readiness and Caldera Execution</h2>
   </div>
 
   <div id="calderaStatusBox" class="mini-panel">
     <p class="muted">Checking Caldera agent status...</p>
   </div>
 
+  <div class="table-wrap top-gap" id="agentTableWrap" style="display:none;">
+    <table class="compact-table">
+      <thead>
+        <tr>
+          <th>Host</th>
+          <th>IP</th>
+          <th>OS</th>
+          <th>Status</th>
+          <th>Trusted</th>
+          <th>Last Seen</th>
+        </tr>
+      </thead>
+      <tbody id="agentStatusBody"></tbody>
+    </table>
+  </div>
+
   <div id="deployCommandBox" class="command-box top-gap" style="display:none;">
-    <h3>Deploy Command</h3>
+    <h3>Deploy Agent</h3>
+    <p class="small">
+      Target: <span id="deployTargetText">Unknown</span><br>
+      OS: <span id="deployOsText">Unknown</span>
+    </p>
     <code id="deployCommandText"></code>
+    <button class="button secondary top-gap" id="copyDeployCommandBtn" type="button">
+      Copy Deploy Command
+    </button>
   </div>
 
   <div id="coverageWarningBox" class="mini-panel top-gap" style="display:none;">
-    <p><strong>⚠️ Coverage Note:</strong> <span id="coverageWarningText"></span></p>
+    <p><strong>Coverage Note:</strong> <span id="coverageWarningText"></span></p>
   </div>
 
   <div class="actions">
+    <button class="button secondary" id="refreshAgentStatusBtn" type="button">
+      Refresh Agent Status
+    </button>
+
+    <button class="button secondary" id="deployAgentBtn" type="button">
+      Deploy Agent
+    </button>
+
     <button class="button" id="runCalderaBtn" type="button">
       Run Caldera
     </button>
 
     <button class="button secondary" id="refreshStatusBtn" type="button">
-      Refresh Status
+      Refresh Operation Status
     </button>
   </div>
 

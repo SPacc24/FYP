@@ -117,6 +117,17 @@ def _load_current_scan_results():
         return None
 
 
+def _current_target_context():
+    parsed_results = _load_current_scan_results() or {}
+    target = session.get("target_ip", "Unknown")
+    os_name = parsed_results.get("os") or session.get("target_os") or "Windows"
+    return {
+        "target": target,
+        "os": os_name,
+        "platform": "windows" if "win" in str(os_name).lower() else "linux",
+    }
+
+
 # ---------------------------------------------------
 # ROUTES
 # ---------------------------------------------------
@@ -275,6 +286,7 @@ def scan():
         risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), {})
 
         session["target_ip"] = target
+        session["target_os"] = parsed_results.get("os", "Unknown")
         session["port_range"] = ports or "1-1024"
         session["scan_output_file"] = scan_result.get("output_file", "")
         session["mapping_results"] = mapping_results
@@ -311,7 +323,33 @@ def scan():
 
 @app.route("/caldera/status", methods=["GET"])
 def caldera_status():
-    return jsonify(operation_manager.check_readiness())
+    status = operation_manager.check_readiness()
+    target_context = _current_target_context()
+    status["target"] = target_context["target"]
+    status["target_os"] = target_context["os"]
+    if not status.get("agent_ready"):
+        status["deploy_command"] = operation_manager.get_deploy_command(
+            kali_ip=Config.CALDERA_URL,
+            group="red",
+            platform=target_context["platform"],
+        )
+    return jsonify(status)
+
+
+@app.route("/caldera/deploy-command", methods=["GET"])
+def caldera_deploy_command():
+    target_context = _current_target_context()
+    return jsonify({
+        "ok": True,
+        "target": target_context["target"],
+        "os": target_context["os"],
+        "group": "red",
+        "deploy_command": operation_manager.get_deploy_command(
+            kali_ip=Config.CALDERA_URL,
+            group="red",
+            platform=target_context["platform"],
+        ),
+    })
 
 @app.route("/caldera/operation/status", methods=["GET"])
 def operation_status():

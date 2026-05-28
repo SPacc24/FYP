@@ -93,6 +93,7 @@
           <thead>
             <tr>
               <th>Technique</th>
+              <th>Attack Path Stage</th>
               <th>MITRE Meaning</th>
               <th>Why Recommended</th>
               <th>CVE Linkage</th>
@@ -124,6 +125,7 @@
                     {% endif %}
                   </td>
 
+                  <td class="small">{{ tech.attack_path_stage }}</td>
                   <td class="small">{{ tech.mitre_summary }}</td>
                   <td class="small">{{ tech.why_recommended }}</td>
 
@@ -164,14 +166,14 @@
                   <td class="mono">
                     <strong>{{ tid }}</strong>
                   </td>
-                  <td colspan="5" class="small">
+                  <td colspan="6" class="small">
                     Recommended by the AI planner based on mapped scan findings.
                   </td>
                 </tr>
               {% endfor %}
             {% else %}
               <tr>
-                <td colspan="6" class="small">
+                <td colspan="7" class="small">
                   No AI technique explanation available.
                 </td>
               </tr>

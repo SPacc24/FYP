@@ -76,6 +76,32 @@ def test_planner_falls_back_when_llm_returns_bad_json(monkeypatch):
 
     plan = planner.generate_ai_technique_plan(mapping_result)
 
-    assert plan["selected_technique_ids"] == ["T1021.002", "T1046"]
+    assert plan["selected_technique_ids"] == ["T1046", "T1021.002"]
     assert "could not be parsed" in plan["reasoning"]
     assert plan["technique_explanations"]
+
+
+def test_planner_expands_smb_to_attack_path(monkeypatch):
+    mapping_result = {
+        "recommended_techniques": [
+            {"id": "T1046", "name": "Network Service Discovery", "count": 1, "max_severity": "High"},
+            {"id": "T1135", "name": "Network Share Discovery", "count": 1, "max_severity": "High"},
+            {"id": "T1210", "name": "Exploitation of Remote Services", "count": 1, "max_severity": "High"},
+            {"id": "T1021.002", "name": "SMB Admin Shares", "count": 1, "max_severity": "High"},
+        ],
+        "vulnerabilities": [],
+    }
+
+    llm_response = {
+        "selected_technique_ids": ["T1046", "T1135"],
+        "reasoning": "Discovery first.",
+        "technique_explanations": [],
+        "next_steps": ["Review safely."],
+    }
+
+    monkeypatch.setattr(planner, "get_mitre_technique_info", fake_mitre_info)
+    monkeypatch.setattr(planner, "ask_llm_json", lambda prompt: json.dumps(llm_response))
+
+    plan = planner.generate_ai_technique_plan(mapping_result)
+
+    assert plan["selected_technique_ids"] == ["T1046", "T1135", "T1210", "T1021.002"]

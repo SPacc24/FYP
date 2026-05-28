@@ -58,6 +58,15 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("refreshStatusBtn")
     ?.addEventListener("click", refreshOperationStatus);
 
+  document.getElementById("refreshAgentStatusBtn")
+    ?.addEventListener("click", loadCalderaStatus);
+
+  document.getElementById("deployAgentBtn")
+    ?.addEventListener("click", loadDeployCommand);
+
+  document.getElementById("copyDeployCommandBtn")
+    ?.addEventListener("click", copyDeployCommand);
+
   document.getElementById("generateReportBtn")
     ?.addEventListener("click", generateReport);
 
@@ -69,26 +78,55 @@ async function loadCalderaStatus() {
   const box = document.getElementById("calderaStatusBox");
   const deployBox = document.getElementById("deployCommandBox");
   const deployText = document.getElementById("deployCommandText");
+  const agentTableWrap = document.getElementById("agentTableWrap");
+  const agentStatusBody = document.getElementById("agentStatusBody");
+  const deployTargetText = document.getElementById("deployTargetText");
+  const deployOsText = document.getElementById("deployOsText");
 
   if (!box) return;
+
+  box.innerHTML = "<p class='muted'>Refreshing CALDERA agent status...</p>";
 
   try {
     const res = await fetch(getEndpoint("calderaStatus", "/caldera/status"));
     const data = await res.json();
+    const agents = data.agents || data.online_agents || [];
+
+    if (agentTableWrap && agentStatusBody) {
+      if (agents.length) {
+        agentStatusBody.innerHTML = agents.map(agent => `
+          <tr>
+            <td>${escapeHtml(agent.host || agent.hostname || "-")}</td>
+            <td class="mono">${escapeHtml(agent.ip || "-")}</td>
+            <td>${escapeHtml(agent.platform || agent.os || "-")}</td>
+            <td><span class="state ${agent.alive ? "confirmed" : "failed"}">${escapeHtml(agent.status || (agent.alive ? "Online" : "Offline"))}</span></td>
+            <td>${agent.trusted ? "Yes" : "No"}</td>
+            <td class="small">${escapeHtml(agent.last_seen || "-")}</td>
+          </tr>
+        `).join("");
+        agentTableWrap.style.display = "block";
+      }
+      else {
+        agentStatusBody.innerHTML = "";
+        agentTableWrap.style.display = "none";
+      }
+    }
 
     if (data.agent_ready) {
       box.innerHTML =
-        `<p><strong>Ready</strong> — ${data.online_agents?.length || 1} agent(s) online.</p>`;
+        `<p><strong>Ready</strong> - Trusted CALDERA agent available (${data.online_agents?.length || 1} online).</p>`;
 
       if (deployBox) deployBox.style.display = "none";
     }
 
     else {
       box.innerHTML =
-        `<p><strong>Not Ready</strong> — ${escapeHtml(data.message || "No agent found.")}</p>`;
+        `<p><strong>Not Ready</strong> - ${escapeHtml(data.message || "Caldera reachable - no trusted agent available")}</p>`;
 
       if (data.deploy_command && deployText && deployBox) {
         deployText.textContent = data.deploy_command;
+        if (deployTargetText) deployTargetText.textContent = data.target || "Unknown";
+        if (deployOsText) deployOsText.textContent = data.target_os || "Unknown";
         deployBox.style.display = "block";
       }
     }
@@ -97,6 +135,45 @@ async function loadCalderaStatus() {
   catch (e) {
     box.innerHTML =
       '<p class="muted">Unable to reach Caldera status endpoint.</p>';
+  }
+}
+
+async function loadDeployCommand() {
+  const deployBox = document.getElementById("deployCommandBox");
+  const deployText = document.getElementById("deployCommandText");
+  const deployTargetText = document.getElementById("deployTargetText");
+  const deployOsText = document.getElementById("deployOsText");
+
+  if (!deployBox || !deployText) return;
+
+  deployText.textContent = "Generating deployment command...";
+  deployBox.style.display = "block";
+
+  try {
+    const res = await fetch(getEndpoint("calderaDeployCommand", "/caldera/deploy-command"));
+    const data = await res.json();
+    deployText.textContent = data.deploy_command || "Deployment command unavailable.";
+    if (deployTargetText) deployTargetText.textContent = data.target || "Unknown";
+    if (deployOsText) deployOsText.textContent = data.os || "Unknown";
+  }
+  catch (err) {
+    deployText.textContent = "Could not generate deployment command.";
+  }
+}
+
+async function copyDeployCommand() {
+  const deployText = document.getElementById("deployCommandText");
+  if (!deployText || !deployText.textContent) return;
+
+  try {
+    await navigator.clipboard.writeText(deployText.textContent);
+  }
+  catch (err) {
+    const range = document.createRange();
+    range.selectNodeContents(deployText);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
   }
 }
 

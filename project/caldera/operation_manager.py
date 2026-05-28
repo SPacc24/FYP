@@ -21,6 +21,27 @@ STATUS_MAP = {
 
 SAFE_ADVERSARIES = ['discovery', 'hunter', 'basic', 'initial']
 
+PREFERRED_ABILITY_TERMS = {
+    'T1210': ['validation', 'validate', 'check', 'scan', 'winpwn', 'ms17-10'],
+    'T1021.002': ['net use', 'admin share', 'map', 'share'],
+    'T1135': ['network share', 'view remote shares', 'net view', 'share discovery'],
+    'T1046': ['scan', 'service discovery', 'port scan', 'network service'],
+    'T1059': ['powershell', 'command prompt', 'cmd'],
+}
+
+UNSAFE_ABILITY_TERMS = [
+    'payload',
+    'reverse shell',
+    'meterpreter',
+    'mimikatz',
+    'credential dump',
+    'exfil',
+    'ransom',
+    'delete',
+    'destructive',
+    'persistence',
+]
+
 class OperationManager:
     def __init__(self, caldera_client_or_url, api_key=None, log_dir="storage/logs"):
         """
@@ -47,14 +68,26 @@ class OperationManager:
         Checks whether Caldera is reachable and whether at least one trusted agent exists.
         """
         try:
-            agents = self.client.get_online_agents()
+            if hasattr(self.client, "get_agents_normalized"):
+                all_agents = self.client.get_agents_normalized()
+            else:
+                all_agents = self.client.get_online_agents()
+            agents = [
+                agent for agent in all_agents
+                if agent.get("trusted") and agent.get("alive") and agent.get("paw")
+            ]
 
             return {
                 "ok": True,
                 "caldera_reachable": True,
                 "agent_ready": len(agents) > 0,
+                "agents": all_agents,
                 "online_agents": agents,
-                "message": "Caldera reachable. Agent found." if agents else "Caldera reachable. No trusted agent found."
+                "message": (
+                    "Ready - Trusted CALDERA agent available"
+                    if agents
+                    else "Caldera reachable - no trusted agent available"
+                )
             }
 
         except CalderaAPIError as e:
@@ -62,6 +95,7 @@ class OperationManager:
                 "ok": False,
                 "caldera_reachable": False,
                 "agent_ready": False,
+                "agents": [],
                 "online_agents": [],
                 "message": str(e)
             }
@@ -77,8 +111,8 @@ class OperationManager:
         log.info('Agent found: %s | paw: %s', agent.get('host', 'unknown'), agent.get('paw'))
         return True, agent
 
-    def get_deploy_command(self, kali_ip, group='red'):
-        return self.client.generate_sandcat_command(kali_ip, group)
+    def get_deploy_command(self, kali_ip=None, group='red', platform='windows'):
+        return self.client.generate_sandcat_command(kali_ip, group, platform)
 
     def _find_builtin_adversary(self):
         for name in SAFE_ADVERSARIES:
@@ -88,16 +122,81 @@ class OperationManager:
                 return adv.get('adversary_id')
         return None
 
+    def _ability_platform_text(self, ability):
+        return json.dumps(ability.get('platforms', {}), default=str).lower()
+
+    def _ability_search_text(self, ability):
+        fields = [
+            ability.get('name', ''),
+            ability.get('description', ''),
+            ability.get('tactic', ''),
+            ability.get('executor', ''),
+            ability.get('requirements', ''),
+            ability.get('payloads', ''),
+            ability.get('command', ''),
+            self._ability_platform_text(ability),
+        ]
+        return ' '.join(str(field) for field in fields).lower()
+
+    def _ability_is_unsafe(self, ability):
+        text = self._ability_search_text(ability)
+        return any(term in text for term in UNSAFE_ABILITY_TERMS)
+
+    def _score_ability(self, technique_id, ability):
+        text = self._ability_search_text(ability)
+        score = 0
+
+        if 'windows' in self._ability_platform_text(ability):
+            score += 50
+        if not self._ability_is_unsafe(ability):
+            score += 30
+        if 'cleanup' in text or 'deleter' in text:
+            score -= 25
+
+        for index, term in enumerate(PREFERRED_ABILITY_TERMS.get(technique_id, [])):
+            if term in text:
+                score += 40 - index
+
+        name = str(ability.get('name', '')).lower()
+        if name:
+            score += max(0, 20 - len(name) // 10)
+
+        return score
+
+    def _choose_safe_ability(self, technique_id, abilities):
+        ranked = sorted(
+            abilities,
+            key=lambda ability: (
+                -self._score_ability(technique_id, ability),
+                str(ability.get('name', '')).lower(),
+                str(ability.get('ability_id') or ability.get('id') or ''),
+            ),
+        )
+        for ability in ranked:
+            if not self._ability_is_unsafe(ability):
+                return ability
+        return ranked[0] if ranked else None
+
     def _create_custom_adversary(self, technique_ids):
         ability_ids = []
+        selected_abilities = []
         for tid in technique_ids or []:
             abilities = self.client.get_abilities_by_technique(tid)
             if not abilities:
                 continue
-            windows_ab = [ab for ab in abilities if 'windows' in str(ab.get('platforms', {})).lower()]
-            chosen = windows_ab[0] if windows_ab else abilities[0]
-            ability_ids.append(chosen['ability_id'])
-            log.info('Technique %s -> ability: %s', tid, chosen.get('name'))
+            chosen = self._choose_safe_ability(tid, abilities)
+            if not chosen:
+                continue
+            ability_id = chosen.get('ability_id') or chosen.get('id')
+            if not ability_id or ability_id in ability_ids:
+                continue
+            ability_ids.append(ability_id)
+            selected_abilities.append({
+                'technique_id': tid,
+                'ability_id': ability_id,
+                'ability_name': chosen.get('name'),
+            })
+            log.info('Technique %s -> ability: %s | %s', tid, ability_id, chosen.get('name'))
         if not ability_ids:
             log.warning('No matching abilities found for given techniques.')
             return None
@@ -106,14 +205,16 @@ class OperationManager:
         if isinstance(result, dict) and result.get('error'):
             log.error('Failed to create adversary: %s', result['error'])
             return None
-        return result.get('adversary_id')
+        adversary_id = result.get('adversary_id') or result.get('id')
+        return adversary_id, selected_abilities
 
     def resolve_adversary(self, technique_ids):
         if technique_ids:
-            custom_id = self._create_custom_adversary(technique_ids)
-            if custom_id:
-                return custom_id, True
-        return self._find_builtin_adversary(), False
+            created = self._create_custom_adversary(technique_ids)
+            if created:
+                custom_id, selected_abilities = created
+                return custom_id, True, selected_abilities
+        return self._find_builtin_adversary(), False, []
 
     def start_operation(self, adversary_id, selected_techniques=None, group="red", planner_id=None):
         """
@@ -192,7 +293,7 @@ class OperationManager:
             return self._error_result(agent_info)
         agent_host = agent_info.get('host', 'unknown')
         agent_paw = agent_info.get('paw', '')
-        adversary_id, is_custom = self.resolve_adversary(technique_ids)
+        adversary_id, is_custom, selected_abilities = self.resolve_adversary(technique_ids)
         if not adversary_id:
             return self._error_result('Could not find or create a suitable adversary profile. Check Caldera has abilities loaded.')
         op_name = f'autopentest-{int(time.time())}'
@@ -207,6 +308,7 @@ class OperationManager:
             self.client.delete_adversary(adversary_id)
         result['agent_host'] = agent_host
         result['agent_paw'] = agent_paw
+        result['selected_abilities'] = selected_abilities
         return result
 
     def _poll_until_done(self, op_id, timeout=180):

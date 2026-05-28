@@ -29,6 +29,16 @@ CVE_CACHE_TTL_SECONDS = 60 * 60 * 24
 REQUEST_TIMEOUT = 12
 MAX_SELECTED_TECHNIQUES = 5
 
+ATTACK_PATH_PRIORITY = {
+    "T1046": 10,
+    "T1135": 20,
+    "T1210": 30,
+    "T1021.002": 40,
+    "T1059": 50,
+}
+
+DISCOVERY_ONLY_TECHNIQUES = {"T1046", "T1135", "T1018"}
+
 
 DEFAULT_AI_NEXT_STEPS = [
     "Review the mapped MITRE ATT&CK techniques and linked CVEs.",
@@ -487,8 +497,11 @@ def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
             "mitre_data_sources": mitre_info.get("data_sources", [])[:8],
             "mitre_detection": mitre_info.get("detection", ""),
             "linked_cves": linked_cves,
+            "attack_path_stage": tech.get("attack_path_stage", "Validation / Discovery"),
+            "supporting_services": tech.get("supporting_services", []),
             "mapper_reason": tech.get(
                 "reason",
+                " ".join(tech.get("reasons", [])[:2]) or
                 f"This technique appeared in {tech.get('count', 0)} mapped finding(s), "
                 f"with maximum severity {max_severity}."
             ),
@@ -496,11 +509,11 @@ def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
 
     allowed.sort(
         key=lambda item: (
-            item.get("severity_rank", 0),
-            len(item.get("linked_cves", [])),
-            item.get("count", 0),
+            ATTACK_PATH_PRIORITY.get(item.get("id"), 999),
+            -item.get("severity_rank", 0),
+            -len(item.get("linked_cves", [])),
+            -item.get("count", 0),
         ),
-        reverse=True,
     )
 
     return allowed
@@ -592,6 +605,7 @@ def normalise_technique_explanations(
             ),
             "mitre_url": allowed.get("mitre_url", build_mitre_url(technique_id)),
             "mitre_tactics": allowed.get("mitre_tactics", []),
+            "attack_path_stage": allowed.get("attack_path_stage", "Validation / Discovery"),
             "linked_cves": linked_cves,
             "linked_cve_ids": linked_cve_ids,
             "mitre_summary": existing.get(
@@ -637,8 +651,17 @@ def normalise_technique_explanations(
 
 def choose_fallback_selected_ids(allowed_techniques: list[dict]) -> list[str]:
     selected = []
+    ordered = sorted(
+        allowed_techniques,
+        key=lambda item: (
+            ATTACK_PATH_PRIORITY.get(item.get("id"), 999),
+            -item.get("severity_rank", 0),
+            -len(item.get("linked_cves", [])),
+            -item.get("count", 0),
+        ),
+    )
 
-    for tech in allowed_techniques:
+    for tech in ordered:
         technique_id = tech.get("id")
 
         if technique_id and technique_id not in selected:
@@ -648,6 +671,33 @@ def choose_fallback_selected_ids(allowed_techniques: list[dict]) -> list[str]:
             break
 
     return selected
+
+
+def expand_attack_path_selection(selected_ids: list[str], allowed_techniques: list[dict]) -> list[str]:
+    """
+    Keep LLM choices bounded to mapper output while ensuring the final plan
+    represents discovery, validation, and post-access emulation where available.
+    """
+    allowed_ids = [tech["id"] for tech in allowed_techniques if tech.get("id")]
+    allowed_set = set(allowed_ids)
+    final = [tid for tid in selected_ids if tid in allowed_set]
+
+    has_smb_context = bool({"T1135", "T1021.002", "T1210"} & allowed_set)
+    if has_smb_context:
+        for tid in ["T1046", "T1135", "T1210", "T1021.002"]:
+            if tid in allowed_set and tid not in final:
+                final.append(tid)
+
+    if final and set(final).issubset(DISCOVERY_ONLY_TECHNIQUES):
+        for tid in ["T1210", "T1021.002", "T1059"]:
+            if tid in allowed_set and tid not in final:
+                final.append(tid)
+                break
+
+    if not final:
+        final = choose_fallback_selected_ids(allowed_techniques)
+
+    return final[:MAX_SELECTED_TECHNIQUES]
 
 
 def enrich_explanations_with_coverage(
@@ -737,7 +787,8 @@ Selection rules:
 - Prefer techniques with higher max_severity, stronger CVE linkage, repeated findings, and clearer MITRE relevance.
 - Use linked_cves, CVSS severity, CVE description, MITRE description, tactics, service/port context, and mapper_reason.
 - Do not select only T1046 unless it is the only relevant allowed technique.
-- If SMB, Windows file-sharing, NetBIOS, or port 445 risks are present, consider both discovery and SMB-related remote service techniques.
+- If SMB, Windows file-sharing, NetBIOS, or port 445 risks are present, include a complete lab-safe attack path: discovery, safe validation candidate, and post-access emulation where supported.
+- Treat T1210 as a controlled exploitability validation candidate only. Do not describe exploit payloads or weaponised steps.
 - If RDP is present, consider RDP-related remote service validation.
 - If web service vulnerabilities or public-facing software risks are present, consider public-facing application exposure.
 - If domain services are present, consider domain/account discovery-related techniques.
@@ -810,6 +861,8 @@ Return JSON exactly in this shape:
 
     if len(selected_ids) == 1 and len(allowed_techniques) > 1:
         selected_ids = choose_fallback_selected_ids(allowed_techniques[:3])
+
+    selected_ids = expand_attack_path_selection(selected_ids, allowed_techniques)
 
     technique_explanations = normalise_technique_explanations(
         plan=plan,

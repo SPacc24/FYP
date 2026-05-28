@@ -545,6 +545,10 @@ table {
   min-width: 850px;
 }
 
+.compact-table {
+  min-width: 680px;
+}
+
 th,
 td {
   border-bottom: 1px solid var(--border);
