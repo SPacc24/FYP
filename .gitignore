@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+
+# Local configuration
+.env
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Generated project artifacts
+project/storage/reports/
+project/storage/logs/*.json
+project/storage/scans/*.xml

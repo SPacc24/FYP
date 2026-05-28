@@ -37,6 +37,7 @@
     <script>
       window.DASHBOARD_ENDPOINTS = {
         calderaStatus: "{{ url_for('caldera_status') }}",
+        exploitationRun: "{{ url_for('exploitation_run') }}",
         calderaRun: "{{ url_for('caldera_run') }}",
         operationStatus: "{{ url_for('operation_status') }}",
         generateReport: "/generate_report"
@@ -55,6 +56,8 @@
         {% include "scan_vul.html" %}
 
         {% include "ai_techniques.html" %}
+
+        {% include "exploitation_validation.html" %}
 
         {% include "caldera_execution.html" %}
 

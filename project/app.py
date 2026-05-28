@@ -29,8 +29,10 @@ from scanners.nmap_runner import NmapScanError, run_nmap_scan
 
 from caldera.api_client import CalderaClient
 from caldera.operation_manager import OperationManager
+from caldera.coverage_checker import CoverageChecker
 
 from caldera.risk_scorer import RiskScorer
+from exploitation.validator import ExploitabilityValidator
 from reports.report_generator import build_report_summary
 from storage.db import Database
 
@@ -51,7 +53,9 @@ caldera_client = CalderaClient(
 )
 
 operation_manager = OperationManager(caldera_client)
+coverage_checker = CoverageChecker(caldera_client)
 risk_scorer = RiskScorer()
+exploitability_validator = ExploitabilityValidator()
 
 db = Database(
     host=Config.MYSQL_HOST,
@@ -102,6 +106,17 @@ def _safe_risk_calculate(vulns, op_results):
         }
 
 
+def _load_current_scan_results():
+    output_file = session.get("scan_output_file", "")
+    if not output_file:
+        return None
+    try:
+        return parse_nmap_xml(output_file)
+    except Exception:
+        log.exception("Could not reload scan results for validation")
+        return None
+
+
 # ---------------------------------------------------
 # ROUTES
 # ---------------------------------------------------
@@ -128,6 +143,7 @@ def ai_chat():
         ai_plan = session.get("ai_plan", {})
         attack_plan = session.get("attack_plan", {})
         operation_results = session.get("operation_results", {})
+        validation_results = session.get("validation_results", {})
         risk_score = session.get("risk_score", {})
 
         safe_context = {
@@ -156,6 +172,13 @@ def ai_chat():
                 "success_count": operation_results.get("success_count", 0),
                 "fail_count": operation_results.get("fail_count", 0),
                 "techniques_run": operation_results.get("techniques_run", []),
+            },
+            "exploitability_validation": {
+                "mode": validation_results.get("mode"),
+                "target": validation_results.get("target"),
+                "confirmed": validation_results.get("confirmed", 0),
+                "potential": validation_results.get("potential", 0),
+                "findings": validation_results.get("findings", []),
             },
             "risk_score": risk_score,
         }
@@ -243,7 +266,12 @@ def scan():
         scan_result = run_nmap_scan(target, ports, intensity, profile)
         parsed_results = parse_nmap_xml(scan_result["output_file"])
         mapping_results = map_vulnerabilities(parsed_results) ##edited
-        ai_plan = generate_ai_technique_plan(mapping_results, preferred_mode=technique_mode) ##edited
+        ai_plan = generate_ai_technique_plan(
+            mapping_results,
+            preferred_mode=technique_mode,
+            caldera_client=caldera_client,
+        ) ##edited
+        validation_results = exploitability_validator.validate(parsed_results, mapping_results)
         risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), {})
 
         session["target_ip"] = target
@@ -251,6 +279,7 @@ def scan():
         session["scan_output_file"] = scan_result.get("output_file", "")
         session["mapping_results"] = mapping_results
         session["risk_score"] = risk
+        session["validation_results"] = validation_results
 
         #edited
         session["technique_mode"] = technique_mode
@@ -266,6 +295,7 @@ def scan():
             ai_plan=ai_plan,  #edited
             selected_mode=technique_mode,  #edited
             attack_plan=None,
+            validation_results=validation_results,
             operation_results=None,
             risk=risk,
             remediations=[],
@@ -286,6 +316,84 @@ def caldera_status():
 @app.route("/caldera/operation/status", methods=["GET"])
 def operation_status():
     return jsonify(session.get("operation_results", {}))
+
+
+@app.route("/exploitation/run", methods=["POST"])
+def exploitation_run():
+    try:
+        parsed_results = _load_current_scan_results()
+        if not parsed_results:
+            return jsonify({
+                "ok": False,
+                "error": "No scan results available. Run a scan before validation."
+            }), 400
+
+        mapping_results = session.get("mapping_results", {})
+        validation_results = exploitability_validator.validate(parsed_results, mapping_results)
+        session["validation_results"] = validation_results
+
+        return jsonify(validation_results)
+
+    except Exception as e:
+        log.error(f"Exploitability validation failed: {e}")
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
+
+@app.route("/api/caldera/check-coverage", methods=["POST"])
+def check_coverage():
+    """
+    Check CALDERA ability coverage for given technique IDs.
+    
+    Request:
+    {
+        "technique_ids": ["T1046", "T1110", "T1078"]
+    }
+    
+    Response:
+    {
+        "ok": True,
+        "total": 3,
+        "supported": 2,
+        "unsupported": 1,
+        "techniques": {
+            "T1046": {
+                "supported": True,
+                "ability_count": 2,
+                "abilities": [...]
+            },
+            "T1110": {
+                "supported": False,
+                "ability_count": 0,
+                "abilities": []
+            }
+        }
+    }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        technique_ids = data.get("technique_ids", [])
+        
+        if not technique_ids:
+            return jsonify({
+                "ok": False,
+                "error": "technique_ids list is required"
+            }), 400
+        
+        coverage = coverage_checker.check_technique_coverage(technique_ids)
+        
+        return jsonify({
+            "ok": True,
+            **coverage,
+        })
+    
+    except Exception as e:
+        log.error(f"Coverage check failed: {e}")
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
     
 @app.route("/caldera/run", methods=["POST"])
 def caldera_run():
@@ -300,8 +408,28 @@ def caldera_run():
                 "error": "No techniques selected"
             }), 400
 
+        # Check coverage first
+        coverage = coverage_checker.check_technique_coverage(selected_techniques)
+        supported_techniques = coverage_checker.get_supported_techniques(selected_techniques)
+        unsupported_count = coverage["unsupported"]
+
+        if unsupported_count > 0:
+            log.warning(
+                f"User requested {len(selected_techniques)} techniques; "
+                f"{unsupported_count} not supported by CALDERA. "
+                f"Will execute only {len(supported_techniques)} supported techniques."
+            )
+
+        if not supported_techniques:
+            return jsonify({
+                "ok": False,
+                "error": "None of the selected techniques are supported by CALDERA. "
+                         "Please check coverage and select supported techniques.",
+                "coverage": coverage,
+            }), 400
+
         result = operation_manager.run_operation(
-            technique_ids=selected_techniques,
+            technique_ids=supported_techniques,
             group=data.get("group", "red"),
         )
 
@@ -323,17 +451,26 @@ def caldera_run():
         # Remediation
         vulnerability_remediations = []
         try:
-            vulnerability_remediations = risk_scorer.get_vulnerability_remediations(mapping_results)
+            vulnerability_remediations = risk_scorer.get_vulnerability_remediations(mapping_results) or []
         except Exception:
             vulnerability_remediations = []
 
         technique_remediations = []
         try:
-            technique_remediations = risk_scorer.get_all_remediations(result)
+            technique_remediations = risk_scorer.get_all_remediations(result) or []
         except Exception:
             technique_remediations = []
 
         remediations = vulnerability_remediations + technique_remediations
+
+        # Add coverage info to results for display
+        result["coverage_info"] = {
+            "requested": selected_techniques,
+            "supported": supported_techniques,
+            "unsupported": [t for t in selected_techniques if t not in supported_techniques],
+            "unsupported_count": unsupported_count,
+            "coverage_details": coverage,
+        }
 
         session["operation_results"] = result
         session["risk_score"] = risk
@@ -348,6 +485,7 @@ def caldera_run():
         })
 
     except Exception as e:
+        log.error(f"CALDERA execution failed: {e}")
         return jsonify({
             "ok": False,
             "error": str(e)
@@ -402,6 +540,7 @@ def results():
         ai_plan=session.get("ai_plan"), ##edited
         selected_mode=session.get("technique_mode", "hybrid"), #edited
         attack_plan=session.get("attack_plan"),
+        validation_results=session.get("validation_results"),
         operation_results=session.get("operation_results"),
         risk=risk,
         remediations=session.get("remediations", []),
@@ -420,6 +559,7 @@ def generate_report():
 
     mapping_results = session.get("mapping_results", {})
     operation_results = session.get("operation_results", {})
+    validation_results = session.get("validation_results", {})
     risk = session.get("risk_score", {})
     remediations = session.get("remediations", [])
 
@@ -429,6 +569,7 @@ def generate_report():
         operation=operation_results,
         risk=risk,
         remediations=remediations,
+        validation=validation_results,
     )
 
     return jsonify({
@@ -501,6 +642,7 @@ def export_report():
     }
     mapping_results = session.get("mapping_results", {})
     op_results = session.get("operation_results")
+    validation_results = session.get("validation_results", {})
     risk = session.get("risk_score", {})
     remediations = session.get("remediations", [])
 
@@ -513,6 +655,7 @@ def export_report():
         operation=op_results,
         risk=risk,
         remediations=remediations,
+        validation=validation_results,
     )
 
     return send_file(

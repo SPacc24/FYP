@@ -1,5 +1,6 @@
 from caldera.api_client import CalderaClient
 from caldera.operation_manager import OperationManager
+from caldera.coverage_checker import CoverageChecker
 
 
 def test_caldera_client_can_be_created():
@@ -20,3 +21,15 @@ def test_operation_manager_can_be_created(tmp_path):
     manager = OperationManager(client, log_dir=tmp_path)
 
     assert manager.log_dir.exists()
+
+
+def test_coverage_checker_can_be_created():
+    client = CalderaClient(
+        base_url="http://127.0.0.1:8888",
+        api_key="TESTKEY"
+    )
+
+    checker = CoverageChecker(client)
+    assert checker.client == client
+    assert checker._ability_cache is None
+    assert checker._technique_to_abilities == {}

@@ -579,18 +579,22 @@ tr:hover td {
 }
 
 .state.open,
+.state.confirmed,
 .severity.low {
   color: var(--green);
   border-color: var(--green);
 }
 
 .state.filtered,
+.state.potential,
+.state.not_tested,
 .severity.info {
   color: var(--yellow);
   border-color: var(--yellow);
 }
 
-.state.closed {
+.state.closed,
+.state.failed {
   color: var(--red);
   border-color: var(--red);
 }

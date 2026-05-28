@@ -20,6 +20,15 @@ function getExecutionRowsAsText() {
   }).join("\n");
 }
 
+function getValidationRowsAsText() {
+  const rows = Array.from(document.querySelectorAll("#validationResultsBody tr"));
+
+  return rows.map(row => {
+    const cells = Array.from(row.querySelectorAll("td"));
+    return cells.map(cell => cell.innerText.trim()).join(" | ");
+  }).join("\n");
+}
+
 function getEndpoint(name, fallback) {
   return window.DASHBOARD_ENDPOINTS?.[name] || fallback;
 }
@@ -41,6 +50,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("runCalderaBtn")
     ?.addEventListener("click", runCaldera);
+
+  document.getElementById("runValidationBtn")
+    ?.addEventListener("click", runExploitabilityValidation);
 
   document.getElementById("refreshStatusBtn")
     ?.addEventListener("click", refreshOperationStatus);
@@ -87,6 +99,75 @@ async function loadCalderaStatus() {
   }
 }
 
+async function runExploitabilityValidation() {
+  const tbody = document.getElementById("validationResultsBody");
+  const narrative = document.getElementById("validationNarrative");
+
+  if (!tbody) return;
+
+  tbody.innerHTML =
+    `<tr>
+      <td colspan="6" class="small">Running lab-safe validation checks...</td>
+    </tr>`;
+
+  try {
+    const res = await fetch(getEndpoint("exploitationRun", "/exploitation/run"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({})
+    });
+
+    const data = await res.json();
+
+    if (!data.ok) {
+      tbody.innerHTML =
+        `<tr>
+          <td colspan="6" class="small">${escapeHtml(data.error || "Validation failed.")}</td>
+        </tr>`;
+      return;
+    }
+
+    document.getElementById("validationConfirmed").textContent = data.confirmed || 0;
+    document.getElementById("validationPotential").textContent = data.potential || 0;
+    document.getElementById("validationTotal").textContent = data.total_checked || 0;
+
+    if (narrative) {
+      narrative.textContent = data.narrative || "Validation completed.";
+    }
+
+    if (data.findings && data.findings.length) {
+      tbody.innerHTML = data.findings.map(item => `
+        <tr>
+          <td><span class="state ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></td>
+          <td>${escapeHtml(item.service)}</td>
+          <td class="mono">${escapeHtml(item.port)}</td>
+          <td>${escapeHtml(item.title)}</td>
+          <td class="small">${escapeHtml(item.evidence)}</td>
+          <td class="small">${escapeHtml(item.next_step)}</td>
+        </tr>
+      `).join("");
+    }
+
+    else {
+      tbody.innerHTML =
+        `<tr>
+          <td colspan="6" class="small">
+            No allowlisted validation checks matched the current scan.
+          </td>
+        </tr>`;
+    }
+  }
+
+  catch (err) {
+    tbody.innerHTML =
+      `<tr>
+        <td colspan="6" class="small">Could not run validation checks.</td>
+      </tr>`;
+  }
+}
+
 async function runCaldera() {
   const operationBox = document.getElementById("operationBox");
   const selected = typeof getSelectedTechniqueIds === "function"
@@ -118,6 +199,21 @@ async function runCaldera() {
 
     const data = await res.json();
 
+    // Handle coverage warnings
+    const coverageWarningBox = document.getElementById("coverageWarningBox");
+    const coverageWarningText = document.getElementById("coverageWarningText");
+    if (data.coverage_info) {
+      const { unsupported_count, unsupported, supported } = data.coverage_info;
+      if (unsupported_count > 0) {
+        if (coverageWarningBox && coverageWarningText) {
+          coverageWarningText.textContent = 
+            `${unsupported_count} technique(s) not supported by CALDERA (${unsupported.join(", ")}). ` +
+            `Executing only ${supported.length} supported technique(s).`;
+          coverageWarningBox.style.display = "block";
+        }
+      }
+    }
+
     if (data.ok || data.success) {
       const total = data.total || data.techniques_run?.length || 0;
       const successful = data.success_count || 0;
@@ -131,6 +227,7 @@ async function runCaldera() {
          </p>`;
 
       const tbody = document.getElementById("techniqueResultsBody");
+      const executionSummary = document.getElementById("executionSummary");
 
       if (tbody && data.techniques_run && data.techniques_run.length > 0) {
         tbody.innerHTML = data.techniques_run.map(t => `
@@ -138,14 +235,22 @@ async function runCaldera() {
             <td class="mono">${escapeHtml(t.technique_id)}</td>
             <td>${escapeHtml(t.technique_name)}</td>
             <td>${escapeHtml(t.tactic)}</td>
-            <td>${escapeHtml(t.status)}</td>
-            <td>${escapeHtml(t.timestamp || "-")}</td>
-            <td class="small">${escapeHtml(t.output || "-")}</td>
+            <td><strong>${escapeHtml(t.status)}</strong></td>
+            <td class="small">${escapeHtml(t.timestamp || "-")}</td>
+            <td class="small">${escapeHtml(t.output ? t.output.substring(0, 100) + (t.output.length > 100 ? "..." : "") : "-")}</td>
           </tr>
         `).join("");
 
         // Update execution summary
         if (executionSummary) {
+<<<<<<< HEAD
+=======
+          const total = data.total || data.techniques_run.length;
+          const successful = data.success_count || 0;
+          const failed = data.fail_count || 0;
+          const discarded = data.discarded_count || 0;
+
+>>>>>>> 4ea34df5f54f19d5c70186ada8bb87d9bf543f04
           document.getElementById("totalTechniques").textContent = total;
           document.getElementById("successfulTechniques").textContent = successful;
           document.getElementById("failedTechniques").textContent = failed;
@@ -181,7 +286,12 @@ async function runCaldera() {
     else {
       operationBox.innerHTML =
         `<p><strong>Operation failed.</strong></p>
-         <p class="small">${escapeHtml(data.message || "No error message returned.")}</p>`;
+         <p class="small">${escapeHtml(data.message || data.error || "No error message returned.")}</p>`;
+      
+      if (data.coverage) {
+        operationBox.innerHTML += 
+          `<p class="small"><strong>Coverage Info:</strong> ${data.coverage.unsupported} technique(s) not supported.</p>`;
+      }
     }
   }
 
@@ -221,6 +331,7 @@ async function generateReport() {
     : [];
 
   const executionText = getExecutionRowsAsText();
+  const validationText = getValidationRowsAsText();
   const context = getDashboardContext();
 
   reportBox.innerHTML = "<p class='muted'>Generating report...</p>";
@@ -232,6 +343,7 @@ async function generateReport() {
     risk_score: document.getElementById("riskScoreValue")?.innerText || "N/A",
     risk_label: document.getElementById("riskLabelValue")?.innerText || "N/A",
     selected_techniques: selectedTechniques,
+    validation_results: validationText,
     execution_results: executionText
   };
 
@@ -298,8 +410,11 @@ ${data.selected_techniques.length ? data.selected_techniques.join(", ") : "No se
 Execution Results:
 ${data.execution_results || "No execution results generated yet."}
 
+Lab Exploitability Validation:
+${data.validation_results || "No validation evidence generated yet."}
+
 Summary:
-The scan findings and vulnerability mapping were reviewed together with the selected technique mode. The selected MITRE ATT&CK techniques were prepared for Caldera execution. The execution results above should be used to validate exposure, document findings, and support remediation planning.
+The scan findings, vulnerability mapping, lab validation evidence, and selected technique mode were reviewed together. The selected MITRE ATT&CK techniques were prepared for Caldera execution. The execution results above should be used to validate exposure, document findings, and support remediation planning.
   `.trim();
 }
 
