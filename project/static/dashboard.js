@@ -73,7 +73,7 @@ async function loadCalderaStatus() {
   if (!box) return;
 
   try {
-    const res = await fetch(getEndpoint("calderaStatus", "/caldera_status"));
+    const res = await fetch(getEndpoint("calderaStatus", "/caldera/status"));
     const data = await res.json();
 
     if (data.agent_ready) {
@@ -188,7 +188,7 @@ async function runCaldera() {
     "<p class='muted'>Starting Caldera operation...</p>";
 
   try {
-    const res = await fetch(getEndpoint("calderaRun", "/caldera_run"), {
+    const res = await fetch(getEndpoint("calderaRun", "/caldera/run"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -297,7 +297,7 @@ async function refreshOperationStatus() {
   if (!operationBox) return;
 
   try {
-    const res = await fetch(getEndpoint("operationStatus", "/operation_status"));
+    const res = await fetch(getEndpoint("operationStatus", "/caldera/operation/status"));
     const data = await res.json();
 
     operationBox.innerHTML =

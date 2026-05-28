@@ -170,3 +170,50 @@ class CalderaClient:
                 matches.append(ability)
 
         return matches
+
+    # Compatibility aliases / helpers for older test scripts and callers
+    def ping(self):
+        """Backward-compatible ping method used by tests.
+        Returns True if Caldera appears reachable, False otherwise.
+        """
+        try:
+            # Prefer the health endpoint when available
+            self.health_check()
+            return True
+        except CalderaAPIError:
+            try:
+                # Fallback to listing agents as a pragmatic connectivity check
+                self.list_agents()
+                return True
+            except CalderaAPIError:
+                return False
+
+    def get_agents(self):
+        """Alias for list_agents() returning a list of agents."""
+        agents = self.list_agents()
+        if isinstance(agents, dict):
+            return agents.get("agents", [])
+        return agents
+
+    def get_adversaries(self):
+        """Return list of adversaries."""
+        adv = self._request("GET", "/api/v2/adversaries")
+        if isinstance(adv, dict):
+            return adv.get("adversaries", [])
+        return adv
+
+    def generate_sandcat_command(self, kali_ip, group='red'):
+        """Return a simple deploy command string for Sandcat (informational).
+        This is a best-effort helper and intentionally non-destructive.
+        """
+        # This is an informational deploy command to assist users; it may need tailoring in real deployments.
+        return (
+            f"# Download and run Sandcat agent (example)\n"
+            f"curl -fsSL {self.base_url}/download/sandcat -o sandcat && chmod +x sandcat && \
+"
+            f"./sandcat --server {kali_ip} --group {group} --key {self.api_key}"
+        )
+
+    def get_adversary_list(self):
+        """Alias for get_adversaries() - backwards compatibility."""
+        return self.get_adversaries()

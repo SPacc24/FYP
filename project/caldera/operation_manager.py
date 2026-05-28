@@ -22,8 +22,23 @@ STATUS_MAP = {
 SAFE_ADVERSARIES = ['discovery', 'hunter', 'basic', 'initial']
 
 class OperationManager:
-    def __init__(self, caldera_client, log_dir="storage/logs"):
-        self.client = caldera_client
+    def __init__(self, caldera_client_or_url, api_key=None, log_dir="storage/logs"):
+        """
+        Backwards-compatible constructor.
+        Accepts either a CalderaClient instance or (base_url, api_key) pair.
+        """
+        # Delay import to avoid circular import at module load time
+        from caldera.api_client import CalderaClient
+
+        if hasattr(caldera_client_or_url, "get_online_agents"):
+            # Already a client-like object
+            self.client = caldera_client_or_url
+        elif isinstance(caldera_client_or_url, str):
+            # base_url provided; create a CalderaClient
+            self.client = CalderaClient(base_url=caldera_client_or_url, api_key=api_key)
+        else:
+            raise ValueError("OperationManager requires a CalderaClient instance or a base_url string")
+
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -244,6 +259,8 @@ class OperationManager:
             'total': total,
             'success_count': success_count,
             'fail_count': fail_count,
+            'running_count': running_count,
+            'discarded_count': discarded_count,
             'timed_out': timed_out,
             'agent_host': '',
             'agent_paw': ''
@@ -261,6 +278,8 @@ class OperationManager:
             'total': 0,
             'success_count': 0,
             'fail_count': 0,
+            'running_count': 0,
+            'discarded_count': 0,
             'timed_out': False,
             'agent_host': '',
             'agent_paw': '',
