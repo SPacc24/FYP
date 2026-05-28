@@ -119,8 +119,16 @@ async function runCaldera() {
     const data = await res.json();
 
     if (data.ok || data.success) {
+      const total = data.total || data.techniques_run?.length || 0;
+      const successful = data.success_count || 0;
+      const failed = data.fail_count || 0;
+      const discarded = data.discarded_count || 0;
+      const running = data.running_count || 0;
       operationBox.innerHTML =
-        `<p><strong>Operation completed successfully.</strong></p>`;
+        `<p><strong>Operation ${escapeHtml(data.state || "completed")}.</strong></p>
+         <p class="small">
+           Technique results: ${successful} successful, ${failed} failed, ${discarded} discarded, ${running} running.
+         </p>`;
 
       const tbody = document.getElementById("techniqueResultsBody");
 
@@ -135,6 +143,15 @@ async function runCaldera() {
             <td class="small">${escapeHtml(t.output || "-")}</td>
           </tr>
         `).join("");
+
+        // Update execution summary
+        if (executionSummary) {
+          document.getElementById("totalTechniques").textContent = total;
+          document.getElementById("successfulTechniques").textContent = successful;
+          document.getElementById("failedTechniques").textContent = failed;
+          document.getElementById("discardedTechniques").textContent = discarded;
+          executionSummary.style.display = "grid";
+        }
       }
 
       else if (tbody) {

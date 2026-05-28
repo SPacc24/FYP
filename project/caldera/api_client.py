@@ -100,6 +100,7 @@ class CalderaClient:
         "description": "Auto-generated adversary profile",
         "atomic_ordering": ability_ids
         }
+        log.info("[CALDERA] Adversary payload: %s", payload)
         return self._request("POST", "/api/v2/adversaries", json=payload)
 
 
@@ -147,6 +148,7 @@ class CalderaClient:
                 "planner_id": planner_id
             }
 
+        log.info("[CALDERA] Operation payload: %s", payload)
         return self._request("POST", "/api/v2/operations", json=payload)
     
     def get_abilities_by_technique(self, technique_id):

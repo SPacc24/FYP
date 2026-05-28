@@ -27,6 +27,16 @@ CVE_CACHE_TTL_SECONDS = 60 * 60 * 24
 
 REQUEST_TIMEOUT = 12
 MAX_SELECTED_TECHNIQUES = 5
+VALIDATION_TECHNIQUES = {"T1046", "T1135", "T1018"}
+CONTROLLED_EMULATION_TECHNIQUES = {
+    "T1210",
+    "T1059",
+    "T1021",
+    "T1021.001",
+    "T1021.002",
+    "T1021.004",
+    "T1021.006",
+}
 
 
 DEFAULT_AI_NEXT_STEPS = [
@@ -468,6 +478,8 @@ def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
 
         max_severity = tech.get("max_severity", "Info")
 
+        category = "controlled_emulation" if technique_id in CONTROLLED_EMULATION_TECHNIQUES else "validation"
+
         allowed.append({
             "id": technique_id,
             "name": (
@@ -486,6 +498,7 @@ def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
             "mitre_data_sources": mitre_info.get("data_sources", [])[:8],
             "mitre_detection": mitre_info.get("detection", ""),
             "linked_cves": linked_cves,
+            "execution_category": category,
             "mapper_reason": tech.get(
                 "reason",
                 f"This technique appeared in {tech.get('count', 0)} mapped finding(s), "
@@ -636,6 +649,18 @@ def normalise_technique_explanations(
 
 def choose_fallback_selected_ids(allowed_techniques: list[dict]) -> list[str]:
     selected = []
+    validation = [t for t in allowed_techniques if t.get("id") in VALIDATION_TECHNIQUES]
+    controlled = [t for t in allowed_techniques if t.get("id") in CONTROLLED_EMULATION_TECHNIQUES]
+
+    for group in (validation[:1], controlled[:1], allowed_techniques):
+        for tech in group:
+            technique_id = tech.get("id")
+
+            if technique_id and technique_id not in selected:
+                selected.append(technique_id)
+
+            if len(selected) >= MAX_SELECTED_TECHNIQUES:
+                return selected
 
     for tech in allowed_techniques:
         technique_id = tech.get("id")
@@ -649,7 +674,78 @@ def choose_fallback_selected_ids(allowed_techniques: list[dict]) -> list[str]:
     return selected
 
 
+<<<<<<< Updated upstream
 def generate_ai_technique_plan(mapping_result: dict, preferred_mode: str = "hybrid") -> dict:
+=======
+def balance_validation_and_emulation(selected_ids: list[str], allowed_techniques: list[dict]) -> list[str]:
+    if len(selected_ids) >= MAX_SELECTED_TECHNIQUES:
+        return selected_ids
+
+    allowed_ids = [tech.get("id") for tech in allowed_techniques if tech.get("id")]
+    has_validation = any(tid in VALIDATION_TECHNIQUES for tid in selected_ids)
+    has_controlled = any(tid in CONTROLLED_EMULATION_TECHNIQUES for tid in selected_ids)
+
+    additions = []
+    if not has_validation:
+        additions.extend(tid for tid in allowed_ids if tid in VALIDATION_TECHNIQUES)
+    if not has_controlled:
+        additions.extend(tid for tid in allowed_ids if tid in CONTROLLED_EMULATION_TECHNIQUES)
+
+    for tid in additions:
+        if tid not in selected_ids:
+            selected_ids.append(tid)
+        if len(selected_ids) >= MAX_SELECTED_TECHNIQUES:
+            break
+
+    return selected_ids
+
+
+def enrich_explanations_with_coverage(
+    technique_explanations: list[dict],
+    coverage_info: Optional[dict] = None,
+) -> list[dict]:
+    """
+    Enrich technique explanations with CALDERA coverage status.
+    If coverage_info is provided, add coverage details to each explanation.
+    If not provided (coverage checker unavailable), add a note to check manually.
+    """
+    if not coverage_info:
+        # Coverage checker not available or not called
+        for explanation in technique_explanations:
+            explanation["caldera_coverage"] = {
+                "supported": None,
+                "ability_count": None,
+                "abilities": [],
+                "note": "Coverage status could not be determined. Check CALDERA manually.",
+            }
+        return technique_explanations
+
+    techniques_coverage = coverage_info.get("techniques", {})
+
+    for explanation in technique_explanations:
+        technique_id = explanation.get("technique_id", "").upper()
+        coverage_data = techniques_coverage.get(technique_id, {})
+
+        explanation["caldera_coverage"] = {
+            "supported": coverage_data.get("supported", False),
+            "ability_count": coverage_data.get("ability_count", 0),
+            "abilities": coverage_data.get("abilities", []),
+            "note": (
+                f"CALDERA has {coverage_data.get('ability_count', 0)} ability/ies for this technique."
+                if coverage_data.get("supported")
+                else "This technique has no matching abilities in CALDERA. Consider manual validation."
+            ),
+        }
+
+    return technique_explanations
+
+
+def generate_ai_technique_plan(
+    mapping_result: dict,
+    preferred_mode: str = "hybrid",
+    caldera_client=None,
+) -> dict:
+>>>>>>> Stashed changes
     preferred_mode = str(preferred_mode).lower()
 
     if preferred_mode not in ALLOWED_MODES:
@@ -691,8 +787,9 @@ Selection rules:
 - Select 2 to 5 techniques if enough relevant options exist.
 - Prefer techniques with higher max_severity, stronger CVE linkage, repeated findings, and clearer MITRE relevance.
 - Use linked_cves, CVSS severity, CVE description, MITRE description, tactics, service/port context, and mapper_reason.
+- Prefer a balanced plan: at least one discovery/validation technique and one controlled exploitation/post-access emulation technique when both exist in allowed_techniques.
 - Do not select only T1046 unless it is the only relevant allowed technique.
-- If SMB, Windows file-sharing, NetBIOS, or port 445 risks are present, consider both discovery and SMB-related remote service techniques.
+- If SMB, Windows file-sharing, NetBIOS, or port 445 risks are present, consider both discovery/share validation and controlled remote-service emulation such as T1210 when it is in allowed_techniques.
 - If RDP is present, consider RDP-related remote service validation.
 - If web service vulnerabilities or public-facing software risks are present, consider public-facing application exposure.
 - If domain services are present, consider domain/account discovery-related techniques.
@@ -765,6 +862,8 @@ Return JSON exactly in this shape:
 
     if len(selected_ids) == 1 and len(allowed_techniques) > 1:
         selected_ids = choose_fallback_selected_ids(allowed_techniques[:3])
+
+    selected_ids = balance_validation_and_emulation(selected_ids, allowed_techniques)
 
     technique_explanations = normalise_technique_explanations(
         plan=plan,
