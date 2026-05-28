@@ -7,6 +7,7 @@ from ai.llm_client import ask_llm_text
 from ai.safety import SAFE_REFUSAL, is_unsafe_user_request, sanitize_llm_reply
 import json
 import os
+import socket
 
 from flask import (
     Flask,
@@ -126,6 +127,19 @@ def _current_target_context():
         "os": os_name,
         "platform": "windows" if "win" in str(os_name).lower() else "linux",
     }
+
+
+def _caldera_agent_server_host():
+    configured = getattr(Config, "KALI_IP", "") or ""
+    if configured and configured not in {"127.0.0.1", "localhost", "0.0.0.0"}:
+        return configured
+    try:
+        host_ip = socket.gethostbyname(socket.gethostname())
+        if host_ip and not host_ip.startswith("127."):
+            return host_ip
+    except OSError:
+        pass
+    return None
 
 
 # ---------------------------------------------------
@@ -283,7 +297,10 @@ def scan():
             caldera_client=caldera_client,
         ) ##edited
         validation_results = exploitability_validator.validate(parsed_results, mapping_results)
-        risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), {})
+        risk = _safe_risk_calculate(
+            mapping_results.get("vulnerabilities", []),
+            {"validation_results": validation_results},
+        )
 
         session["target_ip"] = target
         session["target_os"] = parsed_results.get("os", "Unknown")
@@ -323,14 +340,14 @@ def scan():
 
 @app.route("/caldera/status", methods=["GET"])
 def caldera_status():
-    status = operation_manager.check_readiness()
     target_context = _current_target_context()
+    status = operation_manager.check_readiness(target=target_context["target"])
     status["target"] = target_context["target"]
     status["target_os"] = target_context["os"]
     if not status.get("agent_ready"):
         status["deploy_command"] = operation_manager.get_deploy_command(
-            kali_ip=Config.CALDERA_URL,
-            group="red",
+            kali_ip=_caldera_agent_server_host(),
+            group=getattr(Config, "AGENT_GROUP", "red"),
             platform=target_context["platform"],
         )
     return jsonify(status)
@@ -343,10 +360,10 @@ def caldera_deploy_command():
         "ok": True,
         "target": target_context["target"],
         "os": target_context["os"],
-        "group": "red",
+        "group": getattr(Config, "AGENT_GROUP", "red"),
         "deploy_command": operation_manager.get_deploy_command(
-            kali_ip=Config.CALDERA_URL,
-            group="red",
+            kali_ip=_caldera_agent_server_host(),
+            group=getattr(Config, "AGENT_GROUP", "red"),
             platform=target_context["platform"],
         ),
     })
@@ -369,6 +386,13 @@ def exploitation_run():
         mapping_results = session.get("mapping_results", {})
         validation_results = exploitability_validator.validate(parsed_results, mapping_results)
         session["validation_results"] = validation_results
+        session["risk_score"] = _safe_risk_calculate(
+            mapping_results.get("vulnerabilities", []),
+            {
+                **(session.get("operation_results", {}) or {}),
+                "validation_results": validation_results,
+            },
+        )
 
         return jsonify(validation_results)
 
@@ -459,16 +483,53 @@ def caldera_run():
             )
 
         if not supported_techniques:
-            return jsonify({
-                "ok": False,
-                "error": "None of the selected techniques are supported by CALDERA. "
-                         "Please check coverage and select supported techniques.",
+            mapping_results = session.get("mapping_results", {})
+            unsupported_results = operation_manager.build_unsupported_results(
+                selected_techniques,
+                {"vulnerabilities": mapping_results.get("vulnerabilities", [])},
+            )
+            result = {
+                "success": True,
+                "operation_id": "",
+                "operation_name": "No CALDERA operation created",
+                "state": "unsupported",
+                "techniques_run": unsupported_results,
+                "total": len(unsupported_results),
+                "success_count": 0,
+                "fail_count": 0,
+                "running_count": 0,
+                "discarded_count": 0,
+                "unsupported_count": len(unsupported_results),
+                "timed_out": False,
+                "agent_host": "",
+                "agent_paw": "",
                 "coverage": coverage,
-            }), 400
+                "coverage_info": {
+                    "requested": selected_techniques,
+                    "supported": [],
+                    "unsupported": selected_techniques,
+                    "unsupported_count": len(selected_techniques),
+                    "coverage_details": coverage,
+                },
+            }
+            result["validation_results"] = session.get("validation_results", {})
+            risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), result)
+            session["operation_results"] = result
+            session["risk_score"] = risk
+            return jsonify({
+                "ok": True,
+                **result,
+                "risk": risk,
+                "message": "No selected techniques are supported by CALDERA. Unsupported techniques were recorded for external validation.",
+            })
 
         result = operation_manager.run_operation(
             technique_ids=supported_techniques,
-            group=data.get("group", "red"),
+            group=data.get("group", getattr(Config, "AGENT_GROUP", "red")),
+            timeout=getattr(Config, "OPERATION_TIMEOUT", 180),
+            target=session.get("target_ip"),
+            unsupported_techniques=[t for t in selected_techniques if t not in supported_techniques],
+            unsupported_context={"vulnerabilities": session.get("mapping_results", {}).get("vulnerabilities", [])},
         )
 
         if not isinstance(result, dict):
@@ -484,6 +545,7 @@ def caldera_run():
         mapping_results = session.get("mapping_results", {})
         vulns = data.get("vulnerabilities") or session.get("vulnerabilities") or mapping_results.get("vulnerabilities", [])
         session["vulnerabilities"] = vulns
+        result["validation_results"] = session.get("validation_results", {})
         risk = _safe_risk_calculate(vulns, result)
 
         # Remediation

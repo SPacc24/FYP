@@ -205,3 +205,33 @@ def test_custom_adversary_contains_all_selected_technique_abilities(tmp_path):
         "ab-t1021",
     ]
     assert payload["atomic_ordering"] == ["ab-t1046", "ab-t1135", "ab-t1021"]
+
+
+def test_parse_results_preserves_real_output_and_evidence(tmp_path):
+    client = CalderaClient(base_url="http://caldera.test", api_key="TESTKEY")
+    manager = OperationManager(client, log_dir=tmp_path)
+
+    parsed = manager._parse_results(
+        {"id": "op001", "name": "AutoPenTest-test", "state": "finished"},
+        [
+            {
+                "id": "link001",
+                "status": 0,
+                "command": "Get-SmbShare | ConvertTo-Json",
+                "output": '[{"Name":"ADMIN$"},{"Name":"C$"},{"Name":"Users"}]',
+                "finish": "2026-05-28T10:00:00",
+                "ability": {
+                    "technique_id": "T1135",
+                    "name": "Network Share Discovery",
+                    "tactic": "discovery",
+                },
+            }
+        ],
+    )
+
+    result = parsed["techniques_run"][0]
+
+    assert result["status"] == "success"
+    assert result["command"] == "Get-SmbShare | ConvertTo-Json"
+    assert "ADMIN$" in result["output"]
+    assert "SMB share observed: ADMIN$" in result["parsed_evidence"]

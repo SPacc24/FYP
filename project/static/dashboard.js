@@ -30,6 +30,14 @@ function getValidationRowsAsText() {
   }).join("\n");
 }
 
+function formatEvidenceList(items) {
+  if (!items || !items.length) {
+    return "Execution completed but no evidence returned.";
+  }
+
+  return `<ul class="compact-list">${items.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+}
+
 function getEndpoint(name, fallback) {
   return window.DASHBOARD_ENDPOINTS?.[name] || fallback;
 }
@@ -286,7 +294,7 @@ async function runCaldera() {
         if (coverageWarningBox && coverageWarningText) {
           coverageWarningText.textContent = 
             `${unsupported_count} technique(s) not supported by CALDERA (${unsupported.join(", ")}). ` +
-            `Executing only ${supported.length} supported technique(s).`;
+            `${supported.length ? `Executing only ${supported.length} supported technique(s).` : "Recording external validation requirement."}`;
           coverageWarningBox.style.display = "block";
         }
       }
@@ -294,7 +302,9 @@ async function runCaldera() {
 
     if (data.ok || data.success) {
       operationBox.innerHTML =
-        `<p><strong>Operation completed successfully.</strong></p>`;
+        data.state === "unsupported"
+          ? `<p><strong>No CALDERA operation created.</strong></p><p class="small">${escapeHtml(data.message || "Unsupported techniques require external validation.")}</p>`
+          : `<p><strong>Operation completed.</strong></p>`;
 
       const tbody = document.getElementById("techniqueResultsBody");
       const executionSummary = document.getElementById("executionSummary");
@@ -307,7 +317,18 @@ async function runCaldera() {
             <td>${escapeHtml(t.tactic)}</td>
             <td><strong>${escapeHtml(t.status)}</strong></td>
             <td class="small">${escapeHtml(t.timestamp || "-")}</td>
-            <td class="small">${escapeHtml(t.output ? t.output.substring(0, 100) + (t.output.length > 100 ? "..." : "") : "-")}</td>
+            <td class="small">
+              <details>
+                <summary>${escapeHtml(t.evidence_summary || "View execution evidence")}</summary>
+                <p><strong>Command executed</strong></p>
+                <pre class="small mono">${escapeHtml(t.command || "No command returned by CALDERA.")}</pre>
+                <p><strong>Parsed evidence</strong></p>
+                ${formatEvidenceList(t.parsed_evidence)}
+                <p><strong>Raw stdout</strong></p>
+                <pre class="small mono">${escapeHtml(t.stdout || t.output || "Execution completed but no evidence returned.")}</pre>
+                ${t.stderr ? `<p><strong>Raw stderr</strong></p><pre class="small mono">${escapeHtml(t.stderr)}</pre>` : ""}
+              </details>
+            </td>
           </tr>
         `).join("");
 
