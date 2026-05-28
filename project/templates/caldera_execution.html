@@ -4,14 +4,48 @@
     <h2>Agent Readiness and Caldera Execution</h2>
   </div>
 
-  <div id="calderaStatusBox" class="mini-panel">
-    <p class="muted">Checking Caldera agent status...</p>
+  <div class="caldera-grid">
+    <div id="calderaStatusBox" class="mini-panel status-card">
+      <p class="muted">Checking Caldera agent status...</p>
+    </div>
+
+    <div id="deployCommandBox" class="command-box deploy-card" style="display:none;">
+      <h3>Deploy Agent</h3>
+      <p class="small">
+        Target: <span id="deployTargetText">Unknown</span><br>
+        OS: <span id="deployOsText">Unknown</span>
+      </p>
+      <ol class="small">
+        <li>Run this command on the target machine inside the authorised lab.</li>
+        <li>Return to this dashboard and click Refresh Agent Status.</li>
+        <li>Select the active trusted agent, then run CALDERA techniques.</li>
+      </ol>
+      <code id="deployCommandText"></code>
+      <button class="button secondary top-gap" id="copyDeployCommandBtn" type="button">
+        Copy Deploy Command
+      </button>
+    </div>
+  </div>
+
+  <div class="agent-toolbar top-gap">
+    <input id="agentFilterText" type="text" placeholder="Filter by target IP or hostname" />
+    <select id="agentFilterOnline">
+      <option value="all">All statuses</option>
+      <option value="online">Online</option>
+      <option value="offline">Offline</option>
+    </select>
+    <select id="agentFilterTrusted">
+      <option value="all">All trust states</option>
+      <option value="trusted">Trusted</option>
+      <option value="untrusted">Untrusted</option>
+    </select>
   </div>
 
   <div class="table-wrap top-gap" id="agentTableWrap" style="display:none;">
     <table class="compact-table">
       <thead>
         <tr>
+          <th>Select</th>
           <th>Host</th>
           <th>IP</th>
           <th>OS</th>
@@ -24,33 +58,29 @@
     </table>
   </div>
 
-  <div id="deployCommandBox" class="command-box top-gap" style="display:none;">
-    <h3>Deploy Agent</h3>
-    <p class="small">
-      Target: <span id="deployTargetText">Unknown</span><br>
-      OS: <span id="deployOsText">Unknown</span>
-    </p>
-    <ol class="small">
-      <li>Run this command on the target machine inside the authorised lab.</li>
-      <li>Return to this dashboard and press Refresh Agent Status.</li>
-    </ol>
-    <code id="deployCommandText"></code>
-    <button class="button secondary top-gap" id="copyDeployCommandBtn" type="button">
-      Copy Deploy Command
-    </button>
-  </div>
-
   <div id="coverageWarningBox" class="mini-panel top-gap" style="display:none;">
     <p><strong>Coverage Note:</strong> <span id="coverageWarningText"></span></p>
   </div>
 
-  <div class="actions">
+  <div class="actions caldera-actions">
     <button class="button secondary" id="refreshAgentStatusBtn" type="button">
-      Refresh Agent Status
+      Refresh Status
     </button>
 
     <button class="button secondary" id="deployAgentBtn" type="button">
       Deploy Agent
+    </button>
+
+    <button class="button secondary" id="selectAgentBtn" type="button">
+      Select Active Agent
+    </button>
+
+    <button class="button secondary danger-button" id="deleteAgentBtn" type="button">
+      Delete Agent
+    </button>
+
+    <button class="button secondary danger-button" id="removeStaleAgentsBtn" type="button">
+      Remove Stale Agents
     </button>
 
     <button class="button" id="runCalderaBtn" type="button">

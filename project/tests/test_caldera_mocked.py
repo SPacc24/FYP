@@ -235,3 +235,57 @@ def test_parse_results_preserves_real_output_and_evidence(tmp_path):
     assert result["command"] == "Get-SmbShare | ConvertTo-Json"
     assert "ADMIN$" in result["output"]
     assert "SMB share observed: ADMIN$" in result["parsed_evidence"]
+
+
+def test_boolean_output_is_not_treated_as_stdout(tmp_path):
+    client = CalderaClient(base_url="http://caldera.test", api_key="TESTKEY")
+    manager = OperationManager(client, log_dir=tmp_path)
+
+    parsed = manager._parse_results(
+        {"id": "op001", "name": "AutoPenTest-test", "state": "finished"},
+        [
+            {
+                "id": "link001",
+                "status": 0,
+                "command": "Get-SmbShare | ConvertTo-Json",
+                "output": True,
+                "ability": {
+                    "technique_id": "T1135",
+                    "name": "Network Share Discovery",
+                    "tactic": "discovery",
+                },
+            }
+        ],
+    )
+
+    result = parsed["techniques_run"][0]
+
+    assert result["command_completed"] is True
+    assert result["stdout"] == ""
+    assert result["output"] == ""
+    assert "no stdout/stderr evidence" in result["evidence_summary"]
+
+
+@responses.activate
+def test_windows_sandcat_command_uses_official_payload_and_reachable_server():
+    base_url = "http://127.0.0.1:8888"
+
+    responses.add(
+        responses.GET,
+        f"{base_url}/api/v2/payloads",
+        json=["sandcat-elfload.pl.2", "sandcat.go"],
+        status=200,
+    )
+
+    client = CalderaClient(base_url=base_url, api_key="redadmin")
+    command = client.generate_sandcat_command(
+        kali_ip="192.168.67.128",
+        group="red",
+        platform="windows",
+    )
+
+    assert "$server=\"http://192.168.67.128:8888\";" in command
+    assert "$wc.Headers.add(\"platform\",\"windows\");" in command
+    assert "$wc.Headers.add(\"file\",\"sandcat.go\");" in command
+    assert "sandcat-elfload" not in command
+    assert "-k redadmin" not in command

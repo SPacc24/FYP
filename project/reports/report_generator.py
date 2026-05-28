@@ -45,6 +45,25 @@ def _summarize_vulnerabilities(mapping: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _summarize_scan_findings(scan: dict[str, Any]) -> list[str]:
+    lines = [
+        f"Target IP: {_safe_text(scan.get('target_ip', 'Unknown'))}",
+        f"Detected OS: {_safe_text(scan.get('os', 'Unknown'))}",
+        f"Port range: {_safe_text(scan.get('port_range', '1-1024'))}",
+        f"Scan output: {_safe_text(scan.get('output_file', 'Not saved'))}",
+    ]
+    ports = scan.get("ports", []) or []
+    if ports:
+        lines.append("Open/reported services:")
+        for port in ports[:20]:
+            lines.append(
+                f"- {port.get('port', 'N/A')}/{port.get('protocol', 'tcp')} "
+                f"{port.get('state', 'unknown')} {port.get('service', 'unknown')} "
+                f"{port.get('product', '')} {port.get('version', '')}".strip()
+            )
+    return lines
+
+
 def _summarize_attack_plan(mapping: dict[str, Any]) -> list[str]:
     lines = []
     plan = mapping.get("caldera_plan", {})
@@ -175,11 +194,7 @@ def build_report_summary(
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [f"AutoPenTest Report", f"Generated: {now}", ""]
 
-    lines.append(_section("Target Summary", [
-        f"Target IP: {_safe_text(scan.get('target_ip', 'Unknown'))}",
-        f"Port range: {_safe_text(scan.get('port_range', '1-1024'))}",
-        f"Scan output: {_safe_text(scan.get('output_file', 'Not saved'))}",
-    ]))
+    lines.append(_section("Target Summary", _summarize_scan_findings(scan)))
 
     lines.append(_section("Vulnerability Mapping", _summarize_vulnerabilities(mapping)))
     lines.append(_section("Attack Plan", _summarize_attack_plan(mapping)))

@@ -96,6 +96,11 @@ def _safe_risk_calculate(vulns, op_results):
     Handles missing / broken risk scorer gracefully.
     """
     try:
+        op_results = dict(op_results or {})
+        op_results.setdefault("scan_context", {
+            "target_ip": session.get("target_ip", "Unknown"),
+            "os": session.get("target_os", "Unknown"),
+        })
         return risk_scorer.calculate(vulns, op_results)
     except Exception as e:
         log.warning(f"Risk score fallback triggered: {e}")
@@ -120,7 +125,12 @@ def _load_current_scan_results():
 
 def _current_target_context():
     parsed_results = _load_current_scan_results() or {}
-    target = session.get("target_ip", "Unknown")
+    target = (
+        session.get("target_ip")
+        or parsed_results.get("target_ip")
+        or (parsed_results.get("hosts", [{}])[0].get("address", {}).get("primary") if parsed_results.get("hosts") else None)
+        or "Unknown"
+    )
     os_name = parsed_results.get("os") or session.get("target_os") or "Windows"
     return {
         "target": target,
@@ -368,6 +378,39 @@ def caldera_deploy_command():
         ),
     })
 
+
+@app.route("/caldera/agent/delete", methods=["POST"])
+def caldera_agent_delete():
+    try:
+        data = request.get_json(silent=True) or {}
+        paw = data.get("paw")
+        result = operation_manager.delete_agent(paw)
+        return jsonify(result), 200 if result.get("ok") else 400
+    except Exception as e:
+        log.error(f"Agent delete failed: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/caldera/agents/remove-stale", methods=["POST"])
+def caldera_agents_remove_stale():
+    try:
+        target_context = _current_target_context()
+        result = operation_manager.remove_stale_agents(target=target_context["target"])
+        return jsonify(result), 200 if result.get("ok") else 500
+    except Exception as e:
+        log.error(f"Remove stale agents failed: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/caldera/agent/select", methods=["POST"])
+def caldera_agent_select():
+    data = request.get_json(silent=True) or {}
+    paw = data.get("paw")
+    if not paw:
+        return jsonify({"ok": False, "error": "Missing paw"}), 400
+    session["selected_agent_paw"] = paw
+    return jsonify({"ok": True, "selected_agent_paw": paw})
+
 @app.route("/caldera/operation/status", methods=["GET"])
 def operation_status():
     return jsonify(session.get("operation_results", {}))
@@ -486,7 +529,10 @@ def caldera_run():
             mapping_results = session.get("mapping_results", {})
             unsupported_results = operation_manager.build_unsupported_results(
                 selected_techniques,
-                {"vulnerabilities": mapping_results.get("vulnerabilities", [])},
+                {
+                    "vulnerabilities": mapping_results.get("vulnerabilities", []),
+                    "scan_context": {"os": session.get("target_os", "Unknown")},
+                },
             )
             result = {
                 "success": True,
@@ -528,8 +574,12 @@ def caldera_run():
             group=data.get("group", getattr(Config, "AGENT_GROUP", "red")),
             timeout=getattr(Config, "OPERATION_TIMEOUT", 180),
             target=session.get("target_ip"),
+            selected_paw=session.get("selected_agent_paw"),
             unsupported_techniques=[t for t in selected_techniques if t not in supported_techniques],
-            unsupported_context={"vulnerabilities": session.get("mapping_results", {}).get("vulnerabilities", [])},
+            unsupported_context={
+                "vulnerabilities": session.get("mapping_results", {}).get("vulnerabilities", []),
+                "scan_context": {"os": session.get("target_os", "Unknown")},
+            },
         )
 
         if not isinstance(result, dict):
@@ -656,6 +706,9 @@ def generate_report():
         "port_range": session.get("port_range", data.get("port_range") or "1-1024"),
         "output_file": session.get("scan_output_file", ""),
     }
+    parsed_results = _load_current_scan_results() or {}
+    scan["os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
+    scan["ports"] = parsed_results.get("ports", [])
 
     mapping_results = session.get("mapping_results", {})
     operation_results = session.get("operation_results", {})
@@ -740,6 +793,9 @@ def export_report():
         "port_range": session.get("port_range", "1-1024"),
         "output_file": session.get("scan_output_file", ""),
     }
+    parsed_results = _load_current_scan_results() or {}
+    scan["os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
+    scan["ports"] = parsed_results.get("ports", [])
     mapping_results = session.get("mapping_results", {})
     op_results = session.get("operation_results")
     validation_results = session.get("validation_results", {})

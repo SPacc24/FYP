@@ -1,5 +1,7 @@
 
 let generatedReportContent = "";
+let currentAgents = [];
+let currentAgentTarget = "";
 
 function escapeHtml(value) {
   if (value === null || value === undefined) return "-";
@@ -75,6 +77,20 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("copyDeployCommandBtn")
     ?.addEventListener("click", copyDeployCommand);
 
+  document.getElementById("deleteAgentBtn")
+    ?.addEventListener("click", deleteSelectedAgent);
+
+  document.getElementById("removeStaleAgentsBtn")
+    ?.addEventListener("click", removeStaleAgents);
+
+  document.getElementById("selectAgentBtn")
+    ?.addEventListener("click", selectActiveAgent);
+
+  ["agentFilterText", "agentFilterOnline", "agentFilterTrusted"].forEach(id => {
+    document.getElementById(id)?.addEventListener("input", renderAgentTable);
+    document.getElementById(id)?.addEventListener("change", renderAgentTable);
+  });
+
   document.getElementById("generateReportBtn")
     ?.addEventListener("click", generateReport);
 
@@ -98,31 +114,21 @@ async function loadCalderaStatus() {
   try {
     const res = await fetch(getEndpoint("calderaStatus", "/caldera/status"));
     const data = await res.json();
-    const agents = data.agents || data.online_agents || [];
-
-    if (agentTableWrap && agentStatusBody) {
-      if (agents.length) {
-        agentStatusBody.innerHTML = agents.map(agent => `
-          <tr>
-            <td>${escapeHtml(agent.host || agent.hostname || "-")}</td>
-            <td class="mono">${escapeHtml(agent.ip || "-")}</td>
-            <td>${escapeHtml(agent.platform || agent.os || "-")}</td>
-            <td><span class="state ${agent.alive ? "confirmed" : "failed"}">${escapeHtml(agent.status || (agent.alive ? "Online" : "Offline"))}</span></td>
-            <td>${agent.trusted ? "Yes" : "No"}</td>
-            <td class="small">${escapeHtml(agent.last_seen || "-")}</td>
-          </tr>
-        `).join("");
-        agentTableWrap.style.display = "block";
-      }
-      else {
-        agentStatusBody.innerHTML = "";
-        agentTableWrap.style.display = "none";
-      }
-    }
+    currentAgents = data.agents || data.online_agents || [];
+    currentAgentTarget = data.target || "";
+    renderAgentTable();
 
     if (data.agent_ready) {
+      const matched = data.online_agents?.[0] || {};
       box.innerHTML =
-        `<p><strong>Ready</strong> - Trusted CALDERA agent available (${data.online_agents?.length || 1} online).</p>`;
+        `<p><strong>Ready</strong> - trusted CALDERA agent matched to ${escapeHtml(data.target || "target")}.</p>
+         <p class="small">
+           Host: ${escapeHtml(matched.host || matched.hostname || "-")}<br>
+           IP: ${escapeHtml(matched.ip || "-")}<br>
+           OS: ${escapeHtml(matched.platform || "-")}<br>
+           Trusted: ${matched.trusted ? "Yes" : "No"} | Status: ${escapeHtml(matched.status || "Online")}<br>
+           Last seen: ${escapeHtml(matched.last_seen || "-")}
+         </p>`;
 
       if (deployBox) deployBox.style.display = "none";
     }
@@ -144,6 +150,88 @@ async function loadCalderaStatus() {
     box.innerHTML =
       '<p class="muted">Unable to reach Caldera status endpoint.</p>';
   }
+}
+
+function renderAgentTable() {
+  const agentTableWrap = document.getElementById("agentTableWrap");
+  const agentStatusBody = document.getElementById("agentStatusBody");
+  if (!agentTableWrap || !agentStatusBody) return;
+
+  const text = (document.getElementById("agentFilterText")?.value || "").toLowerCase().trim();
+  const online = document.getElementById("agentFilterOnline")?.value || "all";
+  const trusted = document.getElementById("agentFilterTrusted")?.value || "all";
+
+  const filtered = currentAgents.filter(agent => {
+    const haystack = `${agent.host || ""} ${agent.hostname || ""} ${agent.ip || ""} ${agent.paw || ""}`.toLowerCase();
+    if (text && !haystack.includes(text)) return false;
+    if (online === "online" && !agent.alive) return false;
+    if (online === "offline" && agent.alive) return false;
+    if (trusted === "trusted" && !agent.trusted) return false;
+    if (trusted === "untrusted" && agent.trusted) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    agentStatusBody.innerHTML =
+      `<tr><td colspan="7" class="small">No CALDERA agents match the current filters.</td></tr>`;
+    agentTableWrap.style.display = "block";
+    return;
+  }
+
+  agentStatusBody.innerHTML = filtered.map(agent => {
+    const ip = agent.ip || "-";
+    const matched = currentAgentTarget && String(ip).includes(currentAgentTarget);
+    return `
+      <tr class="${matched ? "matched-agent-row" : ""}">
+        <td><input type="radio" name="selected_agent_paw" value="${escapeHtml(agent.paw || "")}" ${matched ? "checked" : ""}></td>
+        <td>${escapeHtml(agent.host || agent.hostname || "-")}</td>
+        <td class="mono">${escapeHtml(ip)}</td>
+        <td>${escapeHtml(agent.platform || agent.os || "-")}</td>
+        <td><span class="state ${agent.alive ? "confirmed" : "failed"}">${escapeHtml(agent.status || (agent.alive ? "Online" : "Offline"))}</span></td>
+        <td>${agent.trusted ? "Yes" : "No"}</td>
+        <td class="small">${escapeHtml(agent.last_seen || "-")}</td>
+      </tr>
+    `;
+  }).join("");
+  agentTableWrap.style.display = "block";
+}
+
+function getSelectedAgentPaw() {
+  return document.querySelector('input[name="selected_agent_paw"]:checked')?.value || "";
+}
+
+async function deleteSelectedAgent() {
+  const paw = getSelectedAgentPaw();
+  if (!paw) return;
+
+  await fetch(getEndpoint("calderaAgentDelete", "/caldera/agent/delete"), {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({paw})
+  });
+  await loadCalderaStatus();
+}
+
+async function removeStaleAgents() {
+  await fetch(getEndpoint("calderaAgentsRemoveStale", "/caldera/agents/remove-stale"), {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({})
+  });
+  await loadCalderaStatus();
+}
+
+async function selectActiveAgent() {
+  const paw = getSelectedAgentPaw();
+  if (!paw) return;
+
+  await fetch(getEndpoint("calderaAgentSelect", "/caldera/agent/select"), {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({paw})
+  });
+  const box = document.getElementById("calderaStatusBox");
+  if (box) box.innerHTML += `<p class="small">Selected active agent paw: ${escapeHtml(paw)}</p>`;
 }
 
 async function loadDeployCommand() {

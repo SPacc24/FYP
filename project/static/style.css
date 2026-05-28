@@ -519,6 +519,52 @@ input[type="radio"] {
   gap: 12px;
 }
 
+.caldera-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(320px, 1.15fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.status-card,
+.deploy-card {
+  margin: 0;
+  height: 100%;
+}
+
+.agent-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 160px 160px;
+  gap: 10px;
+  align-items: center;
+}
+
+.caldera-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+}
+
+.caldera-actions .button {
+  width: 100%;
+  text-align: center;
+}
+
+.danger-button {
+  border-color: var(--red) !important;
+  color: #ff9a9a !important;
+}
+
+.matched-agent-row td {
+  background: rgba(52, 208, 88, 0.06);
+}
+
+@media (max-width: 850px) {
+  .caldera-grid,
+  .agent-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* COMMAND BOX */
 
 .command-box code {

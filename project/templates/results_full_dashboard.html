@@ -38,6 +38,9 @@
       window.DASHBOARD_ENDPOINTS = {
         calderaStatus: "{{ url_for('caldera_status') }}",
         calderaDeployCommand: "{{ url_for('caldera_deploy_command') }}",
+        calderaAgentDelete: "{{ url_for('caldera_agent_delete') }}",
+        calderaAgentsRemoveStale: "{{ url_for('caldera_agents_remove_stale') }}",
+        calderaAgentSelect: "{{ url_for('caldera_agent_select') }}",
         exploitationRun: "{{ url_for('exploitation_run') }}",
         calderaRun: "{{ url_for('caldera_run') }}",
         operationStatus: "{{ url_for('operation_status') }}",

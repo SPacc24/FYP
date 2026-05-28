@@ -68,7 +68,10 @@ class OperationManager:
         raw = agent.get('ip') or agent.get('host_ip') or agent.get('host_ip_addrs') or ''
         if isinstance(raw, list):
             return {str(item).strip() for item in raw if item}
-        return {item.strip() for item in str(raw).split(',') if item.strip()}
+        found = re.findall(r"(?:\d{1,3}\.){3}\d{1,3}", str(raw))
+        if found:
+            return {item.strip() for item in found if item.strip()}
+        return {item.strip() for item in str(raw).replace(';', ',').split(',') if item.strip()}
 
     def _agent_matches_target(self, agent, target):
         if not target or target == 'Unknown':
@@ -80,7 +83,17 @@ class OperationManager:
             str(agent.get('paw') or '').lower().strip(),
         }
         agent_ips = {ip.lower() for ip in self._normalise_agent_ips(agent)}
-        return target_norm in agent_hosts or target_norm in agent_ips
+        if target_norm in agent_ips:
+            return True
+        return target_norm in agent_hosts
+
+    def _agent_sort_key(self, agent):
+        raw = str(agent.get('last_seen') or '')
+        try:
+            parsed = datetime.fromisoformat(raw.replace('Z', '+00:00'))
+            return parsed.timestamp()
+        except ValueError:
+            return 0
 
     def check_readiness(self, target=None):
         """
@@ -99,6 +112,7 @@ class OperationManager:
                 agent for agent in agents
                 if self._agent_matches_target(agent, target)
             ] if target else agents
+            matching_agents = sorted(matching_agents, key=self._agent_sort_key, reverse=True)
 
             return {
                 "ok": True,
@@ -129,14 +143,19 @@ class OperationManager:
                 "message": str(e)
             }
         
-    def check_agent(self, group='red', target=None):
+    def check_agent(self, group='red', target=None, selected_paw=None):
         agents = self.client.get_online_agents()
         group_agents = [a for a in agents if a.get('group') == group] if group else agents
+        if selected_paw:
+            selected = [a for a in group_agents if a.get('paw') == selected_paw]
+            if selected:
+                return True, selected[0]
         if target:
             group_agents = [a for a in group_agents if self._agent_matches_target(a, target)]
         if not group_agents:
             target_note = f" for target '{target}'" if target else ""
             return False, f"No trusted online agents found in group '{group}'{target_note}. Deploy Sandcat on the target machine first."
+        group_agents = sorted(group_agents, key=self._agent_sort_key, reverse=True)
         trusted = [a for a in group_agents if a.get('paw')]
         active = trusted if trusted else group_agents
         agent = active[0]
@@ -145,6 +164,43 @@ class OperationManager:
 
     def get_deploy_command(self, kali_ip=None, group='red', platform='windows'):
         return self.client.generate_sandcat_command(kali_ip, group, platform)
+
+    def delete_agent(self, paw):
+        if not paw:
+            return {"ok": False, "message": "Missing agent paw."}
+        self.client.delete_agent(paw)
+        return {"ok": True, "deleted": paw}
+
+    def remove_stale_agents(self, target=None, keep_newest=True):
+        readiness = self.check_readiness(target=target)
+        if not readiness.get("ok"):
+            return readiness
+
+        agents = readiness.get("agents", [])
+        matching = [agent for agent in agents if self._agent_matches_target(agent, target)] if target else agents
+        matching = sorted(matching, key=self._agent_sort_key, reverse=True)
+        keep_paw = None
+        if keep_newest:
+            for agent in matching:
+                if agent.get("trusted") and agent.get("alive") and agent.get("paw"):
+                    keep_paw = agent.get("paw")
+                    break
+
+        deleted = []
+        errors = []
+        for agent in matching:
+            paw = agent.get("paw")
+            if not paw or paw == keep_paw:
+                continue
+            if agent.get("alive") and agent.get("trusted"):
+                continue
+            try:
+                self.client.delete_agent(paw)
+                deleted.append(paw)
+            except CalderaAPIError as exc:
+                errors.append({"paw": paw, "error": str(exc)})
+
+        return {"ok": not errors, "deleted": deleted, "errors": errors, "kept": keep_paw}
 
     def _find_builtin_adversary(self):
         for name in SAFE_ADVERSARIES:
@@ -319,8 +375,8 @@ class OperationManager:
                 "message": str(e)
             }
 
-    def run_operation(self, technique_ids, group='red', timeout=180, target=None, unsupported_techniques=None, unsupported_context=None):
-        available, agent_info = self.check_agent(group, target=target)
+    def run_operation(self, technique_ids, group='red', timeout=180, target=None, selected_paw=None, unsupported_techniques=None, unsupported_context=None):
+        available, agent_info = self.check_agent(group, target=target, selected_paw=selected_paw)
         if not available:
             return self._error_result(agent_info)
         agent_host = agent_info.get('host', 'unknown')
@@ -373,9 +429,10 @@ class OperationManager:
             status = STATUS_MAP.get(status_code, 'unknown')
             ability = link.get('ability', {}) or {}
             technique_id = self._extract_technique_id(ability)
-            raw_output, stdout, stderr = self._extract_link_output(link)
+            raw_output, stdout, stderr, command_completed = self._extract_link_output(link)
             command = self._extract_command(link, ability)
-            parsed_evidence = self._parse_evidence(technique_id, raw_output)
+            facts = link.get('facts') or link.get('relationships') or []
+            parsed_evidence = self._parse_evidence(technique_id, raw_output, facts)
             techniques_run.append({
                 'technique_id': technique_id,
                 'technique_name': ability.get('name', 'Unknown'),
@@ -385,7 +442,8 @@ class OperationManager:
                 'stdout': stdout,
                 'stderr': stderr,
                 'parsed_evidence': parsed_evidence,
-                'evidence_summary': self._evidence_summary(parsed_evidence, raw_output),
+                'evidence_summary': self._evidence_summary(parsed_evidence, raw_output, command_completed),
+                'command_completed': command_completed,
                 'command': command,
                 'timestamp': link.get('finish', link.get('decide', '')),
                 'link_id': link.get('id', ''),
@@ -439,21 +497,36 @@ class OperationManager:
         output = link.get('output')
         stdout = ''
         stderr = ''
+        command_completed = None
 
         if isinstance(output, dict):
             stdout = self._stringify_output(output.get('stdout') or output.get('output') or output.get('result'))
             stderr = self._stringify_output(output.get('stderr') or output.get('error'))
             raw_output = self._stringify_output(output)
+        elif isinstance(output, bool):
+            command_completed = output
+            raw_output = self._stringify_output(link.get('result') or link.get('stdout') or '')
+            stdout = self._stringify_output(link.get('stdout') or '')
+            stderr = self._stringify_output(link.get('stderr') or link.get('error') or '')
         else:
             raw_output = self._stringify_output(output or link.get('result') or link.get('stdout') or '')
             stdout = self._stringify_output(link.get('stdout') or raw_output)
             stderr = self._stringify_output(link.get('stderr') or link.get('error') or '')
 
-        return raw_output, stdout, stderr
+        return raw_output, stdout, stderr, command_completed
 
-    def _parse_evidence(self, technique_id, raw_output):
+    def _parse_evidence(self, technique_id, raw_output, facts=None):
         text = raw_output or ''
         evidence = []
+        facts = facts or []
+
+        for fact in facts:
+            if not isinstance(fact, dict):
+                continue
+            trait = str(fact.get('trait') or fact.get('name') or fact.get('source') or '').lower()
+            value = fact.get('value') or fact.get('target') or fact.get('edge') or ''
+            if value and any(token in trait for token in ['share', 'service', 'port', 'host']):
+                evidence.append(f"{trait}: {value}")
 
         if technique_id == 'T1135':
             share_names = set()
@@ -467,10 +540,12 @@ class OperationManager:
                             share_names.add(str(name))
             except (TypeError, ValueError):
                 pass
-            for match in re.findall(r'\b([A-Za-z0-9_.-]+\$?)\b', text):
-                if match.upper() in {'ADMIN$', 'C$', 'IPC$'} or 'share' in text.lower():
+            for match in re.findall(r'\b([A-Za-z][A-Za-z0-9_.-]*\$?)\b', text):
+                if match.upper() in {'ADMIN$', 'C$', 'IPC$'}:
                     share_names.add(match)
-            evidence = [f"SMB share observed: {name}" for name in sorted(share_names)]
+                elif 'share' in text.lower() and match.lower() not in {'name', 'description', 'path', 'scope', 'false', 'true'}:
+                    share_names.add(match)
+            evidence.extend(f"SMB share observed: {name}" for name in sorted(share_names))
 
         elif technique_id == 'T1046':
             for port, service in re.findall(r'(\d{1,5})/(?:tcp|udp)\s+open\s+([^\s]+)', text, flags=re.IGNORECASE):
@@ -485,18 +560,21 @@ class OperationManager:
 
         return evidence
 
-    def _evidence_summary(self, parsed_evidence, raw_output):
+    def _evidence_summary(self, parsed_evidence, raw_output, command_completed=None):
         if parsed_evidence:
             return '; '.join(parsed_evidence[:4])
         if raw_output:
-            return 'Execution returned raw output but no parser-specific evidence.'
+            return 'Raw CALDERA output captured; review stdout/stderr.'
+        if command_completed is True:
+            return 'Command completed, but CALDERA returned no stdout/stderr evidence.'
         return 'Execution completed but no evidence returned.'
 
     def _unsupported_results(self, technique_ids, context):
         vulnerabilities = context.get('vulnerabilities', [])
+        scan_context = context.get('scan_context', {})
         results = []
         for tid in technique_ids:
-            evidence = self._unsupported_context_for(tid, vulnerabilities)
+            evidence = self._unsupported_context_for(tid, vulnerabilities, scan_context)
             results.append({
                 'technique_id': tid,
                 'technique_name': 'Exploitation of Remote Services' if tid == 'T1210' else 'Unsupported Technique',
@@ -516,10 +594,13 @@ class OperationManager:
     def build_unsupported_results(self, technique_ids, context=None):
         return self._unsupported_results(technique_ids, context or {})
 
-    def _unsupported_context_for(self, technique_id, vulnerabilities):
+    def _unsupported_context_for(self, technique_id, vulnerabilities, scan_context=None):
         if technique_id != 'T1210':
             return ['Unsupported by CALDERA - requires external validation.']
         evidence = ['Unsupported by CALDERA - requires external exploitability validation.']
+        os_name = (scan_context or {}).get('os')
+        if os_name and os_name != 'Unknown':
+            evidence.append(f"Detected OS context: {os_name}.")
         for vuln in vulnerabilities or []:
             service = str(vuln.get('service', '')).lower()
             title = str(vuln.get('title', ''))
