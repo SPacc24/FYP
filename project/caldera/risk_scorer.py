@@ -357,3 +357,4 @@ class RiskScorer:
                 'severity': vuln.get('severity', 'Unknown'),
             })
 
+        return remediations
