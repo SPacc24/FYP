@@ -83,9 +83,16 @@ class OperationManager:
             str(agent.get('paw') or '').lower().strip(),
         }
         agent_ips = {ip.lower() for ip in self._normalise_agent_ips(agent)}
+        # Priority: exact IP match, then hostname/paw, then platform match
         if target_norm in agent_ips:
             return True
-        return target_norm in agent_hosts
+        if target_norm in agent_hosts:
+            return True
+        # Allow loose match against platform/OS strings if target appears to be an OS
+        platform = str(agent.get('platform') or '').lower()
+        if target_norm in platform or platform in target_norm:
+            return True
+        return False
 
     def _agent_sort_key(self, agent):
         raw = str(agent.get('last_seen') or '')
@@ -108,29 +115,67 @@ class OperationManager:
                 agent for agent in all_agents
                 if agent.get("trusted") and agent.get("alive") and agent.get("paw")
             ]
-            matching_agents = [
-                agent for agent in agents
-                if self._agent_matches_target(agent, target)
-            ] if target else agents
-            matching_agents = sorted(matching_agents, key=self._agent_sort_key, reverse=True)
+
+            # If no target provided, any trusted+alive+paw agent means readiness
+            if not target:
+                matching_agents = sorted(agents, key=self._agent_sort_key, reverse=True)
+                ready = len(matching_agents) > 0
+                message = "Ready - Trusted CALDERA agent available" if ready else "Caldera reachable - no trusted agent available"
+                return {
+                    "ok": True,
+                    "caldera_reachable": True,
+                    "agent_ready": ready,
+                    "agents": all_agents,
+                    "online_agents": matching_agents,
+                    "trusted_online_agents": agents,
+                    "target": target or "",
+                    "message": message
+                }
+
+            # Prioritise exact IP matches when a target context is provided
+            ip_matched = []
+            host_matched = []
+            os_matched = []
+            for agent in agents:
+                ips = self._normalise_agent_ips(agent)
+                if target and str(target) in ips:
+                    ip_matched.append(agent)
+                    continue
+                hosts = {str(agent.get('host') or '').lower(), str(agent.get('hostname') or '').lower(), str(agent.get('paw') or '').lower()}
+                if target and str(target).lower() in hosts:
+                    host_matched.append(agent)
+                    continue
+                platform = str(agent.get('platform') or '').lower()
+                if target and str(target).lower() in platform:
+                    os_matched.append(agent)
+
+            # Choose which matching list to expose as "online_agents" (priority order)
+            if ip_matched:
+                matching_agents = sorted(ip_matched, key=self._agent_sort_key, reverse=True)
+                ready = True
+                message = "Ready - Trusted CALDERA agent available (IP match)"
+            elif host_matched:
+                matching_agents = sorted(host_matched, key=self._agent_sort_key, reverse=True)
+                ready = False
+                message = "Caldera reachable - trusted agents exist, matched by hostname but not by IP"
+            elif os_matched:
+                matching_agents = sorted(os_matched, key=self._agent_sort_key, reverse=True)
+                ready = False
+                message = "Caldera reachable - trusted agents exist, matched by platform/OS"
+            else:
+                matching_agents = []
+                ready = False
+                message = "Caldera reachable - trusted agents exist, but none match the scanned target"
 
             return {
                 "ok": True,
                 "caldera_reachable": True,
-                "agent_ready": len(matching_agents) > 0,
+                "agent_ready": ready,
                 "agents": all_agents,
                 "online_agents": matching_agents,
                 "trusted_online_agents": agents,
                 "target": target or "",
-                "message": (
-                    "Ready - Trusted CALDERA agent available"
-                    if matching_agents
-                    else (
-                        "Caldera reachable - trusted agents exist, but none match the scanned target"
-                        if agents and target
-                        else "Caldera reachable - no trusted agent available"
-                    )
-                )
+                "message": message
             }
 
         except CalderaAPIError as e:
@@ -240,6 +285,10 @@ class OperationManager:
             score += 30
         if 'cleanup' in text or 'deleter' in text:
             score -= 25
+
+        # De-prioritise container / docker specific abilities for non-container targets
+        if any(tok in text for tok in ['container', 'docker', 'kubernetes']):
+            score -= 40
 
         for index, term in enumerate(PREFERRED_ABILITY_TERMS.get(technique_id, [])):
             if term in text:
@@ -512,6 +561,16 @@ class OperationManager:
             raw_output = self._stringify_output(output or link.get('result') or link.get('stdout') or '')
             stdout = self._stringify_output(link.get('stdout') or raw_output)
             stderr = self._stringify_output(link.get('stderr') or link.get('error') or '')
+
+        # Normalize boolean-y outputs returned by some Caldera abilities
+        try:
+            if isinstance(stdout, str) and stdout.lower() in {'true', 'false'} and command_completed is not None:
+                # boolean completion indicator, not useful as stdout
+                stdout = ''
+            if isinstance(raw_output, str) and raw_output.lower() in {'true', 'false'} and command_completed is not None:
+                raw_output = ''
+        except Exception:
+            pass
 
         return raw_output, stdout, stderr, command_completed
 

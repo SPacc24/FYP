@@ -4,96 +4,41 @@
     <h2>Agent Readiness and Caldera Execution</h2>
   </div>
 
-  <div class="caldera-grid">
+  <div class="caldera-grid compact-grid">
     <div id="calderaStatusBox" class="mini-panel status-card">
       <p class="muted">Checking Caldera agent status...</p>
     </div>
 
-    <div id="deployCommandBox" class="command-box deploy-card" style="display:none;">
-      <h3>Deploy Agent</h3>
+    <div id="targetDetailsBox" class="mini-panel small-panel">
+      <h4>Target Details</h4>
       <p class="small">
         Target: <span id="deployTargetText">Unknown</span><br>
-        OS: <span id="deployOsText">Unknown</span>
+        OS: <span id="deployOsText">Unknown</span><br>
+        Trusted Agent: <span id="trustedAgentName">-</span>
       </p>
-      <ol class="small">
-        <li>Run this command on the target machine inside the authorised lab.</li>
-        <li>Return to this dashboard and click Refresh Agent Status.</li>
-        <li>Select the active trusted agent, then run CALDERA techniques.</li>
-      </ol>
-      <code id="deployCommandText"></code>
+    </div>
+
+    <div id="deployCommandBox" class="command-box deploy-card" style="display:none;">
+      <h4>Deploy Command (informational)</h4>
+      <p class="small">Copy-only; run inside authorised lab on the victim host.</p>
+      <pre id="deployCommandText" class="mono small"></pre>
       <button class="button secondary top-gap" id="copyDeployCommandBtn" type="button">
         Copy Deploy Command
       </button>
     </div>
-  </div>
 
-  <div class="agent-toolbar top-gap">
-    <input id="agentFilterText" type="text" placeholder="Filter by target IP or hostname" />
-    <select id="agentFilterOnline">
-      <option value="all">All statuses</option>
-      <option value="online">Online</option>
-      <option value="offline">Offline</option>
-    </select>
-    <select id="agentFilterTrusted">
-      <option value="all">All trust states</option>
-      <option value="trusted">Trusted</option>
-      <option value="untrusted">Untrusted</option>
-    </select>
-  </div>
+    <div id="coverageWarningBox" class="mini-panel" style="display:none;">
+      <strong>Coverage</strong>
+      <p class="small" id="coverageWarningText"></p>
+    </div>
 
-  <div class="table-wrap top-gap" id="agentTableWrap" style="display:none;">
-    <table class="compact-table">
-      <thead>
-        <tr>
-          <th>Select</th>
-          <th>Host</th>
-          <th>IP</th>
-          <th>OS</th>
-          <th>Status</th>
-          <th>Trusted</th>
-          <th>Last Seen</th>
-        </tr>
-      </thead>
-      <tbody id="agentStatusBody"></tbody>
-    </table>
-  </div>
+    <div class="actions caldera-actions compact-actions">
+      <button class="button" id="runCalderaBtn" type="button">Run CALDERA</button>
+    </div>
 
-  <div id="coverageWarningBox" class="mini-panel top-gap" style="display:none;">
-    <p><strong>Coverage Note:</strong> <span id="coverageWarningText"></span></p>
-  </div>
-
-  <div class="actions caldera-actions">
-    <button class="button secondary" id="refreshAgentStatusBtn" type="button">
-      Refresh Status
-    </button>
-
-    <button class="button secondary" id="deployAgentBtn" type="button">
-      Deploy Agent
-    </button>
-
-    <button class="button secondary" id="selectAgentBtn" type="button">
-      Select Active Agent
-    </button>
-
-    <button class="button secondary danger-button" id="deleteAgentBtn" type="button">
-      Delete Agent
-    </button>
-
-    <button class="button secondary danger-button" id="removeStaleAgentsBtn" type="button">
-      Remove Stale Agents
-    </button>
-
-    <button class="button" id="runCalderaBtn" type="button">
-      Run Caldera
-    </button>
-
-    <button class="button secondary" id="refreshStatusBtn" type="button">
-      Refresh Operation Status
-    </button>
-  </div>
-
-  <div id="operationBox" class="mini-panel top-gap">
-    <p class="muted">No operation started yet.</p>
+    <div id="operationBox" class="mini-panel top-gap">
+      <p class="muted">No operation started yet.</p>
+    </div>
   </div>
 </section>
 

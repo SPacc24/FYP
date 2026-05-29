@@ -65,26 +65,11 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("runValidationBtn")
     ?.addEventListener("click", runExploitabilityValidation);
 
-  document.getElementById("refreshStatusBtn")
-    ?.addEventListener("click", refreshOperationStatus);
-
-  document.getElementById("refreshAgentStatusBtn")
-    ?.addEventListener("click", loadCalderaStatus);
-
-  document.getElementById("deployAgentBtn")
-    ?.addEventListener("click", loadDeployCommand);
-
   document.getElementById("copyDeployCommandBtn")
     ?.addEventListener("click", copyDeployCommand);
 
-  document.getElementById("deleteAgentBtn")
-    ?.addEventListener("click", deleteSelectedAgent);
-
-  document.getElementById("removeStaleAgentsBtn")
-    ?.addEventListener("click", removeStaleAgents);
-
-  document.getElementById("selectAgentBtn")
-    ?.addEventListener("click", selectActiveAgent);
+  // Auto-poll Caldera status in background while the dashboard is open
+  setInterval(loadCalderaStatus, 5000);
 
   ["agentFilterText", "agentFilterOnline", "agentFilterTrusted"].forEach(id => {
     document.getElementById(id)?.addEventListener("input", renderAgentTable);
@@ -117,19 +102,16 @@ async function loadCalderaStatus() {
     currentAgents = data.agents || data.online_agents || [];
     currentAgentTarget = data.target || "";
     renderAgentTable();
-
+    // Display best-match agent and details
     if (data.agent_ready) {
       const matched = data.online_agents?.[0] || {};
       box.innerHTML =
-        `<p><strong>Ready</strong> - trusted CALDERA agent matched to ${escapeHtml(data.target || "target")}.</p>
-         <p class="small">
-           Host: ${escapeHtml(matched.host || matched.hostname || "-")}<br>
-           IP: ${escapeHtml(matched.ip || "-")}<br>
-           OS: ${escapeHtml(matched.platform || "-")}<br>
-           Trusted: ${matched.trusted ? "Yes" : "No"} | Status: ${escapeHtml(matched.status || "Online")}<br>
-           Last seen: ${escapeHtml(matched.last_seen || "-")}
-         </p>`;
+        `<p><strong>Ready</strong> - trusted agent matched.</p>`;
 
+      const trustedName = matched.host || matched.hostname || matched.paw || "-";
+      document.getElementById("trustedAgentName").textContent = trustedName;
+      if (deployTargetText) deployTargetText.textContent = data.target || "Unknown";
+      if (deployOsText) deployOsText.textContent = data.target_os || "Unknown";
       if (deployBox) deployBox.style.display = "none";
     }
 
@@ -433,6 +415,8 @@ async function runCaldera() {
           document.getElementById("discardedTechniques").textContent = discarded;
           executionSummary.style.display = "grid";
         }
+        // refresh agent status after operation completes
+        try { loadCalderaStatus(); } catch(e) {}
       }
 
       else if (tbody) {

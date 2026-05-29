@@ -503,6 +503,23 @@ def map_vulnerabilities(parsed_results: dict[str, Any]) -> dict[str, Any]:
             )
 
             cves = _match_known_cves(item, service)
+            # Heuristic: SMB exposure on legacy Windows 10 builds is strongly correlated
+            # with MS17-010 (CVE-2017-0144) in lab scenarios. Add a potential match with
+            # high confidence when OS text suggests legacy Windows 10 and SMB ports open.
+            if service in {"microsoft-ds", "netbios-ssn"} and _is_legacy_windows_10(os_text):
+                cves.append(
+                    CVEMatch(
+                        cve_id="CVE-2017-0144",
+                        title="SMBv1/Wide-open SMB remote code execution (MS17-010 / EternalBlue)",
+                        severity="Critical",
+                        reason=(
+                            "Host appears to be a legacy Windows 10 build with SMB exposed on 139/445; "
+                            "this environment commonly maps to MS17-010 in lab images and should be validated.") ,
+                        remediation=(
+                            "Apply MS17-010 / vendor patches, disable SMBv1, and restrict SMB exposure."
+                        ),
+                    )
+                )
             severity = kb_entry["severity"]
             for cve in cves:
                 severity = _max_severity(severity, cve.severity)
