@@ -1,4 +1,4 @@
-## Hi, do run this inside  kali after placing the zip file in the desktop:#
+## Do run this inside  kali after placing the zip file in the desktop:#
 
 ```bash
 cd /home/kali/Desktop
@@ -10,7 +10,7 @@ cd project
 sudo .venv/bin/python app.py
 ```
 
-## Open the IP Address, click on the 2nd option as the first option is for internally in Kali
+## Click on the 2nd option as the first option is for internally in Kali
 
 ```text
 http://<kali-ip>:5000
