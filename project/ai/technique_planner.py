@@ -364,6 +364,7 @@ def extract_cves_from_mapping(mapping_result: dict) -> dict:
     item["cve_ids"] = ["CVE-2021-41773"]
     item["cve"] = "CVE-2021-41773"
     item["title"] contains CVE text
+    item["technique_ids"] = ["T1190"]
     """
     cve_context = {}
 
@@ -383,6 +384,21 @@ def extract_cves_from_mapping(mapping_result: dict) -> dict:
         for source in possible_sources:
             found_cves.extend(normalise_cve_ids(source))
 
+        technique_ids = []
+
+        for field in [
+            item.get("technique_id"),
+            item.get("technique_ids"),
+            item.get("attack_technique"),
+            item.get("mitre_technique"),
+            item.get("mapped_techniques"),
+            item.get("recommended_techniques"),
+        ]:
+            if isinstance(field, list):
+                technique_ids.extend([str(x) for x in field])
+            elif field:
+                technique_ids.append(str(field))
+
         for cve_id in sorted(set(found_cves)):
             if cve_id not in cve_context:
                 cve_context[cve_id] = {
@@ -397,6 +413,8 @@ def extract_cves_from_mapping(mapping_result: dict) -> dict:
                 "severity": item.get("severity"),
                 "priority_score": item.get("priority_score"),
                 "title": item.get("title"),
+                "description": item.get("description"),
+                "technique_ids": technique_ids,
             })
 
     return cve_context
@@ -496,9 +514,17 @@ def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
             "mitre_platforms": mitre_info.get("platforms", []),
             "mitre_data_sources": mitre_info.get("data_sources", [])[:8],
             "mitre_detection": mitre_info.get("detection", ""),
+
+            # CVE fields for frontend + LLM
             "linked_cves": linked_cves,
+<<<<<<< Updated upstream
             "attack_path_stage": tech.get("attack_path_stage", "Validation / Discovery"),
             "supporting_services": tech.get("supporting_services", []),
+=======
+            "linked_cve_ids": linked_cve_ids,
+            "cve_ids": linked_cve_ids,
+
+>>>>>>> Stashed changes
             "mapper_reason": tech.get(
                 "reason",
                 " ".join(tech.get("reasons", [])[:2]) or
@@ -608,6 +634,7 @@ def normalise_technique_explanations(
             "attack_path_stage": allowed.get("attack_path_stage", "Validation / Discovery"),
             "linked_cves": linked_cves,
             "linked_cve_ids": linked_cve_ids,
+            "cve_ids": linked_cve_ids,
             "mitre_summary": existing.get(
                 "mitre_summary",
                 allowed.get(
@@ -813,13 +840,13 @@ Return JSON exactly in this shape:
   "reasoning": "Concise overall explanation of why these techniques were prioritised for the selected mode.",
   "technique_explanations": [
     {{
-      "technique_id": "T1046",
-      "technique_name": "Network Service Discovery",
-      "mitre_summary": "Meaning of the technique based on MITRE context.",
-      "why_recommended": "Specific reason using service, port, severity, mapper context, and/or attack surface.",
-      "cve_relevance": "Explain whether any linked CVEs affected prioritisation.",
-      "caldera_validation": "High-level safe validation goal for CALDERA.",
-      "limitation": "What the result does not prove or what needs manual review."
+  "technique_id": "T1046",
+  "technique_name": "Network Service Discovery",
+  "mitre_summary": "Meaning of the technique based on MITRE context.",
+  "why_recommended": "Specific reason using service, port, severity, mapper context, and/or attack surface.",
+  "cve_relevance": "Explain whether linked CVEs affected prioritisation. Mention CVE IDs only if they appear in linked_cves.",
+  "caldera_validation": "High-level safe validation goal for CALDERA.",
+  "limitation": "What the result does not prove or what needs manual review."
     }}
   ],
   "next_steps": [

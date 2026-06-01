@@ -1,3 +1,4 @@
+<!-- 2. AI RECOMMENDED TECHNIQUES + MITRE/CVE REASONING + TECHNIQUE SELECTION -->
 <section class="flow-card" id="ai-techniques">
   <div class="flow-card-header">
     <span class="label">Assessment Stage 2</span>
@@ -29,42 +30,126 @@
     </div>
 
     <details class="details-block" open>
-      <summary>View LLM Recommended Techniques</summary>
+      <summary>Reasoning & MITRE ATT&CK Mapping</summary>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Technique ID</th>
-              <th>MITRE Link</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% for tid in ai_plan.selected_technique_ids %}
+      <div class="attack-explanation-panel">
+        <div class="table-wrap top-gap">
+          <table>
+            <thead>
               <tr>
-                <td class="mono">
-                  <strong>{{ tid }}</strong>
-                </td>
-
-                <td>
-                  {% for tech in ai_plan.allowed_techniques %}
-                    {% if tech.id == tid %}
-                      <a href="{{ tech.mitre_url }}" target="_blank">
-                        View on MITRE ATT&CK
-                      </a>
-                    {% endif %}
-                  {% endfor %}
-                </td>
+                <th>Technique</th>
+                <th>MITRE Meaning</th>
+                <th>Why Recommended</th>
+                <th>CVE Linkage</th>
+                <th>CALDERA Validation</th>
+                <th>Limitation</th>
               </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>
+              {% if ai_plan.technique_explanations %}
+                {% for tech in ai_plan.technique_explanations %}
+                  <tr>
+                    <td class="mono">
+                      <strong>{{ tech.technique_id }}</strong><br>
+                      <span class="small">{{ tech.technique_name }}</span><br>
+
+                      {% if tech.mitre_url %}
+                        <a href="{{ tech.mitre_url }}" target="_blank">
+                          MITRE ATT&CK
+                        </a>
+                      {% endif %}
+
+                      {% if tech.mitre_tactics %}
+                        <br>
+                        <span class="small">
+                          Tactic:
+                          {{ tech.mitre_tactics | join(', ') }}
+                        </span>
+                      {% endif %}
+                    </td>
+
+                    <td class="small">{{ tech.mitre_summary }}</td>
+
+                    <td class="small">{{ tech.why_recommended }}</td>
+
+<td class="small">
+  {% if tech.linked_cves %}
+    <p>{{ tech.cve_relevance }}</p>
+
+    <ul class="compact-list">
+      {% for cve in tech.linked_cves %}
+        <li>
+          <strong>{{ cve.id }}</strong>
+
+          {% if cve.nvd and cve.nvd.cvss %}
+            {% if cve.nvd.cvss.severity or cve.nvd.cvss.score %}
+              —
+              {{ cve.nvd.cvss.severity if cve.nvd.cvss.severity else 'Severity N/A' }}
+              {{ cve.nvd.cvss.score if cve.nvd.cvss.score else '' }}
+            {% endif %}
+          {% endif %}
+
+          {% if cve.nvd and cve.nvd.description %}
+            <br>
+            <span class="small">
+              {{ cve.nvd.description }}
+            </span>
+          {% endif %}
+
+          <br>
+
+          {% if cve.nvd and cve.nvd.nvd_url %}
+            <a href="{{ cve.nvd.nvd_url }}" target="_blank">
+              View CVE on NVD
+            </a>
+          {% else %}
+            <a href="https://nvd.nist.gov/vuln/detail/{{ cve.id }}" target="_blank">
+              View CVE on NVD
+            </a>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <span class="muted">
+      No direct CVE linked to this technique. This may be a discovery or validation technique mapped from service exposure rather than a specific vulnerability.
+    </span>
+  {% endif %}
+</td>
+
+                    <td class="small">{{ tech.caldera_validation }}</td>
+
+                    <td class="small">{{ tech.limitation }}</td>
+                  </tr>
+                {% endfor %}
+              {% elif ai_plan.selected_technique_ids %}
+                {% for tid in ai_plan.selected_technique_ids %}
+                  <tr>
+                    <td class="mono">
+                      <strong>{{ tid }}</strong>
+                    </td>
+                    <td colspan="5" class="small">
+                      Recommended by the AI planner based on mapped scan findings.
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="6" class="small">
+                    No AI technique explanation available.
+                  </td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
       </div>
     </details>
   {% else %}
     <p class="muted">No LLM plan generated yet.</p>
   {% endif %}
+<<<<<<< Updated upstream
 </section>
 
 <!-- TECHNIQUE SELECTION -->
@@ -183,6 +268,8 @@
       </div>
     </div>
   </details>
+=======
+>>>>>>> Stashed changes
 
   <details class="details-block" open>
     <summary>Technique Selection for Caldera</summary>
@@ -201,13 +288,14 @@
       <div class="table-wrap top-gap">
         <table>
           <thead>
-            <tr>
-              <th>Select</th>
-              <th>Technique ID</th>
-              <th>Name</th>
-              <th>Tactic</th>
-              <th>Reason</th>
-            </tr>
+<tr>
+  <th>Select</th>
+  <th>Technique ID</th>
+  <th>Name</th>
+  <th>Tactic</th>
+  <th>Linked CVEs</th>
+  <th>Reason</th>
+</tr>
           </thead>
 
           <tbody>
@@ -265,3 +353,7 @@
     </div>
   </details>
 </section>
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
