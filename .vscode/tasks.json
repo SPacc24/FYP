@@ -1,0 +1,41 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Create virtual environment and install Python packages",
+      "type": "shell",
+      "command": "python -m venv project/.venv && project/.venv/Scripts/python -m pip install --upgrade pip && project/.venv/Scripts/python -m pip install -r project/requirements.txt",
+      "windows": {
+        "command": "python -m venv project/.venv; project/.venv/Scripts/python -m pip install --upgrade pip; project/.venv/Scripts/python -m pip install -r project/requirements.txt"
+      },
+      "linux": {
+        "command": "python3 -m venv project/.venv && project/.venv/bin/python -m pip install --upgrade pip && project/.venv/bin/python -m pip install -r project/requirements.txt"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run tests",
+      "type": "shell",
+      "command": "project/.venv/Scripts/python -m pytest -q",
+      "windows": { "command": "project/.venv/Scripts/python -m pytest -q" },
+      "linux": { "command": "project/.venv/bin/python -m pytest -q" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Check external recon tools",
+      "type": "shell",
+      "command": "project/.venv/Scripts/python project/scripts/check_tooling.py",
+      "windows": { "command": "project/.venv/Scripts/python project/scripts/check_tooling.py" },
+      "linux": { "command": "project/.venv/bin/python project/scripts/check_tooling.py" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Rebuild official CVE index",
+      "type": "shell",
+      "command": "project/.venv/Scripts/python project/scripts/rebuild_mitre_cve_index.py",
+      "windows": { "command": "project/.venv/Scripts/python project/scripts/rebuild_mitre_cve_index.py" },
+      "linux": { "command": "project/.venv/bin/python project/scripts/rebuild_mitre_cve_index.py" },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -8,6 +8,8 @@ from ai.safety import SAFE_REFUSAL, is_unsafe_user_request, sanitize_llm_reply
 import json
 import os
 import socket
+import threading
+from pathlib import Path
 
 from flask import (
     Flask,
@@ -18,6 +20,7 @@ from flask import (
     url_for,
     jsonify,
     send_file,
+    make_response,
     flash,
 )
 import logging
@@ -36,6 +39,11 @@ from caldera.risk_scorer import RiskScorer
 from exploitation.validator import ExploitabilityValidator
 from reports.report_generator import build_report_summary
 from storage.db import Database
+from storage import scan_store
+from scanners.enumerator import run_pipeline
+from scanners.targets import expand_target_input
+from scanners.mitre_cve import status as mitre_status
+from scanners.scan_profiles import TOOL_OPTIONS, normalise_scan_options
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -43,6 +51,42 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = getattr(Config, "SECRET_KEY", "change-me")
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+
+@app.template_filter("status_label")
+def status_label(value):
+    return scan_store.LABELS.get(str(value), str(value or "Queued"))
+
+@app.template_filter("status_class")
+def status_class(value):
+    s = str(value or "")
+    lowered = s.lower()
+    if s in {"queued"}:
+        return "queued"
+    if s in {"running"}:
+        return "running"
+    if s in {"success"} or lowered == "completed" or lowered.startswith("completed"):
+        return "done"
+    if (
+        s in {"empty"}
+        or "no evidence" in lowered
+        or "no web paths" in lowered
+        or "not applicable" in lowered
+        or "input missing" in lowered
+        or "input invalid" in lowered
+        or "tool unavailable" in lowered
+        or "unavailable" in lowered
+        or "disabled" in lowered
+    ):
+        return "empty"
+    if (
+        s in {"failed"}
+        or "timed out" in lowered
+        or "failed" in lowered
+        or "incomplete" in lowered
+    ):
+        return "failed"
+    return "queued"
 
 # ---------------------------------------------------
 # INIT SERVICES
@@ -291,68 +335,119 @@ Reply:
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", tool_options=TOOL_OPTIONS)
 
 
 @app.route("/scan", methods=["POST"])
 def scan():
-    target = request.form.get("target")
-    ports = request.form.get("ports")
-    intensity = request.form.get("intensity")
-    profile = request.form.get("profile")
+    target = (request.form.get("target") or "").strip()
+    if not target:
+        return render_template("error.html", error_message="No target provided"), 400
 
-    #edited
+    profile = (request.form.get("scan_profile") or "fast").strip().lower()
+    enabled_tools = request.form.getlist("tools")
     technique_mode = request.form.get("technique_mode")
-
     if technique_mode not in {"auto", "hybrid", "manual"}:
         technique_mode = "hybrid"
-    #edited
-    
-    try:
-        scan_result = run_nmap_scan(target, ports, intensity, profile)
-        parsed_results = parse_nmap_xml(scan_result["output_file"])
-        mapping_results = map_vulnerabilities(parsed_results) ##edited
-        ai_plan = generate_ai_technique_plan(
-            mapping_results,
-            preferred_mode=technique_mode,
-            caldera_client=caldera_client,
-        ) ##edited
-        validation_results = exploitability_validator.validate(parsed_results, mapping_results)
-        risk = _safe_risk_calculate(
-            mapping_results.get("vulnerabilities", []),
-            {"validation_results": validation_results},
-        )
 
-        session["target_ip"] = target
-        session["target_os"] = parsed_results.get("os", "Unknown")
-        session["port_range"] = ports or "1-1024"
-        session["scan_output_file"] = scan_result.get("output_file", "")
-        session["mapping_results"] = mapping_results
-        session["risk_score"] = risk
-        session["validation_results"] = validation_results
+    scan_options = normalise_scan_options(profile, enabled_tools if enabled_tools else None)
+    scan_id = scan_store.new_scan(
+        target,
+        request.remote_addr or "",
+        request.headers.get("User-Agent", ""),
+        scan_options=scan_options,
+    )
 
-        #edited
-        session["technique_mode"] = technique_mode
+    session.clear()
+    session["scan_id"] = scan_id
+    session["target_ip"] = target
+    session["technique_mode"] = technique_mode
 
-        # save AI plan in session
-        session["ai_plan"] = ai_plan
+    threading.Thread(target=run_pipeline, args=(scan_id, target, scan_options), daemon=True).start()
 
+    return render_template(
+        "scanning.html",
+        scan_id=scan_id,
+        target=target,
+        scan_options=scan_options,
+    )
+
+
+@app.route("/scan/status/<scan_id>")
+def scan_status(scan_id):
+    data = scan_store.progress(scan_id)
+    if not data:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(data)
+
+
+@app.route("/scan/results/<scan_id>")
+def results(scan_id):
+    data = scan_store.load(scan_id)
+    if not data:
+        return render_template("error.html", error_message="Scan not found"), 404
+    if data.get("status") == "running":
         return render_template(
-            "results_full_dashboard.html",
-            scan=_scan_summary(scan_result, parsed_results),
-            results=parsed_results,
-            mapping=mapping_results,
-            ai_plan=ai_plan,  #edited
-            selected_mode=technique_mode,  #edited
-            attack_plan=None,
-            validation_results=validation_results,
-            operation_results=None,
-            risk=risk,
-            remediations=[],
+            "scanning.html",
+            scan_id=scan_id,
+            target=data.get("target", ""),
+            scan_options=data.get("scan_options") or {},
         )
+    return render_template(
+        "results.html",
+        scan=data,
+        results=data.get("results") or {},
+        mitre_status=mitre_status(),
+        caldera_status=CalderaClient(Config.CALDERA_URL, Config.CALDERA_KEY).status(),
+    )
 
-    except (NmapScanError, NmapParseError, ValueError) as error:
-        return render_template("error.html", error_message=str(error))
+
+@app.route("/latest")
+def latest():
+    sid = session.get("scan_id")
+    return redirect(url_for("results", scan_id=sid)) if sid else redirect(url_for("index"))
+
+
+@app.route("/download/handoff/<scan_id>")
+def handoff(scan_id):
+    data = scan_store.load(scan_id) or {}
+    path = (data.get("results") or {}).get("handoff_file")
+    if not path or not Path(path).exists():
+        return "Handoff package not found", 404
+    return send_file(path, as_attachment=True)
+
+
+@app.route("/download/pdf/<scan_id>")
+def pdf_report(scan_id):
+    data = scan_store.load(scan_id) or {}
+    if not data:
+        return "Scan not found", 404
+    results = data.get("results") or {}
+    html = ""
+    try:
+        html = render_template("pdf_report.html", scan=data, results=results, mitre_status=mitre_status())
+        from weasyprint import HTML
+        pdf_bytes = HTML(string=html, base_url=str(Path.cwd())).write_pdf()
+    except Exception:
+        try:
+            from scanners.pdf_export import build_pdf_report
+            pdf_bytes = build_pdf_report(data, results)
+        except Exception as fallback_exc:
+            text = "Recon report export failed. Handoff JSON is still available. Error: " + str(fallback_exc)
+            response = make_response(text)
+            response.headers["Content-Type"] = "text/plain; charset=utf-8"
+            response.headers["Content-Disposition"] = f'attachment; filename="recon_report_{scan_id}_export_error.txt"'
+            return response
+    response = make_response(pdf_bytes)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f'attachment; filename="recon_report_{scan_id}.pdf"'
+    return response
+
+
+@app.route("/caldera/handoff/<scan_id>")
+def caldera_handoff(scan_id):
+    data = scan_store.load(scan_id) or {}
+    return jsonify((data.get("results") or {}).get("caldera_handoff") or {})
 
 
 # ---------------------------------------------------

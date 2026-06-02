@@ -251,6 +251,22 @@ class CalderaClient:
             return adv.get("adversaries", [])
         return adv
 
+    def status(self):
+        try:
+            agents = self.list_agents()
+            return {
+                "ready": True,
+                "status_code": 200,
+                "detail": "reachable",
+                "agents": agents,
+            }
+        except CalderaAPIError as exc:
+            return {
+                "ready": False,
+                "status_code": getattr(exc, "status_code", 500),
+                "detail": str(exc),
+            }
+
     def _reachable_server_url(self, fallback_host=None):
         parsed = urlparse(self.base_url)
         if parsed.hostname in {"127.0.0.1", "localhost", "0.0.0.0"} and fallback_host:

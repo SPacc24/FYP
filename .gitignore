@@ -3,16 +3,39 @@ __pycache__/
 *.py[cod]
 *.pyo
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
 .venv/
 venv/
+env/
+ENV/
+
+# Runtime scan output
+project/storage/scans/*
+!project/storage/scans/.gitkeep
+project/storage/mitre_cve/*
+!project/storage/mitre_cve/.gitkeep
+project/storage/*.db
+project/storage/*.sqlite
+project/storage/*.sqlite3
+project/*.log
+*.log
 
 # Local configuration
 .env
+.env.local
+*.secret
 
 # OS/editor noise
 .DS_Store
 Thumbs.db
 .vscode/
+*.swp
+*.swo
 
 # Generated project artifacts
 project/storage/reports/
