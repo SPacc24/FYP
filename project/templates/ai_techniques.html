@@ -40,7 +40,6 @@
                 <th>Technique</th>
                 <th>MITRE Meaning</th>
                 <th>Why Recommended</th>
-                <th>CVE Linkage</th>
                 <th>CALDERA Validation</th>
               </tr>
             </thead>
@@ -72,51 +71,6 @@
 
                     <td class="small">{{ tech.why_recommended }}</td>
 
-<td class="small">
-  {% if tech.linked_cves %}
-    <p>{{ tech.cve_relevance }}</p>
-
-    <ul class="compact-list">
-      {% for cve in tech.linked_cves %}
-        <li>
-          <strong>{{ cve.id }}</strong>
-
-          {% if cve.nvd and cve.nvd.cvss %}
-            {% if cve.nvd.cvss.severity or cve.nvd.cvss.score %}
-              —
-              {{ cve.nvd.cvss.severity if cve.nvd.cvss.severity else 'Severity N/A' }}
-              {{ cve.nvd.cvss.score if cve.nvd.cvss.score else '' }}
-            {% endif %}
-          {% endif %}
-
-          {% if cve.nvd and cve.nvd.description %}
-            <br>
-            <span class="small">
-              {{ cve.nvd.description }}
-            </span>
-          {% endif %}
-
-          <br>
-
-          {% if cve.nvd and cve.nvd.nvd_url %}
-            <a href="{{ cve.nvd.nvd_url }}" target="_blank">
-              View CVE on NVD
-            </a>
-          {% else %}
-            <a href="https://nvd.nist.gov/vuln/detail/{{ cve.id }}" target="_blank">
-              View CVE on NVD
-            </a>
-          {% endif %}
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <span class="muted">
-      No direct CVE linked to this technique. This may be a discovery or validation technique mapped from service exposure rather than a specific vulnerability.
-    </span>
-  {% endif %}
-</td>
-
                     <td class="small">{{ tech.caldera_validation }}</td>
                   </tr>
                 {% endfor %}
@@ -126,14 +80,14 @@
                     <td class="mono">
                       <strong>{{ tid }}</strong>
                     </td>
-                    <td colspan="4" class="small">
+                    <td colspan="3" class="small">
                       Recommended by the AI planner based on mapped scan findings.
                     </td>
                   </tr>
                 {% endfor %}
               {% else %}
                 <tr>
-                  <td colspan="6" class="small">
+                  <td colspan="4" class="small">
                     No AI technique explanation available.
                   </td>
                 </tr>

@@ -218,44 +218,55 @@ def ai_chat():
             "risk_score": risk_score,
         }
 
+        message_lower = user_message.lower().strip()
+
+        simple_greetings = {
+            "hello", "hi", "hey", "yo", "sup",
+            "hello!", "hi!", "hey!"
+        }
+
+        if message_lower in simple_greetings:
+            return jsonify({
+                "ok": True,
+                "reply": (
+                    "Hello. You can ask me about the scan findings, MITRE techniques, "
+                    "CALDERA validation, CVEs, risk score, or general cybersecurity concepts."
+                )
+            })
+
         prompt = f"""
-You are an AI assistant inside an authorised cybersecurity Final Year Project dashboard.
+You are AutoPenTest's AI assistant for an authorised cybersecurity Final Year Project dashboard.
 
-You help the student understand scan findings, ATT&CK technique recommendations,
-CALDERA planning, risk scoring, and report interpretation.
+You can answer in two modes:
 
-Rules:
-- Do not provide exploit commands, payloads, or step-by-step exploitation instructions.
-- Do not tell the user how to bypass security.
-- Explain at a high level using the provided project data.
-- If asked what to run, recommend MITRE ATT&CK technique IDs only from the provided context.
-- Keep replies concise and useful.
+1. Normal chat / concept mode:
+If the user asks a greeting, general cybersecurity concept, or basic technical question,
+answer naturally and directly. Do not force MITRE ATT&CK mapping.
+
+2. Project context mode:
+If the user asks about scan findings, open ports, vulnerabilities, CVEs, MITRE ATT&CK,
+CALDERA, selected techniques, risk score, or report output, use the project context.
+
+Safety rules:
+- Do not provide exploit commands, payloads, credential theft steps, malware instructions, bypass steps, or intrusion walkthroughs.
+- Keep guidance focused on authorised lab validation, explanation, prioritisation, reporting, and remediation.
+- If the project context does not contain enough information, say what is missing instead of inventing facts.
+- For normal definitions like "what is SMB", answer using general cybersecurity knowledge.
+- Only recommend MITRE ATT&CK technique IDs that appear in the project context.
 - Reply in normal plain text, not JSON.
-- When mentioning MITRE ATT&CK techniques, include the technique ID, name, and MITRE URL if available.
-- Explain reasoning in this structure: Observation → Risk meaning → Recommended next step.
-- Keep next steps safe and high-level.
-- Do not provide exploit commands or payloads.
+- Keep replies concise and useful.
 
-Reply using this format when relevant:
-
-Observation:
-...
-
-MITRE ATT&CK Mapping:
-- Technique ID:
-- Technique Name:
-- MITRE Link:
-
-Reasoning:
-...
-
-Recommended Next Steps:
-1.
-2.
-3.
+Formatting rules:
+- For normal chat or definitions, answer naturally in 1 to 3 short paragraphs.
+- For project-specific technique questions, use this structure only when useful:
+  Observation:
+  Risk meaning:
+  Recommended next step:
+- Do not include MITRE ATT&CK mapping unless the user asks about techniques, attack mapping, scan findings, or validation.
+- Do not force every answer into a report format.
 
 Current project context:
-{json.dumps(safe_context, indent=2)}
+{json.dumps(safe_context, indent=2, default=str)}
 
 User question:
 {user_message}

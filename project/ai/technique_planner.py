@@ -1,4 +1,3 @@
-
 import json
 import os
 import re
@@ -576,7 +575,19 @@ def clean_text_list(value: Any, fallback: list[str]) -> list[str]:
     cleaned = []
 
     for item in value:
-        text = shorten_text(str(item), 220)
+        if isinstance(item, dict):
+            step = item.get("step") or item.get("title") or ""
+            description = item.get("description") or item.get("details") or ""
+
+            if step and description:
+                text = f"{step}: {description}"
+            else:
+                text = step or description
+        else:
+            text = str(item)
+
+        text = shorten_text(text, 220)
+
         if text:
             cleaned.append(text)
 
@@ -631,35 +642,29 @@ def normalise_technique_explanations(
             "linked_cves": linked_cves,
             "linked_cve_ids": linked_cve_ids,
             "cve_ids": linked_cve_ids,
-            "mitre_summary": existing.get(
-                "mitre_summary",
+            "mitre_summary": shorten_text(
                 allowed.get(
                     "mitre_description",
                     "This technique was mapped from the detected attack surface.",
                 ),
+                140,
             ),
-            "why_recommended": existing.get(
-                "why_recommended",
-                allowed.get(
-                    "mapper_reason",
-                    "Recommended because it matches the detected services, vulnerabilities, or attack surface.",
+                "why_recommended": shorten_text(
+                    existing.get("why_recommended")
+                    or allowed.get(
+                        "mapper_reason",
+                        "Recommended because it matches the detected services, vulnerabilities, or attack surface.",
+                    ),
+                    220,
                 ),
-            ),
-            "cve_relevance": existing.get(
-                "cve_relevance",
-                (
-                    f"Linked CVEs considered: {', '.join(linked_cve_ids)}."
-                    if linked_cve_ids
-                    else "No direct CVE was linked to this technique by the current mapper."
+                "caldera_validation": shorten_text(
+                    existing.get("caldera_validation")
+                    or (
+                        "Check whether CALDERA has a matching ability for this technique and use it "
+                        "only for safe authorised emulation."
+                    ),
+                    180,
                 ),
-            ),
-            "caldera_validation": existing.get(
-                "caldera_validation",
-                (
-                    "Check whether CALDERA has a matching ability for this technique and use it "
-                    "only for safe authorised emulation."
-                ),
-            ),
         })
 
     return final_explanations
@@ -796,13 +801,14 @@ def generate_ai_technique_plan(
 You are an AI MITRE ATT&CK technique planner for an authorised cybersecurity lab.
 
 Task:
-Select the best mapped techniques for the user's selected mode.
+Select the best mapped MITRE ATT&CK techniques for safe CALDERA validation or manual security review.
 
 Mode:
 {preferred_mode}
 
 Rules:
 - Choose ONLY IDs from allowed_techniques.
+- Do not frame the answer as mitigation. Frame it as authorised validation, emulation, prioritisation, and reporting.
 - Select 2 to 5 techniques if possible.
 - Do NOT invent technique IDs, CVEs, services, or ports.
 - Do NOT provide exploit commands, payloads, intrusion steps, or credential theft guidance.
@@ -822,24 +828,20 @@ Return ONLY valid JSON with this structure:
 {{
   "selected_technique_ids": [],
   "reasoning": "",
-  "technique_explanations": [
+    "technique_explanations": [
     {{
-      "technique_id": "",
-      "technique_name": "",
-      "mitre_summary": "",
-      "why_recommended": "",
-      "cve_relevance": "",
-      "caldera_validation": "",
+        "technique_id": "",
+        "technique_name": "",
+        "why_recommended": "",
+        "caldera_validation": ""
     }}
-  ],
+    ],
   "next_steps": []
 }}
 
 Field requirements:
 - reasoning: 2 to 4 sentences explaining why the selected techniques fit the scan and mode.
-- mitre_summary: short meaning of the technique.
 - why_recommended: specific link to detected service, port, CVE, severity, or mapper_reason.
-- cve_relevance: mention linked CVEs only if present; otherwise say no direct CVE was linked.
 - caldera_validation: high-level safe validation goal only.
 - next_steps: 3 to 4 safe follow-up actions.
 """
@@ -941,7 +943,6 @@ Field requirements:
                 "Document unsupported techniques as manual validation or reporting items.",
             ],
         ),
-        "allowed_techniques": allowed_techniques,
-        "raw_llm_response": raw,
-        "caldera_coverage": coverage_info,
+            "allowed_techniques": allowed_techniques,
+            "caldera_coverage": coverage_info,
     }
