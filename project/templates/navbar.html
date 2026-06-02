@@ -9,16 +9,16 @@
       <a href="#scan-vuln">Scan</a>
       <a href="#ai-techniques">AI Planner</a>
       <a href="#exploitability-validation">Validation</a>
-
-      <a href="#ai-techniques">AI Techniques</a>
-
       <a href="#caldera-execution">Caldera</a>
-      <a href="#execution-results">Results</a>
+      <a href="#execution-results">Execution</a>
       <a href="#report">Report</a>
+      <a href="/technical-appendix">Technical Appendix</a>
     </div>
 
-    <a class="nav-action" href="{{ url_for('index') }}">
-      Run Another Scan
-    </a>
+    <div class="nav-actions">
+      <a class="nav-action" href="javascript:void(0)" id="viewAllCvesNavBtn">View All CVEs</a>
+      <a class="nav-action" href="#report" id="downloadReportNavBtn">Download Report</a>
+      <a class="nav-action ghost" href="{{ url_for('index') }}">New Scan</a>
+    </div>
   </div>
 </nav>

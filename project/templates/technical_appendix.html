@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Technical Appendix</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+
+<body>
+  <main class="page">
+    {% include "navbar.html" %}
+
+    <section class="hero compact-hero">
+      <p class="eyebrow">TECHNICAL APPENDIX</p>
+      <h1>Raw Scan Evidence and Execution Artefacts</h1>
+      <p class="muted">
+        A dedicated technical appendix for command history, service inventory, raw evidence captures, and scan state used by the final report.
+      </p>
+    </section>
+
+    <section class="flow-card large-flow-card">
+      <div class="flow-card-header">
+        <span class="label">Appendix</span>
+        <h2>Scan Metadata & Execution History</h2>
+      </div>
+
+      <div class="summary-strip">
+        <article>
+          <span class="label">Scan ID</span>
+          <strong>{{ scan.scan_id }}</strong>
+        </article>
+        <article>
+          <span class="label">Target</span>
+          <strong>{{ scan.target_ip if scan.target_ip else scan.target }}</strong>
+        </article>
+        <article>
+          <span class="label">Status</span>
+          <strong>{{ scan.status }}</strong>
+        </article>
+        <article>
+          <span class="label">Started</span>
+          <strong>{{ scan.started_at or scan.start_time or 'N/A' }}</strong>
+        </article>
+      </div>
+
+      <div class="table-wrap top-gap">
+        <table>
+          <thead>
+            <tr>
+              <th>Command Timestamp</th>
+              <th>Purpose</th>
+              <th>Command</th>
+              <th>Output / Evidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if scan.command_log %}
+              {% for entry in scan.command_log %}
+                <tr>
+                  <td>{{ entry.timestamp or entry.time or 'Unknown' }}</td>
+                  <td>{{ entry.description or entry.purpose or 'Command execution' }}</td>
+                  <td class="mono small">{{ entry.command }}</td>
+                  <td class="small">{{ entry.output or entry.result or 'No captured output.' }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="4" class="small muted">No command log entries are available for this scan.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="flow-card large-flow-card top-gap">
+      <div class="flow-card-header">
+        <span class="label">Data Sources</span>
+        <h2>Service Inventory and Raw Evidence</h2>
+      </div>
+
+      {% if results.service_inventory %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Host</th>
+                <th>Port</th>
+                <th>Service</th>
+                <th>Product</th>
+                <th>Version</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for service in results.service_inventory %}
+                <tr>
+                  <td>{{ service.host }}</td>
+                  <td class="mono">{{ service.port }}</td>
+                  <td>{{ service.service }}</td>
+                  <td>{{ service.product }}</td>
+                  <td>{{ service.version }}</td>
+                  <td class="small">{{ service.evidence or service.source or 'N/A' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">Service inventory was not captured or is not available in the current scan data.</p>
+      {% endif %}
+    </section>
+
+    <section class="flow-card large-flow-card top-gap">
+      <div class="flow-card-header">
+        <span class="label">Appendix Notes</span>
+        <h2>How This Data Supports the Final Assessment</h2>
+      </div>
+      <p class="muted">
+        This appendix preserves the raw evidence used to support CVE mapping, attack surface reasoning, and validation decisions.
+      </p>
+      <ul class="summary-list">
+        <li>Command history is captured from the scan pipeline and reflects live task execution.</li>
+        <li>Service inventory is used to associate hosts, ports, and products with confirmed or candidate CVEs.</li>
+        <li>Captured evidence is available for audit and to validate findings during handoff.</li>
+      </ul>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <p>Automated Penetration Testing · Group 6 · AI-Assisted Security Assessment</p>
+  </footer>
+</body>
+</html>

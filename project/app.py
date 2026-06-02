@@ -382,7 +382,7 @@ def scan_status(scan_id):
 
 
 @app.route("/scan/results/<scan_id>")
-def results(scan_id):
+def scan_results(scan_id):
     data = scan_store.load(scan_id)
     if not data:
         return render_template("error.html", error_message="Scan not found"), 404
@@ -393,12 +393,23 @@ def results(scan_id):
             target=data.get("target", ""),
             scan_options=data.get("scan_options") or {},
         )
+
+    session["scan_id"] = scan_id
+    session["target_ip"] = data.get("target", "")
+    session["scan_options"] = data.get("scan_options") or {}
+
     return render_template(
-        "results.html",
+        "results_full_dashboard.html",
         scan=data,
         results=data.get("results") or {},
-        mitre_status=mitre_status(),
-        caldera_status=CalderaClient(Config.CALDERA_URL, Config.CALDERA_KEY).status(),
+        mapping=data.get("mapping") or session.get("mapping_results", {}),
+        ai_plan=data.get("ai_plan") or session.get("ai_plan"),
+        selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
+        attack_plan=data.get("attack_plan") or session.get("attack_plan"),
+        validation_results=data.get("validation_results") or session.get("validation_results"),
+        operation_results=data.get("operation_results") or session.get("operation_results"),
+        risk=data.get("risk") or session.get("risk_score"),
+        remediations=data.get("remediations") or session.get("remediations", []),
     )
 
 
@@ -763,6 +774,7 @@ def results():
         "target_ip": session.get("target_ip", ""),
         "port_range": session.get("port_range", "1-1024"),
         "output_file": session.get("scan_output_file", ""),
+        "scan_id": session.get("scan_id", ""),
     }
 
     parsed_results = None
@@ -793,13 +805,38 @@ def results():
             "ports": scan["ports"],
         },
         mapping=mapping_results,
-        ai_plan=session.get("ai_plan"), ##edited
-        selected_mode=session.get("technique_mode", "hybrid"), #edited
+        ai_plan=session.get("ai_plan"),
+        selected_mode=session.get("technique_mode", "hybrid"),
         attack_plan=session.get("attack_plan"),
         validation_results=session.get("validation_results"),
         operation_results=session.get("operation_results"),
         risk=risk,
         remediations=session.get("remediations", []),
+    )
+
+
+@app.route("/technical-appendix")
+def technical_appendix():
+    scan_id = session.get("scan_id")
+    if not scan_id:
+        return render_template("error.html", error_message="Technical appendix requires an active scan."), 404
+
+    data = scan_store.load(scan_id) or {}
+    if not data:
+        return render_template("error.html", error_message="Technical appendix data not found."), 404
+
+    results = data.get("results") or {}
+    mapping_results = data.get("mapping") or session.get("mapping_results", [])
+
+    data["scan_id"] = scan_id
+
+    return render_template(
+        "technical_appendix.html",
+        scan=data,
+        results=results,
+        mapping=mapping_results,
+        mitre_status=mitre_status(),
+        caldera_status=CalderaClient(Config.CALDERA_URL, Config.CALDERA_KEY).status(),
     )
 
 

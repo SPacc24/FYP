@@ -4,6 +4,20 @@
     <h2>Scan Findings & Vulnerability Mapping</h2>
   </div>
 
+  <div class="actions action-row">
+    <a class="button" href="/download/pdf/{{ scan.scan_id }}">Download PDF Report</a>
+    <a class="button ghost" href="/download/handoff/{{ scan.scan_id }}">Download Handoff JSON</a>
+  </div>
+
+  <div class="cards summary-cards">
+    <div class="card"><b>{{ results.hosts|length if results.hosts is defined else (results.get('hosts')|length if results.get('hosts') else 0) }}</b><span>Hosts</span></div>
+    <div class="card"><b>{{ results.tcp_service_count if results.tcp_service_count is defined else (results.service_inventory|selectattr('protocol','equalto','tcp')|list|length if results.service_inventory else 0) }}</b><span>TCP Services</span></div>
+    <div class="card"><b>{{ results.udp_service_count if results.udp_service_count is defined else (results.service_inventory|selectattr('protocol','equalto','udp')|list|length if results.service_inventory else 0) }}</b><span>UDP Services</span></div>
+    <div class="card"><b>{{ results.cve_matches|length if results.cve_matches is defined else 0 }}</b><span>CVE Findings</span></div>
+    <div class="card"><b>{{ results.key_exposure_indicators|length if results.key_exposure_indicators is defined else (results.security_relevant_observations|length if results.security_relevant_observations else 0) }}</b><span>Exposure Indicators</span></div>
+    <div class="card"><b>{{ results.candidate_cve_groups|length if results.candidate_cve_groups is defined else 0 }}</b><span>Candidate Groups</span></div>
+  </div>
+
   <div class="summary-strip">
     <article>
       <span class="label">Target</span>
@@ -31,9 +45,6 @@
       </strong>
     </article>
     
-    <article>
-      <button class="button secondary" id="viewAllCvesBtn" type="button">View All CVEs</button>
-    </article>
   </div>
 
   {% if results %}
@@ -137,6 +148,51 @@
     {% endif %}
   </details>
 
+    <section class="panel left-workbench" id="attack-surface-workbench">
+      <div class="flow-card-header">
+        <span class="label">Attack Surface Workbench</span>
+        <h2>Service Exposure and Evidence</h2>
+      </div>
+      {% if results.attack_surface_sections %}
+        {% for section in results.attack_surface_sections %}
+          <div class="surface-section">
+            <h3>{{ section.category }}</h3>
+            <div class="service-card-grid">
+              {% for s in section.services %}
+                <article class="service-card state-{{ s.state|lower|replace(' ', '-') }}">
+                  <div class="service-card-head">
+                    <div>
+                      <span class="pill muted-pill">{{ s.service }}</span>
+                      <h4>{{ s.product or 'Unidentified product' }}{% if s.version %} {{ s.version }}{% endif %}</h4>
+                    </div>
+                    <div class="service-meta"><b>{{ s.host }}</b><span>{{ s.ports|join(', ') }}</span></div>
+                  </div>
+                  <div class="service-state">{{ 'Candidate References Available' if s.state == 'Candidate CVE References' else s.state }}</div>
+                  {% if s.observations %}
+                    <div class="service-block"><b>Exposure Evidence</b><ul>{% for o in s.observations %}<li>{{ o.observation }}</li>{% endfor %}</ul></div>
+                  {% endif %}
+                  {% if s.confirmed_cves %}
+                    <div class="service-block"><b>CVE Findings</b><ul>{% for c in s.confirmed_cves %}<li>{{ c.cve_id }} - {{ c.finding_type or 'CVE finding' }}</li>{% endfor %}</ul></div>
+                  {% endif %}
+                  {% if s.web_evidence %}
+                    <div class="service-block"><b>Web Evidence</b><ul>{% for w in s.web_evidence %}<li>{{ w.title or 'HTTP service' }}{% if w.server_header %} · {{ w.server_header }}{% endif %}{% if w.http_enum %}<br><span class="muted small preline">{{ w.http_enum[:360] }}</span>{% endif %}</li>{% endfor %}</ul></div>
+                  {% endif %}
+                  {% if s.web_paths %}
+                    <div class="service-block"><b>Discovered Web Paths</b><ul>{% for path in s.web_paths[:10] %}<li>{{ path.path }} — HTTP {{ path.status_code }}{% if path.size %}, {{ path.size }} bytes{% endif %}</li>{% endfor %}</ul></div>
+                  {% endif %}
+                  {% if s.smb_shares %}
+                    <div class="service-block"><b>Visible SMB Shares</b><ul>{% for share in s.smb_shares %}<li>{{ share.share }}{% if share.comment %} — {{ share.comment }}{% endif %}</li>{% endfor %}</ul></div>
+                  {% endif %}
+                </article>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="muted">No attack surface sections were generated from this scan.</p>
+      {% endif %}
+    </section>
+
   <!-- CVE Modal -->
   <div id="cveModal" class="modal" style="display:none;">
     <div class="modal-content">
@@ -198,32 +254,38 @@
   </div>
 
   <script>
-    (function(){
-      const openBtn = document.getElementById('viewAllCvesBtn');
+    function openCveModal() {
       const modal = document.getElementById('cveModal');
-      const closeBtn = document.getElementById('closeCveModal');
-      const search = document.getElementById('cveSearch');
-      const filter = document.getElementById('cveFilterSeverity');
-      const rows = Array.from(document.querySelectorAll('#cveTable tbody tr'));
+      if (modal) modal.style.display = 'block';
+    }
 
-      if(openBtn){
-        openBtn.addEventListener('click', ()=>{ modal.style.display='block'; });
-      }
-      if(closeBtn){
-        closeBtn.addEventListener('click', ()=>{ modal.style.display='none'; });
-      }
-      function applyFilter(){
-        const q = (search.value||'').toLowerCase();
-        const sev = filter.value;
-        rows.forEach(r=>{
-          const txt = r.innerText.toLowerCase();
-          const rowSev = r.querySelector('td span.severity')?.innerText || '';
-          const matches = (!q || txt.includes(q)) && (sev==='all' || rowSev===sev);
-          r.style.display = matches ? '' : 'none';
-        });
-      }
-      search?.addEventListener('input', applyFilter);
-      filter?.addEventListener('change', applyFilter);
-    })();
+    function closeCveModal() {
+      const modal = document.getElementById('cveModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    document.getElementById('closeCveModal')?.addEventListener('click', closeCveModal);
+    document.getElementById('viewAllCvesBtn')?.addEventListener('click', openCveModal);
+
+    const search = document.getElementById('cveSearch');
+    const filter = document.getElementById('cveFilterSeverity');
+    const rows = Array.from(document.querySelectorAll('#cveTable tbody tr'));
+
+    function applyFilter() {
+      const q = (search?.value || '').toLowerCase();
+      const sev = filter?.value || 'all';
+      rows.forEach(r => {
+        const txt = r.innerText.toLowerCase();
+        const rowSev = r.querySelector('td span.severity')?.innerText || '';
+        const matches = (!q || txt.includes(q)) && (sev === 'all' || rowSev === sev);
+        r.style.display = matches ? '' : 'none';
+      });
+    }
+
+    search?.addEventListener('input', applyFilter);
+    filter?.addEventListener('change', applyFilter);
+
+    window.openCveModal = openCveModal;
+    window.closeCveModal = closeCveModal;
   </script>
 </section>

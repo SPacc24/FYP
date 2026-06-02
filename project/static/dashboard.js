@@ -81,6 +81,30 @@ window.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("downloadReportBtn")
     ?.addEventListener("click", downloadReport);
+
+  document.getElementById("deleteAgentBtn")
+    ?.addEventListener("click", deleteSelectedAgent);
+
+  document.getElementById("removeStaleAgentsBtn")
+    ?.addEventListener("click", removeStaleAgents);
+
+  document.getElementById("viewAllCvesNavBtn")
+    ?.addEventListener("click", () => {
+      if (typeof openCveModal === "function") {
+        openCveModal();
+      } else {
+        window.location.hash = "#scan-vuln";
+      }
+    });
+
+  document.getElementById("downloadReportNavBtn")
+    ?.addEventListener("click", () => {
+      const reportSection = document.getElementById("report");
+      if (reportSection) {
+        reportSection.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      document.getElementById("generateReportBtn")?.focus();
+    });
 });
 
 async function loadCalderaStatus() {
@@ -516,66 +540,25 @@ async function generateReport() {
       body: JSON.stringify(reportData)
     });
 
-    if (res.ok) {
-      const data = await res.json();
-
-      generatedReportContent =
-        data.report ||
-        data.summary ||
-        buildLocalReport(reportData);
-
-      reportBox.innerHTML =
-        `<pre class="report-preview">${escapeHtml(generatedReportContent)}</pre>`;
-
-      downloadBtn.disabled = false;
-      return;
+    const data = await res.json();
+    if (!res.ok || !data || (!data.report && !data.summary)) {
+      throw new Error(data?.error || "Report generation failed.");
     }
+
+    generatedReportContent = data.report || data.summary || "";
+    reportBox.innerHTML =
+      `<pre class="report-preview">${escapeHtml(generatedReportContent || "No report content returned.")}</pre>`;
+
+    downloadBtn.disabled = !generatedReportContent;
+    return;
   }
 
   catch (err) {
-    // Fallback below if backend route does not exist yet.
+    generatedReportContent = "";
+    reportBox.innerHTML =
+      `<p class="muted">Unable to generate report. ${escapeHtml(err.message || "Please try again.")}</p>`;
+    downloadBtn.disabled = true;
   }
-
-  generatedReportContent = buildLocalReport(reportData);
-
-  reportBox.innerHTML =
-    `<pre class="report-preview">${escapeHtml(generatedReportContent)}</pre>
-     <p class="small top-gap">
-       Backend /generate_report route was not found, so a local browser report was generated instead.
-     </p>`;
-
-  downloadBtn.disabled = false;
-}
-
-function buildLocalReport(data) {
-  return `
-AI-Assisted Penetration Testing Report
-
-Target:
-${data.target}
-
-Port Range:
-${data.port_range}
-
-Technique Mode:
-${data.selected_mode.toUpperCase()}
-
-Risk Summary:
-Score: ${data.risk_score}
-Label: ${data.risk_label}
-
-Selected MITRE ATT&CK Techniques:
-${data.selected_techniques.length ? data.selected_techniques.join(", ") : "No selected techniques."}
-
-Execution Results:
-${data.execution_results || "No execution results generated yet."}
-
-Lab Exploitability Validation:
-${data.validation_results || "No validation evidence generated yet."}
-
-Summary:
-The scan findings, vulnerability mapping, lab validation evidence, and selected technique mode were reviewed together. The selected MITRE ATT&CK techniques were prepared for Caldera execution. The execution results above should be used to validate exposure, document findings, and support remediation planning.
-  `.trim();
 }
 
 function downloadReport() {

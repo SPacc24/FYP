@@ -120,19 +120,23 @@ def main():
     print("=" * 60)
     print("\nThis will delete generated files and caches.\n")
     
-    # Get the project root directory (this script's location)
-    base_dir = Path(__file__).parent
+    # Get the project root directory
+    base_dir = Path(__file__).resolve().parents[1]
     
-    # Clear logs
+    # Clear logs and scan persistence
     print("1. Clearing operation logs (storage/logs/)...")
     clear_directory(base_dir / "storage" / "logs")
+    print("2. Clearing scan cache and stored state...")
+    clear_directory(base_dir / "storage" / "scans")
+    clear_directory(base_dir / "storage" / "reports")
+    clear_directory(base_dir / "storage" / "scan_store")
     
     # Remove __pycache__ directories
-    print("\n2. Removing __pycache__ directories...")
+    print("\n3. Removing __pycache__ directories...")
     delete_pycache_directories(base_dir)
     
     # Remove .pyc files
-    print("\n3. Removing .pyc compiled files...")
+    print("\n4. Removing .pyc compiled files...")
     delete_pyc_files(base_dir)
     
     print("\n" + "=" * 60)
