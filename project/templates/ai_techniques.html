@@ -1,8 +1,8 @@
 <!-- 2. AI RECOMMENDED TECHNIQUES + MITRE/CVE REASONING + TECHNIQUE SELECTION -->
 <section class="flow-card" id="ai-techniques">
   <div class="flow-card-header">
-    <span class="label">Assessment Stage 2</span>
-    <h2>Recommended Techniques by AI</h2>
+<span class="label">Assessment Stage 2.5</span>
+<h2>AI Recommended Techniques, MITRE Reasoning & Technique Selection</h2>
   </div>
 
   <p class="muted">
@@ -30,7 +30,7 @@
     </div>
 
     <details class="details-block" open>
-      <summary>Reasoning & MITRE ATT&CK Mapping</summary>
+      <summary>AI Reasoning & MITRE ATT&CK Mapping</summary>
 
       <div class="attack-explanation-panel">
         <div class="table-wrap top-gap">
@@ -42,7 +42,6 @@
                 <th>Why Recommended</th>
                 <th>CVE Linkage</th>
                 <th>CALDERA Validation</th>
-                <th>Limitation</th>
               </tr>
             </thead>
 
@@ -119,8 +118,6 @@
 </td>
 
                     <td class="small">{{ tech.caldera_validation }}</td>
-
-                    <td class="small">{{ tech.limitation }}</td>
                   </tr>
                 {% endfor %}
               {% elif ai_plan.selected_technique_ids %}
@@ -129,7 +126,7 @@
                     <td class="mono">
                       <strong>{{ tid }}</strong>
                     </td>
-                    <td colspan="5" class="small">
+                    <td colspan="4" class="small">
                       Recommended by the AI planner based on mapped scan findings.
                     </td>
                   </tr>
@@ -149,129 +146,8 @@
   {% else %}
     <p class="muted">No LLM plan generated yet.</p>
   {% endif %}
-<<<<<<< Updated upstream
-</section>
 
-<!-- TECHNIQUE SELECTION -->
- <section class="flow-card" id="technique-selection">
-  <div class="flow-card-header">
-    <span class="label">Assessment Stage 2.5</span>
-    <h2>Reasoning & MITRE ATT&CK Mapping and Technique Selection</h2>
-  </div>
-
-  <details class="details-block" open>
-    <summary>Reasoning & MITRE ATT&CK Mapping</summary>
-
-    <div class="attack-explanation-panel">
-      <p class="muted">
-        {% if active_mode == "auto" %}
-          Auto mode locks the technique choices to the AI-selected recommendations.
-        {% elif active_mode == "hybrid" %}
-          Hybrid mode pre-selects AI recommendations, but you can still adjust the list.
-        {% elif active_mode == "manual" %}
-          Manual mode leaves the technique list unchecked for analyst selection.
-        {% endif %}
-      </p>
-
-      <div class="table-wrap top-gap">
-        <table>
-          <thead>
-            <tr>
-              <th>Technique</th>
-              <th>Attack Path Stage</th>
-              <th>MITRE Meaning</th>
-              <th>Why Recommended</th>
-              <th>CVE Linkage</th>
-              <th>CALDERA Validation</th>
-              <th>Limitation</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% if ai_plan and ai_plan.technique_explanations %}
-              {% for tech in ai_plan.technique_explanations %}
-                <tr>
-                  <td class="mono">
-                    <strong>{{ tech.technique_id }}</strong><br>
-                    <span class="small">{{ tech.technique_name }}</span><br>
-
-                    {% if tech.mitre_url %}
-                      <a href="{{ tech.mitre_url }}" target="_blank">
-                        MITRE ATT&CK
-                      </a>
-                    {% endif %}
-
-                    {% if tech.mitre_tactics %}
-                      <br>
-                      <span class="small">
-                        Tactic:
-                        {{ tech.mitre_tactics | join(', ') }}
-                      </span>
-                    {% endif %}
-                  </td>
-
-                  <td class="small">{{ tech.attack_path_stage }}</td>
-                  <td class="small">{{ tech.mitre_summary }}</td>
-                  <td class="small">{{ tech.why_recommended }}</td>
-
-                  <td class="small">
-                    {{ tech.cve_relevance }}
-
-                    {% if tech.linked_cves %}
-                      <ul class="compact-list">
-                        {% for cve in tech.linked_cves %}
-                          <li>
-                            <strong>{{ cve.id }}</strong>
-
-                            {% if cve.nvd and cve.nvd.cvss %}
-                              —
-                              {{ cve.nvd.cvss.severity }}
-                              {{ cve.nvd.cvss.score }}
-                            {% endif %}
-
-                            {% if cve.nvd and cve.nvd.nvd_url %}
-                              <br>
-                              <a href="{{ cve.nvd.nvd_url }}" target="_blank">
-                                View NVD
-                              </a>
-                            {% endif %}
-                          </li>
-                        {% endfor %}
-                      </ul>
-                    {% endif %}
-                  </td>
-
-                  <td class="small">{{ tech.caldera_validation }}</td>
-                  <td class="small">{{ tech.limitation }}</td>
-                </tr>
-              {% endfor %}
-            {% elif ai_plan and ai_plan.selected_technique_ids %}
-              {% for tid in ai_plan.selected_technique_ids %}
-                <tr>
-                  <td class="mono">
-                    <strong>{{ tid }}</strong>
-                  </td>
-                  <td colspan="6" class="small">
-                    Recommended by the AI planner based on mapped scan findings.
-                  </td>
-                </tr>
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td colspan="7" class="small">
-                  No AI technique explanation available.
-                </td>
-              </tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </details>
-=======
->>>>>>> Stashed changes
-
-  <details class="details-block" open>
+    <details class="details-block" open>
     <summary>Technique Selection for Caldera</summary>
 
     <div id="attackPlanForm">
@@ -288,14 +164,14 @@
       <div class="table-wrap top-gap">
         <table>
           <thead>
-<tr>
-  <th>Select</th>
-  <th>Technique ID</th>
-  <th>Name</th>
-  <th>Tactic</th>
-  <th>Linked CVEs</th>
-  <th>Reason</th>
-</tr>
+            <tr>
+              <th>Select</th>
+              <th>Technique ID</th>
+              <th>Name</th>
+              <th>Tactic</th>
+              <th>Linked CVEs</th>
+              <th>Reason</th>
+            </tr>
           </thead>
 
           <tbody>
@@ -336,13 +212,31 @@
                   </td>
 
                   <td class="small">
+                    {% if tech.cve_ids %}
+                      {% for cve_id in tech.cve_ids %}
+                        <a href="https://nvd.nist.gov/vuln/detail/{{ cve_id }}" target="_blank">
+                          {{ cve_id }}
+                        </a>{% if not loop.last %}, {% endif %}
+                      {% endfor %}
+                    {% elif tech.linked_cve_ids %}
+                      {% for cve_id in tech.linked_cve_ids %}
+                        <a href="https://nvd.nist.gov/vuln/detail/{{ cve_id }}" target="_blank">
+                          {{ cve_id }}
+                        </a>{% if not loop.last %}, {% endif %}
+                      {% endfor %}
+                    {% else %}
+                      <span class="muted">No direct CVE</span>
+                    {% endif %}
+                  </td>
+
+                  <td class="small">
                     {{ tech.reason if tech.reason is defined else 'Recommended by mapper/AI planner' }}
                   </td>
                 </tr>
               {% endfor %}
             {% else %}
               <tr>
-                <td colspan="5" class="small">
+                <td colspan="6" class="small">
                   No selectable techniques available.
                 </td>
               </tr>
@@ -353,7 +247,3 @@
     </div>
   </details>
 </section>
-<<<<<<< Updated upstream
-=======
-
->>>>>>> Stashed changes

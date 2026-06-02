@@ -9,13 +9,14 @@ DEFAULT_TIMEOUT_SECONDS = 120
 
 
 def _llm_unavailable_plan(reason: Exception) -> str:
+    print("OLLAMA FAILED:", repr(reason))
+
     return json.dumps({
         "recommended_mode": "hybrid",
         "selected_technique_ids": [],
-        "reasoning": (
-            "The local LLM service is unavailable, so AutoPenTest used the "
-            "highest-priority mapped techniques as a deterministic fallback."
-        ),
+        "reasoning": "",
+        "technique_explanations": [],
+        "next_steps": [],
         "validation_goal": "Analyst review required.",
         "confidence": "low",
         "llm_available": False,
@@ -43,16 +44,24 @@ def get_llm_settings() -> dict:
 
 def _post_ollama(payload: dict) -> str:
     settings = get_llm_settings()
+    print("OLLAMA SETTINGS:", settings)
+
     payload = {
         "model": settings["model"],
         **payload,
     }
+
+    print("OLLAMA PAYLOAD MODEL:", payload.get("model"))
 
     response = requests.post(
         settings["url"],
         json=payload,
         timeout=settings["timeout"],
     )
+
+    print("OLLAMA STATUS CODE:", response.status_code)
+    print("OLLAMA RAW RESPONSE:", response.text[:500])
+
     response.raise_for_status()
 
     data = response.json()

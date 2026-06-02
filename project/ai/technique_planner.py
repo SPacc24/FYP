@@ -517,14 +517,10 @@ def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
 
             # CVE fields for frontend + LLM
             "linked_cves": linked_cves,
-<<<<<<< Updated upstream
-            "attack_path_stage": tech.get("attack_path_stage", "Validation / Discovery"),
-            "supporting_services": tech.get("supporting_services", []),
-=======
             "linked_cve_ids": linked_cve_ids,
             "cve_ids": linked_cve_ids,
-
->>>>>>> Stashed changes
+            "attack_path_stage": tech.get("attack_path_stage", "Validation / Discovery"),
+            "supporting_services": tech.get("supporting_services", []),
             "mapper_reason": tech.get(
                 "reason",
                 " ".join(tech.get("reasons", [])[:2]) or
@@ -664,13 +660,6 @@ def normalise_technique_explanations(
                     "only for safe authorised emulation."
                 ),
             ),
-            "limitation": existing.get(
-                "limitation",
-                (
-                    "This recommendation does not prove exploitation. It identifies a mapped "
-                    "technique that should be validated or documented."
-                ),
-            ),
         })
 
     return final_explanations
@@ -779,87 +768,102 @@ def generate_ai_technique_plan(
 
     allowed_techniques = extract_allowed_techniques(mapping_result)
 
+    llm_techniques = []
+
+    for tech in allowed_techniques[:8]:
+        llm_techniques.append({
+            "id": tech.get("id"),
+            "name": tech.get("name"),
+            "max_severity": tech.get("max_severity"),
+            "count": tech.get("count"),
+            "mitre_tactics": tech.get("mitre_tactics", []),
+            "linked_cve_ids": tech.get("linked_cve_ids", []),
+            "supporting_services": tech.get("supporting_services", []),
+            "attack_path_stage": tech.get("attack_path_stage"),
+            "mapper_reason": shorten_text(tech.get("mapper_reason", ""), 250),
+            "mitre_description": shorten_text(tech.get("mitre_description", ""), 300),
+        })
+
     safe_input = {
         "selected_mode_by_user": preferred_mode,
-        "top_risks": mapping_result.get("top_risks", []),
+        "top_risks": mapping_result.get("top_risks", [])[:5],
         "severity_counts": mapping_result.get("severity_counts", {}),
-        "attack_chain": mapping_result.get("attack_chain", []),
-        "allowed_techniques": allowed_techniques,
+        "attack_chain": mapping_result.get("attack_chain", [])[:5],
+        "allowed_techniques": llm_techniques,
     }
 
     prompt = f"""
-You are an AI cybersecurity analyst for an authorised Final Year Project lab.
+You are an AI MITRE ATT&CK technique planner for an authorised cybersecurity lab.
 
-The target has already been scanned. The backend has mapped findings to candidate MITRE ATT&CK techniques.
-Your job is to choose the most relevant mapped techniques for CALDERA emulation or manual validation.
+Task:
+Select the best mapped techniques for the user's selected mode.
 
-Safety rules:
-- Choose ONLY from allowed_techniques.
-- Do NOT invent technique IDs.
-- Do NOT provide exploit commands, payloads, credential attacks, malware steps, or step-by-step exploitation instructions.
-- Do NOT explain how to break into a system.
-- Focus on safe planning, emulation, validation, prioritisation, and reporting.
-- Output valid JSON only.
-
-User-selected technique mode:
+Mode:
 {preferred_mode}
 
+Rules:
+- Choose ONLY IDs from allowed_techniques.
+- Select 2 to 5 techniques if possible.
+- Do NOT invent technique IDs, CVEs, services, or ports.
+- Do NOT provide exploit commands, payloads, intrusion steps, or credential theft guidance.
+- Prioritise by severity, linked CVEs, exposed services/ports, repeated findings, and mapper_reason.
+- Use the actual scan context. Do NOT copy placeholder text.
+- Keep reasoning concise and report-ready.
+
 Mode behaviour:
-- auto: choose the clearest, highest-priority techniques for automatic CALDERA planning.
-- hybrid: choose useful techniques but explain that analyst review is expected before execution.
-- manual: provide strong technique suggestions, but make clear that the analyst should manually choose before execution.
+- auto: choose highest-confidence techniques for automatic planning.
+- hybrid: recommend strong techniques but mention analyst review.
+- manual: suggest techniques but leave final choice to analyst.
 
-Selection rules:
-- Select 2 to 5 techniques if enough relevant options exist.
-- Prefer techniques with higher max_severity, stronger CVE linkage, repeated findings, and clearer MITRE relevance.
-- Use linked_cves, CVSS severity, CVE description, MITRE description, tactics, service/port context, and mapper_reason.
-- Do not select only T1046 unless it is the only relevant allowed technique.
-- If SMB, Windows file-sharing, NetBIOS, or port 445 risks are present, include a complete lab-safe attack path: discovery, safe validation candidate, and post-access emulation where supported.
-- Treat T1210 as a controlled exploitability validation candidate only. Do not describe exploit payloads or weaponised steps.
-- If RDP is present, consider RDP-related remote service validation.
-- If web service vulnerabilities or public-facing software risks are present, consider public-facing application exposure.
-- If domain services are present, consider domain/account discovery-related techniques.
-- Be precise: explain the relationship between the detected vulnerability/service and the selected ATT&CK technique.
-- Do not overclaim. If a CVE only suggests exposure but not confirmed exploitability, say so.
-
-For each selected technique, explain:
-1. MITRE meaning: what the technique represents in ATT&CK.
-2. Why recommended: why it matches the scan finding, exposed service, CVE, severity, or attack surface.
-3. CVE relevance: how linked CVEs influenced prioritisation. Mention CVE IDs when useful.
-4. CALDERA validation: what CALDERA should safely validate at a high level.
-5. Limitation: what this technique does NOT prove or what may need manual validation.
-
-Keep explanations meaningful but concise. Avoid generic one-liners.
-
-Input JSON:
+Input:
 {json.dumps(safe_input, indent=2)}
 
-Return JSON exactly in this shape:
+Return ONLY valid JSON with this structure:
 {{
-  "selected_technique_ids": ["T1046", "T1021.002", "T1135"],
-  "reasoning": "Concise overall explanation of why these techniques were prioritised for the selected mode.",
+  "selected_technique_ids": [],
+  "reasoning": "",
   "technique_explanations": [
     {{
-  "technique_id": "T1046",
-  "technique_name": "Network Service Discovery",
-  "mitre_summary": "Meaning of the technique based on MITRE context.",
-  "why_recommended": "Specific reason using service, port, severity, mapper context, and/or attack surface.",
-  "cve_relevance": "Explain whether linked CVEs affected prioritisation. Mention CVE IDs only if they appear in linked_cves.",
-  "caldera_validation": "High-level safe validation goal for CALDERA.",
-  "limitation": "What the result does not prove or what needs manual review."
+      "technique_id": "",
+      "technique_name": "",
+      "mitre_summary": "",
+      "why_recommended": "",
+      "cve_relevance": "",
+      "caldera_validation": "",
     }}
   ],
-  "next_steps": [
-    "Check CALDERA ability coverage for the selected technique IDs.",
-    "Run only supported techniques inside the authorised lab.",
-    "Compare CALDERA output with scan findings and linked CVEs.",
-    "Document unsupported techniques as manual validation or reporting items."
-  ]
+  "next_steps": []
 }}
+
+Field requirements:
+- reasoning: 2 to 4 sentences explaining why the selected techniques fit the scan and mode.
+- mitre_summary: short meaning of the technique.
+- why_recommended: specific link to detected service, port, CVE, severity, or mapper_reason.
+- cve_relevance: mention linked CVEs only if present; otherwise say no direct CVE was linked.
+- caldera_validation: high-level safe validation goal only.
+- next_steps: 3 to 4 safe follow-up actions.
 """
 
     raw = ask_llm_json(prompt)
     plan = safe_json_loads(raw)
+
+    llm_available = plan.get("llm_available", True)
+
+    if not llm_available:
+        plan["reasoning"] = (
+            f"AutoPenTest could not receive a live Ollama response, so the selected "
+            f"{preferred_mode.upper()} mode was applied using the mapped MITRE ATT&CK "
+            f"techniques from the scan results. The final recommendations were prioritised "
+            f"using service exposure, linked CVEs, severity, and mapper relevance."
+        )
+
+        plan["next_steps"] = [
+            "Confirm Ollama is running before requesting a fully LLM-generated recommendation.",
+            "Review the mapped MITRE ATT&CK techniques and linked CVEs.",
+            "Check CALDERA ability coverage for each selected technique.",
+            "Run only supported techniques within the authorised lab environment.",
+            "Document unsupported techniques as manual validation or reporting items.",
+        ]
 
     allowed_ids = {
         tech["id"]
