@@ -35,6 +35,14 @@
           </div>
         </div>
 
+        <label for="techniqueMode">AI Technique Mode</label>
+        <select id="techniqueMode" name="technique_mode">
+          <option value="hybrid" {% if session.get('technique_mode', 'hybrid') == 'hybrid' %}selected{% endif %}>Hybrid</option>
+          <option value="auto" {% if session.get('technique_mode', 'hybrid') == 'auto' %}selected{% endif %}>Auto</option>
+          <option value="manual" {% if session.get('technique_mode', 'hybrid') == 'manual' %}selected{% endif %}>Manual</option>
+        </select>
+        <p class="muted small">Choose AI planning behavior: automatic reasoning, hybrid review mode, or manual mode only.</p>
+
         <button id="startBtn" class="btn" type="submit">Start Enumeration</button>
       </form>
       <p class="note">No scoring, no ranking, no prioritisation. The recon module collects evidence and links CVE findings only where the collected evidence supports them.</p>

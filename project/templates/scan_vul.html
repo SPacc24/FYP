@@ -6,6 +6,7 @@
 
   <div class="actions action-row">
     <a class="button" href="/download/pdf/{{ scan.scan_id }}">Download PDF Report</a>
+    <button class="button ghost" type="button" id="viewAllCvesBtn">View All CVEs</button>
     <a class="button ghost" href="/download/handoff/{{ scan.scan_id }}">Download Handoff JSON</a>
   </div>
 
@@ -147,51 +148,6 @@
       <p class="muted">No vulnerability matches yet.</p>
     {% endif %}
   </details>
-
-    <section class="panel left-workbench" id="attack-surface-workbench">
-      <div class="flow-card-header">
-        <span class="label">Attack Surface Workbench</span>
-        <h2>Service Exposure and Evidence</h2>
-      </div>
-      {% if results.attack_surface_sections %}
-        {% for section in results.attack_surface_sections %}
-          <div class="surface-section">
-            <h3>{{ section.category }}</h3>
-            <div class="service-card-grid">
-              {% for s in section.services %}
-                <article class="service-card state-{{ s.state|lower|replace(' ', '-') }}">
-                  <div class="service-card-head">
-                    <div>
-                      <span class="pill muted-pill">{{ s.service }}</span>
-                      <h4>{{ s.product or 'Unidentified product' }}{% if s.version %} {{ s.version }}{% endif %}</h4>
-                    </div>
-                    <div class="service-meta"><b>{{ s.host }}</b><span>{{ s.ports|join(', ') }}</span></div>
-                  </div>
-                  <div class="service-state">{{ 'Candidate References Available' if s.state == 'Candidate CVE References' else s.state }}</div>
-                  {% if s.observations %}
-                    <div class="service-block"><b>Exposure Evidence</b><ul>{% for o in s.observations %}<li>{{ o.observation }}</li>{% endfor %}</ul></div>
-                  {% endif %}
-                  {% if s.confirmed_cves %}
-                    <div class="service-block"><b>CVE Findings</b><ul>{% for c in s.confirmed_cves %}<li>{{ c.cve_id }} - {{ c.finding_type or 'CVE finding' }}</li>{% endfor %}</ul></div>
-                  {% endif %}
-                  {% if s.web_evidence %}
-                    <div class="service-block"><b>Web Evidence</b><ul>{% for w in s.web_evidence %}<li>{{ w.title or 'HTTP service' }}{% if w.server_header %} · {{ w.server_header }}{% endif %}{% if w.http_enum %}<br><span class="muted small preline">{{ w.http_enum[:360] }}</span>{% endif %}</li>{% endfor %}</ul></div>
-                  {% endif %}
-                  {% if s.web_paths %}
-                    <div class="service-block"><b>Discovered Web Paths</b><ul>{% for path in s.web_paths[:10] %}<li>{{ path.path }} — HTTP {{ path.status_code }}{% if path.size %}, {{ path.size }} bytes{% endif %}</li>{% endfor %}</ul></div>
-                  {% endif %}
-                  {% if s.smb_shares %}
-                    <div class="service-block"><b>Visible SMB Shares</b><ul>{% for share in s.smb_shares %}<li>{{ share.share }}{% if share.comment %} — {{ share.comment }}{% endif %}</li>{% endfor %}</ul></div>
-                  {% endif %}
-                </article>
-              {% endfor %}
-            </div>
-          </div>
-        {% endfor %}
-      {% else %}
-        <p class="muted">No attack surface sections were generated from this scan.</p>
-      {% endif %}
-    </section>
 
   <!-- CVE Modal -->
   <div id="cveModal" class="modal" style="display:none;">

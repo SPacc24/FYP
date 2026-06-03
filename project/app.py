@@ -28,8 +28,8 @@ import logging
 from config import Config
 
 from mapping.technique_mapper import map_vulnerabilities
-from scanners.nmap_parser import NmapParseError, parse_nmap_xml
-from scanners.nmap_runner import NmapScanError, run_nmap_scan
+from project.trash.nmap_parser import NmapParseError, parse_nmap_xml
+from project.trash.nmap_runner import NmapScanError, run_nmap_scan
 
 from caldera.api_client import CalderaClient
 from caldera.operation_manager import OperationManager

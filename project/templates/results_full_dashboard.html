@@ -55,8 +55,11 @@
     </script>
 
     <section class="dashboard-wireframe">
-      <div class="dashboard-main">
+      <div class="dashboard-left">
+        {% include "attack_surface_workbench.html" %}
+      </div>
 
+      <div class="dashboard-center">
         {% include "scan_vul.html" %}
 
         {% include "ai_techniques.html" %}
@@ -66,11 +69,11 @@
         {% include "caldera_execution.html" %}
 
         {% include "report.html" %}
-
       </div>
 
-      {% include "ai_chatbox.html" %}
-
+      <div class="dashboard-right">
+        {% include "ai_chatbox.html" %}
+      </div>
     </section>
   </main>
 
