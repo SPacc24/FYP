@@ -2,6 +2,7 @@
   <div class="flow-card-header">
     <span class="label">Attack Surface Workbench</span>
     <h2>Service Exposure and Evidence</h2>
+    <p class="muted">Services are grouped the way a pentester would work through the target: remote access, web, file sharing, databases, and application services.</p>
   </div>
 
   {% if results.attack_surface_sections %}
@@ -33,6 +34,30 @@
               {% endif %}
               {% if s.smb_shares %}
                 <div class="service-block"><b>Visible SMB Shares</b><ul>{% for share in s.smb_shares %}<li>{{ share.share }}{% if share.comment %} — {{ share.comment }}{% endif %}</li>{% endfor %}</ul></div>
+              {% endif %}
+              {% if s.candidate_references %}
+                <details class="mini-details">
+                  <summary>Show candidate CVE references</summary>
+                  {% for g in s.candidate_references %}
+                    <p class="muted small">
+                      {{ g.reference_count }} reference{% if g.reference_count != 1 %}s{% endif %}:
+                      {% for r in g.references[:8] %}{{ r.cve_id }}{% if not loop.last %}, {% endif %}{% endfor %}{% if g.reference_count > 8 %}, ...{% endif %}
+                    </p>
+                  {% endfor %}
+                </details>
+              {% endif %}
+              {% if s.evidence_gaps %}
+                <div class="service-block"><b>Evidence Gaps</b><p class="muted small">{{ s.evidence_gaps|join(', ') }}</p></div>
+              {% endif %}
+              {% if s.checks %}
+                <details class="mini-details">
+                  <summary>Service check evidence</summary>
+                  <ul>
+                    {% for chk in s.checks[:8] %}
+                      <li>{{ chk.check }} — {{ chk.status }}{% if chk.note %}<br><span class="muted small">{{ chk.note }}</span>{% endif %}</li>
+                    {% endfor %}
+                  </ul>
+                </details>
               {% endif %}
             </article>
           {% endfor %}

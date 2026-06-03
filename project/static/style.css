@@ -235,10 +235,6 @@
   border-top: 1px solid var(--border);
 }
 
-.template-markers {
-  display: none;
-}
-
 @media (max-width: 850px) {
   .topbar,
   .section-head,
@@ -1061,3 +1057,111 @@ body:has(.input-page) .footer {
   margin-bottom: 8px;
 }
 /* done by nao & mat */
+
+/* Blended final layout overrides */
+.dashboard-wireframe {
+  grid-template-columns: minmax(280px, 330px) minmax(0, 1fr) minmax(300px, 340px);
+  gap: 20px;
+  align-items: start;
+}
+
+.dashboard-main,
+.dashboard-center {
+  min-width: 0;
+}
+
+.dashboard-left,
+.dashboard-right {
+  min-width: 0;
+  position: sticky;
+  top: 100px;
+  align-self: start;
+}
+
+.dashboard-left .left-workbench,
+.dashboard-right .ai-sidebar-inner {
+  max-height: calc(100vh - 125px);
+  overflow: auto;
+}
+
+.scan-live-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.scan-sidebar {
+  display: grid;
+  gap: 18px;
+  position: sticky;
+  top: 24px;
+}
+
+.scan-live-grid .overview-panel,
+.scan-live-grid .summary-grid,
+.scan-live-grid .task-list.wide,
+.dashboard-left .service-card-grid {
+  grid-template-columns: 1fr;
+}
+
+.current-task-card {
+  background:
+    linear-gradient(180deg, rgba(77,155,255,0.20), rgba(5, 10, 18, 0.82));
+  border-color: rgba(77,155,255,0.75);
+  box-shadow: 0 0 0 1px rgba(77,155,255,0.28), 0 0 26px rgba(77,155,255,0.18);
+}
+
+.current-task-card b {
+  color: #cfe5ff;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.scan-command-center .command-table-wrap {
+  max-height: calc(100vh - 240px);
+}
+
+.deploy-command-text {
+  background: #050a12;
+  border: 1px solid #1c2a3c;
+  border-radius: 10px;
+  color: #b9d7ff;
+  line-height: 1.55;
+  margin: 10px 0 0;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
+.cve-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-wireframe,
+  .scan-live-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-left,
+  .dashboard-right,
+  .scan-sidebar {
+    position: static;
+  }
+
+  .dashboard-left .left-workbench,
+  .dashboard-right .ai-sidebar-inner,
+  .scan-command-center .command-table-wrap {
+    max-height: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .cve-filter-row {
+    grid-template-columns: 1fr;
+  }
+}

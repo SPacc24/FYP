@@ -1,152 +1,202 @@
 # AutoPenTest
 
-AutoPenTest is a Flask-based web application designed for automated penetration testing using MITRE Caldera. It provides a RESTful API interface to interact with Caldera servers, manage operations, and generate reports.
+AutoPenTest is a Flask-based authorised lab assessment dashboard. It runs reconnaissance, normalises evidence, links official CVE List records where product/version evidence supports them, plans MITRE ATT&CK techniques with an optional local LLM, and can hand selected techniques to MITRE Caldera.
 
-## Features
+## What This Build Does
 
-- **Caldera Integration**: Connects to MITRE Caldera servers for red teaming operations
-- **Operation Management**: Start, monitor, and manage penetration testing operations
-- **Agent Monitoring**: Check status of Caldera agents and their readiness
-- **Logging**: Automatic logging of operations and results to JSON files
-- **Web Interface**: Basic Flask web app with API endpoints (frontend templates are under development)
-- **Modular Architecture**: Organized into separate modules for API client, operations, scanners, and reports
+This build includes the v32.8 recon-module handoff fixes:
 
-## Project Structure
+- Evidence collection and normalisation for Nmap, Gobuster, SMB, SSH, SNMP, LDAP, TLS, RDP, Hydra, and supporting tools.
+- Official CVE List matching using the local CVEProject/cvelistV5 mirror.
+- Service-centric Attack Surface Workbench with exposure evidence, CVE findings, candidate references, evidence gaps, and service-check evidence.
+- HTML/PDF reports and JSON handoff output.
+- Sanitised Hydra credential combos, safer command-output decoding, partial Gobuster result handling, improved SMB/Samba evidence merging, and clearer CVE wording.
 
-```
-project/
-├── app.py                 # Main Flask application
-├── config.py              # Configuration settings (under development)
-├── db.py                  # Database utilities (under development)
-├── cleanup.py             # Cleanup utilities
-├── requirements.txt       # Python dependencies
-├── caldera/               # Caldera integration module
-│   ├── __init__.py
-│   ├── api_client.py      # Caldera API client
-│   └── operation_manager.py # Operation management
-├── docs/                  # Documentation (under development)
-├── reports/               # Report generation (under development)
-├── scanners/              # Scanning utilities (under development)
-├── static/                # Static assets (CSS, JS)
-├── storage/               # Data storage
-│   └── logs/              # Operation logs
-├── templates/             # HTML templates (under development)
-├── tests/                 # Test suite
-└── utils/                 # Utility functions
+Recon boundaries:
+
+```text
+footprinting
+enumeration
+evidence normalisation
+official CVE List strict matching
+service-level exposure checks
+JSON/PDF handoff generation
 ```
 
-## Installation
+The recon module does not score, rank, prioritise, exploit, or make execution decisions by itself.
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd project
-   ```
+## Quick Start On Kali
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+Place the project zip on the Kali desktop, then run:
 
-3. Set up environment variables:
-   Create a `.env` file in the project root with:
-   ```
-
-   SECRET_KEY=some-random-secret
-   DEBUG=true
-   CALDERA_URL=http://127.0.0.1:8888
-   CALDERA_API_KEY=your-caldera-api-key
-   AGENT_GROUP=red
-   KALI_IP=192.168.xx.xx
-   OPERATION_TIMEOUT=180
-   MYSQL_HOST=192.168.xx.xx
-   MYSQL_USER=autopentest
-   MYSQL_PASS=your-password
-   MYSQL_DB=autopentest
-   ```
-
-4. Ensure MITRE Caldera is running and accessible.
-
-## Usage
-
-### Running the Application
-
-Start the Flask app:
 ```bash
+cd /home/kali/Desktop
+unzip AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31.zip
+cd AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31
+chmod +x install.sh
+sudo ./install.sh
+cd project
+sudo .venv/bin/python app.py
+```
+
+Open:
+
+```text
+http://<kali-ip>:5000
+```
+
+If running locally on the same machine:
+
+```text
+http://127.0.0.1:5000
+```
+
+## Manual Python Setup
+
+```bash
+cd project
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
 python app.py
 ```
 
-The app will run on `http://127.0.0.1:5000` by default.
+## Environment
 
-### API Endpoints
+Create `project/.env` or export these variables:
 
-- `GET /`: Basic status page
-- `GET /caldera/status`: Check Caldera connectivity and agent status
-- `POST /caldera/run`: Start a new operation
-  - Required: `adversary_id`
-  - Optional: `selected_techniques`, `group`, `planner_id`
-- `GET /caldera/operation/<operation_id>`: Poll operation status
-
-### Example API Usage
-
-Check Caldera status:
 ```bash
-curl http://127.0.0.1:5000/caldera/status
+SECRET_KEY=change-me
+DEBUG=false
+
+CALDERA_URL=http://127.0.0.1:8888
+CALDERA_API_KEY=your-caldera-api-key
+ENABLE_CALDERA_EXECUTION=0
+AGENT_GROUP=red
+KALI_IP=192.168.x.x
+OPERATION_TIMEOUT=180
+
+OLLAMA_URL=http://localhost:11434/api/generate
+OLLAMA_MODEL=llama3.2:1b
+OLLAMA_TIMEOUT=180
+
+MYSQL_HOST=127.0.0.1
+MYSQL_USER=autopentest
+MYSQL_PASS=your-password
+MYSQL_DB=autopentest
+
+ENABLE_CONTEXT_FOOTPRINTING=0
+ENABLE_ARP_SCAN=0
+ENABLE_HTTPX=0
+ENABLE_DEEP_WEB_DISCOVERY=0
+ENABLE_SMBMAP=0
+ENABLE_HYDRA=0
+GOBUSTER_WORDLIST=/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
+HYDRA_CREDENTIAL_FILE=
+MITRE_CVE_REPO=https://github.com/CVEProject/cvelistV5.git
 ```
 
-Start an operation:
+MySQL is optional for the GUI to load, but database persistence requires a reachable MySQL server and the configured credentials.
+
+## Scanning Tools
+
+The Kali installer installs the main toolchain:
+
 ```bash
-curl -X POST http://127.0.0.1:5000/caldera/run \
-  -H "Content-Type: application/json" \
-  -d '{"adversary_id": "your-adversary-id"}'
+sudo apt-get install -y \
+  arp-scan nmap bind9-dnsutils jq gobuster enum4linux-ng smbclient smbmap \
+  snmp ldap-utils sslscan mtr-tiny traceroute hydra seclists git \
+  python3 python3-venv python3-pip
 ```
 
-## Dependencies
+Optional helpers are used when available:
 
-- Flask 3.0.0
-- requests 2.31.0
-- python-dotenv 1.0.1
-- responses (for testing)
-- pytest 7.2.0
+```bash
+sudo apt-get install -y ssh-audit httpx-toolkit rdpscan snmp-mibs-downloader
+```
+
+Check local tool availability:
+
+```bash
+cd project
+source .venv/bin/activate
+python scripts/check_tooling.py
+```
+
+## CVE Data
+
+Sync or rebuild the official CVE List mirror:
+
+```bash
+cd project
+source .venv/bin/activate
+python scripts/sync_mitre_cve_database.py
+python scripts/rebuild_mitre_cve_index.py
+python scripts/mitre_cve_status.py
+```
+
+If CVE data looks stale or CVSS metadata is missing:
+
+```bash
+python scripts/audit_cve_source.py
+```
+
+## Ollama
+
+Install and start Ollama, then pull the configured model:
+
+```bash
+ollama serve
+ollama pull llama3.2:1b
+```
+
+The app uses Ollama for AI technique planning and the AI chat panel. If Ollama is unavailable, the app still runs and returns a safe unavailable message.
+
+## Caldera
+
+Start MITRE Caldera separately and configure `CALDERA_URL` plus `CALDERA_API_KEY`. The dashboard checks agent readiness for the scanned target IP and shows a copyable deploy command when no trusted agent is matched.
+
+Typical flow:
+
+```bash
+cd /path/to/caldera
+python3 server.py --insecure
+```
+
+Then in AutoPenTest:
+
+1. Run a scan.
+2. Open the dashboard.
+3. Use the Caldera panel to refresh agent status.
+4. Copy the deploy command into the authorised lab target if needed.
+5. Select techniques and run Caldera only when execution is explicitly enabled and authorised.
 
 ## Testing
 
-Run tests with:
+From repository root:
+
 ```bash
-pytest
+pytest -q
+python -m py_compile project/app.py project/config.py project/storage/*.py project/scanners/*.py project/scripts/*.py
+python project/scripts/audit_no_scoring.py
+python project/scripts/audit_cve_source.py
 ```
 
-Test files are located in the `tests/` directory.
+## Project Layout
 
-## Development Status
-
-This project is currently in development. Key components implemented:
-
-- ✅ Caldera API client
-- ✅ Operation management
-- ✅ Basic Flask API
-- ✅ Logging system
-
-Under development:
-- 🔄 Web interface templates
-- 🔄 Report generation
-- 🔄 Scanning utilities
-- 🔄 Database integration
-- 🔄 Configuration management
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## License
-
-[Add license information here]
-
-## Acknowledgments
-
-- Built using MITRE Caldera for red teaming capabilities
-- Flask framework for web application</content>
+```text
+project/
+  app.py                 Flask routes and dashboard endpoints
+  ai/                    Ollama client, AI planner, safety filters
+  caldera/               Caldera API client and operation manager
+  exploitation/          Lab-safe validation helpers
+  mapping/               MITRE ATT&CK mapping helpers
+  reports/               Text report generation
+  scanners/              Recon pipeline, parsers, tooling, CVE matching
+  scripts/               Tool checks and CVE index maintenance
+  storage/               Runtime scan state and database helpers
+  templates/             Dashboard HTML
+  static/                CSS and browser JavaScript
+  tests/                 Pytest coverage
+```

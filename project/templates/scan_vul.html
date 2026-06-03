@@ -149,15 +149,16 @@
     {% endif %}
   </details>
 
-  <!-- CVE Modal -->
-  <div id="cveModal" class="modal" style="display:none;">
-    <div class="modal-content">
-      <header>
-        <h3>Detected CVEs</h3>
-        <button id="closeCveModal" class="button secondary">Close</button>
-      </header>
+  <div id="cveModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeCveModal()"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cveModalTitle">
+      <div class="modal-head">
+        <h2 id="cveModalTitle">CVE Findings</h2>
+        <button id="closeCveModal" class="icon-btn" type="button">Close</button>
+      </div>
 
-      <div class="small top-gap">
+      <div class="modal-body">
+      <div class="cve-filter-row small">
         <input id="cveSearch" placeholder="Search CVE ID or keyword" />
         <select id="cveFilterSeverity">
           <option value="all">All severities</option>
@@ -176,35 +177,52 @@
               <th>Severity</th>
               <th>Confidence</th>
               <th>Service/Port</th>
-              <th>Linked Techniques</th>
+              <th>Product / Version</th>
               <th>Description</th>
               <th>Links</th>
             </tr>
           </thead>
           <tbody>
-            {% for item in mapping.vulnerabilities %}
-              {% for cve in item.cve_matches %}
+            {% if results.cve_matches %}
+              {% for cve in results.cve_matches %}
                 <tr class="cve-row">
                   <td class="mono">{{ cve.cve_id }}</td>
-                  <td><span class="severity {{ cve.severity|lower }}">{{ cve.severity }}</span></td>
-                  <td>{{ 'High' if cve.severity == 'Critical' else 'Medium' }}</td>
-                  <td class="mono">{{ item.service }}:{{ item.port }}</td>
+                  <td><span class="severity {{ (cve.source_cvss_severity or 'Info')|lower }}">{{ cve.source_cvss_severity or 'Info' }}</span></td>
+                  <td>{{ cve.classification or cve.finding_type or 'Evidence linked' }}</td>
+                  <td class="mono">{{ cve.service }}:{{ cve.observed_ports|default([cve.port ~ '/' ~ cve.protocol])|join(', ') }}</td>
                   <td>
-                    {% for tech in item.attack_techniques %}
-                      <span class="mono">{{ tech.id }}</span>{% if not loop.last %}, {% endif %}
-                    {% endfor %}
+                    {{ cve.product }}{% if cve.version %} {{ cve.version }}{% endif %}
                   </td>
-                  <td class="small">{{ cve.reason }}</td>
+                  <td class="small">{{ cve.vulnerability or cve.classification_reason }}</td>
                   <td>
                     <a class="button tiny" href="https://nvd.nist.gov/vuln/detail/{{ cve.cve_id }}" target="_blank">NVD</a>
                     <a class="button tiny" href="https://cve.mitre.org/cgi-bin/cvename.cgi?name={{ cve.cve_id }}" target="_blank">MITRE</a>
-                    <a class="button tiny" href="https://www.cvedetails.com/cve/{{ cve.cve_id }}/" target="_blank">CVE Details</a>
                   </td>
                 </tr>
               {% endfor %}
-            {% endfor %}
+            {% elif mapping and mapping.vulnerabilities %}
+              {% for item in mapping.vulnerabilities %}
+                {% for cve in item.cve_matches %}
+                  <tr class="cve-row">
+                    <td class="mono">{{ cve.cve_id }}</td>
+                    <td><span class="severity {{ cve.severity|lower }}">{{ cve.severity }}</span></td>
+                    <td>{{ 'High' if cve.severity == 'Critical' else 'Medium' }}</td>
+                    <td class="mono">{{ item.service }}:{{ item.port }}</td>
+                    <td>{% for tech in item.attack_techniques %}<span class="mono">{{ tech.id }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                    <td class="small">{{ cve.reason }}</td>
+                    <td>
+                      <a class="button tiny" href="https://nvd.nist.gov/vuln/detail/{{ cve.cve_id }}" target="_blank">NVD</a>
+                      <a class="button tiny" href="https://cve.mitre.org/cgi-bin/cvename.cgi?name={{ cve.cve_id }}" target="_blank">MITRE</a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="7" class="small">No CVE findings available.</td></tr>
+            {% endif %}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   </div>
@@ -212,16 +230,21 @@
   <script>
     function openCveModal() {
       const modal = document.getElementById('cveModal');
-      if (modal) modal.style.display = 'block';
+      if (!modal) return;
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
     }
 
     function closeCveModal() {
       const modal = document.getElementById('cveModal');
-      if (modal) modal.style.display = 'none';
+      if (!modal) return;
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
     }
 
     document.getElementById('closeCveModal')?.addEventListener('click', closeCveModal);
     document.getElementById('viewAllCvesBtn')?.addEventListener('click', openCveModal);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCveModal(); });
 
     const search = document.getElementById('cveSearch');
     const filter = document.getElementById('cveFilterSeverity');
