@@ -1595,3 +1595,232 @@ body:has(.index-shell) .footer {
     max-width: none;
   }
 }
+
+/* Index page final polish */
+body:has(.index-shell) {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(77,155,255,0.24), transparent 34%),
+    radial-gradient(circle at 88% 0%, rgba(167,139,250,0.20), transparent 30%),
+    linear-gradient(135deg, #04070d, #080c10 42%, #0a0f1f);
+}
+
+.index-shell {
+  display: block;
+  padding: 36px 22px 28px;
+}
+
+.index-card {
+  width: min(1320px, 96vw);
+  margin: 0 auto;
+  border-radius: 18px;
+  padding: 30px;
+}
+
+.index-head {
+  border-bottom: 1px solid rgba(77,155,255,0.16);
+  margin-bottom: 24px;
+  max-width: none;
+  padding-bottom: 20px;
+}
+
+.index-head h1 {
+  font-size: clamp(30px, 4vw, 48px);
+  max-width: 860px;
+}
+
+.index-head .muted {
+  max-width: 900px;
+}
+
+.index-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 22px;
+  align-items: start;
+}
+
+.index-form-column {
+  min-width: 0;
+}
+
+.index-section {
+  background: rgba(5,10,18,0.34);
+  border: 1px solid rgba(77,155,255,0.14);
+  border-radius: 16px;
+  margin-bottom: 16px;
+  padding: 18px;
+}
+
+.target-section {
+  background: rgba(77,155,255,0.07);
+}
+
+.target-section label,
+.attack-mode-section label {
+  margin: 0;
+}
+
+.target-section input,
+.attack-mode-section select {
+  margin-top: 8px;
+}
+
+.index-card .profile-select {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 10px 0 0;
+}
+
+.index-card .radio-card {
+  min-height: 160px;
+  padding: 16px;
+}
+
+.index-card .radio-card:hover,
+.index-card .tool-toggle:hover {
+  border-color: rgba(77,155,255,0.55);
+  transform: translateY(-1px);
+}
+
+.index-card .radio-card,
+.index-card .tool-toggle {
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+
+.index-card .radio-card:has(input:checked),
+.index-card .tool-toggle:has(input:checked) {
+  background:
+    linear-gradient(180deg, rgba(77,155,255,0.16), rgba(5,10,18,0.84));
+  border-color: rgba(77,155,255,0.70);
+  box-shadow: 0 0 0 1px rgba(77,155,255,0.18), 0 14px 34px rgba(0,0,0,0.24);
+}
+
+.tool-picker.index-section {
+  padding: 18px;
+}
+
+.tool-picker-head {
+  margin-bottom: 10px;
+}
+
+.tool-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.index-card .tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  max-height: 430px;
+  overflow: auto;
+  padding: 2px 6px 2px 2px;
+}
+
+.index-card .tool-toggle {
+  min-height: 104px;
+  margin: 0;
+}
+
+.index-card .tool-toggle small {
+  line-height: 1.38;
+}
+
+.index-actions {
+  background: rgba(5,10,18,0.42);
+  border: 1px solid rgba(77,155,255,0.14);
+  border-radius: 16px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.index-actions .btn {
+  margin-top: 0;
+  min-width: 190px;
+}
+
+.index-side-panel {
+  background:
+    linear-gradient(180deg, rgba(17,25,39,0.98), rgba(5,10,18,0.82));
+  border: 1px solid rgba(77,155,255,0.24);
+  border-radius: 18px;
+  box-shadow: 0 18px 48px rgba(0,0,0,0.26);
+  padding: 20px;
+  position: sticky;
+  top: 22px;
+}
+
+.index-side-panel h2 {
+  font-size: 22px;
+  margin: 6px 0 16px;
+}
+
+.index-step-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.index-step-grid article {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  background: rgba(77,155,255,0.08);
+  border: 1px solid rgba(77,155,255,0.18);
+  border-radius: 14px;
+  padding: 11px;
+}
+
+.index-step-grid b {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(77,155,255,0.16);
+  color: #b9d7ff;
+}
+
+.index-step-grid span {
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.index-side-note {
+  border-top: 1px solid rgba(77,155,255,0.16);
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.index-side-note p {
+  margin: 8px 0 0;
+}
+
+@media (max-width: 1180px) {
+  .index-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .index-side-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 820px) {
+  .index-card .profile-select,
+  .index-card .tool-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-picker-head {
+    display: block;
+  }
+
+  .tool-picker-actions {
+    justify-content: flex-start;
+    margin-top: 10px;
+  }
+}

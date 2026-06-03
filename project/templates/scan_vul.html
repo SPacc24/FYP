@@ -9,58 +9,7 @@
       <a class="button ghost" href="/download/handoff/{{ scan.scan_id }}">Download Handoff JSON</a>
     </div>
   </div>
-
-  <div class="cards summary-cards">
-    <div class="card"><b>{{ results.hosts|length if results.hosts is defined else (results.get('hosts')|length if results.get('hosts') else 0) }}</b><span>Hosts</span></div>
-    <div class="card"><b>{{ results.tcp_service_count if results.tcp_service_count is defined else (results.service_inventory|selectattr('protocol','equalto','tcp')|list|length if results.service_inventory else 0) }}</b><span>TCP Services</span></div>
-    <div class="card"><b>{{ results.udp_service_count if results.udp_service_count is defined else (results.service_inventory|selectattr('protocol','equalto','udp')|list|length if results.service_inventory else 0) }}</b><span>UDP Services</span></div>
-    <div class="card"><b>{{ results.cve_matches|length if results.cve_matches is defined else 0 }}</b><span>CVE Findings</span></div>
-    <div class="card"><b>{{ results.key_exposure_indicators|length if results.key_exposure_indicators is defined else (results.security_relevant_observations|length if results.security_relevant_observations else 0) }}</b><span>Exposure Indicators</span></div>
-    <div class="card"><b>{{ results.candidate_cve_groups|length if results.candidate_cve_groups is defined else 0 }}</b><span>Candidate Groups</span></div>
-  </div>
-
-  <div class="summary-strip">
-    <article>
-      <span class="label">Target</span>
-      <strong>
-        {{ scan.target_ip if scan and scan.target_ip else session.get('target_ip', 'Unknown') }}
-      </strong>
-    </article>
-
-    <article>
-      <span class="label">Port Range</span>
-      <strong>
-        {{ scan.port_range if scan and scan.port_range else session.get('port_range', '1-1024') }}
-      </strong>
-    </article>
-
-    <article>
-      <span class="label">Selected Mode</span>
-      <strong>{{ active_mode | upper }}</strong>
-    </article>
-
-    <article>
-      <span class="label">Risk Score</span>
-      <strong>
-        {{ risk.score if risk and risk.score is defined else session.get('risk_score', {}).get('score', 'N/A') }}
-      </strong>
-    </article>
-    
-  </div>
-
-  {% if results %}
-    <div class="mini-panel">
-      <p>
-        <span class="label">Operating System</span>
-        {{ results.os if results.os is defined else results.get('os', 'Unknown') }}
-      </p>
-
-      <p>
-        <span class="label">Open Ports</span>
-        {{ results.ports|length if results.ports is defined else results.get('ports', [])|length }}
-      </p>
-    </div>
-
+  
     <details class="details-block" open>
       <summary>View Scan Findings</summary>
 

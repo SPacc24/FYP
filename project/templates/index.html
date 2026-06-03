@@ -18,64 +18,92 @@
         </p>
       </div>
 
-      <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting...';">
-        <section class="index-section target-section">
-          <label for="target">
-            <span class="label">Target</span>
-            <input id="target" type="text" name="target" placeholder="e.g. 192.168.211.134 or 192.168.211.130-140" required />
-          </label>
-        </section>
+      <div class="index-layout">
+        <div class="index-form-column">
+          <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting...';">
+            <section class="index-section target-section">
+              <label for="target">
+                <span class="label">Target</span>
+                <input id="target" type="text" name="target" placeholder="e.g. 192.168.211.134 or 192.168.211.130-140" required />
+              </label>
+            </section>
 
-        <section class="index-section">
-          <span class="label">Scan Profile</span>
-          <div class="profile-select">
-            <label class="radio-card active" data-profile-card="fast">
-              <input type="radio" name="scan_profile" value="fast" checked>
-              <b>Fast Recon</b>
-              <span>Core service discovery, fingerprinting, and focused checks for faster CVE-supported evidence.</span>
-            </label>
-            <label class="radio-card" data-profile-card="full">
-              <input type="radio" name="scan_profile" value="full">
-              <b>Full Recon</b>
-              <span>Enables all available recon tools for deeper enumeration and evidence collection.</span>
-            </label>
-            <label class="radio-card" data-profile-card="custom">
-              <input type="radio" name="scan_profile" value="custom">
-              <b>Custom Recon</b>
-              <span>Use the tool switches below exactly as selected.</span>
-            </label>
-          </div>
-        </section>
+            <section class="index-section">
+              <span class="label">Scan Profile</span>
+              <div class="profile-select">
+                <label class="radio-card active" data-profile-card="fast">
+                  <input type="radio" name="scan_profile" value="fast" checked>
+                  <b>Fast Recon</b>
+                  <span>Core service discovery, fingerprinting, and focused checks for faster CVE-supported evidence.</span>
+                </label>
+                <label class="radio-card" data-profile-card="full">
+                  <input type="radio" name="scan_profile" value="full">
+                  <b>Full Recon</b>
+                  <span>Enables all available recon tools for deeper enumeration and evidence collection.</span>
+                </label>
+                <label class="radio-card" data-profile-card="custom">
+                  <input type="radio" name="scan_profile" value="custom">
+                  <b>Custom Recon</b>
+                  <span>Use the tool switches below exactly as selected.</span>
+                </label>
+              </div>
+            </section>
 
-        <section class="index-section attack-mode-section">
-          <label>
-            <span class="label">Attack Technique Mode</span>
-            <select name="technique_mode" required>
-              <option value="auto" {% if session.get('technique_mode','hybrid') == 'auto' %}selected{% endif %}>Auto - AI selects techniques automatically</option>
-              <option value="hybrid" {% if session.get('technique_mode','hybrid') == 'hybrid' %}selected{% endif %}>Hybrid - AI recommends, analyst can edit</option>
-              <option value="manual" {% if session.get('technique_mode','hybrid') == 'manual' %}selected{% endif %}>Manual - analyst selects techniques manually</option>
-            </select>
-          </label>
-        </section>
+            <section class="index-section attack-mode-section">
+              <label>
+                <span class="label">Attack Technique Mode</span>
+                <select name="technique_mode" required>
+                  <option value="auto" {% if session.get('technique_mode','hybrid') == 'auto' %}selected{% endif %}>Auto - AI selects techniques automatically</option>
+                  <option value="hybrid" {% if session.get('technique_mode','hybrid') == 'hybrid' %}selected{% endif %}>Hybrid - AI recommends, analyst can edit</option>
+                  <option value="manual" {% if session.get('technique_mode','hybrid') == 'manual' %}selected{% endif %}>Manual - analyst selects techniques manually</option>
+                </select>
+              </label>
+            </section>
 
-        <section class="tool-picker index-section">
-          <div class="tool-picker-head"><h2>Tool Selection</h2><button class="btn ghost mini" type="button" id="selectAll">Enable All</button><button class="btn ghost mini" type="button" id="selectFast">Fast Defaults</button></div>
-          <p class="muted small">CVE review stays active. These switches control evidence-collection tools only. Disabling service fingerprinting, HTTP evidence scripts or SMB enumeration can reduce the supporting evidence available for CVE review.</p>
-          <div class="tool-grid">
-            {% for tool in tool_options %}
-            <label class="tool-toggle" data-fast="{{ '1' if tool.fast else '0' }}" data-full="{{ '1' if tool.full else '0' }}">
-              <input type="checkbox" name="tools" value="{{ tool.id }}" {% if tool.fast %}checked{% endif %}>
-              <span><b>{{ tool.label }}</b><small>{{ tool.category }} · {{ tool.purpose }}</small></span>
-            </label>
-            {% endfor %}
-          </div>
-        </section>
+            <section class="tool-picker index-section">
+              <div class="tool-picker-head">
+                <div>
+                  <span class="label">Evidence Tools</span>
+                  <h2>Tool Selection</h2>
+                </div>
+                <div class="tool-picker-actions">
+                  <button class="btn ghost mini" type="button" id="selectAll">Enable All</button>
+                  <button class="btn ghost mini" type="button" id="selectFast">Fast Defaults</button>
+                </div>
+              </div>
+              <p class="muted small">CVE review stays active. These cards control evidence-collection tools only.</p>
+              <div class="tool-grid">
+                {% for tool in tool_options %}
+                <label class="tool-toggle" data-fast="{{ '1' if tool.fast else '0' }}" data-full="{{ '1' if tool.full else '0' }}">
+                  <input type="checkbox" name="tools" value="{{ tool.id }}" {% if tool.fast %}checked{% endif %}>
+                  <span><b>{{ tool.label }}</b><small>{{ tool.category }} · {{ tool.purpose }}</small></span>
+                </label>
+                {% endfor %}
+              </div>
+            </section>
 
-        <div class="index-actions">
-          <button id="startBtn" class="btn" type="submit">Start Enumeration</button>
-          <p class="note">No scoring, no ranking, no prioritisation. Recon links CVE findings only where collected evidence supports them.</p>
+            <div class="index-actions">
+              <button id="startBtn" class="btn" type="submit">Start Enumeration</button>
+              <p class="note">No scoring, no ranking, no prioritisation. Recon links CVE findings only where collected evidence supports them.</p>
+            </div>
+          </form>
         </div>
-      </form>
+
+        <aside class="index-side-panel" aria-label="Recon workflow summary">
+          <span class="label">Workflow</span>
+          <h2>Evidence-first scan flow</h2>
+          <div class="index-step-grid">
+            <article><b>1</b><span>Prepare target and profile</span></article>
+            <article><b>2</b><span>Collect service evidence</span></article>
+            <article><b>3</b><span>Review CVE-supported findings</span></article>
+            <article><b>4</b><span>Plan techniques safely</span></article>
+          </div>
+          <div class="index-side-note">
+            <b>Recommended</b>
+            <p class="muted small">Start with Fast Recon. Switch to Full Recon when you need deeper HTTP, SMB, credential, or protocol evidence.</p>
+          </div>
+        </aside>
+      </div>
     </section>
   </main>
   <footer class="footer">
