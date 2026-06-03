@@ -9,7 +9,8 @@
       <a class="button ghost" href="/download/handoff/{{ scan.scan_id }}">Download Handoff JSON</a>
     </div>
   </div>
-  
+
+  {% if results %}
     <details class="details-block" open>
       <summary>View Scan Findings</summary>
 
