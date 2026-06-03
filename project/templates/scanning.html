@@ -17,7 +17,19 @@
 
 <section class="scan-live-grid">
   <aside class="scan-sidebar">
-    <section class="panel overview-panel">
+    <section class="panel progress-panel">
+    <div class="progress-head">
+      <h2>Task Progress</h2>
+      <div class="progress-meta"><span id="doneCount">0 / 0 tasks</span><span id="percent">0%</span></div>
+    </div>
+    <div class="progress-track"><div id="bar" class="progress-fill"></div></div>
+    <div id="summary" class="summary-grid"></div>
+    <div id="tasks" class="task-list wide"></div>
+  </section>
+  </aside>
+
+  <div class="scan-center">
+    <section class="panel overview-panel center-overview-panel">
       <div class="overview-card">
         <span>Target</span>
         <b>{{ target }}</b>
@@ -36,21 +48,11 @@
       </div>
     </section>
 
-    <section class="panel progress-panel">
-    <div class="progress-head">
-      <h2>Task Progress</h2>
-      <div class="progress-meta"><span id="doneCount">0 / 0 tasks</span><span id="percent">0%</span></div>
-    </div>
-    <div class="progress-track"><div id="bar" class="progress-fill"></div></div>
-    <div id="summary" class="summary-grid"></div>
-    <div id="tasks" class="task-list wide"></div>
-  </section>
-  </aside>
-
-  <section class="panel command-panel scan-command-center">
-    <div class="section-head"><div><h2>Command Log</h2><p class="muted small">Open a row to view the full command and captured output.</p></div></div>
-    <div class="table-scroll command-table-wrap"><table class="command-table"><thead><tr><th>Time</th><th>Purpose</th><th>Exact Command</th><th>Output</th></tr></thead><tbody id="log"></tbody></table></div>
-  </section>
+    <section class="panel command-panel scan-command-center">
+      <div class="section-head"><div><h2>Command Log</h2><p class="muted small">Open a row to view the full command and captured output.</p></div></div>
+      <div class="table-scroll command-table-wrap"><table class="command-table"><thead><tr><th>Time</th><th>Purpose</th><th>Exact Command</th><th>Output</th></tr></thead><tbody id="log"></tbody></table></div>
+    </section>
+  </div>
 </section>
 </main>
 

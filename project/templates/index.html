@@ -8,42 +8,57 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <main class="page input-page">
-    <section class="hero">
-      <p class="eyebrow">Automated Penetration Testing Platform</p>
-      <h1>Scan Configuration</h1>
-      <p class="muted">
-        Configure your scan settings to start analyzing the target system.
-      </p>
-    </section>
+  <main class="shell hero index-shell">
+    <section class="hero-card wide-hero index-card">
+      <div class="index-head">
+        <p class="eyebrow">AutoPenTest · Recon Enumeration</p>
+        <h1>Automated Cyber Range Enumeration</h1>
+        <p class="muted">
+          Enter one IP address, CIDR, IP range, or comma-separated target list. Choose a recon profile and attack planning mode, then adjust evidence tools only if needed.
+        </p>
+      </div>
 
-    <section class="card form-card">
       <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting...';">
-        <label>
-          <span class="label">Target IP / Hostname</span>
-          <input type="text" name="target" placeholder="192.168.86.127" required />
-        </label>
+        <section class="index-section target-section">
+          <label for="target">
+            <span class="label">Target</span>
+            <input id="target" type="text" name="target" placeholder="e.g. 192.168.211.134 or 192.168.211.130-140" required />
+          </label>
+        </section>
 
-        <span class="label">Scan Profile</span>
-        <div class="profile-select">
-          <label class="radio-card active" data-profile-card="fast">
-            <input type="radio" name="scan_profile" value="fast" checked>
-            <b>Fast Recon</b>
-            <span>Core service discovery, fingerprinting, and focused checks for faster CVE-supported evidence.</span>
-          </label>
-          <label class="radio-card" data-profile-card="full">
-            <input type="radio" name="scan_profile" value="full">
-            <b>Full Recon</b>
-            <span>Enables all available recon tools for deeper enumeration and evidence collection.</span>
-          </label>
-          <label class="radio-card" data-profile-card="custom">
-            <input type="radio" name="scan_profile" value="custom">
-            <b>Custom Recon</b>
-            <span>Use the tool switches below exactly as selected.</span>
-          </label>
-        </div>
+        <section class="index-section">
+          <span class="label">Scan Profile</span>
+          <div class="profile-select">
+            <label class="radio-card active" data-profile-card="fast">
+              <input type="radio" name="scan_profile" value="fast" checked>
+              <b>Fast Recon</b>
+              <span>Core service discovery, fingerprinting, and focused checks for faster CVE-supported evidence.</span>
+            </label>
+            <label class="radio-card" data-profile-card="full">
+              <input type="radio" name="scan_profile" value="full">
+              <b>Full Recon</b>
+              <span>Enables all available recon tools for deeper enumeration and evidence collection.</span>
+            </label>
+            <label class="radio-card" data-profile-card="custom">
+              <input type="radio" name="scan_profile" value="custom">
+              <b>Custom Recon</b>
+              <span>Use the tool switches below exactly as selected.</span>
+            </label>
+          </div>
+        </section>
 
-        <div class="tool-picker">
+        <section class="index-section attack-mode-section">
+          <label>
+            <span class="label">Attack Technique Mode</span>
+            <select name="technique_mode" required>
+              <option value="auto" {% if session.get('technique_mode','hybrid') == 'auto' %}selected{% endif %}>Auto - AI selects techniques automatically</option>
+              <option value="hybrid" {% if session.get('technique_mode','hybrid') == 'hybrid' %}selected{% endif %}>Hybrid - AI recommends, analyst can edit</option>
+              <option value="manual" {% if session.get('technique_mode','hybrid') == 'manual' %}selected{% endif %}>Manual - analyst selects techniques manually</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="tool-picker index-section">
           <div class="tool-picker-head"><h2>Tool Selection</h2><button class="btn ghost mini" type="button" id="selectAll">Enable All</button><button class="btn ghost mini" type="button" id="selectFast">Fast Defaults</button></div>
           <p class="muted small">CVE review stays active. These switches control evidence-collection tools only. Disabling service fingerprinting, HTTP evidence scripts or SMB enumeration can reduce the supporting evidence available for CVE review.</p>
           <div class="tool-grid">
@@ -54,18 +69,12 @@
             </label>
             {% endfor %}
           </div>
+        </section>
+
+        <div class="index-actions">
+          <button id="startBtn" class="btn" type="submit">Start Enumeration</button>
+          <p class="note">No scoring, no ranking, no prioritisation. Recon links CVE findings only where collected evidence supports them.</p>
         </div>
-
-        <label>
-          <span class="label">Attack Technique Mode</span>
-          <select name="technique_mode" required>
-            <option value="auto" {% if session.get('technique_mode','hybrid') == 'auto' %}selected{% endif %}>Auto - AI selects techniques automatically</option>
-            <option value="hybrid" {% if session.get('technique_mode','hybrid') == 'hybrid' %}selected{% endif %}>Hybrid - AI recommends, analyst can edit</option>
-            <option value="manual" {% if session.get('technique_mode','hybrid') == 'manual' %}selected{% endif %}>Manual - analyst selects techniques manually</option>
-          </select>
-        </label>
-
-        <button id="startBtn" class="button" type="submit">Run Scan</button>
       </form>
     </section>
   </main>
