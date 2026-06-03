@@ -1,25 +1,61 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AutoPenTest Recon</title>
+  <title>AutoPenTest Scanner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <main class="shell hero">
-    <section class="hero-card wide-hero">
-      <div class="eyebrow">AutoPenTest · Recon Enumeration</div>
-      <h1>Automated Cyber Range Enumeration</h1>
-      <p class="muted">Enter one IP address, CIDR, IP range, or comma-separated target list. Choose a scan profile, then adjust individual tools before launch.</p>
-      <form action="{{ url_for('scan') }}" method="post" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting...';">
-        <label for="target">Target</label>
-        <input id="target" name="target" placeholder="e.g. 192.168.211.134 or 192.168.211.130-140" required>
+  <main class="page input-page">
+    <section class="hero">
+      <p class="eyebrow">Automated Penetration Testing Platform</p>
+      <h1>Scan Configuration</h1>
+      <p class="muted">
+        Configure your scan settings to start analyzing the target system.
+      </p>
+    </section>
 
+    <section class="card form-card">
+      <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting...';">
+        <label>
+          <span class="label">Target IP / Hostname</span>
+          <input type="text" name="target" placeholder="192.168.86.127" required />
+        </label>
+
+        <label>
+          <span class="label">Ports</span>
+          <input type="text" name="port_range" value="1-1000" placeholder="80,443,3389 or 1-5000" />
+        </label>
+
+        <label>
+          <span class="label">Intensity</span>
+          <select name="intensity">
+            <option value="2">T2 - Careful</option>
+            <option value="3" selected>T3 - Balanced</option>
+            <option value="4">T4 - Faster</option>
+            <option value="5">T5 - Aggressive</option>
+          </select>
+        </label>
+
+        <span class="label">Scan Profile</span>
         <div class="profile-select">
-          <label class="radio-card active" data-profile-card="fast"><input type="radio" name="scan_profile" value="fast" checked> <b>Fast Recon</b><span>Core service discovery, fingerprinting and focused checks for faster CVE-supported evidence.</span></label>
-          <label class="radio-card" data-profile-card="full"><input type="radio" name="scan_profile" value="full"> <b>Full Recon</b><span>Enables all available recon tools for deeper enumeration and evidence collection.</span></label>
-          <label class="radio-card" data-profile-card="custom"><input type="radio" name="scan_profile" value="custom"> <b>Custom Recon</b><span>Use the tool switches below exactly as selected.</span></label>
+          <label class="radio-card active" data-profile-card="fast">
+            <input type="radio" name="scan_profile" value="fast" checked>
+            <b>Fast Recon</b>
+            <span>Core service discovery, fingerprinting, and focused checks for faster CVE-supported evidence.</span>
+          </label>
+          <label class="radio-card" data-profile-card="full">
+            <input type="radio" name="scan_profile" value="full">
+            <b>Full Recon</b>
+            <span>Enables all available recon tools for deeper enumeration and evidence collection.</span>
+          </label>
+          <label class="radio-card" data-profile-card="custom">
+            <input type="radio" name="scan_profile" value="custom">
+            <b>Custom Recon</b>
+            <span>Use the tool switches below exactly as selected.</span>
+          </label>
         </div>
 
         <div class="tool-picker">
@@ -35,19 +71,25 @@
           </div>
         </div>
 
-        <label for="techniqueMode">AI Technique Mode</label>
-        <select id="techniqueMode" name="technique_mode">
-          <option value="hybrid" {% if session.get('technique_mode', 'hybrid') == 'hybrid' %}selected{% endif %}>Hybrid</option>
-          <option value="auto" {% if session.get('technique_mode', 'hybrid') == 'auto' %}selected{% endif %}>Auto</option>
-          <option value="manual" {% if session.get('technique_mode', 'hybrid') == 'manual' %}selected{% endif %}>Manual</option>
-        </select>
-        <p class="muted small">Choose AI planning behavior: automatic reasoning, hybrid review mode, or manual mode only.</p>
+        <label>
+          <span class="label">Attack Technique Mode</span>
+          <select name="technique_mode" required>
+            <option value="auto" {% if session.get('technique_mode','hybrid') == 'auto' %}selected{% endif %}>Auto - AI selects techniques automatically</option>
+            <option value="hybrid" {% if session.get('technique_mode','hybrid') == 'hybrid' %}selected{% endif %}>Hybrid - AI recommends, analyst can edit</option>
+            <option value="manual" {% if session.get('technique_mode','hybrid') == 'manual' %}selected{% endif %}>Manual - analyst selects techniques manually</option>
+          </select>
+        </label>
 
-        <button id="startBtn" class="btn" type="submit">Start Enumeration</button>
+        <button id="startBtn" class="button" type="submit">Run Scan</button>
       </form>
-      <p class="note">No scoring, no ranking, no prioritisation. The recon module collects evidence and links CVE findings only where the collected evidence supports them.</p>
     </section>
   </main>
+  <footer class="footer">
+  <p>
+    Automated Penetration Testing · Group 6 · Last updated: 5 May 2026
+  </p>
+</footer>
+
   <script>
   function applyProfile(profile){
     document.querySelectorAll('[data-profile-card]').forEach(c => c.classList.toggle('active', c.dataset.profileCard === profile));
@@ -59,11 +101,11 @@
   }
   document.querySelectorAll('input[name="scan_profile"]').forEach(r => r.addEventListener('change', e => applyProfile(e.target.value)));
   document.querySelectorAll('.tool-toggle input').forEach(cb => cb.addEventListener('change', () => {
-    document.querySelector('input[name="scan_profile"][value="custom"]').checked = true;
+    document.querySelector('input[name="scan_profile"][value="custom"]')?.checked = true;
     applyProfile('custom');
   }));
-  document.getElementById('selectAll').addEventListener('click', () => {document.querySelector('input[value="custom"]').checked=true;applyProfile('custom');document.querySelectorAll('.tool-toggle input').forEach(cb=>cb.checked=true);});
-  document.getElementById('selectFast').addEventListener('click', () => {document.querySelector('input[value="fast"]').checked=true;applyProfile('fast');});
+  document.getElementById('selectAll')?.addEventListener('click', () => {document.querySelector('input[value="custom"]').checked=true;applyProfile('custom');document.querySelectorAll('.tool-toggle input').forEach(cb=>cb.checked=true);});
+  document.getElementById('selectFast')?.addEventListener('click', () => {document.querySelector('input[name="scan_profile"][value="fast"]').checked=true;applyProfile('fast');});
   </script>
 </body>
 </html>

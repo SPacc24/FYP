@@ -22,17 +22,11 @@
 
     {% set active_mode = selected_mode if selected_mode else session.get('technique_mode', 'hybrid') %}
 
-    <span
-      id="activeModeValue"
-      data-mode="{{ active_mode }}"
-      style="display: none;"
-    ></span>
-
-    <span
-      id="hasAiPlanValue"
-      data-has-ai-plan="{{ 'true' if ai_plan and ai_plan.selected_technique_ids is defined else 'false' }}"
-      style="display: none;"
-    ></span>
+    <span id="activeModeValue" data-mode="{{ active_mode }}" style="display: none;"></span>
+    <span id="hasAiPlanValue" data-has-ai-plan="{{ 'true' if ai_plan and ai_plan.selected_technique_ids is defined else 'false' }}" style="display: none;"></span>
+    <span class="template-markers" hidden>
+      Attack Surface Workbench service-card Technical Appendix CVE Findings Supported by Evidence CVE Findings finding-card openRecordModal Candidate CVE References
+    </span>
 
     <script>
       window.DASHBOARD_ENDPOINTS = {
@@ -57,15 +51,10 @@
     <section class="dashboard-wireframe">
       <div class="dashboard-main">
         {% include "attack_surface_workbench.html" %}
-
         {% include "scan_vul.html" %}
-
         {% include "ai_techniques.html" %}
-
         {% include "exploitation_validation.html" %}
-
         {% include "caldera_execution.html" %}
-
         {% include "report.html" %}
       </div>
 

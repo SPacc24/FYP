@@ -19,17 +19,62 @@ def _small_para(value: Any, style):
     return _para(value, style)
 
 
+def _minimal_pdf(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
+    target = results.get('target_input') or scan.get('target') or 'Unknown target'
+    profile = (results.get('scan_options') or scan.get('scan_options') or {}).get('profile_label', 'Scan')
+    lines = [
+        'Reconnaissance Evidence Report',
+        f'Target: {target}',
+        f'Scan Profile: {profile}',
+        f"Hosts: {len(results.get('hosts') or [])}",
+        f"TCP Services: {results.get('tcp_service_count', 0)}",
+        f"UDP Services: {results.get('udp_service_count', 0)}",
+        f"CVE Findings: {len(results.get('cve_matches') or [])}",
+    ]
+    escaped_lines = [str(line).replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)') for line in lines]
+    text_ops = ['BT', '/F1 14 Tf', '72 760 Td']
+    for idx, line in enumerate(escaped_lines):
+        if idx:
+            text_ops.append('0 -22 Td')
+        text_ops.append(f'({line}) Tj')
+    text_ops.append('ET')
+    stream = '\n'.join(text_ops).encode('latin-1', errors='replace')
+    objects = [
+        b'1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n',
+        b'2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n',
+        b'3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n',
+        b'4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n',
+        b'5 0 obj << /Length ' + str(len(stream)).encode('ascii') + b' >> stream\n' + stream + b'\nendstream endobj\n',
+    ]
+    out = BytesIO()
+    out.write(b'%PDF-1.4\n')
+    offsets = [0]
+    for obj in objects:
+        offsets.append(out.tell())
+        out.write(obj)
+    xref_offset = out.tell()
+    out.write(f'xref\n0 {len(objects) + 1}\n'.encode('ascii'))
+    out.write(b'0000000000 65535 f \n')
+    for offset in offsets[1:]:
+        out.write(f'{offset:010d} 00000 n \n'.encode('ascii'))
+    out.write(f'trailer << /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n'.encode('ascii'))
+    return out.getvalue()
+
+
 def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     """Create a readable PDF without depending on browser/CSS rendering.
 
     This is a fallback for environments where WeasyPrint or its native
     rendering dependencies fail at runtime.
     """
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import mm
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    except ModuleNotFoundError:
+        return _minimal_pdf(scan, results)
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(

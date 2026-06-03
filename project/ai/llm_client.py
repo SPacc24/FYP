@@ -44,23 +44,17 @@ def get_llm_settings() -> dict:
 
 def _post_ollama(payload: dict) -> str:
     settings = get_llm_settings()
-    print("OLLAMA SETTINGS:", settings)
 
     payload = {
         "model": settings["model"],
         **payload,
     }
 
-    print("OLLAMA PAYLOAD MODEL:", payload.get("model"))
-
     response = requests.post(
         settings["url"],
         json=payload,
         timeout=settings["timeout"],
     )
-
-    print("OLLAMA STATUS CODE:", response.status_code)
-    print("OLLAMA RAW RESPONSE:", response.text[:500])
 
     response.raise_for_status()
 

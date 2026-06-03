@@ -2,6 +2,11 @@
 # Main Flask application for vulnerability assessment + attack simulation.
 
 # edited
+import sys
+import os as _os_for_path
+# Ensure the project directory is on sys.path so local top-level packages (ai, scanners, etc.) import correctly when running as a module
+sys.path.insert(0, _os_for_path.path.dirname(__file__))
+
 from ai.technique_planner import generate_ai_technique_plan
 from ai.llm_client import ask_llm_text
 from ai.safety import SAFE_REFUSAL, is_unsafe_user_request, sanitize_llm_reply
@@ -28,8 +33,8 @@ import logging
 from config import Config
 
 from mapping.technique_mapper import map_vulnerabilities
-from project.trash.nmap_parser import NmapParseError, parse_nmap_xml
-from project.trash.nmap_runner import NmapScanError, run_nmap_scan
+from scanners.nmap_parser import NmapParseError, parse_nmap_xml
+from scanners.nmap_runner import NmapScanError, run_nmap_scan
 
 from caldera.api_client import CalderaClient
 from caldera.operation_manager import OperationManager
@@ -40,7 +45,7 @@ from exploitation.validator import ExploitabilityValidator
 from reports.report_generator import build_report_summary
 from storage.db import Database
 from storage import scan_store
-from scanners.enumerator import run_pipeline
+from scanners.enumerator import TASKS, run_pipeline
 from scanners.targets import expand_target_input
 from scanners.mitre_cve import status as mitre_status
 from scanners.scan_profiles import TOOL_OPTIONS, normalise_scan_options
@@ -357,13 +362,34 @@ def scan():
         request.headers.get("User-Agent", ""),
         scan_options=scan_options,
     )
+    # Debug: record session start and scan id
+    log.info(f"[scan] new_scan created: {scan_id} target={target} profile={profile} technique_mode={technique_mode} enabled_tools={enabled_tools}")
+    scan_store.log(scan_id, f"Scan requested: target={target} profile={profile} technique_mode={technique_mode}")
 
     session.clear()
     session["scan_id"] = scan_id
     session["target_ip"] = target
     session["technique_mode"] = technique_mode
 
-    threading.Thread(target=run_pipeline, args=(scan_id, target, scan_options), daemon=True).start()
+    # Start pipeline in background thread
+    if os.getenv('PIPELINE_STUB') == '1':
+        # Use a safe stub that initialises tasks and simulates progress for debugging
+        def _stub_pipeline(sid, tgt, opts):
+            log.info(f"[stub_pipeline] init tasks for {sid}")
+            scan_store.init_tasks(sid, TASKS or ['Target Preparation', 'TCP Service Discovery', 'CVE Review', 'Report Preparation'])
+            # simulate progression
+            import time
+            for t in list(scan_store.get(sid).get('tasks', [])):
+                scan_store.set_task(sid, t['name'], scan_store.STATUS_RUNNING, summary='Simulated run')
+                time.sleep(0.3)
+                scan_store.set_task(sid, t['name'], scan_store.STATUS_SUCCESS, summary='Simulated complete')
+            scan_store.update(sid, status='success', completed_at='simulated')
+
+        threading.Thread(target=_stub_pipeline, args=(scan_id, target, scan_options), daemon=True).start()
+        log.info(f"[scan] stub pipeline thread started for scan_id={scan_id}")
+    else:
+        threading.Thread(target=run_pipeline, args=(scan_id, target, scan_options), daemon=True).start()
+        log.info(f"[scan] pipeline thread started for scan_id={scan_id}")
 
     return render_template(
         "scanning.html",
@@ -399,7 +425,7 @@ def scan_results(scan_id):
     session["scan_options"] = data.get("scan_options") or {}
 
     return render_template(
-        "results_full_dashboard.html",
+        "results.html",
         scan=data,
         results=data.get("results") or {},
         mapping=data.get("mapping") or session.get("mapping_results", {}),
@@ -416,7 +442,7 @@ def scan_results(scan_id):
 @app.route("/latest")
 def latest():
     sid = session.get("scan_id")
-    return redirect(url_for("results", scan_id=sid)) if sid else redirect(url_for("index"))
+    return redirect(url_for("scan_results", scan_id=sid)) if sid else redirect(url_for("index"))
 
 
 @app.route("/download/handoff/<scan_id>")
@@ -798,7 +824,7 @@ def results():
         session["risk_score"] = risk
 
     return render_template(
-        "results_full_dashboard.html",
+        "results.html",
         scan=scan,
         results=parsed_results or {
             "os": scan["os"],
@@ -970,4 +996,5 @@ def export_report():
 # ---------------------------------------------------
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    port = int(os.getenv('PORT', '5000'))
+    app.run(host="127.0.0.1", port=port, debug=True)

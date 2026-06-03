@@ -1,6 +1,6 @@
 
 from __future__ import annotations
-import json, os, re, ipaddress, contextvars, threading
+import json, os, re, ipaddress, contextvars, threading, logging
 from pathlib import Path
 from typing import Any
 from storage import scan_store
@@ -13,6 +13,8 @@ from .scan_profiles import normalise_scan_options, is_tool_enabled
 
 
 _CURRENT_SCAN_ID = contextvars.ContextVar('current_scan_id', default='')
+
+logger = logging.getLogger(__name__)
 
 def _describe_command(cmd: list[str]) -> str:
     if not cmd:
@@ -1396,6 +1398,15 @@ def _credential_combo_file() -> str:
 
 def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] | None = None) -> None:
     _token = _CURRENT_SCAN_ID.set(scan_id)
+    # Debug logging at pipeline start
+    try:
+        logger.info(f"[run_pipeline] starting scan_id={scan_id} target={target_input} options={scan_options}")
+    except Exception:
+        pass
+    try:
+        scan_store.log(scan_id, f"Pipeline started for target={target_input}")
+    except Exception:
+        pass
     scan_options = normalise_scan_options((scan_options or {}).get('profile', 'fast'), (scan_options or {}).get('enabled_tools'))
     scan_store.update(scan_id, scan_options=scan_options)
     def enabled(tool_id: str) -> bool:
