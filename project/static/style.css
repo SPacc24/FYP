@@ -1385,3 +1385,213 @@ body:has(.index-shell) .footer {
     margin-top: 12px;
   }
 }
+
+/* Final readability pass */
+.navbar {
+  border-left: 0;
+  border-right: 0;
+  border-radius: 0;
+  justify-content: flex-start;
+  margin-left: calc(50% - 50vw);
+  width: 100vw;
+}
+
+.nav-inner {
+  max-width: none;
+  padding-left: 22px;
+  padding-right: 22px;
+}
+
+.nav-brand {
+  flex: 0 0 auto;
+  margin-right: 18px;
+}
+
+.index-card .profile-select {
+  align-items: stretch;
+}
+
+.index-card .radio-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 12px;
+  align-content: start;
+  background:
+    linear-gradient(180deg, rgba(17,25,39,0.98), rgba(5,10,18,0.78));
+  border: 1px solid rgba(77,155,255,0.22);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.025);
+}
+
+.index-card .radio-card input {
+  margin-top: 3px;
+}
+
+.index-card .radio-card b,
+.index-card .radio-card span {
+  grid-column: 2;
+}
+
+.index-card .radio-card span {
+  line-height: 1.45;
+}
+
+.index-card .radio-card.active {
+  background:
+    linear-gradient(180deg, rgba(77,155,255,0.18), rgba(5,10,18,0.86));
+  border-color: rgba(77,155,255,0.72);
+}
+
+.index-card .tool-grid {
+  gap: 14px;
+}
+
+.index-card .tool-toggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  background:
+    linear-gradient(180deg, rgba(13,18,25,0.98), rgba(5,10,18,0.78));
+  border: 1px solid rgba(77,155,255,0.20);
+  border-radius: 16px;
+  box-shadow: 0 10px 26px rgba(0,0,0,0.18);
+  padding: 14px;
+}
+
+.index-card .tool-toggle b {
+  font-size: 14px;
+}
+
+.index-card .tool-toggle small {
+  font-size: 12px;
+}
+
+.index-card .tool-toggle input:checked + span b {
+  color: #b9d7ff;
+}
+
+.stage-head-with-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 230px);
+  gap: 18px;
+  align-items: start;
+}
+
+.stage-actions {
+  display: grid;
+  gap: 10px;
+  justify-content: stretch;
+  margin-top: 0;
+}
+
+.stage-actions .button {
+  text-align: center;
+  width: 100%;
+}
+
+.summary-cards {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.summary-cards .card {
+  min-height: 84px;
+  padding: 13px;
+}
+
+.summary-cards .card b {
+  font-size: 1.45rem;
+  margin-bottom: 3px;
+}
+
+.summary-cards .card span {
+  font-size: 12px;
+}
+
+.appendix-page {
+  max-width: 1480px;
+  padding-top: 30px;
+}
+
+.appendix-hero {
+  margin-top: 8px;
+}
+
+.appendix-box {
+  background:
+    linear-gradient(180deg, rgba(13,18,25,0.98), rgba(5,10,18,0.88));
+  border: 1px solid rgba(77,155,255,0.25);
+  border-radius: 10px;
+  box-shadow: 0 18px 44px rgba(0,0,0,0.28);
+  margin: 18px 0;
+  padding: 22px;
+}
+
+.appendix-box-head {
+  margin-bottom: 16px;
+}
+
+.appendix-box-head h2 {
+  margin: 4px 0 6px;
+}
+
+.appendix-chip-grid,
+.appendix-note-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.appendix-chip,
+.appendix-note-pill {
+  background: rgba(77,155,255,0.08);
+  border: 1px solid rgba(77,155,255,0.22);
+  border-radius: 999px;
+  min-height: 72px;
+  padding: 14px 18px;
+}
+
+.appendix-chip strong {
+  display: block;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.appendix-note-pill {
+  align-items: center;
+  display: flex;
+  line-height: 1.4;
+}
+
+.appendix-table-shell {
+  background: rgba(5,10,18,0.52);
+  border: 1px solid rgba(77,155,255,0.16);
+  border-radius: 10px;
+  overflow: auto;
+  max-height: 560px;
+}
+
+.appendix-table-shell table {
+  min-width: 980px;
+}
+
+.appendix-table-shell th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #0b1220;
+}
+
+.soft-wrap {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .stage-head-with-actions,
+  .summary-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .stage-actions {
+    max-width: none;
+  }
+}
