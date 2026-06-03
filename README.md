@@ -1,166 +1,171 @@
 # AutoPenTest
 
-AutoPenTest is a Flask-based web application designed for automated penetration testing using MITRE Caldera. It provides a RESTful API interface to interact with Caldera servers, manage operations, and generate reports.
+AutoPenTest is a Flask-based Final Year Project dashboard for authorised vulnerability assessment and attack emulation planning. It runs controlled Nmap scans, parses scan output, maps findings to safe vulnerability context and MITRE ATT&CK techniques, optionally uses a local Ollama model for technique reasoning, launches supported MITRE CALDERA operations, scores risk, and generates remediation-focused reports.
 
-## Features
+This project is intended for owned or explicitly authorised lab environments only.
 
-- **Caldera Integration**: Connects to MITRE Caldera servers for red teaming operations
-- **Operation Management**: Start, monitor, and manage penetration testing operations
-- **Agent Monitoring**: Check status of Caldera agents and their readiness
-- **Logging**: Automatic logging of operations and results to JSON files
-- **Web Interface**: Basic Flask web app with API endpoints (frontend templates are under development)
-- **Modular Architecture**: Organized into separate modules for API client, operations, scanners, and reports
+## Current Features
+
+- Web dashboard for scan configuration, results review, ATT&CK technique selection, CALDERA execution, risk scoring, AI chat, and report export.
+- Controlled Nmap scanning with target, port range, timing intensity, and quick/standard/deep scan profiles.
+- Nmap XML parsing into structured host, OS, service, port, script, and scan metadata.
+- Rule-based vulnerability mapping for common lab services and known CVE signatures.
+- MITRE ATT&CK technique recommendations with auto, hybrid, and manual selection modes.
+- Optional Ollama-assisted technique planning with deterministic fallback when the LLM is unavailable.
+- Safe AI chat endpoint that explains findings, mappings, risk, remediation, and reporting context without exploit walkthroughs.
+- MITRE CALDERA integration for agent readiness checks, technique-to-ability lookup, custom adversary creation, operation polling, and operation result parsing.
+- Risk scoring that combines vulnerability severity with CALDERA technique outcomes.
+- MySQL storage helpers for scans, vulnerabilities, operations, and technique results.
+- Text report generation with target summary, mapped findings, attack plan, operation results, risk, and remediation guidance.
+- Pytest suite covering CALDERA client behavior, LLM fallback/settings, safety checks, and technique planning.
 
 ## Project Structure
 
+```text
+FYP/
+|-- README.md
+`-- project/
+    |-- app.py                         # Main Flask application
+    |-- config.py                      # Environment-driven configuration
+    |-- ai/                            # Ollama client, safe chat, technique planner
+    |-- caldera/                       # CALDERA API client, operation manager, risk scorer
+    |-- mapping/                       # Vulnerability-to-ATT&CK mapping logic
+    |-- reports/                       # Report summary and text export generation
+    |-- scanners/                      # Nmap command runner and XML parser
+    |-- storage/
+    |   |-- db.py                      # MySQL storage layer
+    |   |-- logs/                      # Generated CALDERA operation logs
+    |   `-- scans/                     # Generated Nmap XML scan output
+    |-- static/                        # Dashboard JavaScript and CSS
+    |-- templates/                     # Flask HTML templates
+    |-- tests/                         # Pytest tests
+    `-- utils/
+        `-- requirements.txt           # Python dependencies
 ```
-project/
-├── app.py                 # Main Flask application
-├── config.py              # Configuration settings (under development)
-├── db.py                  # Database utilities (under development)
-├── cleanup.py             # Cleanup utilities
-├── requirements.txt       # Python dependencies
-├── caldera/               # Caldera integration module
-│   ├── __init__.py
-│   ├── api_client.py      # Caldera API client
-│   └── operation_manager.py # Operation management
-├── docs/                  # Documentation (under development)
-├── reports/               # Report generation (under development)
-├── scanners/              # Scanning utilities (under development)
-├── static/                # Static assets (CSS, JS)
-├── storage/               # Data storage
-│   └── logs/              # Operation logs
-├── templates/             # HTML templates (under development)
-├── tests/                 # Test suite
-└── utils/                 # Utility functions
+
+## Requirements
+
+- Python 3.10 or newer
+- Nmap installed and available on `PATH`, or configured with `NMAP_PATH`
+- MySQL server for persistence features
+- MITRE CALDERA for attack emulation features
+- A trusted CALDERA Sandcat agent in the configured agent group before running operations
+- Ollama for optional local AI planning/chat features
+
+Scans and mapped recommendations still work without Ollama. CALDERA execution requires a reachable CALDERA server and an online trusted agent.
+
+## Setup
+
+Run commands from the `project` directory so generated scan and log paths resolve to `project/storage`.
+
+```powershell
+cd project
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r utils\requirements.txt
 ```
 
-## Installation
+Create `project/.env`:
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd project
-   ```
+```env
+SECRET_KEY=change-this-secret
+DEBUG=true
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+CALDERA_URL=http://127.0.0.1:8888
+CALDERA_API_KEY=your-caldera-api-key
+AGENT_GROUP=red
+KALI_IP=192.168.xx.xx
+OPERATION_TIMEOUT=180
 
-3. Set up environment variables:
-   Create a `.env` file in the project root with:
-   ```
+MYSQL_HOST=127.0.0.1
+MYSQL_USER=autopentest
+MYSQL_PASS=your-password
+MYSQL_DB=autopentest
 
-   SECRET_KEY=some-random-secret
-   DEBUG=true
-   CALDERA_URL=http://127.0.0.1:8888
-   CALDERA_API_KEY=your-caldera-api-key
-   AGENT_GROUP=red
-   KALI_IP=192.168.xx.xx
-   OLLAMA_URL=http://localhost:11434/api/generate
-   OLLAMA_MODEL=llama3.2:1b
-   OLLAMA_TIMEOUT=120
-   OPERATION_TIMEOUT=180
-   MYSQL_HOST=192.168.xx.xx
-   MYSQL_USER=autopentest
-   MYSQL_PASS=your-password
-   MYSQL_DB=autopentest
-   ```
+NMAP_PATH=C:\Program Files\Nmap\nmap.exe
+NMAP_DEFAULT_PORTS=1-1024
+NMAP_DEFAULT_INTENSITY=3
+NMAP_DEFAULT_PROFILE=standard
 
-4. Ensure MITRE Caldera is running and accessible.
+OLLAMA_URL=http://localhost:11434/api/generate
+OLLAMA_MODEL=llama3.2:1b
+OLLAMA_TIMEOUT=120
 
-5. If you want AI-assisted technique reasoning, install and start Ollama, then
-   pull the configured model:
-   ```bash
-   ollama serve
-   ollama pull llama3.2:1b
-   ```
+# Optional, used only when enriching CVE context through NVD.
+NVD_API_KEY=
+```
 
-   The app uses `http://localhost:11434/api/generate` by default. If Ollama is
-   unavailable, scans still complete and AutoPenTest falls back to deterministic
-   mapped technique selection.
+If Nmap is already on `PATH`, `NMAP_PATH` can be omitted.
 
-## Usage
+## Optional Ollama Setup
 
-### Running the Application
+Install and start Ollama, then pull the configured model:
 
-Start the Flask app:
-```bash
+```powershell
+ollama serve
+ollama pull llama3.2:1b
+```
+
+If Ollama is unavailable, AutoPenTest falls back to the highest-priority mapped techniques and displays an LLM-unavailable message for chat.
+
+## Running The App
+
+From `project`:
+
+```powershell
 python app.py
 ```
 
-The app will run on `http://127.0.0.1:5000` by default.
+Open:
 
-### API Endpoints
-
-- `GET /`: Basic status page
-- `GET /caldera/status`: Check Caldera connectivity and agent status
-- `POST /caldera/run`: Start a new operation
-  - Required: `adversary_id`
-  - Optional: `selected_techniques`, `group`, `planner_id`
-- `GET /caldera/operation/<operation_id>`: Poll operation status
-
-### Example API Usage
-
-Check Caldera status:
-```bash
-curl http://127.0.0.1:5000/caldera/status
+```text
+http://127.0.0.1:5000
 ```
 
-Start an operation:
-```bash
-curl -X POST http://127.0.0.1:5000/caldera/run \
-  -H "Content-Type: application/json" \
-  -d '{"adversary_id": "your-adversary-id"}'
-```
+Typical workflow:
 
-## Dependencies
+1. Enter an authorised target, port range, scan intensity, scan profile, and technique mode.
+2. Review parsed Nmap results, mapped vulnerabilities, top risks, ATT&CK recommendations, and AI planning notes.
+3. Confirm selected techniques before launching a CALDERA operation.
+4. Review operation results, final risk score, remediation guidance, and export the text report.
 
-- Flask 3.0.0
-- requests 2.31.0
-- python-dotenv 1.0.1
-- responses (for testing)
-- pytest 7.2.0
+## Flask Routes
+
+- `GET /` - scan configuration dashboard
+- `POST /scan` - run Nmap, parse results, map vulnerabilities, and build the technique plan
+- `GET /results` - reload the current session results dashboard
+- `POST /ai/chat` - ask safe questions about current findings and report context
+- `GET /caldera/status` - check CALDERA connectivity and trusted agent readiness
+- `POST /caldera/run` - run selected ATT&CK techniques through CALDERA
+- `GET /caldera/operation/status` - return current session operation results
+- `GET /caldera/operation/<operation_id>` - poll a CALDERA operation
+- `POST /generate_report` - build the current report summary
+- `GET /report/export` - download a generated text report after an operation
+- `POST /scan/save` - save scan data to MySQL
+- `POST /vulnerabilities/save` - save mapped vulnerabilities to MySQL
 
 ## Testing
 
-Run tests with:
-```bash
-pytest
+From `project`:
+
+```powershell
+pytest tests
 ```
 
-Test files are located in the `tests/` directory.
+Some tests mock CALDERA and Ollama behavior. Tests that depend on a real CALDERA server, agent, or MySQL instance need matching local configuration before they can pass.
 
-## Development Status
+## Generated Data
 
-This project is currently in development. Key components implemented:
+- Nmap XML output is written to `project/storage/scans/`.
+- CALDERA operation logs are written to `project/storage/logs/`.
+- Text reports are written to `project/storage/reports/`.
+- MITRE and CVE enrichment caches are written under `project/ai/.cache/`.
 
-- ✅ Caldera API client
-- ✅ Operation management
-- ✅ Basic Flask API
-- ✅ Logging system
+## Safety Notes
 
-Under development:
-- 🔄 Web interface templates
-- 🔄 Report generation
-- 🔄 Scanning utilities
-- 🔄 Database integration
-- 🔄 Configuration management
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+AutoPenTest is designed as a decision-support and authorised emulation tool. The AI chat safety layer refuses exploit commands, payloads, credential theft steps, bypass instructions, and intrusion walkthroughs. CALDERA execution should only be used against systems where you have explicit permission to test.
 
 ## License
 
-[Add license information here]
-
-## Acknowledgments
-
-- Built using MITRE Caldera for red teaming capabilities
-- Flask framework for web application</content>
+No license has been specified yet.

@@ -137,7 +137,7 @@
                             <strong>{{ cve.id }}</strong>
 
                             {% if cve.nvd and cve.nvd.cvss %}
-                              —
+                              -
                               {{ cve.nvd.cvss.severity }}
                               {{ cve.nvd.cvss.score }}
                             {% endif %}

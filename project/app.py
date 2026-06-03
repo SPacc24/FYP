@@ -7,6 +7,7 @@ from ai.llm_client import ask_llm_text
 from ai.safety import SAFE_REFUSAL, is_unsafe_user_request, sanitize_llm_reply
 import json
 import os
+import uuid
 
 from flask import (
     Flask,
@@ -40,6 +41,17 @@ log = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = getattr(Config, "SECRET_KEY", "change-me")
+
+SERVER_STATE = {}
+HEAVY_STATE_KEYS = {
+    "mapping_results",
+    "ai_plan",
+    "attack_plan",
+    "operation_results",
+    "risk_score",
+    "remediations",
+    "vulnerabilities",
+}
 
 # ---------------------------------------------------
 # INIT SERVICES
@@ -102,6 +114,93 @@ def _safe_risk_calculate(vulns, op_results):
         }
 
 
+def _drop_client_side_heavy_state():
+    for key in HEAVY_STATE_KEYS:
+        session.pop(key, None)
+
+
+def _get_assessment_state():
+    state_id = session.get("assessment_state_id")
+
+    if not state_id:
+        state_id = uuid.uuid4().hex
+        session["assessment_state_id"] = state_id
+
+    _drop_client_side_heavy_state()
+    return SERVER_STATE.setdefault(state_id, {})
+
+
+def _replace_assessment_state(**values):
+    old_state_id = session.get("assessment_state_id")
+
+    if old_state_id:
+        SERVER_STATE.pop(old_state_id, None)
+
+    state_id = uuid.uuid4().hex
+    session["assessment_state_id"] = state_id
+    SERVER_STATE[state_id] = dict(values)
+    _drop_client_side_heavy_state()
+
+
+def _state_get(key, default=None):
+    return _get_assessment_state().get(key, default)
+
+
+def _state_set(**values):
+    _get_assessment_state().update(values)
+
+
+def _technique_id_from_mapping_item(item):
+    if not isinstance(item, dict):
+        return ""
+
+    return str(item.get("id") or item.get("technique_id") or "").strip()
+
+
+def _mapped_technique_ids(mapping_results):
+    if not isinstance(mapping_results, dict):
+        return set()
+
+    return {
+        technique_id
+        for technique_id in (
+            _technique_id_from_mapping_item(item)
+            for item in mapping_results.get("recommended_techniques", [])
+        )
+        if technique_id
+    }
+
+
+def _normalise_selected_techniques(value):
+    if not isinstance(value, list):
+        return []
+
+    selected = []
+
+    for item in value:
+        technique_id = str(item).strip()
+
+        if technique_id and technique_id not in selected:
+            selected.append(technique_id)
+
+    return selected
+
+
+def _allowed_technique_ids_for_mode(mode, mapping_results, ai_plan):
+    mapped_ids = _mapped_technique_ids(mapping_results)
+
+    if mode == "auto":
+        ai_selected_ids = {
+            str(technique_id).strip()
+            for technique_id in ai_plan.get("selected_technique_ids", [])
+            if str(technique_id).strip()
+        }
+
+        return ai_selected_ids & mapped_ids
+
+    return mapped_ids
+
+
 # ---------------------------------------------------
 # ROUTES
 # ---------------------------------------------------
@@ -124,11 +223,11 @@ def ai_chat():
                 "reply": SAFE_REFUSAL
             }), 400
 
-        mapping_results = session.get("mapping_results", {})
-        ai_plan = session.get("ai_plan", {})
-        attack_plan = session.get("attack_plan", {})
-        operation_results = session.get("operation_results", {})
-        risk_score = session.get("risk_score", {})
+        mapping_results = _state_get("mapping_results", {})
+        ai_plan = _state_get("ai_plan", {})
+        attack_plan = _state_get("attack_plan", {})
+        operation_results = _state_get("operation_results", {})
+        risk_score = _state_get("risk_score", {})
 
         safe_context = {
             "mapping_summary": {
@@ -174,7 +273,7 @@ Rules:
 - Keep replies concise and useful.
 - Reply in normal plain text, not JSON.
 - When mentioning MITRE ATT&CK techniques, include the technique ID, name, and MITRE URL if available.
-- Explain reasoning in this structure: Observation → Risk meaning → Recommended next step.
+- Explain reasoning in this structure: Observation -> Risk meaning -> Recommended next step.
 - Keep next steps safe and high-level.
 - Do not provide exploit commands or payloads.
 
@@ -249,14 +348,15 @@ def scan():
         session["target_ip"] = target
         session["port_range"] = ports or "1-1024"
         session["scan_output_file"] = scan_result.get("output_file", "")
-        session["mapping_results"] = mapping_results
-        session["risk_score"] = risk
 
         #edited
         session["technique_mode"] = technique_mode
 
-        # save AI plan in session
-        session["ai_plan"] = ai_plan
+        _replace_assessment_state(
+            mapping_results=mapping_results,
+            ai_plan=ai_plan,
+            risk_score=risk,
+        )
 
         return render_template(
             "results_full_dashboard.html",
@@ -285,19 +385,46 @@ def caldera_status():
 
 @app.route("/caldera/operation/status", methods=["GET"])
 def operation_status():
-    return jsonify(session.get("operation_results", {}))
+    return jsonify(_state_get("operation_results", {}))
     
 @app.route("/caldera/run", methods=["POST"])
 def caldera_run():
     try:
         data = request.get_json(silent=True) or {}
 
-        selected_techniques = data.get("selected_techniques", [])
+        selected_techniques = _normalise_selected_techniques(
+            data.get("selected_techniques", [])
+        )
 
         if not selected_techniques:
             return jsonify({
                 "ok": False,
                 "error": "No techniques selected"
+            }), 400
+
+        mapping_results = _state_get("mapping_results", {})
+        ai_plan = _state_get("ai_plan", {})
+        technique_mode = session.get("technique_mode", "hybrid")
+        allowed_ids = _allowed_technique_ids_for_mode(
+            technique_mode,
+            mapping_results,
+            ai_plan,
+        )
+        invalid_techniques = [
+            technique_id
+            for technique_id in selected_techniques
+            if technique_id not in allowed_ids
+        ]
+
+        if invalid_techniques:
+            return jsonify({
+                "ok": False,
+                "error": (
+                    "One or more selected techniques are not allowed for the "
+                    "current scan and technique mode."
+                ),
+                "invalid_techniques": invalid_techniques,
+                "allowed_techniques": sorted(allowed_ids),
             }), 400
 
         result = operation_manager.run_operation(
@@ -315,9 +442,11 @@ def caldera_run():
             return jsonify(result), 500
 
         # Risk score
-        mapping_results = session.get("mapping_results", {})
-        vulns = data.get("vulnerabilities") or session.get("vulnerabilities") or mapping_results.get("vulnerabilities", [])
-        session["vulnerabilities"] = vulns
+        vulns = (
+            data.get("vulnerabilities")
+            or _state_get("vulnerabilities")
+            or mapping_results.get("vulnerabilities", [])
+        )
         risk = _safe_risk_calculate(vulns, result)
 
         # Remediation
@@ -335,9 +464,12 @@ def caldera_run():
 
         remediations = vulnerability_remediations + technique_remediations
 
-        session["operation_results"] = result
-        session["risk_score"] = risk
-        session["remediations"] = remediations
+        _state_set(
+            operation_results=result,
+            risk_score=risk,
+            remediations=remediations,
+            vulnerabilities=vulns,
+        )
 
         return jsonify({
             "ok": True,
@@ -372,8 +504,8 @@ def results():
     }
 
     parsed_results = None
-    mapping_results = session.get("mapping_results", [])
-    risk = session.get("risk_score")
+    mapping_results = _state_get("mapping_results", [])
+    risk = _state_get("risk_score")
 
     if scan["output_file"]:
         try:
@@ -389,7 +521,7 @@ def results():
 
     if not risk and isinstance(mapping_results, dict):
         risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), {})
-        session["risk_score"] = risk
+        _state_set(risk_score=risk)
 
     return render_template(
         "results_full_dashboard.html",
@@ -399,12 +531,12 @@ def results():
             "ports": scan["ports"],
         },
         mapping=mapping_results,
-        ai_plan=session.get("ai_plan"), ##edited
+        ai_plan=_state_get("ai_plan"), ##edited
         selected_mode=session.get("technique_mode", "hybrid"), #edited
-        attack_plan=session.get("attack_plan"),
-        operation_results=session.get("operation_results"),
+        attack_plan=_state_get("attack_plan"),
+        operation_results=_state_get("operation_results"),
         risk=risk,
-        remediations=session.get("remediations", []),
+        remediations=_state_get("remediations", []),
     )
 
 
@@ -418,10 +550,10 @@ def generate_report():
         "output_file": session.get("scan_output_file", ""),
     }
 
-    mapping_results = session.get("mapping_results", {})
-    operation_results = session.get("operation_results", {})
-    risk = session.get("risk_score", {})
-    remediations = session.get("remediations", [])
+    mapping_results = _state_get("mapping_results", {})
+    operation_results = _state_get("operation_results", {})
+    risk = _state_get("risk_score", {})
+    remediations = _state_get("remediations", [])
 
     report = build_report_summary(
         scan=scan,
@@ -478,7 +610,7 @@ def save_vulnerabilities():
         }), 400
 
     db.save_vulnerabilities(scan_id, vulns)
-    session["vulnerabilities"] = vulns
+    _state_set(vulnerabilities=vulns)
 
     return jsonify({
         "success": True,
@@ -499,10 +631,10 @@ def export_report():
         "port_range": session.get("port_range", "1-1024"),
         "output_file": session.get("scan_output_file", ""),
     }
-    mapping_results = session.get("mapping_results", {})
-    op_results = session.get("operation_results")
-    risk = session.get("risk_score", {})
-    remediations = session.get("remediations", [])
+    mapping_results = _state_get("mapping_results", {})
+    op_results = _state_get("operation_results")
+    risk = _state_get("risk_score", {})
+    remediations = _state_get("remediations", [])
 
     if not op_results:
         return "No results to export", 400

@@ -65,14 +65,14 @@ async function loadCalderaStatus() {
 
     if (data.agent_ready) {
       box.innerHTML =
-        `<p><strong>Ready</strong> — ${data.online_agents?.length || 1} agent(s) online.</p>`;
+        `<p><strong>Ready</strong> - ${data.online_agents?.length || 1} agent(s) online.</p>`;
 
       if (deployBox) deployBox.style.display = "none";
     }
 
     else {
       box.innerHTML =
-        `<p><strong>Not Ready</strong> — ${escapeHtml(data.message || "No agent found.")}</p>`;
+        `<p><strong>Not Ready</strong> - ${escapeHtml(data.message || "No agent found.")}</p>`;
 
       if (data.deploy_command && deployText && deployBox) {
         deployText.textContent = data.deploy_command;

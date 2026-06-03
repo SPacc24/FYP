@@ -399,6 +399,7 @@ def get_cves_for_technique(technique_id: str, mapping_result: dict) -> list[str]
     This is intentionally flexible because your mapper structure may change.
     """
     linked_cves = set()
+    has_per_finding_technique_context = False
 
     vulnerabilities = mapping_result.get("vulnerabilities", [])
 
@@ -406,21 +407,26 @@ def get_cves_for_technique(technique_id: str, mapping_result: dict) -> list[str]
         vuln_text = json.dumps(vuln, default=str)
         cves = normalise_cve_ids(vuln_text)
 
-        technique_text = " ".join([
+        technique_sources = [
             str(vuln.get("technique_id", "")),
             str(vuln.get("technique_ids", "")),
             str(vuln.get("attack_technique", "")),
+            str(vuln.get("attack_techniques", "")),
             str(vuln.get("mitre_technique", "")),
             str(vuln.get("mapped_techniques", "")),
             str(vuln.get("recommended_techniques", "")),
-        ])
+        ]
+        technique_text = " ".join(technique_sources)
+
+        if technique_text.strip():
+            has_per_finding_technique_context = True
 
         if technique_id in technique_text:
             linked_cves.update(cves)
 
     # Fallback: if your current mapper does not store per-vuln technique IDs,
     # attach all CVEs as general context instead of losing them.
-    if not linked_cves:
+    if not linked_cves and not has_per_finding_technique_context:
         for vuln in vulnerabilities:
             linked_cves.update(normalise_cve_ids(json.dumps(vuln, default=str)))
 
@@ -795,5 +801,4 @@ Return JSON exactly in this shape:
             ],
         ),
         "allowed_techniques": allowed_techniques,
-        "raw_llm_response": raw,
     }

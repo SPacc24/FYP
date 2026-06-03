@@ -79,3 +79,44 @@ def test_planner_falls_back_when_llm_returns_bad_json(monkeypatch):
     assert plan["selected_technique_ids"] == ["T1021.002", "T1046"]
     assert "could not be parsed" in plan["reasoning"]
     assert plan["technique_explanations"]
+
+
+def test_cves_link_to_matching_attack_technique_only(monkeypatch):
+    mapping_result = {
+        "recommended_techniques": [
+            {
+                "id": "T1046",
+                "name": "Network Service Discovery",
+                "count": 1,
+                "max_severity": "Medium",
+            },
+            {
+                "id": "T1190",
+                "name": "Exploit Public-Facing Application",
+                "count": 1,
+                "max_severity": "High",
+            },
+        ],
+        "vulnerabilities": [
+            {
+                "title": "Apache CVE-2021-41773 exposure",
+                "cve_ids": ["CVE-2021-41773"],
+                "attack_techniques": [
+                    {"id": "T1190", "name": "Exploit Public-Facing Application"}
+                ],
+            }
+        ],
+    }
+
+    monkeypatch.setattr(planner, "get_mitre_technique_info", fake_mitre_info)
+    monkeypatch.setattr(
+        planner,
+        "fetch_cve_from_nvd",
+        lambda cve_id: {"id": cve_id, "cvss": {"severity": "High", "score": 7.5}},
+    )
+
+    allowed = planner.extract_allowed_techniques(mapping_result)
+    by_id = {item["id"]: item for item in allowed}
+
+    assert by_id["T1190"]["linked_cves"][0]["id"] == "CVE-2021-41773"
+    assert by_id["T1046"]["linked_cves"] == []
