@@ -32,7 +32,7 @@ import logging
 
 from config import Config
 
-from mapping.technique_mapper import map_vulnerabilities
+from mapping.technique_mapper import map_vulnerabilities, select_attack_mode
 from scanners.nmap_parser import NmapParseError, parse_nmap_xml
 from scanners.nmap_runner import NmapScanError, run_nmap_scan
 
@@ -164,12 +164,188 @@ def _safe_risk_calculate(vulns, op_results):
 def _load_current_scan_results():
     output_file = session.get("scan_output_file", "")
     if not output_file:
+        scan_id = session.get("scan_id")
+        data = scan_store.load(scan_id) if scan_id else None
+        results = (data or {}).get("results") or {}
+        if results:
+            return _stored_results_to_parsed_results(results, data or {})
         return None
     try:
         return parse_nmap_xml(output_file)
     except Exception:
         log.exception("Could not reload scan results for validation")
         return None
+
+
+def _stored_results_to_parsed_results(results: dict, scan_record: dict | None = None) -> dict:
+    scan_record = scan_record or {}
+    services = results.get("service_inventory") or []
+    hosts = []
+    grouped: dict[str, list[dict]] = {}
+
+    for service in services:
+        host = str(service.get("host") or scan_record.get("target") or results.get("target_input") or "Unknown")
+        grouped.setdefault(host, []).append({
+            "port": service.get("port"),
+            "protocol": service.get("protocol", "tcp"),
+            "state": service.get("state", "open"),
+            "service": service.get("service", ""),
+            "product": service.get("product", ""),
+            "version": service.get("version", ""),
+            "extrainfo": service.get("extrainfo", ""),
+            "cpe": service.get("cpe", []),
+            "scripts": service.get("scripts", []),
+        })
+
+    for host, port_findings in grouped.items():
+        hosts.append({
+            "address": {"primary": host},
+            "os": {"name": results.get("os", "")},
+            "port_findings": port_findings,
+        })
+
+    ports = []
+    for service in services:
+        ports.append({
+            "port": service.get("port"),
+            "protocol": service.get("protocol", "tcp"),
+            "state": service.get("state", "open"),
+            "service": service.get("service", ""),
+            "product": service.get("product", ""),
+            "version": service.get("version", ""),
+            "extrainfo": service.get("extrainfo", ""),
+        })
+
+    target = scan_record.get("target") or results.get("target_input") or (hosts[0]["address"]["primary"] if hosts else "Unknown")
+    return {
+        **results,
+        "target_ip": target,
+        "os": results.get("os") or "Unknown",
+        "hosts": hosts,
+        "ports": ports,
+        "cve_matches": results.get("cve_matches", []),
+        "service_inventory": services,
+    }
+
+
+def _active_scan_record() -> dict:
+    scan_id = session.get("scan_id")
+    return (scan_store.load(scan_id) if scan_id else {}) or {}
+
+
+def _active_mapping_results() -> dict:
+    data = _active_scan_record()
+    mapping = data.get("mapping") or session.get("mapping_results") or {}
+    if isinstance(mapping, dict):
+        return mapping
+    return {}
+
+
+def _active_ai_plan() -> dict:
+    data = _active_scan_record()
+    plan = data.get("ai_plan") or session.get("ai_plan") or {}
+    return plan if isinstance(plan, dict) else {}
+
+
+def _active_attack_plan() -> dict:
+    data = _active_scan_record()
+    plan = data.get("attack_plan") or session.get("attack_plan") or {}
+    return plan if isinstance(plan, dict) else {}
+
+
+def _active_validation_results() -> dict:
+    data = _active_scan_record()
+    validation = data.get("validation_results") or session.get("validation_results") or {}
+    return validation if isinstance(validation, dict) else {}
+
+
+def _active_operation_results() -> dict:
+    data = _active_scan_record()
+    operation = data.get("operation_results") or session.get("operation_results") or {}
+    return operation if isinstance(operation, dict) else {}
+
+
+def _save_active_scan_fields(**fields):
+    scan_id = session.get("scan_id")
+    if not scan_id:
+        return
+    current = scan_store.load(scan_id) or {}
+    current.update(fields)
+    scan_store.update(scan_id, **fields)
+    try:
+        scan_store.persist(scan_id)
+    except OSError as exc:
+        log.warning("Could not persist active scan fields for %s: %s", scan_id, exc)
+
+
+def _ensure_scan_analysis(data: dict) -> dict:
+    if not data:
+        return data
+
+    changed = False
+    results = data.get("results") or {}
+    parsed_results = _stored_results_to_parsed_results(results, data) if results else {}
+
+    mapping_results = data.get("mapping")
+    if not isinstance(mapping_results, dict) or not mapping_results.get("recommended_techniques"):
+        try:
+            mapping_results = map_vulnerabilities(parsed_results)
+            data["mapping"] = mapping_results
+            changed = True
+        except Exception:
+            log.exception("Could not build vulnerability mapping for stored scan")
+            mapping_results = mapping_results if isinstance(mapping_results, dict) else {}
+
+    mode = data.get("technique_mode") or session.get("technique_mode", "hybrid")
+
+    ai_plan = data.get("ai_plan")
+    if not isinstance(ai_plan, dict) or not ai_plan.get("selected_technique_ids"):
+        try:
+            ai_plan = generate_ai_technique_plan(mapping_results, preferred_mode=mode, caldera_client=caldera_client)
+            data["ai_plan"] = ai_plan
+            changed = True
+        except Exception:
+            log.exception("Could not build AI technique plan for stored scan")
+            ai_plan = ai_plan if isinstance(ai_plan, dict) else {}
+
+    attack_plan = data.get("attack_plan")
+    if not isinstance(attack_plan, dict) or not (attack_plan.get("techniques") or attack_plan.get("available_techniques")):
+        try:
+            selected_ids = (ai_plan or {}).get("selected_technique_ids", [])
+            mode_plan = select_attack_mode(mapping_results, mode, selected_ids)
+            attack_plan = {
+                "mode": mode_plan.get("mode", mode),
+                "description": mode_plan.get("description", ""),
+                "techniques": mode_plan.get("attack_plan") or mode_plan.get("recommended") or [],
+                "available_techniques": mapping_results.get("recommended_techniques", []),
+            }
+            data["attack_plan"] = attack_plan
+            changed = True
+        except Exception:
+            log.exception("Could not build attack plan for stored scan")
+
+    risk = data.get("risk")
+    if not isinstance(risk, dict) or "score" not in risk:
+        risk = _safe_risk_calculate((mapping_results or {}).get("vulnerabilities", []), data.get("operation_results") or {})
+        data["risk"] = risk
+        changed = True
+
+    if changed and data.get("scan_id"):
+        scan_store.update(
+            data.get("scan_id"),
+            mapping=data.get("mapping") or {},
+            ai_plan=data.get("ai_plan") or {},
+            attack_plan=data.get("attack_plan") or {},
+            risk=data.get("risk") or {},
+        )
+        try:
+            scan_store.persist(data.get("scan_id"))
+        except OSError as exc:
+            log.warning("Could not persist generated scan analysis for %s: %s", data.get("scan_id"), exc)
+
+    session["technique_mode"] = mode
+    session["target_os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
+    return data
 
 
 def _current_target_context():
@@ -223,12 +399,12 @@ def ai_chat():
                 "reply": SAFE_REFUSAL
             }), 400
 
-        mapping_results = session.get("mapping_results", {})
-        ai_plan = session.get("ai_plan", {})
-        attack_plan = session.get("attack_plan", {})
-        operation_results = session.get("operation_results", {})
-        validation_results = session.get("validation_results", {})
-        risk_score = session.get("risk_score", {})
+        mapping_results = _active_mapping_results()
+        ai_plan = _active_ai_plan()
+        attack_plan = _active_attack_plan()
+        operation_results = _active_operation_results()
+        validation_results = _active_validation_results()
+        risk_score = (_active_scan_record().get("risk") or session.get("risk_score", {}))
 
         safe_context = {
             "mapping_summary": {
@@ -356,6 +532,7 @@ def scan():
         technique_mode = "hybrid"
 
     scan_options = normalise_scan_options(profile, enabled_tools if enabled_tools else None)
+    scan_options["technique_mode"] = technique_mode
     scan_id = scan_store.new_scan(
         target,
         request.remote_addr or "",
@@ -423,19 +600,20 @@ def scan_results(scan_id):
     session["scan_id"] = scan_id
     session["target_ip"] = data.get("target", "")
     session["scan_options"] = data.get("scan_options") or {}
+    data = _ensure_scan_analysis(data)
 
     return render_template(
         "results.html",
         scan=data,
-        results=data.get("results") or {},
-        mapping=data.get("mapping") or session.get("mapping_results", {}),
-        ai_plan=data.get("ai_plan") or session.get("ai_plan"),
+        results=_stored_results_to_parsed_results(data.get("results") or {}, data),
+        mapping=data.get("mapping") or {},
+        ai_plan=data.get("ai_plan"),
         selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
-        attack_plan=data.get("attack_plan") or session.get("attack_plan"),
-        validation_results=data.get("validation_results") or session.get("validation_results"),
-        operation_results=data.get("operation_results") or session.get("operation_results"),
-        risk=data.get("risk") or session.get("risk_score"),
-        remediations=data.get("remediations") or session.get("remediations", []),
+        attack_plan=data.get("attack_plan"),
+        validation_results=data.get("validation_results"),
+        operation_results=data.get("operation_results"),
+        risk=data.get("risk"),
+        remediations=data.get("remediations") or [],
     )
 
 
@@ -556,7 +734,7 @@ def caldera_agent_select():
 
 @app.route("/caldera/operation/status", methods=["GET"])
 def operation_status():
-    return jsonify(session.get("operation_results", {}))
+    return jsonify(_active_operation_results())
 
 
 @app.route("/exploitation/run", methods=["POST"])
@@ -569,15 +747,19 @@ def exploitation_run():
                 "error": "No scan results available. Run a scan before validation."
             }), 400
 
-        mapping_results = session.get("mapping_results", {})
+        mapping_results = _active_mapping_results()
         validation_results = exploitability_validator.validate(parsed_results, mapping_results)
         session["validation_results"] = validation_results
         session["risk_score"] = _safe_risk_calculate(
             mapping_results.get("vulnerabilities", []),
             {
-                **(session.get("operation_results", {}) or {}),
+                **(_active_operation_results() or {}),
                 "validation_results": validation_results,
             },
+        )
+        _save_active_scan_fields(
+            validation_results=validation_results,
+            risk=session["risk_score"],
         )
 
         return jsonify(validation_results)
@@ -669,7 +851,7 @@ def caldera_run():
             )
 
         if not supported_techniques:
-            mapping_results = session.get("mapping_results", {})
+            mapping_results = _active_mapping_results()
             unsupported_results = operation_manager.build_unsupported_results(
                 selected_techniques,
                 {
@@ -701,10 +883,11 @@ def caldera_run():
                     "coverage_details": coverage,
                 },
             }
-            result["validation_results"] = session.get("validation_results", {})
+            result["validation_results"] = _active_validation_results()
             risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), result)
             session["operation_results"] = result
             session["risk_score"] = risk
+            _save_active_scan_fields(operation_results=result, risk=risk)
             return jsonify({
                 "ok": True,
                 **result,
@@ -720,7 +903,7 @@ def caldera_run():
             selected_paw=session.get("selected_agent_paw"),
             unsupported_techniques=[t for t in selected_techniques if t not in supported_techniques],
             unsupported_context={
-                "vulnerabilities": session.get("mapping_results", {}).get("vulnerabilities", []),
+                "vulnerabilities": _active_mapping_results().get("vulnerabilities", []),
                 "scan_context": {"os": session.get("target_os", "Unknown")},
             },
         )
@@ -735,10 +918,10 @@ def caldera_run():
             return jsonify(result), 500
 
         # Risk score
-        mapping_results = session.get("mapping_results", {})
+        mapping_results = _active_mapping_results()
         vulns = data.get("vulnerabilities") or session.get("vulnerabilities") or mapping_results.get("vulnerabilities", [])
         session["vulnerabilities"] = vulns
-        result["validation_results"] = session.get("validation_results", {})
+        result["validation_results"] = _active_validation_results()
         risk = _safe_risk_calculate(vulns, result)
 
         # Remediation
@@ -768,6 +951,11 @@ def caldera_run():
         session["operation_results"] = result
         session["risk_score"] = risk
         session["remediations"] = remediations
+        _save_active_scan_fields(
+            operation_results=result,
+            risk=risk,
+            remediations=remediations,
+        )
 
         return jsonify({
             "ok": True,
@@ -796,6 +984,25 @@ def caldera_operation(operation_id):
 
 @app.route("/results")
 def results():
+    scan_id = session.get("scan_id")
+    if scan_id:
+        data = scan_store.load(scan_id)
+        if data:
+            data = _ensure_scan_analysis(data)
+            return render_template(
+                "results.html",
+                scan=data,
+                results=_stored_results_to_parsed_results(data.get("results") or {}, data),
+                mapping=data.get("mapping") or {},
+                ai_plan=data.get("ai_plan"),
+                selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
+                attack_plan=data.get("attack_plan"),
+                validation_results=data.get("validation_results"),
+                operation_results=data.get("operation_results"),
+                risk=data.get("risk"),
+                remediations=data.get("remediations") or [],
+            )
+
     scan = {
         "target_ip": session.get("target_ip", ""),
         "port_range": session.get("port_range", "1-1024"),
@@ -804,7 +1011,7 @@ def results():
     }
 
     parsed_results = None
-    mapping_results = session.get("mapping_results", [])
+    mapping_results = _active_mapping_results() or session.get("mapping_results", [])
     risk = session.get("risk_score")
 
     if scan["output_file"]:
@@ -869,9 +1076,10 @@ def technical_appendix():
 @app.route("/generate_report", methods=["POST"])
 def generate_report():
     data = request.get_json(silent=True) or {}
+    active = _active_scan_record()
 
     scan = {
-        "target_ip": session.get("target_ip", data.get("target") or "Unknown"),
+        "target_ip": active.get("target") or session.get("target_ip", data.get("target") or "Unknown"),
         "port_range": session.get("port_range", data.get("port_range") or "1-1024"),
         "output_file": session.get("scan_output_file", ""),
     }
@@ -879,11 +1087,11 @@ def generate_report():
     scan["os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
     scan["ports"] = parsed_results.get("ports", [])
 
-    mapping_results = session.get("mapping_results", {})
-    operation_results = session.get("operation_results", {})
-    validation_results = session.get("validation_results", {})
-    risk = session.get("risk_score", {})
-    remediations = session.get("remediations", [])
+    mapping_results = _active_mapping_results()
+    operation_results = _active_operation_results()
+    validation_results = _active_validation_results()
+    risk = active.get("risk") or session.get("risk_score", {})
+    remediations = active.get("remediations") or session.get("remediations", [])
 
     report = build_report_summary(
         scan=scan,
@@ -956,20 +1164,21 @@ def save_vulnerabilities():
 @app.route("/report/export", methods=["GET"])
 def export_report():
     from reports.report_generator import generate_text_report
+    active = _active_scan_record()
 
     scan = {
-        "target_ip": session.get("target_ip", "Unknown"),
+        "target_ip": active.get("target") or session.get("target_ip", "Unknown"),
         "port_range": session.get("port_range", "1-1024"),
         "output_file": session.get("scan_output_file", ""),
     }
     parsed_results = _load_current_scan_results() or {}
     scan["os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
     scan["ports"] = parsed_results.get("ports", [])
-    mapping_results = session.get("mapping_results", {})
-    op_results = session.get("operation_results")
-    validation_results = session.get("validation_results", {})
-    risk = session.get("risk_score", {})
-    remediations = session.get("remediations", [])
+    mapping_results = _active_mapping_results()
+    op_results = _active_operation_results()
+    validation_results = _active_validation_results()
+    risk = active.get("risk") or session.get("risk_score", {})
+    remediations = active.get("remediations") or session.get("remediations", [])
 
     if not op_results:
         return "No results to export", 400

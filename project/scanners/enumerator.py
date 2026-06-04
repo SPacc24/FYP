@@ -1711,12 +1711,69 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         attack_surface_sections = _build_attack_surface_sections(service_workbench)
         package={'scan_id':scan_id,'target_input':target_input,'scan_options':scan_options,'hosts':live,'mitre_source':mitre,'tool_coverage':public_coverage,'service_inventory':all_services,'service_summary':service_summary,'service_workbench':service_workbench,'attack_surface_sections':attack_surface_sections,'cve_matches':cve_matches,'relevant_cve_information':relevant_cve_information,'candidate_cve_groups':candidate_cve_groups,'possible_cve_references':relevant_cve_information,'service_level_checks':service_level_checks,'security_relevant_observations':security_observations,'key_exposure_indicators':key_exposure_indicators,'tcp_service_count':len([x for x in all_services if x.get('protocol')=='tcp']),'udp_service_count':len([x for x in all_services if x.get('protocol')=='udp']),'web_inventory':web,'web_summary':web_summary,'smb_inventory':smb,'smb_summary':smb_summary,'raw_evidence_index':raw,'caldera_handoff':caldera_handoff}
         package['pentester_summary'] = _build_pentester_summary(package)
+        analysis_fields = {}
+        try:
+            from mapping.technique_mapper import map_vulnerabilities, select_attack_mode
+            from ai.technique_planner import generate_ai_technique_plan
+
+            services_by_host = {}
+            for service in all_services:
+                host = str(service.get('host') or target_input or 'Unknown')
+                services_by_host.setdefault(host, []).append({
+                    'port': service.get('port'),
+                    'protocol': service.get('protocol', 'tcp'),
+                    'state': service.get('state', 'open'),
+                    'service': service.get('service', ''),
+                    'product': service.get('product', ''),
+                    'version': service.get('version', ''),
+                    'extrainfo': service.get('extrainfo', ''),
+                    'cpe': service.get('cpe', []),
+                    'scripts': service.get('scripts', []),
+                })
+            parsed_for_mapping = {
+                'target_ip': target_input,
+                'os': 'Unknown',
+                'hosts': [
+                    {'address': {'primary': host}, 'os': {'name': 'Unknown'}, 'port_findings': ports}
+                    for host, ports in services_by_host.items()
+                ],
+                'ports': [
+                    {
+                        'port': service.get('port'),
+                        'protocol': service.get('protocol', 'tcp'),
+                        'state': service.get('state', 'open'),
+                        'service': service.get('service', ''),
+                        'product': service.get('product', ''),
+                        'version': service.get('version', ''),
+                        'extrainfo': service.get('extrainfo', ''),
+                    }
+                    for service in all_services
+                ],
+            }
+            mapping_result = map_vulnerabilities(parsed_for_mapping)
+            mode = str(scan_options.get('technique_mode') or 'hybrid').lower()
+            ai_plan = generate_ai_technique_plan(mapping_result, preferred_mode=mode)
+            selected_ids = ai_plan.get('selected_technique_ids') or []
+            mode_plan = select_attack_mode(mapping_result, mode, selected_ids)
+            analysis_fields = {
+                'mapping': mapping_result,
+                'ai_plan': ai_plan,
+                'attack_plan': {
+                    'mode': mode_plan.get('mode', mode),
+                    'description': mode_plan.get('description', ''),
+                    'techniques': mode_plan.get('attack_plan') or mode_plan.get('recommended') or [],
+                    'available_techniques': mapping_result.get('recommended_techniques', []),
+                },
+                'technique_mode': mode,
+            }
+        except Exception as analysis_exc:
+            logger.warning('Scan analysis post-processing failed: %s', analysis_exc)
         out=Path('storage/results') / f'{scan_id}_handoff.json'; out.write_text(json.dumps(package, indent=2, default=str), encoding='utf-8')
         package['handoff_file']=str(out)
         _finish(scan_id, task, scan_store.STATUS_SUCCESS, 'Report and handoff package assembled')
-        scan_store.update(scan_id,status='done',completed_at=scan_store.now(),results=package)
+        scan_store.update(scan_id,status=scan_store.STATUS_SUCCESS,completed_at=scan_store.now(),results=package,**analysis_fields)
         scan_store.persist(scan_id)
     except Exception as e:
         scan_store.log(scan_id, f'Pipeline error: {e}', 'ERROR')
-        scan_store.update(scan_id,status='error',error=str(e),completed_at=scan_store.now())
+        scan_store.update(scan_id,status=scan_store.STATUS_FAILED,error=str(e),completed_at=scan_store.now())
         scan_store.persist(scan_id)

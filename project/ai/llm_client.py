@@ -1,6 +1,11 @@
 import json
 import os
 import requests
+from pathlib import Path
+from dotenv import load_dotenv
+
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434/api/generate"

