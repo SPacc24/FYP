@@ -35,7 +35,9 @@
         exploitationRun: "{{ url_for('exploitation_run') }}",
         calderaRun: "{{ url_for('caldera_run') }}",
         operationStatus: "{{ url_for('operation_status') }}",
-        generateReport: "/generate_report"
+        generateReport: "{{ url_for('generate_report') }}",
+        reportView: "{{ url_for('report_view') }}",
+        reportExport: "{{ url_for('export_report') }}"
       };
 
       window.DASHBOARD_CONTEXT = {

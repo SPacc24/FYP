@@ -8,13 +8,15 @@ import os as _os_for_path
 sys.path.insert(0, _os_for_path.path.dirname(__file__))
 
 from ai.technique_planner import generate_ai_technique_plan
-from ai.llm_client import ask_llm_text
+from ai.llm_client import ask_llm_text, get_llm_settings
 from ai.safety import SAFE_REFUSAL, is_unsafe_user_request, sanitize_llm_reply
 import json
 import os
 import socket
 import threading
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
+import requests
 
 from flask import (
     Flask,
@@ -278,6 +280,47 @@ def _save_active_scan_fields(**fields):
         log.warning("Could not persist active scan fields for %s: %s", scan_id, exc)
 
 
+def _build_active_report_context(data: dict | None = None) -> dict:
+    """
+    Build the same report inputs for the inline API, full report page, and
+    download route so all three surfaces show the same assessment state.
+    """
+    active = data or _active_scan_record()
+    scan = {
+        "target_ip": active.get("target") or session.get("target_ip", "Unknown"),
+        "port_range": session.get("port_range", "1-1024"),
+        "output_file": session.get("scan_output_file", ""),
+    }
+    parsed_results = _load_current_scan_results() or {}
+    scan["os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
+    scan["ports"] = parsed_results.get("ports", [])
+
+    mapping_results = active.get("mapping") or _active_mapping_results()
+    operation_results = active.get("operation_results") or _active_operation_results()
+    validation_results = active.get("validation_results") or _active_validation_results()
+    risk = active.get("risk") or session.get("risk_score", {})
+    remediations = active.get("remediations") or session.get("remediations", [])
+
+    report = build_report_summary(
+        scan=scan,
+        mapping=mapping_results,
+        operation=operation_results,
+        risk=risk,
+        remediations=remediations,
+        validation=validation_results,
+    )
+
+    return {
+        "scan": scan,
+        "mapping": mapping_results,
+        "operation": operation_results,
+        "validation": validation_results,
+        "risk": risk,
+        "remediations": remediations,
+        "report": report,
+    }
+
+
 def _ensure_scan_analysis(data: dict) -> dict:
     if not data:
         return data
@@ -512,6 +555,34 @@ Reply:
             "reply": f"AI chat error: {e}"
         }), 500
 # edited
+
+
+@app.route("/ai/status", methods=["GET"])
+def ai_status():
+    settings = get_llm_settings()
+    parsed = urlparse(settings["url"])
+    tags_url = urlunparse((parsed.scheme, parsed.netloc, "/api/tags", "", "", ""))
+    try:
+        response = requests.get(tags_url, timeout=2)
+        response.raise_for_status()
+        models = response.json().get("models", [])
+        model_names = [item.get("name") for item in models if item.get("name")]
+        return jsonify({
+            "ok": True,
+            "available": True,
+            "url": settings["url"],
+            "model": settings["model"],
+            "model_installed": settings["model"] in model_names,
+            "models": model_names,
+        })
+    except Exception as exc:
+        return jsonify({
+            "ok": True,
+            "available": False,
+            "url": settings["url"],
+            "model": settings["model"],
+            "error": str(exc),
+        })
 
 
 @app.route("/")
@@ -1075,38 +1146,19 @@ def technical_appendix():
 
 @app.route("/generate_report", methods=["POST"])
 def generate_report():
-    data = request.get_json(silent=True) or {}
-    active = _active_scan_record()
-
-    scan = {
-        "target_ip": active.get("target") or session.get("target_ip", data.get("target") or "Unknown"),
-        "port_range": session.get("port_range", data.get("port_range") or "1-1024"),
-        "output_file": session.get("scan_output_file", ""),
-    }
-    parsed_results = _load_current_scan_results() or {}
-    scan["os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
-    scan["ports"] = parsed_results.get("ports", [])
-
-    mapping_results = _active_mapping_results()
-    operation_results = _active_operation_results()
-    validation_results = _active_validation_results()
-    risk = active.get("risk") or session.get("risk_score", {})
-    remediations = active.get("remediations") or session.get("remediations", [])
-
-    report = build_report_summary(
-        scan=scan,
-        mapping=mapping_results,
-        operation=operation_results,
-        risk=risk,
-        remediations=remediations,
-        validation=validation_results,
-    )
-
+    context = _build_active_report_context()
     return jsonify({
         "ok": True,
-        "report": report,
-        "download_url": url_for("export_report") if operation_results else None,
+        "report": context["report"],
+        "report_url": url_for("report_view"),
+        "download_url": url_for("export_report"),
     })
+
+
+@app.route("/report/view", methods=["GET"])
+def report_view():
+    context = _build_active_report_context()
+    return render_template("report_view.html", **context)
 
 
 # ---------------------------------------------------
@@ -1164,32 +1216,15 @@ def save_vulnerabilities():
 @app.route("/report/export", methods=["GET"])
 def export_report():
     from reports.report_generator import generate_text_report
-    active = _active_scan_record()
-
-    scan = {
-        "target_ip": active.get("target") or session.get("target_ip", "Unknown"),
-        "port_range": session.get("port_range", "1-1024"),
-        "output_file": session.get("scan_output_file", ""),
-    }
-    parsed_results = _load_current_scan_results() or {}
-    scan["os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
-    scan["ports"] = parsed_results.get("ports", [])
-    mapping_results = _active_mapping_results()
-    op_results = _active_operation_results()
-    validation_results = _active_validation_results()
-    risk = active.get("risk") or session.get("risk_score", {})
-    remediations = active.get("remediations") or session.get("remediations", [])
-
-    if not op_results:
-        return "No results to export", 400
+    context = _build_active_report_context()
 
     report_path = generate_text_report(
-        scan=scan,
-        mapping=mapping_results,
-        operation=op_results,
-        risk=risk,
-        remediations=remediations,
-        validation=validation_results,
+        scan=context["scan"],
+        mapping=context["mapping"],
+        operation=context["operation"],
+        risk=context["risk"],
+        remediations=context["remediations"],
+        validation=context["validation"],
     )
 
     return send_file(

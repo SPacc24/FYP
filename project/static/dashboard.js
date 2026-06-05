@@ -450,10 +450,7 @@ async function generateReport() {
     }
 
     generatedReportContent = data.report || data.summary || "";
-    reportBox.innerHTML =
-      `<pre class="report-preview">${escapeHtml(generatedReportContent || "No report content returned.")}</pre>`;
-
-    downloadBtn.disabled = !generatedReportContent;
+    window.location.href = data.report_url || getEndpoint("reportView", "/report/view");
     return;
   }
 
@@ -466,6 +463,12 @@ async function generateReport() {
 }
 
 function downloadReport() {
+  const exportUrl = getEndpoint("reportExport", "/report/export");
+  if (exportUrl) {
+    window.location.href = exportUrl;
+    return;
+  }
+
   if (!generatedReportContent) return;
 
   const blob = new Blob([generatedReportContent], {
