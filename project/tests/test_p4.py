@@ -11,6 +11,10 @@ Edit the CONFIG section below before running.
 
 import sys
 import json
+import pytest
+
+# Integration script; skip when running automated unit tests
+pytest.skip("Integration script - skip during unit test runs", allow_module_level=True)
 
 # ── CONFIG — edit these before running ──────────────────────────────────────
 CALDERA_URL  = "http://localhost:8888"

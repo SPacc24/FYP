@@ -39,8 +39,27 @@ def _summarize_vulnerabilities(mapping: dict[str, Any]) -> list[str]:
         lines.append("\nRecommended focus areas:")
         for risk in mapping.get("top_risks", [])[:3]:
             lines.append(
-                f"- {risk.get('id', 'N/A')} {risk.get('name', '')} "
-                f"({risk.get('max_severity', 'Unknown')} severity, {risk.get('count', 0)} supporting findings)"
+                f"- {risk.get('host', 'Unknown')}:{risk.get('port', 'N/A')} "
+                f"{risk.get('service', 'unknown')} - {risk.get('title', '')}"
+            )
+    return lines
+
+
+def _summarize_scan_findings(scan: dict[str, Any]) -> list[str]:
+    lines = [
+        f"Target IP: {_safe_text(scan.get('target_ip', 'Unknown'))}",
+        f"Detected OS: {_safe_text(scan.get('os', 'Unknown'))}",
+        f"Port range: {_safe_text(scan.get('port_range', '1-1024'))}",
+        f"Scan output: {_safe_text(scan.get('output_file', 'Not saved'))}",
+    ]
+    ports = scan.get("ports", []) or []
+    if ports:
+        lines.append("Open/reported services:")
+        for port in ports[:20]:
+            lines.append(
+                f"- {port.get('port', 'N/A')}/{port.get('protocol', 'tcp')} "
+                f"{port.get('state', 'unknown')} {port.get('service', 'unknown')} "
+                f"{port.get('product', '')} {port.get('version', '')}".strip()
             )
     return lines
 
@@ -54,7 +73,10 @@ def _summarize_attack_plan(mapping: dict[str, Any]) -> list[str]:
     lines.append(f"Selection reason: {plan.get('selection_reason', 'Not available')}")
     lines.append("Selected techniques:")
     for tech in plan.get("selected_techniques", []):
-        lines.append(f"- {tech.get('id', 'N/A')} {tech.get('name', '')} ({tech.get('max_severity', '')})")
+        lines.append(
+            f"- {tech.get('id', 'N/A')} {tech.get('name', '')} "
+            f"[{tech.get('attack_path_stage', 'Validation')}] ({tech.get('max_severity', '')})"
+        )
     return lines
 
 
@@ -79,6 +101,18 @@ def _summarize_operation(operation: dict[str, Any]) -> list[str]:
                 f"- {step.get('technique_id', 'N/A')} {step.get('technique_name', '')} "
                 f"[{step.get('tactic', 'unknown')}] - {step.get('status', 'unknown')}"
             )
+            if step.get("command"):
+                lines.append(f"  Command: {step.get('command')}")
+            if step.get("evidence_summary"):
+                lines.append(f"  Evidence summary: {step.get('evidence_summary')}")
+            if step.get("parsed_evidence"):
+                for evidence in step.get("parsed_evidence", [])[:6]:
+                    lines.append(f"  - {evidence}")
+            elif step.get("output"):
+                output = str(step.get("output", "")).strip()
+                lines.append(f"  Raw output: {output[:500]}")
+            else:
+                lines.append("  Execution completed but no evidence returned.")
     return lines
 
 
@@ -160,11 +194,7 @@ def build_report_summary(
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [f"AutoPenTest Report", f"Generated: {now}", ""]
 
-    lines.append(_section("Target Summary", [
-        f"Target IP: {_safe_text(scan.get('target_ip', 'Unknown'))}",
-        f"Port range: {_safe_text(scan.get('port_range', '1-1024'))}",
-        f"Scan output: {_safe_text(scan.get('output_file', 'Not saved'))}",
-    ]))
+    lines.append(_section("Target Summary", _summarize_scan_findings(scan)))
 
     lines.append(_section("Vulnerability Mapping", _summarize_vulnerabilities(mapping)))
     lines.append(_section("Attack Plan", _summarize_attack_plan(mapping)))

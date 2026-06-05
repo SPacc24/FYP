@@ -1,3 +1,4 @@
+
 let generatedReportContent = "";
 
 function escapeHtml(value) {
@@ -29,6 +30,14 @@ function getValidationRowsAsText() {
   }).join("\n");
 }
 
+function formatEvidenceList(items) {
+  if (!items || !items.length) {
+    return "Execution completed but no evidence returned.";
+  }
+
+  return `<ul class="compact-list">${items.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+}
+
 function getEndpoint(name, fallback) {
   return window.DASHBOARD_ENDPOINTS?.[name] || fallback;
 }
@@ -54,37 +63,73 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("runValidationBtn")
     ?.addEventListener("click", runExploitabilityValidation);
 
-  document.getElementById("refreshStatusBtn")
-    ?.addEventListener("click", refreshOperationStatus);
+  document.getElementById("copyDeployCommandBtn")
+    ?.addEventListener("click", copyDeployCommand);
+
+  document.getElementById("refreshAgentStatusBtn")
+    ?.addEventListener("click", loadCalderaStatus);
 
   document.getElementById("generateReportBtn")
     ?.addEventListener("click", generateReport);
 
   document.getElementById("downloadReportBtn")
     ?.addEventListener("click", downloadReport);
+
+  document.getElementById("viewAllCvesNavBtn")
+    ?.addEventListener("click", () => {
+      if (typeof openCveModal === "function") {
+        openCveModal();
+      } else {
+        window.location.hash = "#scan-vuln";
+      }
+    });
+
+  document.getElementById("downloadReportNavBtn")
+    ?.addEventListener("click", () => {
+      const reportSection = document.getElementById("report");
+      if (reportSection) {
+        reportSection.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      document.getElementById("generateReportBtn")?.focus();
+    });
 });
 
 async function loadCalderaStatus() {
   const box = document.getElementById("calderaStatusBox");
   const deployBox = document.getElementById("deployCommandBox");
   const deployText = document.getElementById("deployCommandText");
+  const agentStatusSummary = document.getElementById("agentStatusSummary");
+  const deployTargetText = document.getElementById("deployTargetText");
+  const deployOsText = document.getElementById("deployOsText");
 
   if (!box) return;
 
+  box.innerHTML = "<p class='muted'>Refreshing CALDERA agent status...</p>";
+
   try {
-    const res = await fetch(getEndpoint("calderaStatus", "/caldera_status"));
+    const res = await fetch(getEndpoint("calderaStatus", "/caldera/status"));
     const data = await res.json();
+    const agents = data.agents || data.online_agents || [];
+    const trustedName = data.online_agents?.[0]?.host || data.online_agents?.[0]?.hostname || data.online_agents?.[0]?.paw || "-";
+    if (deployTargetText) deployTargetText.textContent = data.target || getDashboardContext().target || "Unknown";
+    if (deployOsText) deployOsText.textContent = data.target_os || "Unknown";
+    document.getElementById("trustedAgentName").textContent = data.agent_ready ? trustedName : "-";
+    if (agentStatusSummary) {
+      const onlineCount = agents.filter(agent => agent.alive).length;
+      agentStatusSummary.textContent = `${onlineCount} online agent(s) observed. Target checked: ${data.target || getDashboardContext().target || "Unknown"}.`;
+    }
 
     if (data.agent_ready) {
       box.innerHTML =
-        `<p><strong>Ready</strong> — ${data.online_agents?.length || 1} agent(s) online.</p>`;
-
+        data.target_match_confirmed === false
+          ? `<p><strong>Ready</strong> - trusted agent online. Confirm it is the intended target before running.</p>`
+          : `<p><strong>Ready</strong> - trusted agent matched.</p>`;
       if (deployBox) deployBox.style.display = "none";
     }
 
     else {
       box.innerHTML =
-        `<p><strong>Not Ready</strong> — ${escapeHtml(data.message || "No agent found.")}</p>`;
+        `<p><strong>Not Ready</strong> - ${escapeHtml(data.message || "Caldera reachable - no trusted agent available")}</p>`;
 
       if (data.deploy_command && deployText && deployBox) {
         deployText.textContent = data.deploy_command;
@@ -95,7 +140,46 @@ async function loadCalderaStatus() {
 
   catch (e) {
     box.innerHTML =
-      '<p class="muted">Unable to reach Caldera status endpoint.</p>';
+      '<p class="muted">Unable to reach CALDERA status endpoint. Check CALDERA_URL, CALDERA_API_KEY, and that CALDERA is running.</p>';
+  }
+}
+
+async function loadDeployCommand() {
+  const deployBox = document.getElementById("deployCommandBox");
+  const deployText = document.getElementById("deployCommandText");
+  const deployTargetText = document.getElementById("deployTargetText");
+  const deployOsText = document.getElementById("deployOsText");
+
+  if (!deployBox || !deployText) return;
+
+  deployText.textContent = "Generating deployment command...";
+  deployBox.style.display = "block";
+
+  try {
+    const res = await fetch(getEndpoint("calderaDeployCommand", "/caldera/deploy-command"));
+    const data = await res.json();
+    deployText.textContent = data.deploy_command || "Deployment command unavailable.";
+    if (deployTargetText) deployTargetText.textContent = data.target || "Unknown";
+    if (deployOsText) deployOsText.textContent = data.os || "Unknown";
+  }
+  catch (err) {
+    deployText.textContent = "Could not generate deployment command.";
+  }
+}
+
+async function copyDeployCommand() {
+  const deployText = document.getElementById("deployCommandText");
+  if (!deployText || !deployText.textContent) return;
+
+  try {
+    await navigator.clipboard.writeText(deployText.textContent);
+  }
+  catch (err) {
+    const range = document.createRange();
+    range.selectNodeContents(deployText);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
   }
 }
 
@@ -187,7 +271,7 @@ async function runCaldera() {
     "<p class='muted'>Starting Caldera operation...</p>";
 
   try {
-    const res = await fetch(getEndpoint("calderaRun", "/caldera_run"), {
+    const res = await fetch(getEndpoint("calderaRun", "/caldera/run"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -208,7 +292,7 @@ async function runCaldera() {
         if (coverageWarningBox && coverageWarningText) {
           coverageWarningText.textContent = 
             `${unsupported_count} technique(s) not supported by CALDERA (${unsupported.join(", ")}). ` +
-            `Executing only ${supported.length} supported technique(s).`;
+            `${supported.length ? `Executing only ${supported.length} supported technique(s).` : "Recording external validation requirement."}`;
           coverageWarningBox.style.display = "block";
         }
       }
@@ -216,7 +300,9 @@ async function runCaldera() {
 
     if (data.ok || data.success) {
       operationBox.innerHTML =
-        `<p><strong>Operation completed successfully.</strong></p>`;
+        data.state === "unsupported"
+          ? `<p><strong>No CALDERA operation created.</strong></p><p class="small">${escapeHtml(data.message || "Unsupported techniques require external validation.")}</p>`
+          : `<p><strong>Operation completed.</strong></p>`;
 
       const tbody = document.getElementById("techniqueResultsBody");
       const executionSummary = document.getElementById("executionSummary");
@@ -229,7 +315,18 @@ async function runCaldera() {
             <td>${escapeHtml(t.tactic)}</td>
             <td><strong>${escapeHtml(t.status)}</strong></td>
             <td class="small">${escapeHtml(t.timestamp || "-")}</td>
-            <td class="small">${escapeHtml(t.output ? t.output.substring(0, 100) + (t.output.length > 100 ? "..." : "") : "-")}</td>
+            <td class="small">
+              <details>
+                <summary>${escapeHtml(t.evidence_summary || "View execution evidence")}</summary>
+                <p><strong>Command executed</strong></p>
+                <pre class="small mono">${escapeHtml(t.command || "No command returned by CALDERA.")}</pre>
+                <p><strong>Parsed evidence</strong></p>
+                ${formatEvidenceList(t.parsed_evidence)}
+                <p><strong>Raw stdout</strong></p>
+                <pre class="small mono">${escapeHtml(t.stdout || t.output || "Execution completed but no evidence returned.")}</pre>
+                ${t.stderr ? `<p><strong>Raw stderr</strong></p><pre class="small mono">${escapeHtml(t.stderr)}</pre>` : ""}
+              </details>
+            </td>
           </tr>
         `).join("");
 
@@ -246,6 +343,8 @@ async function runCaldera() {
           document.getElementById("discardedTechniques").textContent = discarded;
           executionSummary.style.display = "grid";
         }
+        // refresh agent status after operation completes
+        try { loadCalderaStatus(); } catch(e) {}
       }
 
       else if (tbody) {
@@ -286,7 +385,7 @@ async function runCaldera() {
 
   catch (err) {
     operationBox.innerHTML =
-      "<p><strong>Error starting operation.</strong></p>";
+      `<p><strong>Error starting operation.</strong></p><p class="small">${escapeHtml(err.message || "Check the Flask terminal for details.")}</p>`;
   }
 }
 
@@ -296,7 +395,7 @@ async function refreshOperationStatus() {
   if (!operationBox) return;
 
   try {
-    const res = await fetch(getEndpoint("operationStatus", "/operation_status"));
+    const res = await fetch(getEndpoint("operationStatus", "/caldera/operation/status"));
     const data = await res.json();
 
     operationBox.innerHTML =
@@ -345,69 +444,31 @@ async function generateReport() {
       body: JSON.stringify(reportData)
     });
 
-    if (res.ok) {
-      const data = await res.json();
-
-      generatedReportContent =
-        data.report ||
-        data.summary ||
-        buildLocalReport(reportData);
-
-      reportBox.innerHTML =
-        `<pre class="report-preview">${escapeHtml(generatedReportContent)}</pre>`;
-
-      downloadBtn.disabled = false;
-      return;
+    const data = await res.json();
+    if (!res.ok || !data || (!data.report && !data.summary)) {
+      throw new Error(data?.error || "Report generation failed.");
     }
+
+    generatedReportContent = data.report || data.summary || "";
+    window.location.href = data.report_url || getEndpoint("reportView", "/report/view");
+    return;
   }
 
   catch (err) {
-    // Fallback below if backend route does not exist yet.
+    generatedReportContent = "";
+    reportBox.innerHTML =
+      `<p class="muted">Unable to generate report. ${escapeHtml(err.message || "Please try again.")}</p>`;
+    downloadBtn.disabled = true;
   }
-
-  generatedReportContent = buildLocalReport(reportData);
-
-  reportBox.innerHTML =
-    `<pre class="report-preview">${escapeHtml(generatedReportContent)}</pre>
-     <p class="small top-gap">
-       Backend /generate_report route was not found, so a local browser report was generated instead.
-     </p>`;
-
-  downloadBtn.disabled = false;
-}
-
-function buildLocalReport(data) {
-  return `
-AI-Assisted Penetration Testing Report
-
-Target:
-${data.target}
-
-Port Range:
-${data.port_range}
-
-Technique Mode:
-${data.selected_mode.toUpperCase()}
-
-Risk Summary:
-Score: ${data.risk_score}
-Label: ${data.risk_label}
-
-Selected MITRE ATT&CK Techniques:
-${data.selected_techniques.length ? data.selected_techniques.join(", ") : "No selected techniques."}
-
-Execution Results:
-${data.execution_results || "No execution results generated yet."}
-
-Lab Exploitability Validation:
-${data.validation_results || "No validation evidence generated yet."}
-
-Summary:
-The scan findings, vulnerability mapping, lab validation evidence, and selected technique mode were reviewed together. The selected MITRE ATT&CK techniques were prepared for Caldera execution. The execution results above should be used to validate exposure, document findings, and support remediation planning.
-  `.trim();
 }
 
 function downloadReport() {
+  const exportUrl = getEndpoint("reportExport", "/report/export");
+  if (exportUrl) {
+    window.location.href = exportUrl;
+    return;
+  }
+
   if (!generatedReportContent) return;
 
   const blob = new Blob([generatedReportContent], {

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoPenTest Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+
+<body>
+  <main class="page">
+
+    {% include "navbar.html" %}
+
+    <section class="hero compact-hero">
+      <p class="eyebrow">AUTOMATED PENETRATION TESTING PLATFORM</p>
+      <h1>Security Assessment Dashboard</h1>
+      <p class="muted">
+        Review scan findings, AI technique recommendations, Caldera execution, results, and report generation.
+      </p>
+    </section>
+
+    {% set active_mode = selected_mode if selected_mode else session.get('technique_mode', 'hybrid') %}
+
+    <span id="activeModeValue" data-mode="{{ active_mode }}" style="display: none;"></span>
+    <span id="hasAiPlanValue" data-has-ai-plan="{{ 'true' if ai_plan and ai_plan.selected_technique_ids is defined else 'false' }}" style="display: none;"></span>
+
+    <script>
+      window.DASHBOARD_ENDPOINTS = {
+        calderaStatus: "{{ url_for('caldera_status') }}",
+        calderaDeployCommand: "{{ url_for('caldera_deploy_command') }}",
+        calderaAgentDelete: "{{ url_for('caldera_agent_delete') }}",
+        calderaAgentsRemoveStale: "{{ url_for('caldera_agents_remove_stale') }}",
+        calderaAgentSelect: "{{ url_for('caldera_agent_select') }}",
+        exploitationRun: "{{ url_for('exploitation_run') }}",
+        calderaRun: "{{ url_for('caldera_run') }}",
+        operationStatus: "{{ url_for('operation_status') }}",
+        generateReport: "{{ url_for('generate_report') }}",
+        reportView: "{{ url_for('report_view') }}",
+        reportExport: "{{ url_for('export_report') }}"
+      };
+
+      window.DASHBOARD_CONTEXT = {
+        target: "{{ scan.target_ip if scan and scan.target_ip else session.get('target_ip', 'Unknown') }}",
+        portRange: "{{ scan.port_range if scan and scan.port_range else session.get('port_range', '1-1024') }}",
+        selectedMode: "{{ active_mode }}"
+      };
+    </script>
+
+    <section class="dashboard-wireframe" data-components="service-card finding-card">
+      <aside class="dashboard-left" aria-label="Attack Surface Workbench">
+        {% include "attack_surface_workbench.html" %}
+        {% include "scan_summary_sidebar.html" %}
+      </aside>
+
+      <div class="dashboard-main dashboard-center" aria-label="CVE Findings Supported by Evidence and Candidate CVE References">
+        {% include "scan_vul.html" %}
+        {% include "ai_techniques.html" %}
+        {% include "exploitation_validation.html" %}
+        {% include "caldera_execution.html" %}
+        {% include "report.html" %}
+      </div>
+
+      <aside class="dashboard-right">
+        {% include "ai_chatbox.html" %}
+      </aside>
+    </section>
+
+    <section class="panel dashboard-appendix-shell" aria-label="Technical Appendix">
+      <details class="appendix-details">
+        <summary>
+          <span>Technical Appendix</span>
+          <small>Service inventory, evidence collection summary, command log, and candidate CVE references.</small>
+        </summary>
+        <p class="muted">
+          Use the dedicated appendix page for the full evidence tables. Candidate CVE References are retained for analyst review.
+        </p>
+        <a class="button secondary" href="{{ url_for('technical_appendix') }}" target="_blank">Open Technical Appendix</a>
+      </details>
+    </section>
+  </main>
+
+  <div id="recordModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeRecordModal()"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="recordModalTitle">
+      <div class="modal-head">
+        <h2 id="recordModalTitle">Command Evidence Viewer</h2>
+        <button class="icon-btn" onclick="closeRecordModal()" type="button">Close</button>
+      </div>
+      <div class="modal-body">
+        <h3>Summary</h3><p id="recordPurpose" class="modal-purpose"></p>
+        <h3>Exact Command</h3><pre id="recordCommand"></pre>
+        <h3>Captured Output</h3><pre id="recordOutput"></pre>
+        <h3>Evidence File</h3><p id="recordFile" class="muted small"></p>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>Automated Penetration Testing · Group 6 · AI-Assisted Security Assessment</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+  <script src="{{ url_for('static', filename='technique_selection.js') }}"></script>
+  <script src="{{ url_for('static', filename='ai_chat.js') }}"></script>
+  <script>
+    function openRecordModal(type, idx) {
+      const rows = type === "coverage"
+        ? {{ results.tool_coverage|default([])|tojson }}
+        : {{ scan.command_log|default([])|tojson }};
+      const row = rows[idx] || {};
+      document.getElementById("recordCommand").textContent = row.command || "No shell command recorded.";
+      document.getElementById("recordPurpose").textContent = row.purpose || row.evidence_type || row.information_added || row.message || row.note || "";
+      document.getElementById("recordOutput").textContent = row.output || "[no console output captured]";
+      document.getElementById("recordFile").textContent = row.output_file || "No evidence file recorded.";
+      document.getElementById("recordModal").classList.add("open");
+      document.getElementById("recordModal").setAttribute("aria-hidden", "false");
+    }
+    function closeRecordModal() {
+      document.getElementById("recordModal").classList.remove("open");
+      document.getElementById("recordModal").setAttribute("aria-hidden", "true");
+    }
+  </script>
+</body>
+</html>

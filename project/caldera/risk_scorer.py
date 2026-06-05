@@ -89,16 +89,31 @@ class RiskScorer:
             }
         """
         cve_component = self._score_cve(vulnerabilities)
+        exposure_component = self._score_exposure(vulnerabilities)
         attack_component = self._score_attack(operation_results)
-        combined = self._combine(cve_component, attack_component)
+        validation_component = self._score_validation(operation_results.get('validation_results', {}))
+        exploitability_component = self._score_exploitability_indicators(vulnerabilities, operation_results)
+        combined = self._combine(
+            cve_component,
+            exposure_component,
+            attack_component,
+            validation_component,
+            exploitability_component,
+        )
         label_info = get_risk_label(combined)
         breakdown = {
             'cve_component': round(cve_component, 2),
+            'exposure_component': round(exposure_component, 2),
             'attack_component': round(attack_component, 2),
+            'validation_component': round(validation_component, 2),
+            'exploitability_indicator_component': round(exploitability_component, 2),
             'final_score': round(combined, 2),
             'cve_count': len(vulnerabilities),
+            'exposed_services': len([v for v in vulnerabilities if str(v.get('state', '')).lower() == 'open']),
             'techniques_run': operation_results.get('total', 0),
             'techniques_success': operation_results.get('success_count', 0),
+            'unsupported_techniques': operation_results.get('unsupported_count', 0),
+            'legacy_os': operation_results.get('scan_context', {}).get('os', 'Unknown'),
         }
         log.info('Risk score: %.2f | CVE=%.2f ATT&CK=%.2f', combined, cve_component, attack_component)
         return {
@@ -164,6 +179,31 @@ class RiskScorer:
         severity = str(finding.get('severity', 'info')).lower()
         return SEVERITY_SCORE.get(severity, 0.0)
 
+    def _score_exposure(self, vulnerabilities: list) -> float:
+        if not vulnerabilities:
+            return 0.0
+
+        high_value_services = {
+            'microsoft-ds',
+            'netbios-ssn',
+            'smb',
+            'ms-wbt-server',
+            'wsman',
+            'ssh',
+            'telnet',
+            'mysql',
+        }
+        score = 0.0
+        for finding in vulnerabilities:
+            if str(finding.get('state', '')).lower() != 'open':
+                continue
+            score += 0.35
+            if str(finding.get('service', '')).lower() in high_value_services:
+                score += 0.55
+            if finding.get('attack_techniques'):
+                score += min(len(finding.get('attack_techniques', [])) * 0.12, 0.45)
+        return min(score, 2.0)
+
     # ATT&CK technique scoring
     def _score_attack(self, operation_results: dict) -> float:
         """
@@ -187,20 +227,47 @@ class RiskScorer:
             return 0.0
         return min((raw_score / max_possible) * 5.0, 5.0)
 
+    def _score_validation(self, validation_results: dict) -> float:
+        if not validation_results:
+            return 0.0
+        confirmed = int(validation_results.get('confirmed', 0) or 0)
+        potential = int(validation_results.get('potential', 0) or 0)
+        return min((confirmed * 0.8) + (potential * 0.45), 2.0)
+
+    def _score_exploitability_indicators(self, vulnerabilities: list, operation_results: dict) -> float:
+        score = 0.0
+        os_text = str(operation_results.get('scan_context', {}).get('os', '')).lower()
+        if 'windows 10' in os_text and any(token in os_text for token in ['10240', '10586', '14393', '1507', '1511', '1607']):
+            score += 0.9
+
+        has_smb = any(str(v.get('service', '')).lower() in {'microsoft-ds', 'netbios-ssn', 'smb'} for v in vulnerabilities)
+        if has_smb:
+            score += 0.45
+
+        unsupported_tids = {
+            step.get('technique_id')
+            for step in operation_results.get('techniques_run', [])
+            if step.get('status') == 'unsupported'
+        }
+        if 'T1210' in unsupported_tids and has_smb:
+            score += 0.55
+
+        return min(score, 2.0)
+
      # Combination
-    def _combine(self, cve_score: float, attack_score: float) -> float:
+    def _combine(
+        self,
+        cve_score: float,
+        exposure_score: float,
+        attack_score: float,
+        validation_score: float,
+        exploitability_score: float,
+    ) -> float:
         """
-        Combine CVE and ATT&CK components into final score.
-
-        Formula:
-        - If Caldera ran: 40% CVE + 60% ATT&CK (attack result is ground truth)
-        - If no Caldera results: 100% CVE (vulnerability-only assessment)
-
-        Both components are on 0-5 scale, combined gives 0-10.
+        Components are additive and capped at 10 so the report can explain why
+        scan exposure, lab validation, and CALDERA evidence changed the score.
         """
-        if attack_score == 0.0:
-            return min(cve_score * 2.0, 10.0)
-        return min((cve_score * 0.8) + (attack_score * 1.2), 10.0)
+        return min(cve_score + exposure_score + attack_score + validation_score + exploitability_score, 10.0)
 
     # Remediation hints (rule-based advice for common techniques)
     def get_remediation_for_technique(self, technique_id: str) -> dict:

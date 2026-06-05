@@ -26,6 +26,21 @@ class CoverageChecker:
         self._ability_cache = None
         self._technique_to_abilities = {}
 
+    def _unwrap_collection(self, value) -> list:
+        """Normalise CALDERA list responses across API/plugin versions."""
+        if isinstance(value, list):
+            return value
+        if not isinstance(value, dict):
+            return []
+        for key in ("abilities", "data", "objects"):
+            nested = value.get(key)
+            if isinstance(nested, list):
+                return nested
+        for nested in value.values():
+            if isinstance(nested, list):
+                return nested
+        return []
+
     def _load_abilities(self) -> list[dict]:
         """
         Fetch and cache all abilities from Caldera.
@@ -37,10 +52,7 @@ class CoverageChecker:
         try:
             abilities_result = self.client.get_abilities()
             
-            if isinstance(abilities_result, dict):
-                abilities = abilities_result.get("abilities", [])
-            else:
-                abilities = abilities_result or []
+            abilities = self._unwrap_collection(abilities_result)
 
             self._ability_cache = abilities
             log.info(f"Loaded {len(abilities)} abilities from CALDERA")

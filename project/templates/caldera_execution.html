@@ -1,34 +1,50 @@
 <section class="flow-card thin-flow-card" id="caldera-execution">
   <div class="flow-card-header">
     <span class="label">Assessment Stage 4</span>
-    <h2>Caldera Execution Based on Selected Techniques</h2>
+    <h2>Agent Readiness and Caldera Execution</h2>
   </div>
 
-  <div id="calderaStatusBox" class="mini-panel">
-    <p class="muted">Checking Caldera agent status...</p>
-  </div>
+  <div class="caldera-grid compact-grid">
+    <div id="calderaStatusBox" class="mini-panel status-card">
+      <p class="muted">Checking Caldera agent status...</p>
+    </div>
 
-  <div id="deployCommandBox" class="command-box top-gap" style="display:none;">
-    <h3>Deploy Command</h3>
-    <code id="deployCommandText"></code>
-  </div>
+    <div id="targetDetailsBox" class="mini-panel small-panel">
+      <h4>Target Details</h4>
+      <p class="small">
+        Target: <span id="deployTargetText">Unknown</span><br>
+        OS: <span id="deployOsText">Unknown</span><br>
+        Trusted Agent: <span id="trustedAgentName">-</span>
+      </p>
+    </div>
 
-  <div id="coverageWarningBox" class="mini-panel top-gap" style="display:none;">
-    <p><strong>⚠️ Coverage Note:</strong> <span id="coverageWarningText"></span></p>
-  </div>
+    <div class="mini-panel small-panel">
+      <h4>Agent Check</h4>
+      <p class="small" id="agentStatusSummary">Waiting for Caldera status.</p>
+      <button class="button secondary top-gap" id="refreshAgentStatusBtn" type="button">Refresh Agent Status</button>
+    </div>
 
-  <div class="actions">
-    <button class="button" id="runCalderaBtn" type="button">
-      Run Caldera
-    </button>
+    <div id="deployCommandBox" class="command-box deploy-card" style="display:none;">
+      <h4>Deploy Command</h4>
+      <p class="small">Copy-only; run this inside the authorised lab target host when no trusted agent is available.</p>
+      <pre id="deployCommandText" class="deploy-command-text mono"></pre>
+      <button class="button secondary top-gap" id="copyDeployCommandBtn" type="button">
+        Copy Deploy Command
+      </button>
+    </div>
 
-    <button class="button secondary" id="refreshStatusBtn" type="button">
-      Refresh Status
-    </button>
-  </div>
+    <div id="coverageWarningBox" class="mini-panel" style="display:none;">
+      <strong>Coverage</strong>
+      <p class="small" id="coverageWarningText"></p>
+    </div>
 
-  <div id="operationBox" class="mini-panel top-gap">
-    <p class="muted">No operation started yet.</p>
+    <div class="actions caldera-actions compact-actions">
+      <button class="button" id="runCalderaBtn" type="button">Run CALDERA</button>
+    </div>
+
+    <div id="operationBox" class="mini-panel top-gap">
+      <p class="muted">No operation started yet.</p>
+    </div>
   </div>
 </section>
 
