@@ -149,10 +149,10 @@
         <input id="cveSearch" placeholder="Search CVE ID or keyword" />
         <select id="cveFilterSeverity">
           <option value="all">All severities</option>
-          <option value="Critical">Critical</option>
-          <option value="High">High</option>
-          <option value="Medium">Medium</option>
-          <option value="Low">Low</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
         </select>
       </div>
 
@@ -170,60 +170,124 @@
             </tr>
           </thead>
           <tbody>
-            {% for item in mapping.vulnerabilities %}
-              {% for cve in item.cve_matches %}
+            {% if detected_cves %}
+              {% for cve in detected_cves %}
                 <tr class="cve-row">
-                  <td class="mono">{{ cve.cve_id }}</td>
-                  <td><span class="severity {{ cve.severity|lower }}">{{ cve.severity }}</span></td>
-                  <td>{{ 'High' if cve.severity == 'Critical' else 'Medium' }}</td>
-                  <td class="mono">{{ item.service }}:{{ item.port }}</td>
-                  <td>
-                    {% for tech in item.attack_techniques %}
-                      <span class="mono">{{ tech.id }}</span>{% if not loop.last %}, {% endif %}
-                    {% endfor %}
+                  <td class="mono">
+                    <a href="{{ cve.official_cve_url }}" target="_blank">
+                      {{ cve.cve_id }}
+                    </a>
                   </td>
-                  <td class="small">{{ cve.reason }}</td>
+
                   <td>
-                    <a class="button tiny" href="https://nvd.nist.gov/vuln/detail/{{ cve.cve_id }}" target="_blank">NVD</a>
-                    <a class="button tiny" href="https://cve.mitre.org/cgi-bin/cvename.cgi?name={{ cve.cve_id }}" target="_blank">MITRE</a>
-                    <a class="button tiny" href="https://www.cvedetails.com/cve/{{ cve.cve_id }}/" target="_blank">CVE Details</a>
+                    <span class="severity {{ cve.severity|lower }}">
+                      {{ cve.severity }}
+                    </span>
+                  </td>
+
+                  <td>
+                    {{ cve.confidence }}
+                  </td>
+
+                  <td class="mono">
+                    {{ cve.service_port }}
+                  </td>
+
+                  <td>
+                    {% if cve.linked_techniques %}
+                      {% for tech in cve.linked_techniques %}
+                        {% if tech.mitre_url %}
+                          <a class="mono" href="{{ tech.mitre_url }}" target="_blank">
+                            {{ tech.id }}
+                          </a>
+                        {% else %}
+                          <span class="mono">{{ tech.id }}</span>
+                        {% endif %}
+
+                        {% if not loop.last %}, {% endif %}
+                      {% endfor %}
+                    {% else %}
+                      <span class="muted">No linked technique</span>
+                    {% endif %}
+                  </td>
+
+                  <td class="small">
+                    {{ cve.description }}
+                  </td>
+
+                  <td>
+                    <a class="button tiny" href="{{ cve.official_cve_url }}" target="_blank">
+                      CVE.org
+                    </a>
+
+                    {% if cve.nvd_url %}
+                      <a class="button tiny" href="{{ cve.nvd_url }}" target="_blank">
+                        NVD
+                      </a>
+                    {% endif %}
                   </td>
                 </tr>
               {% endfor %}
-            {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="7" class="small muted">
+                  No CVEs detected or linked to mapped techniques.
+                </td>
+              </tr>
+            {% endif %}
           </tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <script>
-    (function(){
-      const openBtn = document.getElementById('viewAllCvesBtn');
-      const modal = document.getElementById('cveModal');
-      const closeBtn = document.getElementById('closeCveModal');
-      const search = document.getElementById('cveSearch');
-      const filter = document.getElementById('cveFilterSeverity');
-      const rows = Array.from(document.querySelectorAll('#cveTable tbody tr'));
+<script>
+  (function () {
+    const openBtn = document.getElementById('viewAllCvesBtn');
+    const modal = document.getElementById('cveModal');
+    const closeBtn = document.getElementById('closeCveModal');
+    const search = document.getElementById('cveSearch');
+    const filter = document.getElementById('cveFilterSeverity');
 
-      if(openBtn){
-        openBtn.addEventListener('click', ()=>{ modal.style.display='block'; });
-      }
-      if(closeBtn){
-        closeBtn.addEventListener('click', ()=>{ modal.style.display='none'; });
-      }
-      function applyFilter(){
-        const q = (search.value||'').toLowerCase();
-        const sev = filter.value;
-        rows.forEach(r=>{
-          const txt = r.innerText.toLowerCase();
-          const rowSev = r.querySelector('td span.severity')?.innerText || '';
-          const matches = (!q || txt.includes(q)) && (sev==='all' || rowSev===sev);
-          r.style.display = matches ? '' : 'none';
-        });
-      }
-      search?.addEventListener('input', applyFilter);
-      filter?.addEventListener('change', applyFilter);
-    })();
-  </script>
+    function getRows() {
+      return Array.from(document.querySelectorAll('#cveTable tbody tr.cve-row'));
+    }
+
+    if (openBtn && modal) {
+      openBtn.addEventListener('click', () => {
+        modal.style.display = 'block';
+        applyFilter();
+      });
+    }
+
+    if (closeBtn && modal) {
+      closeBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+      });
+    }
+
+    function applyFilter() {
+      const q = (search?.value || '').trim().toLowerCase();
+      const selectedSeverity = (filter?.value || 'all').trim().toLowerCase();
+
+      getRows().forEach(row => {
+        const rowText = row.innerText.toLowerCase();
+
+        const severityCell = row.querySelector('span.severity');
+        const rowSeverity = (severityCell?.innerText || '')
+          .trim()
+          .toLowerCase();
+
+        const matchesSearch = !q || rowText.includes(q);
+        const matchesSeverity =
+          selectedSeverity === 'all' || rowSeverity === selectedSeverity;
+
+        row.style.display = matchesSearch && matchesSeverity ? '' : 'none';
+      });
+    }
+
+    search?.addEventListener('input', applyFilter);
+    filter?.addEventListener('change', applyFilter);
+  })();
+</script>
 </section>

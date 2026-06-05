@@ -151,7 +151,71 @@ def _caldera_agent_server_host():
         pass
     return None
 
+def _official_cve_url(cve_id):
+    return f"https://www.cve.org/CVERecord?id={cve_id}"
 
+
+def _build_detected_cve_rows(ai_plan):
+    cve_lookup = {}
+
+    for tech in (ai_plan or {}).get("allowed_techniques", []):
+        technique_id = tech.get("id") or tech.get("technique_id")
+        technique_name = tech.get("name") or tech.get("technique_name", "")
+        mitre_url = tech.get("mitre_url", "")
+
+        for cve in tech.get("linked_cves", []):
+            cve_id = cve.get("id")
+
+            if not cve_id:
+                continue
+
+            if cve_id not in cve_lookup:
+                nvd = cve.get("nvd", {}) or {}
+                cvss = nvd.get("cvss", {}) or {}
+
+                mapped_findings = cve.get("mapped_findings", [])
+                first_finding = mapped_findings[0] if mapped_findings else {}
+
+                service = first_finding.get("service", "Unknown")
+                port = first_finding.get("port", "Unknown")
+
+                cve_lookup[cve_id] = {
+                    "cve_id": cve_id,
+                    "severity": (
+                        cvss.get("severity")
+                        or first_finding.get("severity")
+                        or "Unknown"
+                    ),
+                    "confidence": "Official CVE linked",
+                    "service_port": f"{service}/{port}",
+                    "description": (
+                        nvd.get("description")
+                        or first_finding.get("description")
+                        or first_finding.get("title")
+                        or "No CVE description available."
+                    ),
+                    "official_cve_url": _official_cve_url(cve_id),
+                    "nvd_url": nvd.get(
+                        "nvd_url",
+                        f"https://nvd.nist.gov/vuln/detail/{cve_id}"
+                    ),
+                    "linked_techniques": [],
+                }
+
+            if technique_id:
+                already_added = any(
+                    item.get("id") == technique_id
+                    for item in cve_lookup[cve_id]["linked_techniques"]
+                )
+
+                if not already_added:
+                    cve_lookup[cve_id]["linked_techniques"].append({
+                        "id": technique_id,
+                        "name": technique_name,
+                        "mitre_url": mitre_url,
+                    })
+
+    return list(cve_lookup.values())
 # ---------------------------------------------------
 # ROUTES
 # ---------------------------------------------------
@@ -337,12 +401,15 @@ def scan():
         # save AI plan in session
         session["ai_plan"] = ai_plan
 
+        detected_cves = _build_detected_cve_rows(ai_plan)
+
         return render_template(
             "results_full_dashboard.html",
             scan=_scan_summary(scan_result, parsed_results),
             results=parsed_results,
             mapping=mapping_results,
             ai_plan=ai_plan,  #edited
+            detected_cves=detected_cves,
             selected_mode=technique_mode,  #edited
             attack_plan=None,
             validation_results=validation_results,
@@ -690,6 +757,9 @@ def results():
         risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), {})
         session["risk_score"] = risk
 
+    ai_plan = session.get("ai_plan", {})
+    detected_cves = _build_detected_cve_rows(ai_plan)
+
     return render_template(
         "results_full_dashboard.html",
         scan=scan,
@@ -699,6 +769,7 @@ def results():
         },
         mapping=mapping_results,
         ai_plan=session.get("ai_plan"), ##edited
+        detected_cves=detected_cves,
         selected_mode=session.get("technique_mode", "hybrid"), #edited
         attack_plan=session.get("attack_plan"),
         validation_results=session.get("validation_results"),

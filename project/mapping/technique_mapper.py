@@ -1,14 +1,3 @@
-
-"""
-P3 Vulnerability Mapping + Technique Recommendation
-Maps Nmap service findings to vulnerability context, known CVE matches, severity,
-remediation, and Caldera-ready ATT&CK-style technique recommendations.
-
-Educational / authorised testing only.
-This module does not exploit anything; it only enriches scan results for analysis
-and attack-mode planning.
-"""
-
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -393,6 +382,31 @@ def _is_legacy_windows_10(os_text: str) -> bool:
     legacy_tokens = ["1507", "1511", "1607", "build 10240", "build 10586", "build 14393"]
     return "windows 10" in os_text and any(token in os_text for token in legacy_tokens)
 
+def _service_fingerprint_text(item: dict[str, Any], os_text: str) -> str:
+    return " ".join([
+        os_text,
+        str(item.get("service", "")),
+        str(item.get("product", "")),
+        str(item.get("version", "")),
+        str(item.get("extrainfo", "")),
+        str(item.get("cpe", "")),
+    ]).lower()
+
+
+def _is_legacy_windows_smb_candidate(item: dict[str, Any], service: str, os_text: str) -> bool:
+    text = _service_fingerprint_text(item, os_text)
+
+    is_smb = service in {"microsoft-ds", "netbios-ssn"} or "smb" in text or "microsoft-ds" in text
+
+    legacy_windows_tokens = [
+        "windows 10 enterprise 10240",
+        "windows 10 10240",
+        "build 10240",
+        "windows 10 1507",
+        "windows 10 enterprise",
+    ]
+
+    return is_smb and any(token in text for token in legacy_windows_tokens)
 
 def _technique_reason(technique: dict[str, Any], service: str, item: dict[str, Any], os_text: str) -> str:
     technique_id = technique.get("id")
@@ -503,23 +517,41 @@ def map_vulnerabilities(parsed_results: dict[str, Any]) -> dict[str, Any]:
             )
 
             cves = _match_known_cves(item, service)
-            # Heuristic: SMB exposure on legacy Windows 10 builds is strongly correlated
-            # with MS17-010 (CVE-2017-0144) in lab scenarios. Add a potential match with
-            # high confidence when OS text suggests legacy Windows 10 and SMB ports open.
-            if service in {"microsoft-ds", "netbios-ssn"} and _is_legacy_windows_10(os_text):
-                cves.append(
+            # Candidate match: SMB exposure on legacy Windows 10 build 10240.
+            # This links official CVE records for analyst validation; it does not confirm exploitation.
+            if _is_legacy_windows_smb_candidate(item, service, os_text):
+                cves.extend([
                     CVEMatch(
-                        cve_id="CVE-2017-0144",
-                        title="SMBv1/Wide-open SMB remote code execution (MS17-010 / EternalBlue)",
+                        cve_id="CVE-2017-0143",
+                        title="Microsoft SMBv1 remote code execution vulnerability",
                         severity="Critical",
                         reason=(
-                            "Host appears to be a legacy Windows 10 build with SMB exposed on 139/445; "
-                            "this environment commonly maps to MS17-010 in lab images and should be validated.") ,
-                        remediation=(
-                            "Apply MS17-010 / vendor patches, disable SMBv1, and restrict SMB exposure."
+                            "SMB is exposed on a detected legacy Windows 10 build 10240 fingerprint. "
+                            "Link this official CVE record for analyst validation against patch level and SMBv1 status."
                         ),
-                    )
-                )
+                        remediation="Apply Microsoft SMB security updates, disable SMBv1, and restrict SMB exposure.",
+                    ),
+                    CVEMatch(
+                        cve_id="CVE-2017-0144",
+                        title="Microsoft SMBv1 remote code execution vulnerability",
+                        severity="Critical",
+                        reason=(
+                            "SMB is exposed on a detected legacy Windows 10 build 10240 fingerprint. "
+                            "This is a candidate MS17-010-related CVE and should be validated using safe checks."
+                        ),
+                        remediation="Apply Microsoft MS17-010 updates, disable SMBv1, and restrict SMB exposure.",
+                    ),
+                    CVEMatch(
+                        cve_id="CVE-2017-0145",
+                        title="Microsoft SMBv1 remote code execution vulnerability",
+                        severity="Critical",
+                        reason=(
+                            "SMB is exposed on a detected legacy Windows 10 build 10240 fingerprint. "
+                            "Link this official CVE record for analyst validation against patch level and SMBv1 status."
+                        ),
+                        remediation="Apply Microsoft SMB security updates, disable SMBv1, and restrict SMB exposure.",
+                    ),
+                ])
             severity = kb_entry["severity"]
             for cve in cves:
                 severity = _max_severity(severity, cve.severity)
