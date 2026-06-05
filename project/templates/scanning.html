@@ -102,7 +102,15 @@ function closeOutputModal(){
 }
 document.addEventListener('keydown', e => { if(e.key === 'Escape') closeOutputModal(); });
 async function poll(){
- const r=await fetch(`/scan/status/${scanId}?t=${Date.now()}`, {cache:'no-store'}); const d=await r.json();
+ let d;
+ try {
+   const r=await fetch(`/scan/status/${scanId}?t=${Date.now()}`, {cache:'no-store'});
+   d=await r.json();
+ } catch (err) {
+   document.getElementById('current').textContent='Waiting for scan status';
+   setTimeout(poll,3000);
+   return;
+ }
  document.getElementById('current').textContent=d.current_task||'Queued';
  document.getElementById('next').textContent=d.next_task||'No queued task';
  document.getElementById('doneCount').textContent=`${d.task_done||0} / ${d.task_total||0} tasks`;
@@ -117,7 +125,12 @@ async function poll(){
    <div class="mini-card"><b>${countTcp(services)}</b><span>TCP Services</span></div>
    <div class="mini-card"><b>${countUdp(services)}</b><span>UDP Services</span></div>
    <div class="mini-card"><b>${(res.cve_matches||[]).length||0}</b><span>CVE Findings</span></div>`;
- if(d.status==='done'||d.status==='error'){window.location=`/scan/results/${scanId}`; return;}
+ // The backend stores final scan states as success/failed/empty. Older UI code
+ // waited for done/error, which left the progress page stuck after enumeration.
+ if(['success', 'failed', 'empty', 'done', 'error'].includes(d.status)){
+   window.location=`/scan/results/${scanId}`;
+   return;
+ }
  setTimeout(poll,1500);
 }
 poll();
