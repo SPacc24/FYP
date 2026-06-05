@@ -25,39 +25,6 @@ JSON/PDF handoff generation
 
 The recon module does not score, rank, prioritise, exploit, or make execution decisions by itself.
 
-## Quick Start On Kali
-
-Place the project zip on the Kali desktop, then run:
-
-```bash
-cd /home/kali/Desktop
-unzip AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31.zip
-cd AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31
-chmod +x install.sh
-sudo ./install.sh
-cd project
-sudo .venv/bin/python app.py
-```
-
-Open:
-
-```text
-http://<kali-ip>:5000
-```
-
-If running locally on the same machine:
-
-```text
-http://127.0.0.1:5000
-```
-
-The Flask app now listens on `0.0.0.0` by default, so `http://<kali-ip>:5000`
-works from your host browser or another VM. To force local-only mode:
-
-```bash
-APP_HOST=127.0.0.1 .venv/bin/python app.py
-```
-
 ## Full Kali Runbook
 
 Run these from separate terminal tabs because the Flask app, Ollama, and
