@@ -121,7 +121,9 @@ async function loadCalderaStatus() {
 
     if (data.agent_ready) {
       box.innerHTML =
-        `<p><strong>Ready</strong> - trusted agent matched.</p>`;
+        data.target_match_confirmed === false
+          ? `<p><strong>Ready</strong> - trusted agent online. Confirm it is the intended target before running.</p>`
+          : `<p><strong>Ready</strong> - trusted agent matched.</p>`;
       if (deployBox) deployBox.style.display = "none";
     }
 
@@ -138,7 +140,7 @@ async function loadCalderaStatus() {
 
   catch (e) {
     box.innerHTML =
-      '<p class="muted">Unable to reach Caldera status endpoint.</p>';
+      '<p class="muted">Unable to reach CALDERA status endpoint. Check CALDERA_URL, CALDERA_API_KEY, and that CALDERA is running.</p>';
   }
 }
 
@@ -383,7 +385,7 @@ async function runCaldera() {
 
   catch (err) {
     operationBox.innerHTML =
-      "<p><strong>Error starting operation.</strong></p>";
+      `<p><strong>Error starting operation.</strong></p><p class="small">${escapeHtml(err.message || "Check the Flask terminal for details.")}</p>`;
   }
 }
 

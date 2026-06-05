@@ -1206,4 +1206,8 @@ def export_report():
 
 if __name__ == "__main__":
     port = int(os.getenv('PORT', '5000'))
-    app.run(host="127.0.0.1", port=port, debug=True)
+    # Bind to all interfaces by default so the dashboard is reachable from the
+    # host browser and other lab VMs at http://<kali-ip>:5000.
+    # Override with APP_HOST=127.0.0.1 if you only want local access.
+    host = os.getenv("APP_HOST", "0.0.0.0")
+    app.run(host=host, port=port, debug=True)

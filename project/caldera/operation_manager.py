@@ -163,9 +163,18 @@ class OperationManager:
                 ready = False
                 message = "Caldera reachable - trusted agents exist, matched by platform/OS"
             else:
-                matching_agents = []
-                ready = False
-                message = "Caldera reachable - trusted agents exist, but none match the scanned target"
+                # CALDERA does not always report target IPs consistently across
+                # Sandcat/platform versions. When trusted agents exist but no IP
+                # matches the scan target, keep the app usable and clearly mark
+                # that the match is not confirmed.
+                matching_agents = sorted(agents, key=self._agent_sort_key, reverse=True)
+                ready = len(matching_agents) > 0
+                message = (
+                    "Trusted CALDERA agent available, but it did not expose an IP "
+                    "matching the scanned target. Confirm the agent host before running."
+                    if ready
+                    else "Caldera reachable - trusted agents exist, but none match the scanned target"
+                )
 
             return {
                 "ok": True,
@@ -174,6 +183,7 @@ class OperationManager:
                 "agents": all_agents,
                 "online_agents": matching_agents,
                 "trusted_online_agents": agents,
+                "target_match_confirmed": bool(ip_matched),
                 "target": target or "",
                 "message": message
             }
@@ -195,8 +205,15 @@ class OperationManager:
             selected = [a for a in group_agents if a.get('paw') == selected_paw]
             if selected:
                 return True, selected[0]
+        original_group_agents = list(group_agents)
         if target:
             group_agents = [a for a in group_agents if self._agent_matches_target(a, target)]
+            if not group_agents and original_group_agents:
+                # Some CALDERA builds omit host_ip_addrs or report NAT/interface
+                # addresses that do not equal the scanned IP. Falling back to the
+                # newest trusted group agent prevents a false "not working" state;
+                # the UI/runbook still tells the user to verify the host manually.
+                group_agents = original_group_agents
         if not group_agents:
             target_note = f" for target '{target}'" if target else ""
             return False, f"No trusted online agents found in group '{group}'{target_note}. Deploy Sandcat on the target machine first."

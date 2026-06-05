@@ -284,7 +284,8 @@ def test_windows_sandcat_command_uses_official_payload_and_reachable_server():
         platform="windows",
     )
 
-    assert "$server=\"http://192.168.67.128:8888\";" in command
+    assert "$CALDERA_SERVER=\"http://192.168.67.128:8888\";" in command
+    assert "# Edit this IP" in command
     assert "$wc.Headers.add(\"platform\",\"windows\");" in command
     assert "$wc.Headers.add(\"file\",\"sandcat.go\");" in command
     assert "sandcat-elfload" not in command
