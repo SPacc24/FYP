@@ -125,10 +125,16 @@ async function poll(){
    <div class="mini-card"><b>${countTcp(services)}</b><span>TCP Services</span></div>
    <div class="mini-card"><b>${countUdp(services)}</b><span>UDP Services</span></div>
    <div class="mini-card"><b>${(res.cve_matches||[]).length||0}</b><span>CVE Findings</span></div>`;
- // The backend stores final scan states as success/failed/empty. Older UI code
- // waited for done/error, which left the progress page stuck after enumeration.
- if(['success', 'failed', 'empty', 'done', 'error'].includes(d.status)){
+ // The backend stores completed scans as success. Redirect only when a result
+ // package exists; otherwise a failed pipeline would open an empty dashboard.
+ const hasSavedResults = Boolean(res.service_inventory || res.hosts || res.handoff_file || res.caldera_handoff);
+ if(d.status === 'success' || d.status === 'done' || (['failed', 'empty', 'error'].includes(d.status) && hasSavedResults)){
    window.location=`/scan/results/${scanId}`;
+   return;
+ }
+ if(['failed', 'error'].includes(d.status)){
+   document.getElementById('current').textContent='Scan stopped before results were saved';
+   document.getElementById('next').textContent=d.error || 'Check the Flask terminal for the pipeline error.';
    return;
  }
  setTimeout(poll,1500);

