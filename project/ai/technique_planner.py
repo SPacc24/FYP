@@ -471,10 +471,7 @@ def severity_rank(severity: str) -> int:
 
 
 def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
-    """
-    Only allow the AI to choose techniques already produced by your mapper.
-    Enrich each technique with MITRE and CVE context.
-    """
+
     allowed = []
     cve_context = extract_cves_from_mapping(mapping_result)
 

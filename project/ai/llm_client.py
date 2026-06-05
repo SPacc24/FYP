@@ -5,7 +5,7 @@ import requests
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434/api/generate"
 DEFAULT_MODEL_NAME = "llama3.2:1b"
-DEFAULT_TIMEOUT_SECONDS = 180
+DEFAULT_TIMEOUT_SECONDS = 120
 
 
 def _llm_unavailable_plan(reason: Exception) -> str:
