@@ -18,10 +18,16 @@
       </p>
     </div>
 
+    <div class="mini-panel small-panel">
+      <h4>Agent Check</h4>
+      <p class="small" id="agentStatusSummary">Waiting for Caldera status.</p>
+      <button class="button secondary top-gap" id="refreshAgentStatusBtn" type="button">Refresh Agent Status</button>
+    </div>
+
     <div id="deployCommandBox" class="command-box deploy-card" style="display:none;">
-      <h4>Deploy Command (informational)</h4>
-      <p class="small">Copy-only; run inside authorised lab on the victim host.</p>
-      <pre id="deployCommandText" class="mono small"></pre>
+      <h4>Deploy Command</h4>
+      <p class="small">Copy-only; run this inside the authorised lab target host when no trusted agent is available.</p>
+      <pre id="deployCommandText" class="deploy-command-text mono"></pre>
       <button class="button secondary top-gap" id="copyDeployCommandBtn" type="button">
         Copy Deploy Command
       </button>

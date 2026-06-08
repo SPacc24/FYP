@@ -67,7 +67,7 @@ async function sendAiChatMessage() {
     chatBox.innerHTML += `
       <div class="ai-message ai-message-assistant">
         <strong>AI</strong>
-        <p>${formatAiReply(data.reply)}</p>
+        <p>${formatAiReply(data.reply || data.error || "No reply returned.")}</p>
       </div>
     `;
   } catch (err) {
@@ -90,6 +90,25 @@ async function sendAiChatMessage() {
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
+async function loadAiStatus() {
+  const statusText = document.getElementById("aiStatusText");
+  if (!statusText) return;
+
+  try {
+    const res = await fetch("/ai/status", { cache: "no-store" });
+    const data = await res.json();
+    if (data.available) {
+      statusText.textContent = data.model_installed === false
+        ? `Ollama reachable. Model ${data.model} is not pulled yet.`
+        : `Ollama reachable: ${data.model}`;
+    } else {
+      statusText.textContent = `Ollama unavailable at ${data.url}. Start Ollama and pull ${data.model}.`;
+    }
+  } catch (err) {
+    statusText.textContent = "Could not check local AI status.";
+  }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
   const sendBtn = document.getElementById("aiChatSendBtn");
   const input = document.getElementById("aiChatInput");
@@ -105,4 +124,6 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
   }
+
+  loadAiStatus();
 });
