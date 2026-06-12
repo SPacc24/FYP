@@ -15,7 +15,6 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 class CalderaAPIError(Exception):
-    """Raised when Caldera API returns an error or cannot be reached."""
     pass
 class CalderaClient:
     def __init__(self, base_url=None, api_key=None, verify_ssl=False, timeout=10):
@@ -58,13 +57,7 @@ class CalderaClient:
             raise CalderaAPIError("Caldera returned a non-JSON response.")
 
     def health_check(self):
-        """
-        Checks whether the Caldera server is reachable.
 
-        Note:
-        Some Caldera versions may not expose /api/v2/health.
-        If this endpoint fails, use list_agents() as the practical connectivity test.
-        """
         return self._request("GET", "/api/v2/health")
 
     def list_agents(self):
@@ -78,11 +71,7 @@ class CalderaClient:
         return bool(value)
 
     def _unwrap_collection(self, value, keys):
-        """
-        CALDERA versions/plugins return lists either directly or under keys
-        such as agents, abilities, payloads, data, or objects. This keeps the
-        rest of the app independent from that small API shape difference.
-        """
+
         if isinstance(value, list):
             return value
         if not isinstance(value, dict):
@@ -240,9 +229,7 @@ class CalderaClient:
 
     # Compatibility aliases / helpers for older test scripts and callers
     def ping(self):
-        """Backward-compatible ping method used by tests.
-        Returns True if Caldera appears reachable, False otherwise.
-        """
+
         try:
             # Prefer the health endpoint when available
             self.health_check()
@@ -256,12 +243,10 @@ class CalderaClient:
                 return False
 
     def get_agents(self):
-        """Alias for list_agents() returning a list of agents."""
         agents = self.list_agents()
         return self._unwrap_collection(agents, ("agents", "data", "objects"))
 
     def get_adversaries(self):
-        """Return list of adversaries."""
         adv = self._request("GET", "/api/v2/adversaries")
         return self._unwrap_collection(adv, ("adversaries", "data", "objects"))
 
@@ -312,12 +297,7 @@ class CalderaClient:
         return "sandcat.go"
 
     def generate_sandcat_command(self, kali_ip=None, group='red', platform='windows'):
-        """
-        Return the copyable Sandcat deploy command shown in the dashboard.
 
-        Keep the Windows command in the compact CALDERA style because it is
-        intended to be pasted as one editable PowerShell paragraph.
-        """
         server = self._reachable_server_url(kali_ip)
         if not server:
             return (

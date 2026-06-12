@@ -17,6 +17,162 @@ from core.helpers import (
 )
 
 
+PROJECT_KEYWORDS = {
+    "scan", "scanned", "scanning",
+    "port", "ports", "open port",
+    "service", "services",
+    "vulnerability", "vulnerabilities", "vuln", "vulns",
+    "cve", "cvss", "nvd",
+    "mitre", "att&ck", "attack", "technique", "techniques",
+    "caldera", "operation", "agent", "ability",
+    "risk", "score", "report", "remediation", "recommendation",
+    "exploitability", "validation", "finding", "findings",
+    "smb", "ssh", "ftp", "http", "https", "winrm", "rdp", "nmap",
+    "445", "22", "21", "80", "443", "3389", "5985", "5986",
+}
+
+
+def _is_project_related(message: str) -> bool:
+    """
+    Decides whether to attach dashboard/project context.
+    This prevents casual messages like 'what's up' from being overloaded
+    with scan/MITRE/CALDERA context.
+    """
+    message_lower = message.lower()
+
+    return any(
+        keyword in message_lower
+        for keyword in PROJECT_KEYWORDS
+    )
+
+
+def _build_safe_context():
+    """
+    Builds limited project context for the AI.
+    This should only be used when the user asks about the scan/project.
+    """
+    mapping_results = _active_mapping_results()
+    ai_plan = _active_ai_plan()
+    attack_plan = _active_attack_plan()
+    operation_results = _active_operation_results()
+    validation_results = _active_validation_results()
+
+    risk_score = (
+        _active_scan_record().get("risk")
+        or session.get("risk_score", {})
+    )
+
+    return {
+        "mapping_summary": {
+            "severity_counts": mapping_results.get("severity_counts", {}),
+            "top_risks": mapping_results.get("top_risks", []),
+            "recommended_techniques": [
+                {
+                    "id": tech.get("id"),
+                    "name": tech.get("name"),
+                    "count": tech.get("count"),
+                    "max_severity": tech.get("max_severity"),
+                    "mitre_url": (
+                        f"https://attack.mitre.org/techniques/{tech.get('id').replace('.', '/')}/"
+                        if tech.get("id") else ""
+                    ),
+                }
+                for tech in mapping_results.get("recommended_techniques", [])
+            ],
+            "attack_chain": mapping_results.get("attack_chain", []),
+        },
+        "ai_plan": ai_plan,
+        "attack_plan": attack_plan,
+        "operation_summary": {
+            "total": operation_results.get("total", 0),
+            "success_count": operation_results.get("success_count", 0),
+            "fail_count": operation_results.get("fail_count", 0),
+            "techniques_run": operation_results.get("techniques_run", []),
+        },
+        "exploitability_validation": {
+            "mode": validation_results.get("mode"),
+            "target": validation_results.get("target"),
+            "confirmed": validation_results.get("confirmed", 0),
+            "potential": validation_results.get("potential", 0),
+            "findings": validation_results.get("findings", []),
+        },
+        "risk_score": risk_score,
+    }
+
+
+def _build_general_prompt(user_message: str) -> str:
+    """
+    Prompt for casual conversation or general cybersecurity questions.
+    No project context is inserted here.
+    """
+    return f"""
+You are a helpful AI assistant inside an authorised cybersecurity Final Year Project dashboard.
+
+The user may be casually chatting or asking a general cybersecurity question.
+
+For casual chat:
+- Reply naturally and casually.
+- Do not ask for more context unless the message is genuinely unclear.
+- Do not mention scans, CVEs, MITRE, CALDERA, reports, or the dashboard unless the user brings them up.
+
+For general cybersecurity questions:
+- Explain clearly and simply.
+- Keep it educational and safe.
+- Do not provide exploit commands, payloads, credential theft steps, malware instructions, bypass steps, or intrusion walkthroughs.
+- You may explain concepts, defensive reasoning, safe lab validation ideas, and remediation.
+
+Style:
+- Reply in plain text only.
+- Keep it short unless the user asks for more detail.
+- Sound natural, not like a formal report.
+
+User message:
+{user_message}
+
+Reply:
+"""
+
+
+def _build_project_prompt(user_message: str, safe_context: dict) -> str:
+    """
+    Prompt for project/dashboard-related questions.
+    Project context is inserted here.
+    """
+    context_text = json.dumps(safe_context, indent=2, default=str)
+
+    return f"""
+You are AutoPenTest's AI assistant for an authorised cybersecurity Final Year Project dashboard.
+
+The user is asking about the project, scan results, open ports, vulnerabilities, CVEs, MITRE ATT&CK, CALDERA, risk score, validation, or reporting.
+
+Use the project context below when useful.
+If the context does not contain enough information, say what is missing instead of inventing facts.
+
+Safety rules:
+- Do not provide exploit commands, payloads, credential theft steps, malware instructions, bypass steps, or intrusion walkthroughs.
+- Keep guidance focused on authorised lab explanation, validation, prioritisation, reporting, and remediation.
+- Only recommend MITRE ATT&CK technique IDs that appear in the project context.
+
+Style:
+- Reply in plain text only.
+- Keep it concise and useful.
+- Use simple wording.
+- Do not force every answer into a report format.
+- Use this structure only when it helps:
+  Observation:
+  Risk meaning:
+  Recommended next step:
+
+Project context:
+{context_text}
+
+User message:
+{user_message}
+
+Reply:
+"""
+
+
 def register_routes(app):
     @app.route("/ai/chat", methods=["POST"])
     def ai_chat():
@@ -36,110 +192,18 @@ def register_routes(app):
                     "reply": SAFE_REFUSAL
                 }), 400
 
-            mapping_results = _active_mapping_results()
-            ai_plan = _active_ai_plan()
-            attack_plan = _active_attack_plan()
-            operation_results = _active_operation_results()
-            validation_results = _active_validation_results()
-            risk_score = (
-                _active_scan_record().get("risk")
-                or session.get("risk_score", {})
+            if _is_project_related(user_message):
+                safe_context = _build_safe_context()
+                prompt = _build_project_prompt(user_message, safe_context)
+            else:
+                prompt = _build_general_prompt(user_message)
+
+            reply = sanitize_llm_reply(
+                ask_llm_text(prompt)
             )
 
-            safe_context = {
-                "mapping_summary": {
-                    "severity_counts": mapping_results.get("severity_counts", {}),
-                    "top_risks": mapping_results.get("top_risks", []),
-                    "recommended_techniques": [
-                        {
-                            "id": tech.get("id"),
-                            "name": tech.get("name"),
-                            "count": tech.get("count"),
-                            "max_severity": tech.get("max_severity"),
-                            "mitre_url": (
-                                f"https://attack.mitre.org/techniques/{tech.get('id').replace('.', '/')}/"
-                                if tech.get("id") else ""
-                            )
-                        }
-                        for tech in mapping_results.get("recommended_techniques", [])
-                    ],
-                    "attack_chain": mapping_results.get("attack_chain", []),
-                },
-                "ai_plan": ai_plan,
-                "attack_plan": attack_plan,
-                "operation_summary": {
-                    "total": operation_results.get("total", 0),
-                    "success_count": operation_results.get("success_count", 0),
-                    "fail_count": operation_results.get("fail_count", 0),
-                    "techniques_run": operation_results.get("techniques_run", []),
-                },
-                "exploitability_validation": {
-                    "mode": validation_results.get("mode"),
-                    "target": validation_results.get("target"),
-                    "confirmed": validation_results.get("confirmed", 0),
-                    "potential": validation_results.get("potential", 0),
-                    "findings": validation_results.get("findings", []),
-                },
-                "risk_score": risk_score,
-            }
-
-            message_lower = user_message.lower().strip()
-
-            simple_greetings = {
-                "hello", "hi", "hey", "yo", "sup",
-                "hello!", "hi!", "hey!"
-            }
-
-            if message_lower in simple_greetings:
-                return jsonify({
-                    "ok": True,
-                    "reply": (
-                        "Hello. You can ask me about the scan findings, MITRE techniques, "
-                        "CALDERA validation, CVEs, risk score, or general cybersecurity concepts."
-                    )
-                })
-
-            prompt = f"""
-You are AutoPenTest's AI assistant for an authorised cybersecurity Final Year Project dashboard.
-
-You can answer in two modes:
-
-1. Normal chat / concept mode:
-If the user asks a greeting, general cybersecurity concept, or basic technical question,
-answer naturally and directly. Do not force MITRE ATT&CK mapping.
-
-2. Project context mode:
-If the user asks about scan findings, open ports, vulnerabilities, CVEs, MITRE ATT&CK,
-CALDERA, selected techniques, risk score, or report output, use the project context.
-
-Safety rules:
-- Do not provide exploit commands, payloads, credential theft steps, malware instructions, bypass steps, or intrusion walkthroughs.
-- Keep guidance focused on authorised lab validation, explanation, prioritisation, reporting, and remediation.
-- If the project context does not contain enough information, say what is missing instead of inventing facts.
-- For normal definitions like "what is SMB", answer using general cybersecurity knowledge.
-- Only recommend MITRE ATT&CK technique IDs that appear in the project context.
-- Reply in normal plain text, not JSON.
-- Keep replies concise and useful.
-
-Formatting rules:
-- For normal chat or definitions, answer naturally in 1 to 3 short paragraphs.
-- For project-specific technique questions, use this structure only when useful:
-  Observation:
-  Risk meaning:
-  Recommended next step:
-- Do not include MITRE ATT&CK mapping unless the user asks about techniques, attack mapping, scan findings, or validation.
-- Do not force every answer into a report format.
-
-Current project context:
-{json.dumps(safe_context, indent=2, default=str)}
-
-User question:
-{user_message}
-
-Reply:
-"""
-
-            reply = sanitize_llm_reply(ask_llm_text(prompt))
+            if not reply:
+                reply = "I could not generate a response. Please try again."
 
             return jsonify({
                 "ok": True,
@@ -156,7 +220,16 @@ Reply:
     def ai_status():
         settings = get_llm_settings()
         parsed = urlparse(settings["url"])
-        tags_url = urlunparse((parsed.scheme, parsed.netloc, "/api/tags", "", "", ""))
+        tags_url = urlunparse(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                "/api/tags",
+                "",
+                "",
+                "",
+            )
+        )
 
         try:
             response = requests.get(tags_url, timeout=2)
