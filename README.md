@@ -94,6 +94,11 @@ OLLAMA_TIMEOUT=120
 
 # Optional, used only when enriching CVE context through NVD.
 NVD_API_KEY=
+
+# Optional controlled proof-of-access tickets. Disabled by default.
+PROOF_OF_ACCESS_ENABLED=false
+PROOF_OF_ACCESS_SECRET=
+PROOF_OF_ACCESS_TTL=300
 ```
 
 If Nmap is already on `PATH`, `NMAP_PATH` can be omitted.
@@ -161,6 +166,8 @@ Some tests mock CALDERA and Ollama behavior. Tests that depend on a real CALDERA
 - CALDERA operation logs are written to `project/storage/logs/`.
 - Text reports are written to `project/storage/reports/`.
 - MITRE and CVE enrichment caches are written under `project/ai/.cache/`.
+- Redeemed proof markers are written on the validated host by the scripts in
+  `project/proof_of_access/`; see `project/docs/proof_of_access.md`.
 
 ## Safety Notes
 

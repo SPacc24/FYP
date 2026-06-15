@@ -176,6 +176,7 @@ class OperationManager:
             return self._error_result(agent_info)
         agent_host = agent_info.get('host', 'unknown')
         agent_paw = agent_info.get('paw', '')
+        agent_ip_addrs = agent_info.get('host_ip_addrs', [])
         adversary_id, is_custom = self.resolve_adversary(technique_ids)
         if not adversary_id:
             return self._error_result('Could not find or create a suitable adversary profile. Check Caldera has abilities loaded.')
@@ -191,6 +192,7 @@ class OperationManager:
             self.client.delete_adversary(adversary_id)
         result['agent_host'] = agent_host
         result['agent_paw'] = agent_paw
+        result['agent_ip_addrs'] = agent_ip_addrs
         return result
 
     def _poll_until_done(self, op_id, timeout=180):
@@ -245,7 +247,8 @@ class OperationManager:
             'fail_count': fail_count,
             'timed_out': timed_out,
             'agent_host': '',
-            'agent_paw': ''
+            'agent_paw': '',
+            'agent_ip_addrs': [],
         }
 
     def _error_result(self, message):
@@ -263,6 +266,7 @@ class OperationManager:
             'timed_out': False,
             'agent_host': '',
             'agent_paw': '',
+            'agent_ip_addrs': [],
         }
 
     def save_log(self, data, filename):
@@ -275,5 +279,3 @@ class OperationManager:
 
     def is_caldera_alive(self):
         return self.client.health_check() is not None
-
- 

@@ -83,7 +83,8 @@ class CalderaClient:
                     "host": host,
                     "platform": agent.get("platform"),
                     "group": agent.get("group"),
-                    "last_seen": agent.get("last_seen")
+                    "last_seen": agent.get("last_seen"),
+                    "host_ip_addrs": agent.get("host_ip_addrs", []),
                 })
 
         return online

@@ -32,6 +32,7 @@ from caldera.api_client import CalderaClient
 from caldera.operation_manager import OperationManager
 
 from caldera.risk_scorer import RiskScorer
+from proof_of_access import ProofTicketError, ProofTicketManager
 from reports.report_generator import build_report_summary
 from storage.db import Database
 
@@ -64,6 +65,17 @@ caldera_client = CalderaClient(
 
 operation_manager = OperationManager(caldera_client)
 risk_scorer = RiskScorer()
+proof_ticket_manager = ProofTicketManager(
+    secret=Config.PROOF_OF_ACCESS_SECRET,
+    enabled=Config.PROOF_OF_ACCESS_ENABLED,
+    ttl_seconds=Config.PROOF_OF_ACCESS_TTL,
+)
+
+if Config.PROOF_OF_ACCESS_ENABLED and not proof_ticket_manager.active:
+    log.warning(
+        "Proof-of-access is enabled but PROOF_OF_ACCESS_SECRET is shorter "
+        "than 32 bytes; ticket issuance is disabled."
+    )
 
 db = Database(
     host=Config.MYSQL_HOST,
@@ -386,6 +398,28 @@ def caldera_status():
 @app.route("/caldera/operation/status", methods=["GET"])
 def operation_status():
     return jsonify(_state_get("operation_results", {}))
+
+
+@app.route("/proof-of-access/redeem", methods=["POST"])
+def redeem_proof_of_access():
+    data = request.get_json(silent=True) or {}
+
+    try:
+        proof = proof_ticket_manager.redeem(
+            ticket=data.get("ticket", ""),
+            observed_host=data.get("observed_host", ""),
+            observed_ip=request.remote_addr or "",
+        )
+    except ProofTicketError:
+        return jsonify({
+            "ok": False,
+            "error": "Proof ticket is invalid, expired, already used, or for another host.",
+        }), 400
+
+    return jsonify({
+        "ok": True,
+        "proof": proof,
+    })
     
 @app.route("/caldera/run", methods=["POST"])
 def caldera_run():
@@ -440,6 +474,13 @@ def caldera_run():
 
         if not result.get("success", True):
             return jsonify(result), 500
+
+        proof_tickets = proof_ticket_manager.issue_for_operation(result)
+        result["proof_of_access"] = {
+            "enabled": proof_ticket_manager.active,
+            "issued_count": len(proof_tickets),
+            "tickets": proof_tickets,
+        }
 
         # Risk score
         vulns = (
