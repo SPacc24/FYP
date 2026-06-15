@@ -20,7 +20,7 @@ elif OLLAMA_URL.rstrip("/").endswith("/api"):
     OLLAMA_URL = OLLAMA_URL.rstrip("/") + "/generate"
 
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
+OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "300"))
 
 # ---------------------------------------------------
 # LOW-LEVEL OLLAMA CALL
@@ -28,11 +28,14 @@ OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
 
 def ask_ollama(
     prompt: str,
-    timeout: int = OLLAMA_TIMEOUT,
+    timeout: int = None,
     num_predict: int = 300,
     temperature: float = 0.4,
     json_mode: bool = False,
 ) -> str:
+
+    if timeout is None:
+        timeout = OLLAMA_TIMEOUT
 
     payload = {
         "model": OLLAMA_MODEL,
@@ -41,17 +44,22 @@ def ask_ollama(
         "options": {
             "temperature": temperature,
             "num_predict": num_predict,
+            "num_ctx": 4096
         },
     }
 
-    # Ollama JSON mode, useful for the AI technique planner
     if json_mode:
         payload["format"] = "json"
 
     try:
+        print("==== OLLAMA DEBUG ====")
         print("OLLAMA_URL =", OLLAMA_URL)
         print("OLLAMA_MODEL =", OLLAMA_MODEL)
+        print("timeout =", timeout)
         print("json_mode =", json_mode)
+        print("prompt length =", len(prompt))
+        print("num_predict =", num_predict)
+        print("======================")
 
         response = requests.post(
             OLLAMA_URL,
@@ -101,6 +109,10 @@ def ask_llm_text(prompt: str) -> str:
 
 def ask_llm_json(prompt: str) -> dict:
 
+    # Keep the planner prompt smaller so Kali does not timeout
+    if len(prompt) > 8000:
+        prompt = prompt[:8000] + "\n...[prompt truncated for local LLM performance]"
+
     json_prompt = f"""
 Return ONLY valid JSON.
 Do not include markdown.
@@ -113,33 +125,42 @@ Important JSON rules:
 - selected_technique_ids must be a list of technique IDs.
 - If you recommend or explain a technique in technique_explanations, its ID must also appear in selected_technique_ids.
 - Do not leave selected_technique_ids empty unless there are no allowed techniques.
+- The reasoning must be specific, not generic.
+- The reasoning must explain why each selected technique matches the scan context.
+- If selected techniques are similar, explain the difference between them.
+- Mention relevant services, ports, CVEs, or mapper reasons if available.
+- Avoid vague phrases like "safe validation" unless you explain what is being validated.
+- Do not simply say "recommended due to open services"; explain what the services indicate.
 
 Required JSON structure:
 {{
   "selected_technique_ids": ["T1046", "T1135"],
-  "reasoning": "Brief reasoning based on the actual scan context.",
+  "reasoning": "Explain specifically why each selected technique fits the scan. If T1046 and T1135 are both selected, explain that T1046 is for exposed services/ports while T1135 is for network shares over SMB/NetBIOS.",
   "technique_explanations": [
     {{
       "technique_id": "T1046",
-      "technique_name": "Network Service Discovery",
-      "why_recommended": "Brief reason.",
-      "caldera_validation": "Safe validation or reporting approach."
+      "technique_name": "REPLACE_WITH_TECHNIQUE_NAME",
+      "why_recommended": "Link this technique to a detected port, service, CVE, severity, or mapper reason.",
+      "caldera_validation": "REPLACE_WITH_SAFE_VALIDATION_OR_REPORTING_APPROACH"
     }}
   ],
   "next_steps": [
-    "Review selected techniques.",
-    "Check CALDERA coverage.",
-    "Run only authorised validation."
+    "REPLACE_WITH_ACTUAL_NEXT_STEP_1",
+    "REPLACE_WITH_ACTUAL_NEXT_STEP_2",
+    "REPLACE_WITH_ACTUAL_NEXT_STEP_3"
   ]
 }}
+
+Do NOT copy the placeholder values above.
+Replace every REPLACE_THIS / REPLACE_WITH value with real content from the scan context.
 
 {prompt}
 """
 
     text = ask_ollama(
         json_prompt,
-        timeout=OLLAMA_TIMEOUT,
-        num_predict=900,
+        timeout=300,
+        num_predict=650,
         temperature=0.1,
         json_mode=True,
     )
@@ -237,12 +258,80 @@ def _repair_llm_json(parsed: dict) -> dict:
     if not parsed.get("reasoning"):
         parsed["reasoning"] = "AI selected techniques based on the mapped scan context."
 
+    bad_reasoning_phrases = (
+        "Brief reasoning based on the actual scan context",
+        "REPLACE_THIS",
+        "REPLACE_WITH",
+    )
+
+    reasoning = str(parsed.get("reasoning", ""))
+
+    if any(phrase in reasoning for phrase in bad_reasoning_phrases):
+        parsed["reasoning"] = "AI selected techniques based on the mapped services, CVEs, and MITRE ATT&CK context."
+        
     if not isinstance(parsed.get("technique_explanations"), list):
         parsed["technique_explanations"] = []
 
+    cleaned_explanations = []
+
+    for item in parsed["technique_explanations"]:
+        if not isinstance(item, dict):
+            continue
+
+        technique_id = _normalise_technique_id(
+            item.get("technique_id")
+            or item.get("id")
+            or item.get("technique")
+        )
+
+        if not technique_id:
+            continue
+
+        technique_name = str(item.get("technique_name", "")).strip()
+        why_recommended = str(item.get("why_recommended", "")).strip()
+        caldera_validation = str(item.get("caldera_validation", "")).strip()
+
+        if "REPLACE_WITH" in technique_name or not technique_name:
+            technique_name = technique_id
+
+        if "REPLACE_WITH" in why_recommended or not why_recommended:
+            why_recommended = "Recommended based on the mapped scan findings and available MITRE ATT&CK context."
+
+        if "REPLACE_WITH" in caldera_validation or not caldera_validation:
+            caldera_validation = "Use only safe authorised validation or reporting steps."
+
+        cleaned_explanations.append({
+            "technique_id": technique_id,
+            "technique_name": technique_name,
+            "why_recommended": why_recommended,
+            "caldera_validation": caldera_validation,
+        })
+
+    parsed["technique_explanations"] = cleaned_explanations
+
     if not isinstance(parsed.get("next_steps"), list):
         parsed["next_steps"] = []
+    bad_steps = {
+        "Review selected techniques.",
+        "Check CALDERA coverage.",
+        "Run only authorised validation.",
+        "REPLACE_WITH_ACTUAL_NEXT_STEP_1",
+        "REPLACE_WITH_ACTUAL_NEXT_STEP_2",
+        "REPLACE_WITH_ACTUAL_NEXT_STEP_3",
+    }
 
+    if isinstance(parsed.get("next_steps"), list):
+        parsed["next_steps"] = [
+            step for step in parsed["next_steps"]
+            if step not in bad_steps and "REPLACE_WITH" not in str(step)
+        ]
+
+    if not parsed["next_steps"]:
+        parsed["next_steps"] = [
+            "Review the mapped open services and linked CVEs.",
+            "Confirm that the selected MITRE techniques match the scan findings.",
+            "Run only safe authorised CALDERA validation steps."
+        ]
     return parsed
 
 

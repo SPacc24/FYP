@@ -33,11 +33,7 @@ PROJECT_KEYWORDS = {
 
 
 def _is_project_related(message: str) -> bool:
-    """
-    Decides whether to attach dashboard/project context.
-    This prevents casual messages like 'what's up' from being overloaded
-    with scan/MITRE/CALDERA context.
-    """
+
     message_lower = message.lower()
 
     return any(
@@ -47,10 +43,6 @@ def _is_project_related(message: str) -> bool:
 
 
 def _build_safe_context():
-    """
-    Builds limited project context for the AI.
-    This should only be used when the user asks about the scan/project.
-    """
     mapping_results = _active_mapping_results()
     ai_plan = _active_ai_plan()
     attack_plan = _active_attack_plan()
@@ -101,10 +93,7 @@ def _build_safe_context():
 
 
 def _build_general_prompt(user_message: str) -> str:
-    """
-    Prompt for casual conversation or general cybersecurity questions.
-    No project context is inserted here.
-    """
+
     return f"""
 You are a helpful AI assistant inside an authorised cybersecurity Final Year Project dashboard.
 
@@ -134,11 +123,11 @@ Reply:
 
 
 def _build_project_prompt(user_message: str, safe_context: dict) -> str:
-    """
-    Prompt for project/dashboard-related questions.
-    Project context is inserted here.
-    """
-    context_text = json.dumps(safe_context, indent=2, default=str)
+
+    context_text = json.dumps(safe_context, default=str)
+
+    if len(context_text) > 5000:
+        context_text = context_text[:5000] + "\n...[project context truncated]"
 
     return f"""
 You are AutoPenTest's AI assistant for an authorised cybersecurity Final Year Project dashboard.
