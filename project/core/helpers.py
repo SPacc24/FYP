@@ -151,6 +151,12 @@ def _active_validation_results() -> dict:
     return validation if isinstance(validation, dict) else {}
 
 
+def _active_approved_exploitation_results() -> dict:
+    data = _active_scan_record()
+    approved = data.get("approved_exploitation_results") or session.get("approved_exploitation_results") or {}
+    return approved if isinstance(approved, dict) else {}
+
+
 def _active_operation_results() -> dict:
     data = _active_scan_record()
     operation = data.get("operation_results") or session.get("operation_results") or {}
@@ -188,6 +194,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
     mapping_results = active.get("mapping") or _active_mapping_results()
     operation_results = active.get("operation_results") or _active_operation_results()
     validation_results = active.get("validation_results") or _active_validation_results()
+    approved_exploitation_results = active.get("approved_exploitation_results") or _active_approved_exploitation_results()
     risk = active.get("risk") or session.get("risk_score", {})
     remediations = active.get("remediations") or session.get("remediations", [])
 
@@ -198,6 +205,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         risk=risk,
         remediations=remediations,
         validation=validation_results,
+        approved_exploitation=approved_exploitation_results,
     )
 
     return {
@@ -205,6 +213,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         "mapping": mapping_results,
         "operation": operation_results,
         "validation": validation_results,
+        "approved_exploitation": approved_exploitation_results,
         "risk": risk,
         "remediations": remediations,
         "report": report,

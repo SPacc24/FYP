@@ -226,6 +226,7 @@ def register_routes(app):
             risk=context["risk"],
             remediations=context["remediations"],
             validation=context["validation"],
+            approved_exploitation=context["approved_exploitation"],
         )
 
         return send_file(

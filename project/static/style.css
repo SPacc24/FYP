@@ -701,7 +701,8 @@ form {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   background: #07101c;
   color: var(--text);
@@ -713,12 +714,14 @@ select {
 }
 
 input:hover,
-select:hover {
+select:hover,
+textarea:hover {
   border-color: rgba(77,155,255,0.25);
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   outline: none;
   border-color: var(--blue);
   box-shadow: 0 0 0 2px rgba(77,155,255,0.25);
@@ -754,11 +757,39 @@ input[type="radio"] {
   border: 1px solid var(--blue);
 }
 
+.button.danger {
+  background: linear-gradient(90deg, #ff6b6b, #ff9f7a);
+  color: #16090b;
+}
+
 .button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.field-check {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  color: var(--text) !important;
+}
+
+.field-check input {
+  margin: 0;
 }
 
 .actions {

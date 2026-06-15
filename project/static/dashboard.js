@@ -63,6 +63,9 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("runValidationBtn")
     ?.addEventListener("click", runExploitabilityValidation);
 
+  document.getElementById("runApprovedExploitationBtn")
+    ?.addEventListener("click", runApprovedExploitation);
+
   document.getElementById("copyDeployCommandBtn")
     ?.addEventListener("click", copyDeployCommand);
 
@@ -249,6 +252,104 @@ async function runExploitabilityValidation() {
       `<tr>
         <td colspan="6" class="small">Could not run validation checks.</td>
       </tr>`;
+  }
+}
+
+function readMultilineValues(id) {
+  const el = document.getElementById(id);
+  if (!el || !el.value) return [];
+  return el.value
+    .split(/\r?\n/)
+    .map(value => value.trim())
+    .filter(Boolean);
+}
+
+async function runApprovedExploitation() {
+  const tbody = document.getElementById("approvedExploitationBody");
+  const statusText = document.getElementById("approvedExploitationStatus");
+  const approved = document.getElementById("approvedExploitCheckbox");
+
+  if (!tbody) return;
+
+  if (!approved || !approved.checked) {
+    if (statusText) {
+      statusText.textContent = "Tick the approval checkbox before running exploitation checks.";
+    }
+    return;
+  }
+
+  tbody.innerHTML =
+    `<tr>
+      <td colspan="6" class="small">Running approved exploitation checks...</td>
+    </tr>`;
+
+  if (statusText) {
+    statusText.textContent = "Running approved exploitation checks. This can take a moment.";
+  }
+
+  const payload = {
+    approved: true,
+    allow_credential_checks: true,
+    cred_file: document.getElementById("approvedCredFile")?.value || "wordlists/default_credentials_autopentest.txt",
+    web_urls: readMultilineValues("approvedWebUrls"),
+    sqli_url: document.getElementById("approvedSqliUrl")?.value || "",
+    sqli_param: document.getElementById("approvedSqliParam")?.value || "id",
+    cmdi_url: document.getElementById("approvedCmdiUrl")?.value || "",
+    cmdi_param: document.getElementById("approvedCmdiParam")?.value || "ip",
+    allow_command_injection_probe: Boolean(document.getElementById("approvedCmdiCheckbox")?.checked)
+  };
+
+  try {
+    const res = await fetch(getEndpoint("approvedExploitationRun", "/exploitation/approved-run"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    if (!data.ok) {
+      tbody.innerHTML =
+        `<tr>
+          <td colspan="6" class="small">${escapeHtml(data.error || "Approved exploitation failed.")}</td>
+        </tr>`;
+      if (statusText) statusText.textContent = data.error || "Approved exploitation failed.";
+      return;
+    }
+
+    if (statusText) {
+      const summary = data.summary || {};
+      statusText.textContent =
+        `Completed. Confirmed: ${summary.confirmed || 0}, potential: ${summary.potential || 0}, not confirmed: ${summary.not_confirmed || 0}. Evidence file: ${data.output_file || "not saved"}`;
+    }
+
+    if (data.findings && data.findings.length) {
+      tbody.innerHTML = data.findings.map(item => `
+        <tr>
+          <td><span class="state ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></td>
+          <td>${escapeHtml(item.category)}</td>
+          <td class="mono">${escapeHtml(item.target)}</td>
+          <td>${escapeHtml(item.check)}</td>
+          <td class="small">${escapeHtml(item.evidence)}</td>
+          <td class="small">${escapeHtml(item.next_step)}</td>
+        </tr>
+      `).join("");
+    }
+    else {
+      tbody.innerHTML =
+        `<tr>
+          <td colspan="6" class="small">No approved exploitation checks produced findings.</td>
+        </tr>`;
+    }
+  }
+  catch (err) {
+    tbody.innerHTML =
+      `<tr>
+        <td colspan="6" class="small">Could not run approved exploitation checks.</td>
+      </tr>`;
+    if (statusText) statusText.textContent = "Could not run approved exploitation checks.";
   }
 }
 

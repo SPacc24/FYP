@@ -1,4 +1,7 @@
 import logging
+import time
+from pathlib import Path
+from types import SimpleNamespace
 
 from flask import jsonify, request, session
 
@@ -21,6 +24,7 @@ from core.services import (
     operation_manager,
     risk_scorer,
 )
+from exploitation.lab_exploitation_runner import build_report, write_report
 
 log = logging.getLogger(__name__)
 
@@ -158,6 +162,83 @@ def register_routes(app):
 
         except Exception as e:
             log.error("Exploitability validation failed: %s", e)
+
+            return jsonify({
+                "ok": False,
+                "error": str(e)
+            }), 500
+
+    @app.route("/exploitation/approved-run", methods=["POST"])
+    def exploitation_approved_run():
+        try:
+            data = request.get_json(silent=True) or {}
+
+            if not data.get("approved"):
+                return jsonify({
+                    "ok": False,
+                    "error": "Explicit approval is required before running exploitation validation."
+                }), 400
+
+            target_context = _current_target_context()
+            target = data.get("target") or target_context.get("target") or session.get("target_ip")
+
+            if not target or target == "Unknown":
+                return jsonify({
+                    "ok": False,
+                    "error": "No target is available. Run a scan before approved exploitation."
+                }), 400
+
+            scan_id = session.get("scan_id") or "manual"
+            ts = time.strftime("%Y%m%d_%H%M%S")
+            output_path = Path("storage/scans") / f"approved_exploitation_{scan_id}_{ts}.json"
+
+            args = SimpleNamespace(
+                target=target,
+                cred_file=(data.get("cred_file") or "wordlists/default_credentials_autopentest.txt"),
+                allow_credential_checks=bool(data.get("allow_credential_checks", True)),
+                web_url=[url for url in (data.get("web_urls") or []) if str(url).strip()],
+                sqli_url=(data.get("sqli_url") or "").strip() or None,
+                sqli_param=(data.get("sqli_param") or "id").strip() or "id",
+                cmdi_url=(data.get("cmdi_url") or "").strip() or None,
+                cmdi_param=(data.get("cmdi_param") or "ip").strip() or "ip",
+                allow_command_injection_probe=bool(data.get("allow_command_injection_probe")),
+                ftp_port=int(data.get("ftp_port") or 21),
+                ssh_port=int(data.get("ssh_port") or 22),
+                smb_port=int(data.get("smb_port") or 445),
+                winrm_port=int(data.get("winrm_port") or 5985),
+                winrm_tls_port=int(data.get("winrm_tls_port") or 5986),
+                timeout=float(data.get("timeout") or 5.0),
+                output=str(output_path),
+            )
+
+            report = build_report(args)
+            write_report(report, str(output_path))
+
+            report["ok"] = True
+            report["mode"] = "approved_controlled_exploitation"
+            report["output_file"] = str(output_path)
+
+            session["approved_exploitation_results"] = report
+
+            mapping_results = _active_mapping_results()
+            session["risk_score"] = _safe_risk_calculate(
+                mapping_results.get("vulnerabilities", []),
+                {
+                    **(_active_operation_results() or {}),
+                    "validation_results": _active_validation_results(),
+                    "approved_exploitation_results": report,
+                },
+            )
+
+            _save_active_scan_fields(
+                approved_exploitation_results=report,
+                risk=session["risk_score"],
+            )
+
+            return jsonify(report)
+
+        except Exception as e:
+            log.error("Approved exploitation run failed: %s", e)
 
             return jsonify({
                 "ok": False,
