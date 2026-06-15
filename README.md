@@ -90,7 +90,8 @@ OPERATION_TIMEOUT=180
 
 OLLAMA_URL=http://localhost:11434/api/generate
 OLLAMA_MODEL=llama3.2:1b
-OLLAMA_TIMEOUT=180
+OLLAMA_TIMEOUT=45
+OLLAMA_PLANNER_TIMEOUT=90
 
 MYSQL_HOST=127.0.0.1
 MYSQL_USER=autopentest
@@ -203,6 +204,11 @@ After a scan completes, the browser redirects to the results dashboard. Use:
 Lab validation does not exploit the target. It performs safe checks such as TCP
 reachability, HTTP default-content checks, and FTP anonymous-login validation
 where applicable.
+
+For FYP demonstrations that require exploitation evidence before CALDERA, use
+the controlled lab scripts in `project/exploitation/lab_exploitation_runner.py`.
+See `project/docs/lab_exploitation_scripts.md` for Win10 weak-credential,
+DVWA/Juice Shop injection, and legacy SMB CVE validation examples.
 
 ## Cleanup
 

@@ -232,7 +232,15 @@ def _ensure_scan_analysis(data: dict) -> dict:
     mode = data.get("technique_mode") or session.get("technique_mode", "hybrid")
 
     ai_plan = data.get("ai_plan")
-    if not isinstance(ai_plan, dict) or not ai_plan.get("selected_technique_ids"):
+    ai_reasoning = str((ai_plan or {}).get("reasoning", ""))
+    ai_plan_stale = ai_reasoning.startswith((
+        "Local LLM timeout",
+        "Local LLM unavailable",
+        "Local LLM request failed",
+        "Local LLM error",
+    ))
+
+    if not isinstance(ai_plan, dict) or not ai_plan.get("selected_technique_ids") or ai_plan_stale:
         try:
             ai_plan = generate_ai_technique_plan(mapping_results, preferred_mode=mode, caldera_client=caldera_client)
             data["ai_plan"] = ai_plan

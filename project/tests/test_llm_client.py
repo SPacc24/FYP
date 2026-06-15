@@ -1,4 +1,5 @@
 from ai import llm_client
+import requests
 
 
 class FakeResponse:
@@ -60,3 +61,16 @@ def test_ollama_base_url_gets_generate_path(monkeypatch):
     llm_client.ask_llm_text("hello")
 
     assert captured["url"] == "http://ollama.test/api/generate"
+
+
+def test_json_timeout_fallback_marks_llm_unavailable(monkeypatch):
+    def fake_post(url, json, timeout):
+        raise requests.exceptions.Timeout()
+
+    monkeypatch.setenv("OLLAMA_PLANNER_TIMEOUT", "7")
+    monkeypatch.setattr(llm_client.requests, "post", fake_post)
+
+    fallback = llm_client.ask_llm_json("select techniques")
+
+    assert fallback["llm_available"] is False
+    assert fallback["reasoning"].startswith("Local LLM timeout after 7 seconds.")

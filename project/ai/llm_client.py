@@ -2,6 +2,8 @@ import os
 import json
 import re
 import requests
+from pathlib import Path
+from dotenv import load_dotenv
 from urllib.parse import urljoin
 
 
@@ -9,18 +11,51 @@ from urllib.parse import urljoin
 # OLLAMA SETTINGS
 # ---------------------------------------------------
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-OLLAMA_URL = os.getenv("OLLAMA_URL", "")
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
-if not OLLAMA_URL:
-    OLLAMA_URL = urljoin(OLLAMA_BASE_URL.rstrip("/") + "/", "api/generate")
-elif OLLAMA_URL.rstrip("/").endswith(":11434"):
-    OLLAMA_URL = OLLAMA_URL.rstrip("/") + "/api/generate"
-elif OLLAMA_URL.rstrip("/").endswith("/api"):
-    OLLAMA_URL = OLLAMA_URL.rstrip("/") + "/generate"
+DEFAULT_MODEL = "llama3.2:1b"
+DEFAULT_TIMEOUT_SECONDS = 45
+DEFAULT_PLANNER_TIMEOUT_SECONDS = 90
 
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "300"))
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalise_ollama_url(value: str = "") -> str:
+    ollama_url = (value or os.getenv("OLLAMA_URL", "")).strip()
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").strip()
+
+    if not ollama_url:
+        return urljoin(base_url.rstrip("/") + "/", "api/generate")
+
+    ollama_url = ollama_url.rstrip("/")
+
+    if ollama_url.endswith(":11434") or ollama_url.endswith(".test"):
+        return ollama_url + "/api/generate"
+
+    if ollama_url.endswith("/api"):
+        return ollama_url + "/generate"
+
+    if not ollama_url.endswith("/api/generate"):
+        return ollama_url + "/api/generate"
+
+    return ollama_url
+
+
+def _llm_model() -> str:
+    return os.getenv("OLLAMA_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+
+
+def _llm_timeout() -> int:
+    return _env_int("OLLAMA_TIMEOUT", DEFAULT_TIMEOUT_SECONDS)
+
+
+def _planner_timeout() -> int:
+    return _env_int("OLLAMA_PLANNER_TIMEOUT", DEFAULT_PLANNER_TIMEOUT_SECONDS)
 
 # ---------------------------------------------------
 # LOW-LEVEL OLLAMA CALL
@@ -35,10 +70,13 @@ def ask_ollama(
 ) -> str:
 
     if timeout is None:
-        timeout = OLLAMA_TIMEOUT
+        timeout = _llm_timeout()
+
+    ollama_url = _normalise_ollama_url()
+    ollama_model = _llm_model()
 
     payload = {
-        "model": OLLAMA_MODEL,
+        "model": ollama_model,
         "prompt": prompt,
         "stream": False,
         "options": {
@@ -53,8 +91,8 @@ def ask_ollama(
 
     try:
         print("==== OLLAMA DEBUG ====")
-        print("OLLAMA_URL =", OLLAMA_URL)
-        print("OLLAMA_MODEL =", OLLAMA_MODEL)
+        print("OLLAMA_URL =", ollama_url)
+        print("OLLAMA_MODEL =", ollama_model)
         print("timeout =", timeout)
         print("json_mode =", json_mode)
         print("prompt length =", len(prompt))
@@ -62,7 +100,7 @@ def ask_ollama(
         print("======================")
 
         response = requests.post(
-            OLLAMA_URL,
+            ollama_url,
             json=payload,
             timeout=timeout,
         )
@@ -79,7 +117,11 @@ def ask_ollama(
         )
 
     except requests.exceptions.Timeout:
-        return f"Local LLM timeout after {timeout} seconds."
+        return (
+            f"Local LLM timeout after {timeout} seconds. "
+            f"Try `ollama pull {DEFAULT_MODEL}` and set OLLAMA_MODEL={DEFAULT_MODEL} "
+            f"if your current model is too slow."
+        )
 
     except requests.exceptions.RequestException as e:
         return f"Local LLM request failed: {e}"
@@ -96,8 +138,8 @@ def ask_llm_text(prompt: str) -> str:
 
     return ask_ollama(
         prompt,
-        timeout=OLLAMA_TIMEOUT,
-        num_predict=300,
+        timeout=_llm_timeout(),
+        num_predict=180,
         temperature=0.5,
         json_mode=False,
     )
@@ -159,8 +201,8 @@ Replace every REPLACE_THIS / REPLACE_WITH value with real content from the scan 
 
     text = ask_ollama(
         json_prompt,
-        timeout=300,
-        num_predict=650,
+        timeout=_planner_timeout(),
+        num_predict=450,
         temperature=0.1,
         json_mode=True,
     )
@@ -353,13 +395,16 @@ def _normalise_technique_id(value) -> str:
 
 def get_llm_settings() -> dict:
     return {
-        "url": OLLAMA_URL,
-        "model": OLLAMA_MODEL,
+        "url": _normalise_ollama_url(),
+        "model": _llm_model(),
+        "timeout": _llm_timeout(),
+        "planner_timeout": _planner_timeout(),
     }
 
 
 def _json_fallback(reason: str, raw: str = "") -> dict:
     return {
+        "llm_available": False,
         "raw_response": raw,
         "selected_technique_ids": [],
         "reasoning": reason,
