@@ -1,41 +1,82 @@
-## Do run this inside  kali after placing the zip file in the desktop:#
+# Set up on a fresh Kali
 
-```bash
-cd /home/kali/Desktop
-unzip AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31.zip
-cd AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31
+sudo apt update
+
+sudo apt install -y 
+python3 
+python3-pip 
+python3-venv 
+git 
+curl 
+wget 
+unzip 
+nmap 
+tshark 
+rpcbind 
+nfs-common 
+smbclient 
+enum4linux-ng 
+dnsutils 
+postgresql-client 
+default-mysql-client
+
+cd ~/Desktop
+
+unzip (INPUT NAME).zip
+
+cd (INPUT NAME)
+
 chmod +x install.sh
+
 sudo ./install.sh
+
 cd project
-sudo .venv/bin/python app.py
-```
 
-## Click on the 2nd option as the first option is for internally in Kali
-
-```text
-http://<kali-ip>:5000
-```
-
-## (Optional) Only run if CVE not syncing
-
-```bash
-cd /home/kali/Desktop/AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31/project
 source .venv/bin/activate
-python scripts/sync_mitre_cve_database.py
+
+pip install --upgrade pip
+
+pip install -r requirements.txt
+
+python -m compileall .
+
+pytest -v
+
 python scripts/mitre_cve_status.py
+
+python scripts/sync_mitre_cve_database.py
+
+python scripts/mitre_cve_status.py
+
 python scripts/audit_cve_source.py
-```
 
-## Report boundaries
+ip addr
 
-This module performs:
+sudo .venv/bin/python app.py
 
-```text
-footprinting
-enumeration
-evidence normalisation
-official CVE List strict matching
-service-level exposure checks
-JSON/PDF handoff generation
-```
+Open:
+
+http://<kali-ip>:5000
+
+Use second option.
+
+If CVE sync required later:
+
+cd ~/Desktop/(INPUT NAME)/project
+
+source .venv/bin/activate
+
+python scripts/sync_mitre_cve_database.py # Installs from cve database
+
+python scripts/mitre_cve_status.py # Checker
+
+python scripts/audit_cve_source.py
+
+Stop application:
+
+CTRL+C
+
+Deactivate:
+
+deactivate
 
