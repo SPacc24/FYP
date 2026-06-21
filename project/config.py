@@ -18,6 +18,14 @@ class Config:
     KALI_IP = os.getenv('KALI_IP', '127.0.0.1')
     OPERATION_TIMEOUT = int(os.getenv('OPERATION_TIMEOUT', '180'))
 
+
+    PROOF_OF_ACCESS_ENABLED = os.getenv(
+        'PROOF_OF_ACCESS_ENABLED',
+        'false',
+    ).lower() == 'true'
+    PROOF_OF_ACCESS_SECRET = os.getenv('PROOF_OF_ACCESS_SECRET', '')
+    PROOF_OF_ACCESS_TTL = int(os.getenv('PROOF_OF_ACCESS_TTL', '300'))
+
     MYSQL_HOST = os.getenv('MYSQL_HOST', '127.0.0.1')
     MYSQL_USER = os.getenv('MYSQL_USER', 'autopentest')
     MYSQL_PASS = os.getenv('MYSQL_PASS', '')
