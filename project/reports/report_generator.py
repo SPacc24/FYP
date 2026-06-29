@@ -39,8 +39,27 @@ def _summarize_vulnerabilities(mapping: dict[str, Any]) -> list[str]:
         lines.append("\nRecommended focus areas:")
         for risk in mapping.get("top_risks", [])[:3]:
             lines.append(
-                f"- {risk.get('id', 'N/A')} {risk.get('name', '')} "
-                f"({risk.get('max_severity', 'Unknown')} severity, {risk.get('count', 0)} supporting findings)"
+                f"- {risk.get('host', 'Unknown')}:{risk.get('port', 'N/A')} "
+                f"{risk.get('service', 'unknown')} - {risk.get('title', '')}"
+            )
+    return lines
+
+
+def _summarize_scan_findings(scan: dict[str, Any]) -> list[str]:
+    lines = [
+        f"Target IP: {_safe_text(scan.get('target_ip', 'Unknown'))}",
+        f"Detected OS: {_safe_text(scan.get('os', 'Unknown'))}",
+        f"Port range: {_safe_text(scan.get('port_range', '1-1024'))}",
+        f"Scan output: {_safe_text(scan.get('output_file', 'Not saved'))}",
+    ]
+    ports = scan.get("ports", []) or []
+    if ports:
+        lines.append("Open/reported services:")
+        for port in ports[:20]:
+            lines.append(
+                f"- {port.get('port', 'N/A')}/{port.get('protocol', 'tcp')} "
+                f"{port.get('state', 'unknown')} {port.get('service', 'unknown')} "
+                f"{port.get('product', '')} {port.get('version', '')}".strip()
             )
     return lines
 
@@ -54,7 +73,10 @@ def _summarize_attack_plan(mapping: dict[str, Any]) -> list[str]:
     lines.append(f"Selection reason: {plan.get('selection_reason', 'Not available')}")
     lines.append("Selected techniques:")
     for tech in plan.get("selected_techniques", []):
-        lines.append(f"- {tech.get('id', 'N/A')} {tech.get('name', '')} ({tech.get('max_severity', '')})")
+        lines.append(
+            f"- {tech.get('id', 'N/A')} {tech.get('name', '')} "
+            f"[{tech.get('attack_path_stage', 'Validation')}] ({tech.get('max_severity', '')})"
+        )
     return lines
 
 
@@ -79,6 +101,45 @@ def _summarize_operation(operation: dict[str, Any]) -> list[str]:
                 f"- {step.get('technique_id', 'N/A')} {step.get('technique_name', '')} "
                 f"[{step.get('tactic', 'unknown')}] - {step.get('status', 'unknown')}"
             )
+            if step.get("command"):
+                lines.append(f"  Command: {step.get('command')}")
+            if step.get("evidence_summary"):
+                lines.append(f"  Evidence summary: {step.get('evidence_summary')}")
+            if step.get("parsed_evidence"):
+                for evidence in step.get("parsed_evidence", [])[:6]:
+                    lines.append(f"  - {evidence}")
+            elif step.get("output"):
+                output = str(step.get("output", "")).strip()
+                lines.append(f"  Raw output: {output[:500]}")
+            else:
+                lines.append("  Execution completed but no evidence returned.")
+    return lines
+
+
+def _summarize_validation(validation: dict[str, Any]) -> list[str]:
+    if not validation:
+        return ["No lab exploitability validation has been executed yet."]
+
+    lines = [
+        f"Mode: {validation.get('mode', 'lab_safe_validation')}",
+        f"Target: {validation.get('target', 'Unknown')}",
+        f"Checks executed: {validation.get('total_checked', 0)}",
+        f"Confirmed findings: {validation.get('confirmed', 0)}",
+        f"Potential exposures: {validation.get('potential', 0)}",
+        f"Failed checks: {validation.get('failed', 0)}",
+        f"Summary: {validation.get('narrative', 'N/A')}",
+    ]
+
+    if validation.get("findings"):
+        lines.append("\nValidation evidence:")
+        for finding in validation.get("findings", []):
+            lines.append(
+                f"- {finding.get('status', 'unknown').upper()} "
+                f"{finding.get('service', 'unknown')}:{finding.get('port', 'N/A')} "
+                f"{finding.get('title', '')}"
+            )
+            lines.append(f"  Evidence: {finding.get('evidence', '')}")
+            lines.append(f"  Next step: {finding.get('next_step', '')}")
     return lines
 
 
@@ -128,18 +189,16 @@ def build_report_summary(
     operation: dict[str, Any],
     risk: dict[str, Any],
     remediations: list[dict[str, Any]],
+    validation: dict[str, Any] | None = None,
 ) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [f"AutoPenTest Report", f"Generated: {now}", ""]
 
-    lines.append(_section("Target Summary", [
-        f"Target IP: {_safe_text(scan.get('target_ip', 'Unknown'))}",
-        f"Port range: {_safe_text(scan.get('port_range', '1-1024'))}",
-        f"Scan output: {_safe_text(scan.get('output_file', 'Not saved'))}",
-    ]))
+    lines.append(_section("Target Summary", _summarize_scan_findings(scan)))
 
     lines.append(_section("Vulnerability Mapping", _summarize_vulnerabilities(mapping)))
     lines.append(_section("Attack Plan", _summarize_attack_plan(mapping)))
+    lines.append(_section("Lab Exploitability Validation", _summarize_validation(validation or {})))
     lines.append(_section("Operation Results", _summarize_operation(operation)))
     lines.append(_section("Risk Summary", _summarize_risk(risk)))
     lines.append(_section("Remediation Guidance", _summarize_remediations(remediations)))
@@ -153,8 +212,9 @@ def generate_text_report(
     operation: dict[str, Any],
     risk: dict[str, Any],
     remediations: list[dict[str, Any]],
+    validation: dict[str, Any] | None = None,
 ) -> str:
-    report_text = build_report_summary(scan, mapping, operation, risk, remediations)
+    report_text = build_report_summary(scan, mapping, operation, risk, remediations, validation)
     path = REPORT_DIR / f"autopentest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     path.write_text(report_text, encoding="utf-8")
     return str(path)
@@ -164,6 +224,7 @@ def generate_pdf_report(
     scan_id=None,
     scan=None,
     mapping=None,
+    validation=None,
     operation=None,
     risk=None,
     remediations=None,
@@ -172,6 +233,8 @@ def generate_pdf_report(
         scan = {}
     if mapping is None:
         mapping = {}
+    if validation is None:
+        validation = {}
     if operation is None:
         operation = {}
     if risk is None:
@@ -179,4 +242,4 @@ def generate_pdf_report(
     if remediations is None:
         remediations = []
 
-    return generate_text_report(scan, mapping, operation, risk, remediations)
+    return generate_text_report(scan, mapping, operation, risk, remediations, validation)

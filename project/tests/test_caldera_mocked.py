@@ -1,3 +1,5 @@
+import json
+
 import responses
 
 from caldera.api_client import CalderaClient
@@ -96,3 +98,194 @@ def test_start_operation_success(tmp_path):
     assert result["ok"] is True
     assert result["stage"] == "operation_started"
     assert result["operation"]["id"] == "op001"
+
+
+@responses.activate
+def test_custom_adversary_contains_all_selected_technique_abilities(tmp_path):
+    base_url = "http://caldera.test"
+
+    responses.add(
+        responses.GET,
+        f"{base_url}/api/v2/abilities",
+        json=[
+            {
+                "ability_id": "ab-t1046",
+                "name": "Network Service Discovery scan",
+                "technique_id": "T1046",
+                "platforms": {"windows": {"cmd": {"command": "scan"}}},
+            },
+            {
+                "ability_id": "ab-t1135",
+                "name": "Network Share Discovery command prompt",
+                "technique_id": "T1135",
+                "platforms": {"windows": {"cmd": {"command": "net view"}}},
+            },
+            {
+                "ability_id": "ab-t1021",
+                "name": "Net use map admin share",
+                "technique_id": "T1021.002",
+                "platforms": {"windows": {"cmd": {"command": "net use"}}},
+            },
+        ],
+        status=200,
+    )
+
+    responses.add(
+        responses.GET,
+        f"{base_url}/api/v2/abilities",
+        json=[
+            {
+                "ability_id": "ab-t1046",
+                "name": "Network Service Discovery scan",
+                "technique_id": "T1046",
+                "platforms": {"windows": {"cmd": {"command": "scan"}}},
+            },
+            {
+                "ability_id": "ab-t1135",
+                "name": "Network Share Discovery command prompt",
+                "technique_id": "T1135",
+                "platforms": {"windows": {"cmd": {"command": "net view"}}},
+            },
+            {
+                "ability_id": "ab-t1021",
+                "name": "Net use map admin share",
+                "technique_id": "T1021.002",
+                "platforms": {"windows": {"cmd": {"command": "net use"}}},
+            },
+        ],
+        status=200,
+    )
+
+    responses.add(
+        responses.GET,
+        f"{base_url}/api/v2/abilities",
+        json=[
+            {
+                "ability_id": "ab-t1046",
+                "name": "Network Service Discovery scan",
+                "technique_id": "T1046",
+                "platforms": {"windows": {"cmd": {"command": "scan"}}},
+            },
+            {
+                "ability_id": "ab-t1135",
+                "name": "Network Share Discovery command prompt",
+                "technique_id": "T1135",
+                "platforms": {"windows": {"cmd": {"command": "net view"}}},
+            },
+            {
+                "ability_id": "ab-t1021",
+                "name": "Net use map admin share",
+                "technique_id": "T1021.002",
+                "platforms": {"windows": {"cmd": {"command": "net use"}}},
+            },
+        ],
+        status=200,
+    )
+
+    responses.add(
+        responses.POST,
+        f"{base_url}/api/v2/adversaries",
+        json={"adversary_id": "adv001"},
+        status=200,
+    )
+
+    client = CalderaClient(base_url=base_url, api_key="TESTKEY")
+    manager = OperationManager(client, log_dir=tmp_path)
+
+    adversary_id, selected_abilities = manager._create_custom_adversary(
+        ["T1046", "T1135", "T1021.002"]
+    )
+
+    payload = json.loads(responses.calls[-1].request.body.decode("utf-8"))
+
+    assert adversary_id == "adv001"
+    assert [item["ability_id"] for item in selected_abilities] == [
+        "ab-t1046",
+        "ab-t1135",
+        "ab-t1021",
+    ]
+    assert payload["atomic_ordering"] == ["ab-t1046", "ab-t1135", "ab-t1021"]
+
+
+def test_parse_results_preserves_real_output_and_evidence(tmp_path):
+    client = CalderaClient(base_url="http://caldera.test", api_key="TESTKEY")
+    manager = OperationManager(client, log_dir=tmp_path)
+
+    parsed = manager._parse_results(
+        {"id": "op001", "name": "AutoPenTest-test", "state": "finished"},
+        [
+            {
+                "id": "link001",
+                "status": 0,
+                "command": "Get-SmbShare | ConvertTo-Json",
+                "output": '[{"Name":"ADMIN$"},{"Name":"C$"},{"Name":"Users"}]',
+                "finish": "2026-05-28T10:00:00",
+                "ability": {
+                    "technique_id": "T1135",
+                    "name": "Network Share Discovery",
+                    "tactic": "discovery",
+                },
+            }
+        ],
+    )
+
+    result = parsed["techniques_run"][0]
+
+    assert result["status"] == "success"
+    assert result["command"] == "Get-SmbShare | ConvertTo-Json"
+    assert "ADMIN$" in result["output"]
+    assert "SMB share observed: ADMIN$" in result["parsed_evidence"]
+
+
+def test_boolean_output_is_not_treated_as_stdout(tmp_path):
+    client = CalderaClient(base_url="http://caldera.test", api_key="TESTKEY")
+    manager = OperationManager(client, log_dir=tmp_path)
+
+    parsed = manager._parse_results(
+        {"id": "op001", "name": "AutoPenTest-test", "state": "finished"},
+        [
+            {
+                "id": "link001",
+                "status": 0,
+                "command": "Get-SmbShare | ConvertTo-Json",
+                "output": True,
+                "ability": {
+                    "technique_id": "T1135",
+                    "name": "Network Share Discovery",
+                    "tactic": "discovery",
+                },
+            }
+        ],
+    )
+
+    result = parsed["techniques_run"][0]
+
+    assert result["command_completed"] is True
+    assert result["stdout"] == ""
+    assert result["output"] == ""
+    assert "no stdout/stderr evidence" in result["evidence_summary"]
+
+
+@responses.activate
+def test_windows_sandcat_command_uses_official_payload_and_reachable_server():
+    base_url = "http://127.0.0.1:8888"
+
+    responses.add(
+        responses.GET,
+        f"{base_url}/api/v2/payloads",
+        json=["sandcat-elfload.pl.2", "sandcat.go"],
+        status=200,
+    )
+
+    client = CalderaClient(base_url=base_url, api_key="redadmin")
+    command = client.generate_sandcat_command(
+        kali_ip="192.168.67.128",
+        group="red",
+        platform="windows",
+    )
+
+    assert "$server=\"http://192.168.67.128:8888\";" in command
+    assert "$wc.Headers.add(\"platform\",\"windows\");" in command
+    assert "$wc.Headers.add(\"file\",\"sandcat.go\");" in command
+    assert "sandcat-elfload" not in command
+    assert "-k redadmin" not in command

@@ -2,7 +2,7 @@ import json
 import os
 import re
 import time
-from typing import Any
+from typing import Any, Optional
 
 import requests
 
@@ -27,6 +27,16 @@ CVE_CACHE_TTL_SECONDS = 60 * 60 * 24
 
 REQUEST_TIMEOUT = 12
 MAX_SELECTED_TECHNIQUES = 5
+
+ATTACK_PATH_PRIORITY = {
+    "T1046": 10,
+    "T1135": 20,
+    "T1210": 30,
+    "T1021.002": 40,
+    "T1059": 50,
+}
+
+DISCOVERY_ONLY_TECHNIQUES = {"T1046", "T1135", "T1018"}
 
 
 DEFAULT_AI_NEXT_STEPS = [
@@ -353,6 +363,7 @@ def extract_cves_from_mapping(mapping_result: dict) -> dict:
     item["cve_ids"] = ["CVE-2021-41773"]
     item["cve"] = "CVE-2021-41773"
     item["title"] contains CVE text
+    item["technique_ids"] = ["T1190"]
     """
     cve_context = {}
 
@@ -372,6 +383,21 @@ def extract_cves_from_mapping(mapping_result: dict) -> dict:
         for source in possible_sources:
             found_cves.extend(normalise_cve_ids(source))
 
+        technique_ids = []
+
+        for field in [
+            item.get("technique_id"),
+            item.get("technique_ids"),
+            item.get("attack_technique"),
+            item.get("mitre_technique"),
+            item.get("mapped_techniques"),
+            item.get("recommended_techniques"),
+        ]:
+            if isinstance(field, list):
+                technique_ids.extend([str(x) for x in field])
+            elif field:
+                technique_ids.append(str(field))
+
         for cve_id in sorted(set(found_cves)):
             if cve_id not in cve_context:
                 cve_context[cve_id] = {
@@ -386,6 +412,8 @@ def extract_cves_from_mapping(mapping_result: dict) -> dict:
                 "severity": item.get("severity"),
                 "priority_score": item.get("priority_score"),
                 "title": item.get("title"),
+                "description": item.get("description"),
+                "technique_ids": technique_ids,
             })
 
     return cve_context
@@ -491,9 +519,16 @@ def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
             "mitre_platforms": mitre_info.get("platforms", []),
             "mitre_data_sources": mitre_info.get("data_sources", [])[:8],
             "mitre_detection": mitre_info.get("detection", ""),
+
+            # CVE fields for frontend + LLM
             "linked_cves": linked_cves,
+            "linked_cve_ids": linked_cve_ids,
+            "cve_ids": linked_cve_ids,
+            "attack_path_stage": tech.get("attack_path_stage", "Validation / Discovery"),
+            "supporting_services": tech.get("supporting_services", []),
             "mapper_reason": tech.get(
                 "reason",
+                " ".join(tech.get("reasons", [])[:2]) or
                 f"This technique appeared in {tech.get('count', 0)} mapped finding(s), "
                 f"with maximum severity {max_severity}."
             ),
@@ -501,11 +536,11 @@ def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
 
     allowed.sort(
         key=lambda item: (
-            item.get("severity_rank", 0),
-            len(item.get("linked_cves", [])),
-            item.get("count", 0),
+            ATTACK_PATH_PRIORITY.get(item.get("id"), 999),
+            -item.get("severity_rank", 0),
+            -len(item.get("linked_cves", [])),
+            -item.get("count", 0),
         ),
-        reverse=True,
     )
 
     return allowed
@@ -546,7 +581,19 @@ def clean_text_list(value: Any, fallback: list[str]) -> list[str]:
     cleaned = []
 
     for item in value:
-        text = shorten_text(str(item), 220)
+        if isinstance(item, dict):
+            step = item.get("step") or item.get("title") or ""
+            description = item.get("description") or item.get("details") or ""
+
+            if step and description:
+                text = f"{step}: {description}"
+            else:
+                text = step or description
+        else:
+            text = str(item)
+
+        text = shorten_text(text, 220)
+
         if text:
             cleaned.append(text)
 
@@ -597,44 +644,33 @@ def normalise_technique_explanations(
             ),
             "mitre_url": allowed.get("mitre_url", build_mitre_url(technique_id)),
             "mitre_tactics": allowed.get("mitre_tactics", []),
+            "attack_path_stage": allowed.get("attack_path_stage", "Validation / Discovery"),
             "linked_cves": linked_cves,
             "linked_cve_ids": linked_cve_ids,
-            "mitre_summary": existing.get(
-                "mitre_summary",
+            "cve_ids": linked_cve_ids,
+            "mitre_summary": shorten_text(
                 allowed.get(
                     "mitre_description",
                     "This technique was mapped from the detected attack surface.",
                 ),
+                140,
             ),
-            "why_recommended": existing.get(
-                "why_recommended",
-                allowed.get(
-                    "mapper_reason",
-                    "Recommended because it matches the detected services, vulnerabilities, or attack surface.",
+                "why_recommended": shorten_text(
+                    existing.get("why_recommended")
+                    or allowed.get(
+                        "mapper_reason",
+                        "Recommended because it matches the detected services, vulnerabilities, or attack surface.",
+                    ),
+                    220,
                 ),
-            ),
-            "cve_relevance": existing.get(
-                "cve_relevance",
-                (
-                    f"Linked CVEs considered: {', '.join(linked_cve_ids)}."
-                    if linked_cve_ids
-                    else "No direct CVE was linked to this technique by the current mapper."
+                "caldera_validation": shorten_text(
+                    existing.get("caldera_validation")
+                    or (
+                        "Check whether CALDERA has a matching ability for this technique and use it "
+                        "only for safe authorised emulation."
+                    ),
+                    180,
                 ),
-            ),
-            "caldera_validation": existing.get(
-                "caldera_validation",
-                (
-                    "Check whether CALDERA has a matching ability for this technique and use it "
-                    "only for safe authorised emulation."
-                ),
-            ),
-            "limitation": existing.get(
-                "limitation",
-                (
-                    "This recommendation does not prove exploitation. It identifies a mapped "
-                    "technique that should be validated or documented."
-                ),
-            ),
         })
 
     return final_explanations
@@ -642,8 +678,17 @@ def normalise_technique_explanations(
 
 def choose_fallback_selected_ids(allowed_techniques: list[dict]) -> list[str]:
     selected = []
+    ordered = sorted(
+        allowed_techniques,
+        key=lambda item: (
+            ATTACK_PATH_PRIORITY.get(item.get("id"), 999),
+            -item.get("severity_rank", 0),
+            -len(item.get("linked_cves", [])),
+            -item.get("count", 0),
+        ),
+    )
 
-    for tech in allowed_techniques:
+    for tech in ordered:
         technique_id = tech.get("id")
 
         if technique_id and technique_id not in selected:
@@ -655,7 +700,78 @@ def choose_fallback_selected_ids(allowed_techniques: list[dict]) -> list[str]:
     return selected
 
 
-def generate_ai_technique_plan(mapping_result: dict, preferred_mode: str = "hybrid") -> dict:
+def expand_attack_path_selection(selected_ids: list[str], allowed_techniques: list[dict]) -> list[str]:
+    """
+    Keep LLM choices bounded to mapper output while ensuring the final plan
+    represents discovery, validation, and post-access emulation where available.
+    """
+    allowed_ids = [tech["id"] for tech in allowed_techniques if tech.get("id")]
+    allowed_set = set(allowed_ids)
+    final = [tid for tid in selected_ids if tid in allowed_set]
+
+    has_smb_context = bool({"T1135", "T1021.002", "T1210"} & allowed_set)
+    if has_smb_context:
+        for tid in ["T1046", "T1135", "T1210", "T1021.002"]:
+            if tid in allowed_set and tid not in final:
+                final.append(tid)
+
+    if final and set(final).issubset(DISCOVERY_ONLY_TECHNIQUES):
+        for tid in ["T1210", "T1021.002", "T1059"]:
+            if tid in allowed_set and tid not in final:
+                final.append(tid)
+                break
+
+    if not final:
+        final = choose_fallback_selected_ids(allowed_techniques)
+
+    return final[:MAX_SELECTED_TECHNIQUES]
+
+
+def enrich_explanations_with_coverage(
+    technique_explanations: list[dict],
+    coverage_info: Optional[dict] = None,
+) -> list[dict]:
+    """
+    Enrich technique explanations with CALDERA coverage status.
+    If coverage_info is provided, add coverage details to each explanation.
+    If not provided (coverage checker unavailable), add a note to check manually.
+    """
+    if not coverage_info:
+        # Coverage checker not available or not called
+        for explanation in technique_explanations:
+            explanation["caldera_coverage"] = {
+                "supported": None,
+                "ability_count": None,
+                "abilities": [],
+                "note": "Coverage status could not be determined. Check CALDERA manually.",
+            }
+        return technique_explanations
+
+    techniques_coverage = coverage_info.get("techniques", {})
+
+    for explanation in technique_explanations:
+        technique_id = explanation.get("technique_id", "").upper()
+        coverage_data = techniques_coverage.get(technique_id, {})
+
+        explanation["caldera_coverage"] = {
+            "supported": coverage_data.get("supported", False),
+            "ability_count": coverage_data.get("ability_count", 0),
+            "abilities": coverage_data.get("abilities", []),
+            "note": (
+                f"CALDERA has {coverage_data.get('ability_count', 0)} ability/ies for this technique."
+                if coverage_data.get("supported")
+                else "This technique has no matching abilities in CALDERA. Consider manual validation."
+            ),
+        }
+
+    return technique_explanations
+
+
+def generate_ai_technique_plan(
+    mapping_result: dict,
+    preferred_mode: str = "hybrid",
+    caldera_client=None,
+) -> dict:
     preferred_mode = str(preferred_mode).lower()
 
     if preferred_mode not in ALLOWED_MODES:
@@ -663,86 +779,99 @@ def generate_ai_technique_plan(mapping_result: dict, preferred_mode: str = "hybr
 
     allowed_techniques = extract_allowed_techniques(mapping_result)
 
+    llm_techniques = []
+
+    for tech in allowed_techniques[:8]:
+        llm_techniques.append({
+            "id": tech.get("id"),
+            "name": tech.get("name"),
+            "max_severity": tech.get("max_severity"),
+            "count": tech.get("count"),
+            "mitre_tactics": tech.get("mitre_tactics", []),
+            "linked_cve_ids": tech.get("linked_cve_ids", []),
+            "supporting_services": tech.get("supporting_services", []),
+            "attack_path_stage": tech.get("attack_path_stage"),
+            "mapper_reason": shorten_text(tech.get("mapper_reason", ""), 250),
+            "mitre_description": shorten_text(tech.get("mitre_description", ""), 300),
+        })
+
     safe_input = {
         "selected_mode_by_user": preferred_mode,
-        "top_risks": mapping_result.get("top_risks", []),
+        "top_risks": mapping_result.get("top_risks", [])[:5],
         "severity_counts": mapping_result.get("severity_counts", {}),
-        "attack_chain": mapping_result.get("attack_chain", []),
-        "allowed_techniques": allowed_techniques,
+        "attack_chain": mapping_result.get("attack_chain", [])[:5],
+        "allowed_techniques": llm_techniques,
     }
 
     prompt = f"""
-You are an AI cybersecurity analyst for an authorised Final Year Project lab.
+You are an AI MITRE ATT&CK technique planner for an authorised cybersecurity lab.
 
-The target has already been scanned. The backend has mapped findings to candidate MITRE ATT&CK techniques.
-Your job is to choose the most relevant mapped techniques for CALDERA emulation or manual validation.
+Task:
+Select the best mapped MITRE ATT&CK techniques for safe CALDERA validation or manual security review.
 
-Safety rules:
-- Choose ONLY from allowed_techniques.
-- Do NOT invent technique IDs.
-- Do NOT provide exploit commands, payloads, credential attacks, malware steps, or step-by-step exploitation instructions.
-- Do NOT explain how to break into a system.
-- Focus on safe planning, emulation, validation, prioritisation, and reporting.
-- Output valid JSON only.
-
-User-selected technique mode:
+Mode:
 {preferred_mode}
 
+Rules:
+- Choose ONLY IDs from allowed_techniques.
+- Do not frame the answer as mitigation. Frame it as authorised validation, emulation, prioritisation, and reporting.
+- Select 2 to 5 techniques if possible.
+- Do NOT invent technique IDs, CVEs, services, or ports.
+- Do NOT provide exploit commands, payloads, intrusion steps, or credential theft guidance.
+- Prioritise by severity, linked CVEs, exposed services/ports, repeated findings, and mapper_reason.
+- Use the actual scan context. Do NOT copy placeholder text.
+- Keep reasoning concise and report-ready.
+
 Mode behaviour:
-- auto: choose the clearest, highest-priority techniques for automatic CALDERA planning.
-- hybrid: choose useful techniques but explain that analyst review is expected before execution.
-- manual: provide strong technique suggestions, but make clear that the analyst should manually choose before execution.
+- auto: choose highest-confidence techniques for automatic planning.
+- hybrid: recommend strong techniques but mention analyst review.
+- manual: suggest techniques but leave final choice to analyst.
 
-Selection rules:
-- Select 2 to 5 techniques if enough relevant options exist.
-- Prefer techniques with higher max_severity, stronger CVE linkage, repeated findings, and clearer MITRE relevance.
-- Use linked_cves, CVSS severity, CVE description, MITRE description, tactics, service/port context, and mapper_reason.
-- Do not select only T1046 unless it is the only relevant allowed technique.
-- If SMB, Windows file-sharing, NetBIOS, or port 445 risks are present, consider both discovery and SMB-related remote service techniques.
-- If RDP is present, consider RDP-related remote service validation.
-- If web service vulnerabilities or public-facing software risks are present, consider public-facing application exposure.
-- If domain services are present, consider domain/account discovery-related techniques.
-- Be precise: explain the relationship between the detected vulnerability/service and the selected ATT&CK technique.
-- Do not overclaim. If a CVE only suggests exposure but not confirmed exploitability, say so.
-
-For each selected technique, explain:
-1. MITRE meaning: what the technique represents in ATT&CK.
-2. Why recommended: why it matches the scan finding, exposed service, CVE, severity, or attack surface.
-3. CVE relevance: how linked CVEs influenced prioritisation. Mention CVE IDs when useful.
-4. CALDERA validation: what CALDERA should safely validate at a high level.
-5. Limitation: what this technique does NOT prove or what may need manual validation.
-
-Keep explanations meaningful but concise. Avoid generic one-liners.
-
-Input JSON:
+Input:
 {json.dumps(safe_input, indent=2)}
 
-Return JSON exactly in this shape:
+Return ONLY valid JSON with this structure:
 {{
-  "selected_technique_ids": ["T1046", "T1021.002", "T1135"],
-  "reasoning": "Concise overall explanation of why these techniques were prioritised for the selected mode.",
-  "technique_explanations": [
+  "selected_technique_ids": [],
+  "reasoning": "",
+    "technique_explanations": [
     {{
-      "technique_id": "T1046",
-      "technique_name": "Network Service Discovery",
-      "mitre_summary": "Meaning of the technique based on MITRE context.",
-      "why_recommended": "Specific reason using service, port, severity, mapper context, and/or attack surface.",
-      "cve_relevance": "Explain whether any linked CVEs affected prioritisation.",
-      "caldera_validation": "High-level safe validation goal for CALDERA.",
-      "limitation": "What the result does not prove or what needs manual review."
+        "technique_id": "",
+        "technique_name": "",
+        "why_recommended": "",
+        "caldera_validation": ""
     }}
-  ],
-  "next_steps": [
-    "Check CALDERA ability coverage for the selected technique IDs.",
-    "Run only supported techniques inside the authorised lab.",
-    "Compare CALDERA output with scan findings and linked CVEs.",
-    "Document unsupported techniques as manual validation or reporting items."
-  ]
+    ],
+  "next_steps": []
 }}
+
+Field requirements:
+- reasoning: 2 to 4 sentences explaining why the selected techniques fit the scan and mode.
+- why_recommended: specific link to detected service, port, CVE, severity, or mapper_reason.
+- caldera_validation: high-level safe validation goal only.
+- next_steps: 3 to 4 safe follow-up actions.
 """
 
     raw = ask_llm_json(prompt)
     plan = safe_json_loads(raw)
+
+    llm_available = plan.get("llm_available", True)
+
+    if not llm_available:
+        plan["reasoning"] = (
+            f"AutoPenTest could not receive a live Ollama response, so the selected "
+            f"{preferred_mode.upper()} mode was applied using the mapped MITRE ATT&CK "
+            f"techniques from the scan results. The final recommendations were prioritised "
+            f"using service exposure, linked CVEs, severity, and mapper relevance."
+        )
+
+        plan["next_steps"] = [
+            "Confirm Ollama is running before requesting a fully LLM-generated recommendation.",
+            "Review the mapped MITRE ATT&CK techniques and linked CVEs.",
+            "Check CALDERA ability coverage for each selected technique.",
+            "Run only supported techniques within the authorised lab environment.",
+            "Document unsupported techniques as manual validation or reporting items.",
+        ]
 
     allowed_ids = {
         tech["id"]
@@ -772,10 +901,30 @@ Return JSON exactly in this shape:
     if len(selected_ids) == 1 and len(allowed_techniques) > 1:
         selected_ids = choose_fallback_selected_ids(allowed_techniques[:3])
 
+    selected_ids = expand_attack_path_selection(selected_ids, allowed_techniques)
+
     technique_explanations = normalise_technique_explanations(
         plan=plan,
         selected_ids=selected_ids,
         allowed_techniques=allowed_techniques,
+    )
+
+    # Try to check CALDERA coverage if client is provided
+    coverage_info = None
+    if caldera_client:
+        try:
+            from caldera.coverage_checker import CoverageChecker
+            checker = CoverageChecker(caldera_client)
+            coverage_info = checker.check_technique_coverage(selected_ids)
+        except Exception as e:
+            import logging
+            logging.warning(f"Could not check CALDERA coverage: {e}")
+            coverage_info = None
+
+    # Enrich explanations with coverage data
+    technique_explanations = enrich_explanations_with_coverage(
+        technique_explanations,
+        coverage_info,
     )
 
     return {
@@ -801,4 +950,5 @@ Return JSON exactly in this shape:
             ],
         ),
         "allowed_techniques": allowed_techniques,
+        "caldera_coverage": coverage_info,
     }

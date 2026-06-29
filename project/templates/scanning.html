@@ -1,0 +1,145 @@
+<!doctype html>
+<html>
+<head>
+  <title>Reconnaissance Running</title>
+  <link rel="stylesheet" href="/static/style.css?v=324">
+</head>
+<body>
+<main class="shell">
+<header class="topbar">
+  <div>
+    <div class="eyebrow">Reconnaissance in Progress</div>
+    <h1>{{ target }}</h1>
+    <p class="muted">Evidence collection is running. CVE review begins when enough service identity evidence is available and is finalised after consolidation.</p>
+  </div>
+  <a class="btn ghost" href="/">New Scan</a>
+</header>
+
+<section class="scan-live-grid">
+  <aside class="scan-sidebar">
+    <section class="panel progress-panel">
+    <div class="progress-head">
+      <h2>Task Progress</h2>
+      <div class="progress-meta"><span id="doneCount">0 / 0 tasks</span><span id="percent">0%</span></div>
+    </div>
+    <div class="progress-track"><div id="bar" class="progress-fill"></div></div>
+    <div id="summary" class="summary-grid"></div>
+    <div id="tasks" class="task-list wide"></div>
+  </section>
+  </aside>
+
+  <div class="scan-center">
+    <section class="panel overview-panel center-overview-panel">
+      <div class="overview-card">
+        <span>Target</span>
+        <b>{{ target }}</b>
+      </div>
+      <div class="overview-card current-task-card active">
+        <span>Current Task</span>
+        <b id="current">Queued</b>
+      </div>
+      <div class="overview-card">
+        <span>Next Task</span>
+        <b id="next">No queued task</b>
+      </div>
+      <div class="overview-card">
+        <span>Scan Profile</span>
+        <b>{{ scan_options.profile_label if scan_options else 'Fast Recon' }}</b>
+      </div>
+    </section>
+
+    <section class="panel command-panel scan-command-center">
+      <div class="section-head"><div><h2>Command Log</h2><p class="muted small">Open a row to view the full command and captured output.</p></div></div>
+      <div class="table-scroll command-table-wrap"><table class="command-table"><thead><tr><th>Time</th><th>Purpose</th><th>Exact Command</th><th>Output</th></tr></thead><tbody id="log"></tbody></table></div>
+    </section>
+  </div>
+</section>
+</main>
+
+<div id="outputModal" class="modal" aria-hidden="true">
+  <div class="modal-backdrop" onclick="closeOutputModal()"></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head"><h2 id="modalTitle">Command Output</h2><button class="icon-btn" onclick="closeOutputModal()">Close</button></div>
+    <div class="modal-body">
+      <h3>Exact Command</h3>
+      <pre id="modalCommand"></pre>
+      <h3>Purpose</h3>
+      <p id="modalPurpose" class="modal-purpose"></p>
+      <h3>Captured Output</h3>
+      <pre id="modalOutput"></pre>
+      <h3>Evidence File</h3>
+      <p id="modalFile" class="muted small"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+const scanId = "{{ scan_id }}";
+const labels = {queued:'Queued', running:'In Progress', success:'Completed', empty:'No Evidence Found', failed:'Evidence Incomplete'};
+let latestCommandLog = [];
+function cls(s){return {queued:'queued',running:'running',success:'done',empty:'empty',failed:'failed'}[s]||'queued'}
+function countTcp(services){return (services||[]).filter(s => (s.protocol||'tcp') === 'tcp').length}
+function countUdp(services){return (services||[]).filter(s => (s.protocol||'') === 'udp').length}
+function escapeHtml(s){return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function shortText(s, n=160){s=String(s||''); return s.length>n ? s.slice(0,n)+'...' : s}
+function logRow(l, idx){
+  const command = l.command ? `<code>${escapeHtml(shortText(l.command, 180))}</code>` : '<span class="muted">No shell command</span>';
+  const status = escapeHtml(l.status || l.level || '');
+  return `<tr class="logline ${escapeHtml(l.status || l.level || 'Completed')}"><td>${escapeHtml(l.time||'')}</td><td>${escapeHtml(l.purpose || l.message || '')}<div class="muted small">${status}</div></td><td class="cmd-cell">${command}</td><td><button class="btn mini" onclick="openOutputModal(${idx})">View Output</button></td></tr>`;
+}
+function openOutputModal(idx){
+  const l = latestCommandLog[idx] || {};
+  document.getElementById('modalCommand').textContent = l.command || 'No shell command recorded.';
+  document.getElementById('modalPurpose').textContent = l.purpose || l.message || '';
+  document.getElementById('modalOutput').textContent = l.output || '[no console output captured]';
+  document.getElementById('modalFile').textContent = l.output_file ? `Evidence file: ${l.output_file}` : '';
+  document.getElementById('outputModal').classList.add('open');
+  document.getElementById('outputModal').setAttribute('aria-hidden','false');
+}
+function closeOutputModal(){
+  document.getElementById('outputModal').classList.remove('open');
+  document.getElementById('outputModal').setAttribute('aria-hidden','true');
+}
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeOutputModal(); });
+async function poll(){
+ let d;
+ try {
+   const r=await fetch(`/scan/status/${scanId}?t=${Date.now()}`, {cache:'no-store'});
+   d=await r.json();
+ } catch (err) {
+   document.getElementById('current').textContent='Waiting for scan status';
+   setTimeout(poll,3000);
+   return;
+ }
+ document.getElementById('current').textContent=d.current_task||'Queued';
+ document.getElementById('next').textContent=d.next_task||'No queued task';
+ document.getElementById('doneCount').textContent=`${d.task_done||0} / ${d.task_total||0} tasks`;
+ document.getElementById('percent').textContent=`${d.task_percent||0}%`;
+ document.getElementById('bar').style.width=`${d.task_percent||0}%`;
+ document.getElementById('tasks').innerHTML=(d.tasks||[]).map(t=>`<div class="task ${cls(t.status)}"><span>${escapeHtml(t.name)}</span><b>${labels[t.status]||escapeHtml(t.status)}</b><small>${escapeHtml(t.summary||'')}</small></div>`).join('');
+ latestCommandLog = (d.command_log || []).slice(-80);
+ document.getElementById('log').innerHTML=latestCommandLog.map((entry, idx)=>logRow(entry, idx)).join('') || '<tr><td colspan="4" class="muted">No command has completed yet.</td></tr>';
+ const res=d.results||{}; const services=res.service_inventory||[];
+ document.getElementById('summary').innerHTML=`
+   <div class="mini-card"><b>${(res.hosts||[]).length||0}</b><span>Hosts Observed</span></div>
+   <div class="mini-card"><b>${countTcp(services)}</b><span>TCP Services</span></div>
+   <div class="mini-card"><b>${countUdp(services)}</b><span>UDP Services</span></div>
+   <div class="mini-card"><b>${(res.cve_matches||[]).length||0}</b><span>CVE Findings</span></div>`;
+ // The backend stores completed scans as success. Redirect only when a result
+ // package exists; otherwise a failed pipeline would open an empty dashboard.
+ const hasSavedResults = Boolean(res.service_inventory || res.hosts || res.handoff_file || res.caldera_handoff);
+ if(d.status === 'success' || d.status === 'done' || (['failed', 'empty', 'error'].includes(d.status) && hasSavedResults)){
+   window.location=`/scan/results/${scanId}`;
+   return;
+ }
+ if(['failed', 'error'].includes(d.status)){
+   document.getElementById('current').textContent='Scan stopped before results were saved';
+   document.getElementById('next').textContent=d.error || 'Check the Flask terminal for the pipeline error.';
+   return;
+ }
+ setTimeout(poll,1500);
+}
+poll();
+</script>
+</body>
+</html>

@@ -45,3 +45,18 @@ def test_invalid_timeout_falls_back_to_default(monkeypatch):
     llm_client.ask_llm_text("hello")
 
     assert captured["timeout"] == llm_client.DEFAULT_TIMEOUT_SECONDS
+
+
+def test_ollama_base_url_gets_generate_path(monkeypatch):
+    captured = {}
+
+    def fake_post(url, json, timeout):
+        captured["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setenv("OLLAMA_URL", "http://ollama.test")
+    monkeypatch.setattr(llm_client.requests, "post", fake_post)
+
+    llm_client.ask_llm_text("hello")
+
+    assert captured["url"] == "http://ollama.test/api/generate"

@@ -1,50 +1,17 @@
 <section class="flow-card large-flow-card" id="scan-vuln">
-  <div class="flow-card-header">
-    <span class="label">Assessment Stage 1</span>
-    <h2>Scan Findings & Vulnerability Mapping</h2>
-  </div>
-
-  <div class="summary-strip">
-    <article>
-      <span class="label">Target</span>
-      <strong>
-        {{ scan.target_ip if scan and scan.target_ip else session.get('target_ip', 'Unknown') }}
-      </strong>
-    </article>
-
-    <article>
-      <span class="label">Port Range</span>
-      <strong>
-        {{ scan.port_range if scan and scan.port_range else session.get('port_range', '1-1024') }}
-      </strong>
-    </article>
-
-    <article>
-      <span class="label">Selected Mode</span>
-      <strong>{{ active_mode | upper }}</strong>
-    </article>
-
-    <article>
-      <span class="label">Risk Score</span>
-      <strong>
-        {{ risk.score if risk and risk.score is defined else session.get('risk_score', {}).get('score', 'N/A') }}
-      </strong>
-    </article>
+  <div class="flow-card-header stage-head-with-actions">
+    <div>
+      <span class="label">Assessment Stage 1</span>
+      <h2>Scan Findings & Vulnerability Mapping</h2>
+    </div>
+    <div class="actions action-row stage-actions">
+      <button class="button secondary" id="viewAllCvesBtn" type="button">Open CVE Review</button>
+      <a class="button" href="/download/pdf/{{ scan.scan_id }}">Download PDF Report</a>
+      <a class="button ghost" href="/download/handoff/{{ scan.scan_id }}">Download Handoff JSON</a>
+    </div>
   </div>
 
   {% if results %}
-    <div class="mini-panel">
-      <p>
-        <span class="label">Operating System</span>
-        {{ results.os if results.os is defined else results.get('os', 'Unknown') }}
-      </p>
-
-      <p>
-        <span class="label">Open Ports</span>
-        {{ results.ports|length if results.ports is defined else results.get('ports', [])|length }}
-      </p>
-    </div>
-
     <details class="details-block" open>
       <summary>View Scan Findings</summary>
 
@@ -132,4 +99,162 @@
       <p class="muted">No vulnerability matches yet.</p>
     {% endif %}
   </details>
+
+  <div id="cveModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeCveModal()"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cveModalTitle">
+      <div class="modal-head">
+        <h2 id="cveModalTitle">CVE Findings</h2>
+        <button id="closeCveModal" class="icon-btn" type="button">Close</button>
+      </div>
+
+      <div class="modal-body">
+      {% set cve_matches = results.cve_matches if results and results.cve_matches is defined else [] %}
+      {% set candidate_groups = results.candidate_cve_groups if results and results.candidate_cve_groups is defined else [] %}
+      {% set mitre_source = results.mitre_source if results and results.mitre_source is defined else {} %}
+
+      <div class="mini-panel">
+        <p class="small">
+          Source:
+          {{ mitre_source.source if mitre_source and mitre_source.source else 'Official CVE source status unavailable' }}.
+          Indexed records:
+          {{ mitre_source.records_indexed if mitre_source and mitre_source.records_indexed is defined else 'N/A' }}.
+        </p>
+        {% if not cve_matches and candidate_groups %}
+          <p class="muted small">
+            No confirmed CVE findings were linked, but candidate references were retained for analyst review.
+          </p>
+        {% elif not cve_matches %}
+          <p class="muted small">
+            No confirmed CVE findings were linked from the collected product/version evidence.
+          </p>
+        {% endif %}
+      </div>
+
+      <div class="cve-filter-row small">
+        <input id="cveSearch" placeholder="Search CVE ID or keyword" />
+        <select id="cveFilterSeverity">
+          <option value="all">All severities</option>
+          <option value="Critical">Critical</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+      </div>
+
+      <div class="table-wrap top-gap">
+        <table id="cveTable">
+          <thead>
+            <tr>
+              <th>CVE ID</th>
+              <th>Severity</th>
+              <th>Confidence</th>
+              <th>Service/Port</th>
+              <th>Product / Version</th>
+              <th>Description</th>
+              <th>Links</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if cve_matches %}
+              {% for cve in cve_matches %}
+                <tr class="cve-row">
+                  <td class="mono">{{ cve.cve_id }}</td>
+                  <td><span class="severity {{ (cve.source_cvss_severity or 'Info')|lower }}">{{ cve.source_cvss_severity or 'Info' }}</span></td>
+                  <td>{{ cve.classification or cve.finding_type or 'Evidence linked' }}</td>
+                  <td class="mono">{{ cve.service }}:{{ cve.observed_ports|default([cve.port ~ '/' ~ cve.protocol])|join(', ') }}</td>
+                  <td>
+                    {{ cve.product }}{% if cve.version %} {{ cve.version }}{% endif %}
+                  </td>
+                  <td class="small">{{ cve.vulnerability or cve.classification_reason }}</td>
+                  <td>
+                    <a class="button tiny" href="https://nvd.nist.gov/vuln/detail/{{ cve.cve_id }}" target="_blank">NVD</a>
+                    <a class="button tiny" href="https://cve.mitre.org/cgi-bin/cvename.cgi?name={{ cve.cve_id }}" target="_blank">MITRE</a>
+                  </td>
+                </tr>
+              {% endfor %}
+            {% elif candidate_groups %}
+              {% for group in candidate_groups %}
+                {% for ref in group.references %}
+                  <tr class="cve-row">
+                    <td class="mono">{{ ref.cve_id }}</td>
+                    <td><span class="severity info">Candidate</span></td>
+                    <td>{{ ref.basis or 'Version/exposure reference' }}</td>
+                    <td class="mono">{{ group.service }}:{{ group.ports|join(', ') }}</td>
+                    <td>{{ group.product }}{% if group.version %} {{ group.version }}{% endif %}</td>
+                    <td class="small">{{ ref.reason }}</td>
+                    <td>
+                      <a class="button tiny" href="https://nvd.nist.gov/vuln/detail/{{ ref.cve_id }}" target="_blank">NVD</a>
+                      <a class="button tiny" href="https://cve.mitre.org/cgi-bin/cvename.cgi?name={{ ref.cve_id }}" target="_blank">MITRE</a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% endfor %}
+            {% elif mapping and mapping.vulnerabilities %}
+              {% for item in mapping.vulnerabilities %}
+                {% for cve in item.cve_matches|default([]) %}
+                  <tr class="cve-row">
+                    <td class="mono">{{ cve.cve_id }}</td>
+                    <td><span class="severity {{ cve.severity|lower }}">{{ cve.severity }}</span></td>
+                    <td>{{ 'High' if cve.severity == 'Critical' else 'Medium' }}</td>
+                    <td class="mono">{{ item.service }}:{{ item.port }}</td>
+                    <td>{% for tech in item.attack_techniques %}<span class="mono">{{ tech.id }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                    <td class="small">{{ cve.reason }}</td>
+                    <td>
+                      <a class="button tiny" href="https://nvd.nist.gov/vuln/detail/{{ cve.cve_id }}" target="_blank">NVD</a>
+                      <a class="button tiny" href="https://cve.mitre.org/cgi-bin/cvename.cgi?name={{ cve.cve_id }}" target="_blank">MITRE</a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="7" class="small">No CVE findings available.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openCveModal() {
+      const modal = document.getElementById('cveModal');
+      if (!modal) return;
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeCveModal() {
+      const modal = document.getElementById('cveModal');
+      if (!modal) return;
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    document.getElementById('closeCveModal')?.addEventListener('click', closeCveModal);
+    document.getElementById('viewAllCvesBtn')?.addEventListener('click', openCveModal);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCveModal(); });
+
+    const search = document.getElementById('cveSearch');
+    const filter = document.getElementById('cveFilterSeverity');
+    const rows = Array.from(document.querySelectorAll('#cveTable tbody tr'));
+
+    function applyFilter() {
+      const q = (search?.value || '').toLowerCase();
+      const sev = filter?.value || 'all';
+      rows.forEach(r => {
+        const txt = r.innerText.toLowerCase();
+        const rowSev = r.querySelector('td span.severity')?.innerText || '';
+        const matches = (!q || txt.includes(q)) && (sev === 'all' || rowSev === sev);
+        r.style.display = matches ? '' : 'none';
+      });
+    }
+
+    search?.addEventListener('input', applyFilter);
+    filter?.addEventListener('change', applyFilter);
+
+    window.openCveModal = openCveModal;
+    window.closeCveModal = closeCveModal;
+  </script>
 </section>

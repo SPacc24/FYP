@@ -149,9 +149,10 @@ SERVICE_KNOWLEDGE_BASE: dict[str, dict[str, Any]] = {
         "cve_hint": "Check SMB/Samba/Windows build and CPE against NVD and vendor advisories.",
         "recommendation": "Restrict SMB access, disable legacy SMB versions, patch the host, and limit file-sharing exposure.",
         "techniques": [
-            {"id": "T1046", "name": "Network Service Discovery"},
-            {"id": "T1021.002", "name": "Remote Services: SMB/Windows Admin Shares"},
-            {"id": "T1135", "name": "Network Share Discovery"},
+            {"id": "T1046", "name": "Network Service Discovery", "attack_path_stage": "Validation / Discovery"},
+            {"id": "T1135", "name": "Network Share Discovery", "attack_path_stage": "Validation / Discovery"},
+            {"id": "T1210", "name": "Exploitation of Remote Services", "attack_path_stage": "Controlled Exploitation Candidate"},
+            {"id": "T1021.002", "name": "Remote Services: SMB/Windows Admin Shares", "attack_path_stage": "Post-access Emulation"},
         ],
     },
     "netbios-ssn": {
@@ -160,9 +161,10 @@ SERVICE_KNOWLEDGE_BASE: dict[str, dict[str, Any]] = {
         "cve_hint": "Check Samba/NetBIOS exposure against public advisories and confirm whether legacy file-sharing is required.",
         "recommendation": "Disable NetBIOS where unnecessary, restrict SMB to trusted subnets, and patch Samba/Windows file-sharing components.",
         "techniques": [
-            {"id": "T1046", "name": "Network Service Discovery"},
-            {"id": "T1021.002", "name": "Remote Services: SMB/Windows Admin Shares"},
-            {"id": "T1135", "name": "Network Share Discovery"},
+            {"id": "T1046", "name": "Network Service Discovery", "attack_path_stage": "Validation / Discovery"},
+            {"id": "T1135", "name": "Network Share Discovery", "attack_path_stage": "Validation / Discovery"},
+            {"id": "T1210", "name": "Exploitation of Remote Services", "attack_path_stage": "Controlled Exploitation Candidate"},
+            {"id": "T1021.002", "name": "Remote Services: SMB/Windows Admin Shares", "attack_path_stage": "Post-access Emulation"},
         ],
     },
     "ms-wbt-server": {
@@ -374,12 +376,91 @@ def _build_recommendation(base_recommendation: str, cves: list[CVEMatch]) -> str
     return f"{specific} General hardening: {base_recommendation}"
 
 
+def _host_os_text(host: dict[str, Any], parsed_results: dict[str, Any]) -> str:
+    host_os = host.get("os", {})
+    if isinstance(host_os, dict):
+        os_name = host_os.get("name", "")
+    else:
+        os_name = str(host_os or "")
+    return " ".join([os_name, str(parsed_results.get("os", ""))]).lower()
+
+
+def _is_windows_os(os_text: str) -> bool:
+    return "windows" in os_text or "microsoft" in os_text
+
+
+def _is_legacy_windows_10(os_text: str) -> bool:
+    legacy_tokens = ["1507", "1511", "1607", "build 10240", "build 10586", "build 14393"]
+    return "windows 10" in os_text and any(token in os_text for token in legacy_tokens)
+
+
+def _technique_reason(technique: dict[str, Any], service: str, item: dict[str, Any], os_text: str) -> str:
+    technique_id = technique.get("id")
+    port = item.get("port")
+
+    if technique_id == "T1210":
+        if _is_legacy_windows_10(os_text):
+            return (
+                "SMB/NetBIOS exposure on a legacy Windows 10 build should be validated in the lab "
+                "with safe exploitability checks, not destructive payloads."
+            )
+        return (
+            "SMB/remote-service exposure is a candidate for controlled exploitability validation "
+            "inside the authorised cyber range."
+        )
+
+    if technique_id == "T1021.002":
+        return "SMB/admin-share behaviour can emulate post-access lateral movement once authorised access is present."
+
+    if technique_id == "T1135":
+        return "Open SMB/NetBIOS services support safe network share discovery validation."
+
+    if technique_id == "T1046":
+        return f"Port {port}/{service} exposure supports service discovery validation before deeper emulation."
+
+    return "Recommended by mapped service exposure, vulnerability context, and lab-safe ATT&CK planning."
+
+
+def _apply_attack_path_context(
+    techniques: list[dict[str, str]],
+    service: str,
+    item: dict[str, Any],
+    os_text: str,
+) -> list[dict[str, str]]:
+    staged: list[dict[str, str]] = []
+    seen: set[str] = set()
+
+    for technique in techniques:
+        technique_id = technique.get("id")
+        if not technique_id or technique_id in seen:
+            continue
+        enriched = dict(technique)
+        enriched.setdefault("attack_path_stage", "Validation / Discovery")
+        enriched["reason"] = _technique_reason(enriched, service, item, os_text)
+        staged.append(enriched)
+        seen.add(technique_id)
+
+    if service in {"microsoft-ds", "netbios-ssn"} and _is_windows_os(os_text) and "T1059" not in seen:
+        staged.append({
+            "id": "T1059",
+            "name": "Command and Scripting Interpreter",
+            "attack_path_stage": "Optional Post-access Emulation",
+            "reason": (
+                "Windows SMB exposure may support optional PowerShell or command-shell emulation "
+                "after access is explicitly authorised and established."
+            ),
+        })
+
+    return staged
+
+
 def map_vulnerabilities(parsed_results: dict[str, Any]) -> dict[str, Any]:
     vulnerabilities: list[dict[str, Any]] = []
     technique_counts: dict[str, dict[str, Any]] = {}
 
     for host in parsed_results.get("hosts", []):
         host_addr = host.get("address", {}).get("primary", "Unknown")
+        os_text = _host_os_text(host, parsed_results)
 
         for item in host.get("port_findings", []):
             state = item.get("state", "unknown")
@@ -422,6 +503,23 @@ def map_vulnerabilities(parsed_results: dict[str, Any]) -> dict[str, Any]:
             )
 
             cves = _match_known_cves(item, service)
+            # Heuristic: SMB exposure on legacy Windows 10 builds is strongly correlated
+            # with MS17-010 (CVE-2017-0144) in lab scenarios. Add a potential match with
+            # high confidence when OS text suggests legacy Windows 10 and SMB ports open.
+            if service in {"microsoft-ds", "netbios-ssn"} and _is_legacy_windows_10(os_text):
+                cves.append(
+                    CVEMatch(
+                        cve_id="CVE-2017-0144",
+                        title="SMBv1/Wide-open SMB remote code execution (MS17-010 / EternalBlue)",
+                        severity="Critical",
+                        reason=(
+                            "Host appears to be a legacy Windows 10 build with SMB exposed on 139/445; "
+                            "this environment commonly maps to MS17-010 in lab images and should be validated.") ,
+                        remediation=(
+                            "Apply MS17-010 / vendor patches, disable SMBv1, and restrict SMB exposure."
+                        ),
+                    )
+                )
             severity = kb_entry["severity"]
             for cve in cves:
                 severity = _max_severity(severity, cve.severity)
@@ -447,15 +545,26 @@ def map_vulnerabilities(parsed_results: dict[str, Any]) -> dict[str, Any]:
                 cve_hint=cve_hint,
                 evidence=_build_evidence(host_addr, item),
                 recommendation=recommendation,
-                attack_techniques=kb_entry["techniques"],
+                attack_techniques=_apply_attack_path_context(kb_entry["techniques"], service, item, os_text),
             ).to_dict()
             vulnerabilities.append(finding)
 
             for technique in finding["attack_techniques"]:
                 technique_id = technique["id"]
                 if technique_id not in technique_counts:
-                    technique_counts[technique_id] = {**technique, "count": 0, "max_severity": severity}
+                    technique_counts[technique_id] = {
+                        **technique,
+                        "count": 0,
+                        "max_severity": severity,
+                        "reasons": [],
+                        "supporting_services": [],
+                    }
                 technique_counts[technique_id]["count"] += 1
+                reason = technique.get("reason")
+                if reason and reason not in technique_counts[technique_id]["reasons"]:
+                    technique_counts[technique_id]["reasons"].append(reason)
+                if service not in technique_counts[technique_id]["supporting_services"]:
+                    technique_counts[technique_id]["supporting_services"].append(service)
                 if SEVERITY_ORDER[severity] > SEVERITY_ORDER[technique_counts[technique_id]["max_severity"]]:
                     technique_counts[technique_id]["max_severity"] = severity
 

