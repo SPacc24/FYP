@@ -45,7 +45,10 @@ from caldera.coverage_checker import CoverageChecker
 
 from caldera.risk_scorer import RiskScorer
 from proof_of_access import ProofTicketError, ProofTicketManager
+from exploitation.metasploit_client import MetasploitRpcClient
+from exploitation.metasploit_service import MetasploitService
 from exploitation.validator import ExploitabilityValidator
+from pentest_ai.advisor import generate_attack_path_advice
 from reports.report_generator import build_report_summary
 from storage.db import Database
 from storage import scan_store
@@ -106,6 +109,8 @@ HEAVY_STATE_KEYS = {
     "risk_score",
     "remediations",
     "vulnerabilities",
+    "attack_advice",
+    "metasploit_results",
 }
 
 # ---------------------------------------------------
@@ -132,6 +137,18 @@ if Config.PROOF_OF_ACCESS_ENABLED and not proof_ticket_manager.active:
         "than 32 bytes; ticket issuance is disabled."
     )
 exploitability_validator = ExploitabilityValidator()
+metasploit_client = MetasploitRpcClient(
+    base_url=Config.METASPLOIT_RPC_URL,
+    username=Config.METASPLOIT_RPC_USER,
+    password=Config.METASPLOIT_RPC_PASS,
+    verify_ssl=Config.METASPLOIT_RPC_VERIFY_SSL,
+    timeout=Config.METASPLOIT_RPC_TIMEOUT,
+    enabled=Config.ENABLE_METASPLOIT,
+)
+metasploit_service = MetasploitService(
+    metasploit_client,
+    exploit_execution_enabled=Config.ENABLE_METASPLOIT_EXPLOITS,
+)
 
 db = Database(
     host=Config.MYSQL_HOST,
@@ -371,6 +388,18 @@ def _active_validation_results() -> dict:
     return validation if isinstance(validation, dict) else {}
 
 
+def _active_attack_advice() -> dict:
+    data = _active_scan_record()
+    advice = data.get("attack_advice") or session.get("attack_advice") or {}
+    return advice if isinstance(advice, dict) else {}
+
+
+def _active_metasploit_results() -> dict:
+    data = _active_scan_record()
+    results = data.get("metasploit_results") or session.get("metasploit_results") or {}
+    return results if isinstance(results, dict) else {}
+
+
 def _active_operation_results() -> dict:
     data = _active_scan_record()
     operation = data.get("operation_results") or session.get("operation_results") or {}
@@ -408,6 +437,18 @@ def _build_active_report_context(data: dict | None = None) -> dict:
     mapping_results = active.get("mapping") or _active_mapping_results() or _state_get("mapping_results", {})
     operation_results = active.get("operation_results") or _active_operation_results() or _state_get("operation_results", {})
     validation_results = active.get("validation_results") or _active_validation_results()
+    attack_advice = active.get("attack_advice") or _active_attack_advice() or _state_get("attack_advice", {})
+    metasploit_results = active.get("metasploit_results") or _active_metasploit_results() or _state_get("metasploit_results", {})
+    if isinstance(validation_results, dict) and attack_advice:
+        validation_results = {
+            **validation_results,
+            "attack_advice": attack_advice,
+        }
+    if isinstance(validation_results, dict) and metasploit_results:
+        validation_results = {
+            **validation_results,
+            "metasploit_results": metasploit_results,
+        }
     risk = active.get("risk") or session.get("risk_score") or _state_get("risk_score", {})
     remediations = active.get("remediations") or session.get("remediations") or _state_get("remediations", [])
 
@@ -425,6 +466,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         "mapping": mapping_results,
         "operation": operation_results,
         "validation": validation_results,
+        "metasploit": metasploit_results,
         "risk": risk,
         "remediations": remediations,
         "report": report,
@@ -557,6 +599,8 @@ def ai_chat():
         attack_plan = _active_attack_plan() or _state_get("attack_plan", {})
         operation_results = _active_operation_results() or _state_get("operation_results", {})
         validation_results = _active_validation_results()
+        attack_advice = _active_attack_advice() or _state_get("attack_advice", {})
+        metasploit_results = _active_metasploit_results() or _state_get("metasploit_results", {})
         risk_score = (
             _active_scan_record().get("risk")
             or session.get("risk_score")
@@ -596,6 +640,15 @@ def ai_chat():
                 "confirmed": validation_results.get("confirmed", 0),
                 "potential": validation_results.get("potential", 0),
                 "findings": validation_results.get("findings", []),
+            },
+            "attack_path_advice": {
+                "summary": attack_advice.get("summary"),
+                "source": attack_advice.get("source"),
+                "paths": attack_advice.get("attack_paths", []),
+            },
+            "metasploit_execution": {
+                "mode": metasploit_results.get("mode"),
+                "runs": metasploit_results.get("runs", []),
             },
             "risk_score": risk_score,
         }
@@ -801,6 +854,8 @@ def scan_results(scan_id):
         selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
         attack_plan=data.get("attack_plan"),
         validation_results=data.get("validation_results"),
+        attack_advice=data.get("attack_advice"),
+        metasploit_results=data.get("metasploit_results"),
         operation_results=data.get("operation_results"),
         risk=data.get("risk"),
         remediations=data.get("remediations") or [],
@@ -982,6 +1037,144 @@ def exploitation_run():
             "ok": False,
             "error": str(e)
         }), 500
+
+
+@app.route("/pentest/advice", methods=["POST"])
+def pentest_advice():
+    try:
+        parsed_results = _load_current_scan_results()
+        if not parsed_results:
+            return jsonify({
+                "ok": False,
+                "error": "No scan results available. Run a scan before requesting attack-path advice."
+            }), 400
+
+        mapping_results = _active_mapping_results() or _state_get("mapping_results", {})
+        ai_plan = _active_ai_plan() or _state_get("ai_plan", {})
+        validation_results = _active_validation_results()
+        technique_ids = ai_plan.get("selected_technique_ids") or [
+            item.get("id") or item.get("technique_id")
+            for item in mapping_results.get("recommended_techniques", [])
+            if isinstance(item, dict)
+        ]
+        technique_ids = [str(tid).strip() for tid in technique_ids if str(tid or "").strip()]
+
+        coverage_info = ai_plan.get("caldera_coverage") or {}
+        if technique_ids and not coverage_info:
+            try:
+                coverage_info = coverage_checker.check_technique_coverage(technique_ids)
+            except Exception:
+                log.exception("Could not collect CALDERA coverage for attack-path advice")
+                coverage_info = {}
+
+        advice = generate_attack_path_advice(
+            parsed_results=parsed_results,
+            mapping_results=mapping_results,
+            ai_plan=ai_plan,
+            validation_results=validation_results,
+            coverage_info=coverage_info,
+        )
+
+        session["attack_advice"] = advice
+        _state_set(attack_advice=advice)
+        _save_active_scan_fields(attack_advice=advice)
+
+        return jsonify(advice)
+
+    except Exception as e:
+        log.error(f"Attack-path advice failed: {e}")
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route("/pentest/metasploit/status", methods=["GET"])
+def metasploit_status():
+    return jsonify(metasploit_service.status())
+
+
+@app.route("/pentest/metasploit/propose", methods=["POST"])
+def metasploit_propose():
+    try:
+        parsed_results = _load_current_scan_results()
+        if not parsed_results:
+            return jsonify({
+                "ok": False,
+                "error": "No scan results available. Run a scan before requesting Metasploit actions."
+            }), 400
+
+        attack_advice = _active_attack_advice() or _state_get("attack_advice", {})
+        result = metasploit_service.propose_actions(
+            parsed_results=parsed_results,
+            attack_advice=attack_advice,
+        )
+        result["status"] = metasploit_service.status()
+        return jsonify(result)
+
+    except Exception as e:
+        log.error(f"Metasploit proposal generation failed: {e}")
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+        }), 500
+
+
+@app.route("/pentest/metasploit/run", methods=["POST"])
+def metasploit_run():
+    try:
+        data = request.get_json(silent=True) or {}
+        action_id = str(data.get("action_id") or "").strip()
+        if not action_id:
+            return jsonify({
+                "ok": False,
+                "error": "action_id is required."
+            }), 400
+
+        parsed_results = _load_current_scan_results()
+        if not parsed_results:
+            return jsonify({
+                "ok": False,
+                "error": "No scan results available. Run a scan before Metasploit validation."
+            }), 400
+
+        attack_advice = _active_attack_advice() or _state_get("attack_advice", {})
+        result = metasploit_service.run_action(
+            action_id=action_id,
+            parsed_results=parsed_results,
+            attack_advice=attack_advice,
+            approved=bool(data.get("approved")),
+        )
+
+        if not result.get("ok"):
+            return jsonify(result), 400
+
+        existing = _active_metasploit_results() or _state_get("metasploit_results", {})
+        runs = list(existing.get("runs", [])) if isinstance(existing, dict) else []
+        runs.append(result)
+        metasploit_results = {
+            "ok": True,
+            "mode": "metasploit_rpc",
+            "target": result.get("action", {}).get("target"),
+            "runs": runs[-20:],
+            "last_summary": result.get("summary"),
+        }
+        session["metasploit_results"] = metasploit_results
+        _state_set(metasploit_results=metasploit_results)
+        _save_active_scan_fields(metasploit_results=metasploit_results)
+
+        return jsonify({
+            **result,
+            "metasploit_results": metasploit_results,
+        })
+
+    except Exception as e:
+        log.error(f"Metasploit execution failed: {e}")
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+        }), 500
+
 
 @app.route("/api/caldera/check-coverage", methods=["POST"])
 def check_coverage():
@@ -1253,6 +1446,8 @@ def results():
                 selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
                 attack_plan=data.get("attack_plan"),
                 validation_results=data.get("validation_results"),
+                attack_advice=data.get("attack_advice"),
+                metasploit_results=data.get("metasploit_results"),
                 operation_results=data.get("operation_results"),
                 risk=data.get("risk"),
                 remediations=data.get("remediations") or [],
@@ -1297,6 +1492,8 @@ def results():
         selected_mode=session.get("technique_mode", "hybrid"),
         attack_plan=_active_attack_plan() or _state_get("attack_plan"),
         validation_results=_active_validation_results(),
+        attack_advice=_active_attack_advice() or _state_get("attack_advice"),
+        metasploit_results=_active_metasploit_results() or _state_get("metasploit_results"),
         operation_results=_active_operation_results() or _state_get("operation_results"),
         risk=risk,
         remediations=session.get("remediations") or _state_get("remediations", []),

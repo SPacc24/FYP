@@ -1,6 +1,7 @@
 Flask==3.0.0
 python-dotenv==1.0.1
 requests==2.31.0
+msgpack==1.2.1
 
 weasyprint==62.3
 reportlab==4.2.2
