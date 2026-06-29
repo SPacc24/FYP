@@ -84,22 +84,27 @@ Create or edit:
 
 Minimum useful Kali configuration:
 
-   SECRET_KEY=change-this-to-a-long-random-string
+   SECRET_KEY=<generated-secret-key>
    DEBUG=true
 
    ENABLE_METASPLOIT=1
    ENABLE_METASPLOIT_EXPLOITS=0
    METASPLOIT_RPC_URL=https://127.0.0.1:55552
    METASPLOIT_RPC_USER=msf
-   METASPLOIT_RPC_PASS=change-this-password
+   METASPLOIT_RPC_PASS=<generated-rpc-password>
    METASPLOIT_RPC_VERIFY_SSL=0
 
    CALDERA_URL=http://127.0.0.1:8888
    CALDERA_API_KEY=
    KALI_IP=127.0.0.1
 
-   In Kali, inside the venv, generate one with:
-python -c "import secrets; print(secrets.token_urlsafe(32))"
+Generate the Flask secret key:
+
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+Generate the Metasploit RPC password:
+
+   python -c "import secrets; print(secrets.token_hex(24))"
 
 Keep ENABLE_METASPLOIT_EXPLOITS=0 unless a supervised lab run explicitly
 requires exploit-class modules.
@@ -107,13 +112,32 @@ requires exploit-class modules.
 
 6. Start Metasploit RPC
 -----------------------
-In a separate Kali terminal:
+In a separate Kali terminal, use the exact same password that appears in
+METASPLOIT_RPC_PASS:
 
-   msfrpcd -U msf -P password -a 127.0.0.1 -p 55552
+   msfrpcd -U msf -P <generated-rpc-password> -a 127.0.0.1 -p 55552
 
 Leave this terminal running.
 
 The password must match METASPLOIT_RPC_PASS in project/.env.
+
+Use only one RPC method at a time. The command above starts msfrpcd, which uses
+HTTPS by default, so this .env value is correct:
+
+   METASPLOIT_RPC_URL=https://127.0.0.1:55552
+
+If you use msfconsole's msgrpc plugin instead, do not load it with random
+credentials. Start it with explicit options:
+
+   msfconsole -q
+   load msgrpc ServerHost=127.0.0.1 ServerPort=55552 User=msf Pass=<generated-rpc-password> SSL=true
+
+If you set SSL=false or omit SSL for msgrpc, use http instead:
+
+   METASPLOIT_RPC_URL=http://127.0.0.1:55552
+
+After changing project/.env, restart the Flask app. The app reads these values
+when it starts.
 
 
 7. Run the Flask app
@@ -180,7 +204,27 @@ Metasploit RPC integration is disabled:
    ENABLE_METASPLOIT=1 is missing from project/.env, or Flask was not restarted.
 
 Metasploit RPC authentication failed:
-   METASPLOIT_RPC_PASS does not match the password used with msfrpcd.
+   METASPLOIT_RPC_PASS does not match the password used with msfrpcd/msgrpc, or
+   Flask was not restarted after editing project/.env.
+
+   Recovery checklist:
+
+   1. Stop the old msfrpcd terminal with Ctrl+C.
+   2. Generate a simple hex password:
+
+      python -c "import secrets; print(secrets.token_hex(24))"
+
+   3. Put that exact value in project/.env:
+
+      METASPLOIT_RPC_USER=msf
+      METASPLOIT_RPC_PASS=<generated-rpc-password>
+      METASPLOIT_RPC_URL=https://127.0.0.1:55552
+
+   4. Start RPC with the same value:
+
+      msfrpcd -U msf -P <generated-rpc-password> -a 127.0.0.1 -p 55552
+
+   5. Restart Flask.
 
 No Metasploit actions loaded:
    The active scan did not find services matching the allowlist, or the scan has

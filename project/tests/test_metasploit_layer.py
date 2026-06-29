@@ -1,4 +1,5 @@
 from exploitation.metasploit_policy import authorize_metasploit_action, build_metasploit_actions
+from exploitation.metasploit_client import MetasploitRpcClient
 from exploitation.metasploit_service import MetasploitService
 
 
@@ -37,6 +38,17 @@ def test_policy_builds_actions_from_active_scan_only():
     smb_action = next(action for action in actions if action["action_id"] == "msf_smb_version:445")
     assert smb_action["technique_ids"] == ["T1021.002"]
     assert smb_action["source"] == "attack_advice"
+
+
+def test_metasploit_client_uses_msgrpc_default_api_path_without_trailing_slash():
+    client = MetasploitRpcClient(
+        "https://127.0.0.1:55552",
+        "msf",
+        "pass",
+        enabled=True,
+    )
+
+    assert client.api_url == "https://127.0.0.1:55552/api"
 
 
 def test_policy_rejects_arbitrary_or_unscoped_action():
