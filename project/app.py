@@ -44,6 +44,7 @@ from caldera.coverage_checker import CoverageChecker
 
 from caldera.risk_scorer import RiskScorer
 from exploitation.validator import ExploitabilityValidator
+from pivot.pivot_assessor import PivotAssessor
 from reports.report_generator import build_report_summary
 from storage.db import Database
 from storage import scan_store
@@ -108,6 +109,8 @@ operation_manager = OperationManager(caldera_client)
 coverage_checker = CoverageChecker(caldera_client)
 risk_scorer = RiskScorer()
 exploitability_validator = ExploitabilityValidator()
+pivot_assessor = PivotAssessor(operation_manager)
+
 
 db = Database(
     host=Config.MYSQL_HOST,
@@ -993,6 +996,14 @@ def caldera_run():
         vulns = data.get("vulnerabilities") or session.get("vulnerabilities") or mapping_results.get("vulnerabilities", [])
         session["vulnerabilities"] = vulns
         result["validation_results"] = _active_validation_results()
+        
+        parsed_results = _load_current_scan_results() or {}
+        result["pivot_assessment"] = pivot_assessor.assess(
+        parsed_results=parsed_results,
+        mapping_results=mapping_results,
+        operation_results=result,
+        target=session.get("target_ip"),
+        )
         risk = _safe_risk_calculate(vulns, result)
 
         # Remediation
