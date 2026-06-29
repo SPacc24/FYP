@@ -2902,12 +2902,12 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             web_inventory=web,
             smb_summary=smb_summary,
         )
-        knowledge_graph_path = Path('storage/results') / f'{scan_id}_knowledge_graph.json'
+        knowledge_graph_path = scan_store.result_path(f'{scan_id}_knowledge_graph.json')
         knowledge_graph_path.parent.mkdir(parents=True, exist_ok=True)
         knowledge_graph_path.write_text(json.dumps(enumeration_intelligence.get('knowledge_graph') or {}, indent=2, default=str), encoding='utf-8')
         enumeration_intelligence['knowledge_graph_file'] = str(knowledge_graph_path)
         _add_raw(raw, 'knowledge_graph', '', '', str(knowledge_graph_path), 'json', True)
-        enum_path = Path('storage/results') / f'{scan_id}_enumeration_intelligence.json'
+        enum_path = scan_store.result_path(f'{scan_id}_enumeration_intelligence.json')
         enum_path.write_text(json.dumps(enumeration_intelligence, indent=2, default=str), encoding='utf-8')
         enumeration_intelligence['enumeration_intelligence_file'] = str(enum_path)
         _add_raw(raw, 'enumeration_intelligence', '', '', str(enum_path), 'json', True)
@@ -2989,7 +2989,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             }
         except Exception as analysis_exc:
             logger.warning('Scan analysis post-processing failed: %s', analysis_exc)
-        out=Path('storage/results') / f'{scan_id}_handoff.json'; out.write_text(json.dumps(package, indent=2, default=str), encoding='utf-8')
+        out=scan_store.result_path(f'{scan_id}_handoff.json'); out.write_text(json.dumps(package, indent=2, default=str), encoding='utf-8')
         package['handoff_file']=str(out)
         _finish(scan_id, task, scan_store.STATUS_SUCCESS, 'Report and handoff package assembled')
         scan_store.update(scan_id,status=scan_store.STATUS_SUCCESS,completed_at=scan_store.now(),results=package,**analysis_fields)

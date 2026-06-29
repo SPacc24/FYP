@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from storage import scan_store
+
 
 class EnterprisePolicyError(RuntimeError):
     """Raised when an authorised engagement policy would be violated."""
@@ -211,7 +213,7 @@ def build_evidence_manifest(scan_id: str, raw_evidence_index: list[dict[str, Any
     if package_file:
         out = Path(package_file)
     else:
-        out = Path('storage/results') / f'{scan_id}_evidence_manifest.json'
+        out = scan_store.result_path(f'{scan_id}_evidence_manifest.json')
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(manifest, indent=2, default=str), encoding='utf-8')
     manifest['manifest_file'] = str(out)

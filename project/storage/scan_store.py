@@ -1,11 +1,12 @@
 
 from __future__ import annotations
-import json, threading, uuid
+import json, os, threading, uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-RESULTS_DIR = Path('storage/results')
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+RESULTS_DIR = Path(os.getenv('AUTOPENTEST_RESULTS_DIR') or PROJECT_DIR / 'storage' / 'results')
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 _store: dict[str, dict[str, Any]] = {}
 _lock = threading.Lock()
@@ -40,6 +41,7 @@ def new_scan(target: str, source_ip: str = '', user_agent: str = '', scan_option
             'user_agent': user_agent,
             'tasks': [],
             'activity_log': [],
+            'audit_log': [],
             'command_log': [],
             'current_task': 'Queued',
             'next_task': '',
@@ -78,7 +80,7 @@ def log(scan_id: str, message: str, level: str = 'INFO', command: str = '') -> N
         if scan_id in _store:
             _store[scan_id]['activity_log'].append(entry)
 
-def log_command(scan_id: str, *, command: str, purpose: str, output: str = '', status: str = '', exit_code: Any = '', output_file: str = '', output_truncated: bool = False) -> None:
+def log_command(scan_id: str, *, command: str, purpose: str, output: str = '', output_summary: str = '', status: str = '', exit_code: Any = '', output_file: str = '', output_truncated: bool = False) -> None:
     entry = {
         'time': datetime.now().strftime('%H:%M:%S'),
         'level': status or 'Completed',
@@ -87,6 +89,7 @@ def log_command(scan_id: str, *, command: str, purpose: str, output: str = '', s
         'purpose': purpose,
         'message': purpose,
         'output': output or '',
+        'output_summary': output_summary or '',
         'exit_code': exit_code,
         'output_file': output_file or '',
         'output_truncated': bool(output_truncated),
@@ -95,6 +98,17 @@ def log_command(scan_id: str, *, command: str, purpose: str, output: str = '', s
         if scan_id in _store:
             _store[scan_id].setdefault('command_log', []).append(entry)
             _store[scan_id]['activity_log'].append(entry)
+
+def audit_event(scan_id: str, actor: str, action: str, details: Any = None) -> None:
+    entry = {
+        'time': datetime.now().strftime('%H:%M:%S'),
+        'actor': actor or 'system',
+        'action': action or '',
+        'details': details if details is not None else {},
+    }
+    with _lock:
+        if scan_id in _store:
+            _store[scan_id].setdefault('audit_log', []).append(entry)
 
 def update(scan_id: str, **kwargs: Any) -> None:
     with _lock:
@@ -118,16 +132,27 @@ def progress(scan_id: str) -> dict[str, Any]:
     data['command_log'] = data.get('command_log') or [e for e in data.get('activity_log', []) if e.get('command')]
     return data
 
+def result_path(filename: str) -> Path:
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    return RESULTS_DIR / filename
+
+def storage_path(*parts: str) -> Path:
+    path = PROJECT_DIR / 'storage'
+    for part in parts:
+        path = path / part
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
 def persist(scan_id: str) -> str:
     data = get(scan_id) or {}
-    path = RESULTS_DIR / f'{scan_id}.json'
+    path = result_path(f'{scan_id}.json')
     path.write_text(json.dumps(data, indent=2, default=str), encoding='utf-8')
     return str(path)
 
 def load(scan_id: str) -> dict[str, Any] | None:
     data = get(scan_id)
     if data: return data
-    path = RESULTS_DIR / f'{scan_id}.json'
+    path = result_path(f'{scan_id}.json')
     if path.exists():
         loaded = json.loads(path.read_text(encoding='utf-8'))
         with _lock: _store[scan_id] = loaded

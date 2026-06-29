@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from storage import scan_store
+
 
 def _norm(value: Any) -> str:
     return str(value or '').strip()
@@ -49,13 +51,13 @@ def _latest_comparable_run(results_dir: Path, current_target: str, current_scan_
     return None
 
 
-def build_enumeration_cache(scan_id: str, target_input: str, services: list[dict[str, Any]], modern_active_validation: dict[str, Any], passive_intelligence: dict[str, Any], cache_dir: str | Path = 'storage/cache') -> dict[str, Any]:
+def build_enumeration_cache(scan_id: str, target_input: str, services: list[dict[str, Any]], modern_active_validation: dict[str, Any], passive_intelligence: dict[str, Any], cache_dir: str | Path | None = None) -> dict[str, Any]:
     """Create cache metadata for repeat scans.
 
     The current run is never skipped by this helper. It writes cache metadata so
     future runs can safely reuse stable low-noise observations when policy allows.
     """
-    cache_path = Path(cache_dir)
+    cache_path = Path(cache_dir) if cache_dir is not None else scan_store.storage_path('cache')
     cache_path.mkdir(parents=True, exist_ok=True)
     ttl_seconds = {
         'dns_context': 12 * 3600,
@@ -103,12 +105,12 @@ def build_enumeration_cache(scan_id: str, target_input: str, services: list[dict
     return cache
 
 
-def build_differential_recon(scan_id: str, target_input: str, current_services: list[dict[str, Any]], results_dir: str | Path = 'storage/results') -> dict[str, Any]:
+def build_differential_recon(scan_id: str, target_input: str, current_services: list[dict[str, Any]], results_dir: str | Path | None = None) -> dict[str, Any]:
     """Compare current service inventory to the most recent comparable run.
 
     This is operational comparison only. It does not rank, prioritise or assign risk.
     """
-    results_path = Path(results_dir)
+    results_path = Path(results_dir) if results_dir is not None else scan_store.RESULTS_DIR
     previous = _latest_comparable_run(results_path, _norm(target_input), scan_id)
     current_map = {_service_key(s): _service_signature(s) for s in current_services or []}
     if not previous:
@@ -216,7 +218,7 @@ def build_operational_maturity_package(scan_id: str, target_input: str, services
             f"{len(confidence_breakdown)} service confidence row(s) retained.",
         ],
     }
-    out = Path('storage/results') / f'{scan_id}_operational_maturity.json'
+    out = scan_store.result_path(f'{scan_id}_operational_maturity.json')
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(package, indent=2, default=str), encoding='utf-8')
     package['operational_maturity_file'] = str(out)
