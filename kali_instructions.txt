@@ -1,0 +1,190 @@
+AutoPenTest Kali Setup Instructions
+===================================
+
+Use this file when running the project inside Kali Linux. This is the preferred
+setup for the FYP exploitation layer because Metasploit, Nmap, and other
+offensive tooling stay inside Kali instead of being installed on the Windows
+host.
+
+
+1. Clone the repo
+-----------------
+Open a terminal in Kali:
+
+   cd ~
+   git clone https://github.com/SPacc24/FYP.git
+   cd FYP
+
+Check that Git is working:
+
+   git status
+
+If you see "not a git repository", you are in the wrong folder. Run:
+
+   cd ~/FYP
+
+
+2. Create a Python virtual environment
+--------------------------------------
+Kali blocks system-wide pip installs with the externally-managed-environment
+error. Do not use --break-system-packages. Use a virtual environment instead.
+
+Install venv support:
+
+   sudo apt update
+   sudo apt install -y python3-venv python3-pip
+
+Create and activate the virtual environment:
+
+   python3 -m venv .venv
+   source .venv/bin/activate
+
+Your prompt should now show something like:
+
+   (.venv) kali@kali:~/FYP$
+
+
+3. Install Python requirements
+------------------------------
+From inside the repo, with the virtual environment activated:
+
+   python -m pip install --upgrade pip setuptools wheel
+   python -m pip install -r project/requirements.txt
+
+Use Linux-style paths on Kali:
+
+   project/requirements.txt
+
+Do not use the Windows path:
+
+   project\requirements.txt
+
+If WeasyPrint fails later, install its system libraries:
+
+   sudo apt install -y libcairo2 libpango-1.0-0 libpangoft2-1.0-0 libgdk-pixbuf-2.0-0 shared-mime-info
+
+
+4. Install/check security tools
+-------------------------------
+Kali usually already includes Nmap and Metasploit, but check:
+
+   nmap --version
+   msfconsole --version
+
+If either command is missing:
+
+   sudo apt install -y nmap metasploit-framework
+
+
+5. Configure environment variables
+----------------------------------
+Create or edit:
+
+   project/.env
+
+Minimum useful Kali configuration:
+
+   SECRET_KEY=change-this-to-a-long-random-string
+   DEBUG=true
+
+   ENABLE_METASPLOIT=1
+   ENABLE_METASPLOIT_EXPLOITS=0
+   METASPLOIT_RPC_URL=https://127.0.0.1:55552
+   METASPLOIT_RPC_USER=msf
+   METASPLOIT_RPC_PASS=change-this-password
+   METASPLOIT_RPC_VERIFY_SSL=0
+
+   CALDERA_URL=http://127.0.0.1:8888
+   CALDERA_API_KEY=
+   KALI_IP=127.0.0.1
+
+   In Kali, inside the venv, generate one with:
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+Keep ENABLE_METASPLOIT_EXPLOITS=0 unless a supervised lab run explicitly
+requires exploit-class modules.
+
+
+6. Start Metasploit RPC
+-----------------------
+In a separate Kali terminal:
+
+   msfrpcd -U msf -P password -a 127.0.0.1 -p 55552
+
+Leave this terminal running.
+
+The password must match METASPLOIT_RPC_PASS in project/.env.
+
+
+7. Run the Flask app
+--------------------
+In another Kali terminal:
+
+   cd ~/FYP
+   source .venv/bin/activate
+   cd project
+   python app.py
+
+Open the dashboard in Kali's browser:
+
+   http://127.0.0.1:5000
+
+If you want to open it from the Windows host browser, run Flask on all
+interfaces instead:
+
+   flask --app app run --host 0.0.0.0 --port 5000
+
+Then browse to:
+
+   http://<kali-ip>:5000
+
+Find the Kali IP with:
+
+   ip addr
+
+
+8. Dashboard workflow
+---------------------
+1. Run a scan against the authorised lab target.
+2. Generate Ollama attack-path advice.
+3. Click "Check Metasploit".
+4. Click "Find Metasploit Actions".
+5. Run one of the server-approved auxiliary validation actions.
+6. Generate the report and confirm the Metasploit execution record is included.
+
+
+9. Pulling new changes
+----------------------
+When changes are pushed from the Windows workspace to GitHub, update Kali with:
+
+   cd ~/FYP
+   git pull origin main
+
+Then reinstall requirements only if project/requirements.txt changed:
+
+   source .venv/bin/activate
+   python -m pip install -r project/requirements.txt
+
+
+10. Common errors
+-----------------
+externally-managed-environment:
+   You tried to install packages outside a virtual environment. Run:
+   source .venv/bin/activate
+
+fatal: not a git repository:
+   You are not inside the cloned repo. Run:
+   cd ~/FYP
+
+Metasploit RPC integration is disabled:
+   ENABLE_METASPLOIT=1 is missing from project/.env, or Flask was not restarted.
+
+Metasploit RPC authentication failed:
+   METASPLOIT_RPC_PASS does not match the password used with msfrpcd.
+
+No Metasploit actions loaded:
+   The active scan did not find services matching the allowlist, or the scan has
+   not completed yet.
+
+Connection refused on port 55552:
+   msfrpcd is not running, crashed, or is bound to a different IP/port.
