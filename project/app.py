@@ -11,6 +11,7 @@ from ai.technique_planner import generate_ai_technique_plan
 from ai.llm_client import ask_llm_text, get_llm_settings
 from ai.safety import SAFE_REFUSAL, is_unsafe_user_request, sanitize_llm_reply
 import json
+import re
 import os
 import socket
 import threading
@@ -612,13 +613,13 @@ def scan():
     if not target:
         return render_template("error.html", error_message="No target provided"), 400
 
-    profile = (request.form.get("scan_profile") or "fast").strip().lower()
-    enabled_tools = request.form.getlist("tools")
+    profile = (request.form.get("profile") or request.form.get("scan_profile") or "full").strip().lower()
+    enabled_tools = request.form.getlist("enabled_tools") or request.form.getlist("tools")
     technique_mode = request.form.get("technique_mode")
     if technique_mode not in {"auto", "hybrid", "manual"}:
         technique_mode = "hybrid"
 
-    scan_options = normalise_scan_options(profile, enabled_tools if enabled_tools else None)
+    scan_options = normalise_scan_options(profile, enabled_tools if profile == "custom" or enabled_tools else None)
     scan_options["technique_mode"] = technique_mode
     scan_id = scan_store.new_scan(
         target,

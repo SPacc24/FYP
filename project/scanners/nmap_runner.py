@@ -189,7 +189,7 @@ def build_nmap_command(request: ScanRequest, output_file: Path) -> list[str]:
     elif request.profile == "standard":
         command.extend(["-sV", "-sC"])
     elif request.profile == "deep":
-        command.extend(["-sV", "-sC", "-O", "--version-all"])
+        command.extend(["-sV", "--version-intensity", "5"])
 
     command.append(request.target)
     return command
