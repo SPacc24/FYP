@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Mon Jun 29 12:51:32 2026 as: /usr/lib/nmap/nmap -&#45;privileged -sV -&#45;version-light -O -&#45;osscan-guess -p 135,445,903,5426,49667,49674,63048 -oX storage/scans/nmap_service_fingerprint_192.168.128.1_20260629_125132.xml 192.168.128.1 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -&#45;privileged -sV -&#45;version-light -O -&#45;osscan-guess -p 135,445,903,5426,49667,49674,63048 -oX storage/scans/nmap_service_fingerprint_192.168.128.1_20260629_125132.xml 192.168.128.1" start="1782751892" startstr="Mon Jun 29 12:51:32 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="7" services="135,445,903,5426,49667,49674,63048"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="unknown-response" reason_ttl="0"/>
+<address addr="192.168.128.1" addrtype="ipv4"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1782751893" endtime="1782751921"><status state="up" reason="echo-reply" reason_ttl="128"/>
+<address addr="192.168.128.1" addrtype="ipv4"/>
+<hostnames>
+</hostnames>
+<ports><port protocol="tcp" portid="135"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" product="Microsoft Windows RPC" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="445"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="microsoft-ds" method="table" conf="3"/></port>
+<port protocol="tcp" portid="903"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="vmware-auth" product="VMware Authentication Daemon" version="1.10" extrainfo="Uses VNC, SOAP" tunnel="ssl" method="probed" conf="10"/></port>
+<port protocol="tcp" portid="5426"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="http" product="Microsoft HTTPAPI httpd" version="2.0" extrainfo="SSDP/UPnP" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="49667"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49674"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="http" product="Microsoft Kestrel httpd" method="probed" conf="10"><cpe>cpe:/a:microsoft:kestrel</cpe></service></port>
+<port protocol="tcp" portid="63048"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="spotify" product="Spotify json" method="probed" conf="10"/></port>
+</ports>
+<os><portused state="open" proto="tcp" portid="135"/>
+<osmatch name="Microsoft Windows XP SP3 or Windows 7 or Windows Server 2012" accuracy="100" line="92072">
+<osclass type="general purpose" vendor="Microsoft" osfamily="Windows" osgen="XP" accuracy="100"><cpe>cpe:/o:microsoft:windows_xp::sp3</cpe></osclass>
+<osclass type="general purpose" vendor="Microsoft" osfamily="Windows" osgen="7" accuracy="100"><cpe>cpe:/o:microsoft:windows_7</cpe></osclass>
+<osclass type="general purpose" vendor="Microsoft" osfamily="Windows" osgen="2012" accuracy="100"><cpe>cpe:/o:microsoft:windows_server_2012</cpe></osclass>
+</osmatch>
+</os>
+<tcpsequence index="252" difficulty="Good luck!" values="2E4E3AED,18A7F36,CD31E8B,E6B11A3,9A26E24,26CF2727"/>
+<ipidsequence class="Incremental" values="8709,870A,870B,870C,870D,870E"/>
+<tcptssequence class="none returned (unsupported)"/>
+<times srtt="496" rttvar="337" to="100000"/>
+</host>
+<runstats><finished time="1782751921" timestr="Mon Jun 29 12:52:01 2026" summary="Nmap done at Mon Jun 29 12:52:01 2026; 1 IP address (1 host up) scanned in 29.15 seconds" elapsed="29.15" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

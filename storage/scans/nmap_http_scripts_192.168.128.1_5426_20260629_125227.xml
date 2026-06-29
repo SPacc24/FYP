@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Mon Jun 29 12:52:27 2026 as: /usr/lib/nmap/nmap -&#45;privileged -sV -&#45;script http-title,http-headers,http-server-header,http-enum -p 5426 -oX storage/scans/nmap_http_scripts_192.168.128.1_5426_20260629_125227.xml 192.168.128.1 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -&#45;privileged -sV -&#45;script http-title,http-headers,http-server-header,http-enum -p 5426 -oX storage/scans/nmap_http_scripts_192.168.128.1_5426_20260629_125227.xml 192.168.128.1" start="1782751947" startstr="Mon Jun 29 12:52:27 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="1" services="5426"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="unknown-response" reason_ttl="0"/>
+<address addr="192.168.128.1" addrtype="ipv4"/>
+<hostnames>
+</hostnames>
+</hosthint>

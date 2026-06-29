@@ -1,0 +1,16 @@
+{
+  "hosts": [
+    "192.168.128.1"
+  ],
+  "services": [],
+  "web": [],
+  "smb": [],
+  "snmp": [],
+  "ssh": [],
+  "ldap": [],
+  "tls": [],
+  "rdp": [],
+  "hydra": [],
+  "service_level_checks": [],
+  "security_observations": []
+}

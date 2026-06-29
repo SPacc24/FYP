@@ -51,6 +51,19 @@ def test_metasploit_client_uses_msgrpc_default_api_path_without_trailing_slash()
     assert client.api_url == "https://127.0.0.1:55552/api"
 
 
+def test_login_accepts_byte_values_from_rpc_response():
+    client = MetasploitRpcClient(
+        "https://127.0.0.1:55552",
+        "msf",
+        "pass",
+        enabled=True,
+    )
+    client._call = lambda *args, **kwargs: {b"result": b"success", b"token": b"abc123"}
+
+    assert client.login() == "abc123"
+    assert client._token == "abc123"
+
+
 def test_policy_rejects_arbitrary_or_unscoped_action():
     result = authorize_metasploit_action(
         "exploit/windows/smb/not-in-allowlist:445",
