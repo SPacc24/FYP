@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from storage import scan_store
+
 
 class PassiveIntelError(RuntimeError):
     pass
@@ -419,8 +421,7 @@ def build_passive_summary(passive: dict[str, Any]) -> list[str]:
 
 
 def write_passive_package(scan_id: str, passive: dict[str, Any]) -> str:
-    path = Path('storage/scans') / f'passive_intelligence_{scan_id}.json'
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path = scan_store.scan_path(f'passive_intelligence_{scan_id}.json')
     path.write_text(json.dumps(passive, indent=2, default=str), encoding='utf-8')
     return str(path)
 

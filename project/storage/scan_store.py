@@ -6,8 +6,24 @@ from pathlib import Path
 from typing import Any
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
-RESULTS_DIR = Path(os.getenv('AUTOPENTEST_RESULTS_DIR') or PROJECT_DIR / 'storage' / 'results')
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+def _writable_dir(env_name: str, default: Path, fallback: Path) -> Path:
+    configured = os.getenv(env_name)
+    candidates = [Path(configured)] if configured else []
+    candidates.extend([default, fallback])
+    for path in candidates:
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            probe = path / '.write_test'
+            probe.write_text('ok', encoding='utf-8')
+            probe.unlink(missing_ok=True)
+            return path
+        except OSError:
+            continue
+    raise PermissionError(f'No writable storage directory found for {env_name}')
+
+RESULTS_DIR = _writable_dir('AUTOPENTEST_RESULTS_DIR', PROJECT_DIR / 'storage' / 'results', Path('/tmp/autopentest/results'))
+SCANS_DIR = _writable_dir('AUTOPENTEST_SCANS_DIR', PROJECT_DIR / 'storage' / 'scans', Path('/tmp/autopentest/scans'))
 _store: dict[str, dict[str, Any]] = {}
 _lock = threading.Lock()
 
@@ -135,6 +151,10 @@ def progress(scan_id: str) -> dict[str, Any]:
 def result_path(filename: str) -> Path:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     return RESULTS_DIR / filename
+
+def scan_path(filename: str) -> Path:
+    SCANS_DIR.mkdir(parents=True, exist_ok=True)
+    return SCANS_DIR / filename
 
 def storage_path(*parts: str) -> Path:
     path = PROJECT_DIR / 'storage'

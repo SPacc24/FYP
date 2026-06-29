@@ -15,12 +15,13 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
+from storage import scan_store
+
 try:
     from typing import Literal
 except ImportError:  # Python 3.7 compatibility
     from typing_extensions import Literal
 
-SCAN_OUTPUT_DIR = Path("storage/scans")
 DEFAULT_PORTS = "1-1000"
 DEFAULT_INTENSITY = 3
 SCAN_TIMEOUT_SECONDS = 600
@@ -84,10 +85,6 @@ def resolve_nmap_path() -> str:
             return path
 
     raise NmapScanError("Nmap was not found. Install Nmap, add it to PATH, or set NMAP_PATH.")
-
-
-def _project_path(path: Path) -> Path:
-    return Path.cwd() / path
 
 
 def validate_target(target: str) -> str:
@@ -162,14 +159,11 @@ def validate_profile(profile: str | None) -> ScanProfile:
 
 
 def generate_output_file(target: str) -> Path:
-    output_dir = _project_path(SCAN_OUTPUT_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     safe_target = re.sub(r"[^A-Za-z0-9_.-]", "_", target)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     unique_id = uuid.uuid4().hex[:8]
 
-    return output_dir / f"scan_{safe_target}_{timestamp}_{unique_id}.xml"
+    return scan_store.scan_path(f"scan_{safe_target}_{timestamp}_{unique_id}.xml")
 
 
 def build_nmap_command(request: ScanRequest, output_file: Path) -> list[str]:

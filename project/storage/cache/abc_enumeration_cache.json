@@ -1,7 +1,7 @@
 {
   "scan_id": "abc",
   "target": "10.0.0.5",
-  "created_at": "2026-06-29T14:54:37.804784+00:00",
+  "created_at": "2026-06-29T15:01:31.118812+00:00",
   "policy": "Reuse stable metadata only when target, network-path context and service signature remain consistent.",
   "reusable_collectors": [
     {

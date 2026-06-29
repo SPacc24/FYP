@@ -2761,8 +2761,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 coverage.append(_coverage('nuclei_safe', scan_store.STATUS_EMPTY, 'Suggested follow-up', reason, ''))
 
             for tool_name, rows, note in native_sets:
-                path = Path('storage/scans') / f'{tool_name}_{scan_id}.json'
-                path.parent.mkdir(parents=True, exist_ok=True)
+                path = scan_store.scan_path(f'{tool_name}_{scan_id}.json')
                 path.write_text(json.dumps(rows, indent=2, default=str), encoding='utf-8')
                 produced = bool(rows)
                 native_result = _log_native_collector(scan_id, tool_name, f'python-native active_validation {tool_name} items={len(rows)}', note, str(path), produced)
@@ -2794,8 +2793,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             native_protocol_rows = _collect_native_protocol_enrichment(all_services)
             all_services = _apply_native_protocol_enrichment(all_services, native_protocol_rows)
             modern_active_validation['native_protocol_enrichment'] = native_protocol_rows
-            native_protocol_path = Path('storage/scans') / f'native_protocol_enrichment_{scan_id}.json'
-            native_protocol_path.parent.mkdir(parents=True, exist_ok=True)
+            native_protocol_path = scan_store.scan_path(f'native_protocol_enrichment_{scan_id}.json')
             native_protocol_path.write_text(json.dumps(native_protocol_rows, indent=2, default=str), encoding='utf-8')
             produced = bool(native_protocol_rows)
             native_result = _log_native_collector(scan_id, 'native_protocol_enrichment', f'python-native native_protocol_enrichment services={len(all_services)}', 'Collected single-connection protocol metadata for FTP, SMTP, MySQL, PostgreSQL, IRC and VNC where observed.', str(native_protocol_path), produced)
@@ -2860,7 +2858,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         security_observations=_build_security_observations(all_services, smb, web)
         evidence_gaps=[{'host':s.get('host'),'port':s.get('port'),'protocol':s.get('protocol'),'service':s.get('service'),'gaps':evidence_gaps_for_service(s)} for s in all_services if evidence_gaps_for_service(s)]
         normalised={'hosts':live,'services':all_services,'environment_intelligence':environment_intelligence,'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'web':web,'smb':smb,'snmp':snmp,'ssh':ssh_items,'ldap':ldap_items,'tls':tls_items,'rdp':rdp_items,'credential_validation':credential_validation_items,'service_level_checks':service_level_checks,'security_observations':security_observations,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation}
-        p=Path('storage/scans') / f'normalised_{scan_id}.json'; p.write_text(json.dumps(normalised, indent=2, default=str), encoding='utf-8')
+        p=scan_store.scan_path(f'normalised_{scan_id}.json'); p.write_text(json.dumps(normalised, indent=2, default=str), encoding='utf-8')
         # Normalised evidence is already written as formatted JSON. Internal formatting helpers are not shown as user-facing recon tools.
         _add_raw(raw,'python_normaliser','','',str(p),'json',True)
         _finish(scan_id, task, scan_store.STATUS_SUCCESS, f'{len(all_services)} service record(s) normalised; {len(evidence_gaps)} evidence gap item(s) retained')

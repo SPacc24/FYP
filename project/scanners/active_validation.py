@@ -10,6 +10,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from storage import scan_store
+
 
 class ActiveValidationError(RuntimeError):
     pass
@@ -36,8 +38,7 @@ def load_active_policy() -> dict[str, Any]:
 
 
 def write_active_package(scan_id: str, data: dict[str, Any]) -> str:
-    path = Path('storage/scans') / f'modern_active_validation_{scan_id}.json'
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path = scan_store.scan_path(f'modern_active_validation_{scan_id}.json')
     path.write_text(json.dumps(data, indent=2, default=str), encoding='utf-8')
     return str(path)
 
