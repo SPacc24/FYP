@@ -49,6 +49,10 @@
         portRange: "{{ scan.port_range if scan and scan.port_range else session.get('port_range', '1-1024') }}",
         selectedMode: "{{ active_mode }}"
       };
+
+      window.DASHBOARD_SECURITY = {
+        csrfToken: "{{ operator_csrf_token }}"
+      };
     </script>
 
     <section class="dashboard-wireframe" data-components="service-card finding-card">

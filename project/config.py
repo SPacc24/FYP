@@ -8,6 +8,8 @@ load_dotenv(BASE_DIR / ".env")
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'change-me')
     DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
+    OPERATOR_TOKEN = os.getenv('OPERATOR_TOKEN', '')
+    ALLOW_INSECURE_OPERATOR_ACCESS = os.getenv('ALLOW_INSECURE_OPERATOR_ACCESS', '0') == '1'
 
     CALDERA_URL = os.getenv('CALDERA_URL', 'http://127.0.0.1:8888')
     CALDERA_KEY = os.getenv('CALDERA_API_KEY', '')

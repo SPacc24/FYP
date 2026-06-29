@@ -5,7 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-RESULTS_DIR = Path('storage/results')
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+RESULTS_DIR = PROJECT_DIR / 'storage' / 'results'
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 _store: dict[str, dict[str, Any]] = {}
 _lock = threading.Lock()

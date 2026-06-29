@@ -5,7 +5,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
-SCAN_DIR = Path('storage/scans')
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+SCAN_DIR = PROJECT_DIR / 'storage' / 'scans'
 SCAN_DIR.mkdir(parents=True, exist_ok=True)
 
 

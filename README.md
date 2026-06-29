@@ -63,6 +63,13 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
+`python app.py` creates or refreshes `project/.env` on startup. From the
+repository root, you can use the launcher instead:
+
+```bash
+bash start.sh
+```
+
 On Windows PowerShell:
 
 ```powershell
@@ -74,6 +81,12 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
+Or from the repository root:
+
+```powershell
+.\start_windows.ps1
+```
+
 Open:
 
 ```text
@@ -82,11 +95,21 @@ http://127.0.0.1:5000
 
 ## Environment
 
-Create `project/.env` or export equivalent variables:
+`project/.env` is created automatically by `python app.py`, `bash start.sh`,
+`.\start_windows.ps1`, or:
+
+```bash
+python project/scripts/bootstrap_env.py
+```
+
+The bootstrapper fills generated local secrets and safe defaults while
+preserving existing non-placeholder values. The generated file uses this shape:
 
 ```env
-SECRET_KEY=change-me
+SECRET_KEY=<generated-secret-key>
 DEBUG=false
+OPERATOR_TOKEN=<generated-operator-token>
+APP_HOST=127.0.0.1
 
 CALDERA_URL=http://127.0.0.1:8888
 CALDERA_API_KEY=your-caldera-api-key
@@ -98,6 +121,14 @@ OPERATION_TIMEOUT=180
 OLLAMA_URL=http://localhost:11434/api/generate
 OLLAMA_MODEL=llama3.2:1b
 OLLAMA_TIMEOUT=180
+
+ENABLE_METASPLOIT=0
+ENABLE_METASPLOIT_EXPLOITS=0
+METASPLOIT_RPC_URL=https://127.0.0.1:55552
+METASPLOIT_RPC_USER=msf
+METASPLOIT_RPC_PASS=<generated-rpc-password>
+METASPLOIT_RPC_VERIFY_SSL=0
+METASPLOIT_RPC_TIMEOUT=20
 
 MYSQL_HOST=127.0.0.1
 MYSQL_USER=autopentest
@@ -115,9 +146,20 @@ HYDRA_CREDENTIAL_FILE=
 MITRE_CVE_REPO=https://github.com/CVEProject/cvelistV5.git
 
 PROOF_OF_ACCESS_ENABLED=false
-PROOF_OF_ACCESS_SECRET=
+PROOF_OF_ACCESS_SECRET=<generated-proof-secret>
 PROOF_OF_ACCESS_TTL=300
 ```
+
+To print the current generated operator/RPC values in a trusted terminal:
+
+```bash
+python project/scripts/bootstrap_env.py --show-secrets
+```
+
+Keep `APP_HOST=127.0.0.1` for local-only use. If you need to open the Kali
+dashboard from the Windows host browser, set `APP_HOST=0.0.0.0` and configure
+`OPERATOR_TOKEN` first. The bootstrapper generates `OPERATOR_TOKEN`; copy it
+from `project/.env` or print it with `--show-secrets`.
 
 MySQL is optional for the GUI to load, but database persistence requires a reachable MySQL server and matching credentials.
 
@@ -127,10 +169,13 @@ Terminal 1, install and start AutoPenTest:
 
 ```bash
 chmod +x install.sh
-sudo ./install.sh
-cd project
-sudo .venv/bin/python app.py
+./install.sh
+bash start.sh
 ```
+
+For access from the Windows host browser, keep `OPERATOR_TOKEN` configured and
+start the dashboard with `APP_HOST=0.0.0.0 bash start.sh`, then unlock the
+browser session on the landing page.
 
 Terminal 2, start Ollama:
 

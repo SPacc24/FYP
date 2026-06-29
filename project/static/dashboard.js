@@ -50,6 +50,22 @@ function getDashboardContext() {
   };
 }
 
+function getCsrfToken() {
+  return window.DASHBOARD_SECURITY?.csrfToken || "";
+}
+
+const originalFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  const method = String(init.method || "GET").toUpperCase();
+  const token = getCsrfToken();
+  if (token && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const headers = new Headers(init.headers || {});
+    headers.set("X-CSRF-Token", token);
+    return originalFetch(input, {...init, headers});
+  }
+  return originalFetch(input, init);
+};
+
 window.addEventListener("DOMContentLoaded", () => {
   if (typeof applyModeBehavior === "function") {
     applyModeBehavior();

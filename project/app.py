@@ -7,11 +7,20 @@ import os as _os_for_path
 # Ensure the project directory is on sys.path so local top-level packages (ai, scanners, etc.) import correctly when running as a module
 sys.path.insert(0, _os_for_path.path.dirname(__file__))
 
+ENV_BOOTSTRAP_RESULT = None
+if __name__ == "__main__":
+    from runtime_env import ensure_env_file
+
+    ENV_BOOTSTRAP_RESULT = ensure_env_file()
+
 from ai.technique_planner import generate_ai_technique_plan
 from ai.llm_client import ask_llm_text, get_llm_settings
 from ai.safety import SAFE_REFUSAL, is_unsafe_user_request, sanitize_llm_reply
+from functools import wraps
+import ipaddress
 import json
 import os
+import secrets
 import socket
 import threading
 import uuid
@@ -99,6 +108,106 @@ def status_class(value):
     ):
         return "failed"
     return "queued"
+
+
+def _is_local_request() -> bool:
+    remote_addr = request.remote_addr or ""
+    try:
+        return ipaddress.ip_address(remote_addr).is_loopback
+    except ValueError:
+        return remote_addr in {"localhost", ""}
+
+
+def _operator_token() -> str:
+    return str(getattr(Config, "OPERATOR_TOKEN", "") or "").strip()
+
+
+def _operator_gate_required() -> bool:
+    return bool(_operator_token())
+
+
+def _operator_authenticated() -> bool:
+    token = _operator_token()
+    if not token:
+        return _is_local_request() or bool(getattr(Config, "ALLOW_INSECURE_OPERATOR_ACCESS", False))
+
+    if session.get("operator_authenticated") is True:
+        return True
+
+    supplied = (
+        request.headers.get("X-Operator-Token")
+        or request.form.get("operator_token")
+        or (request.get_json(silent=True) or {}).get("operator_token")
+        or ""
+    )
+    if supplied and secrets.compare_digest(str(supplied), token):
+        session["operator_authenticated"] = True
+        return True
+
+    return False
+
+
+def _csrf_token() -> str:
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+def _csrf_valid() -> bool:
+    if request.method in {"GET", "HEAD", "OPTIONS"} or not _operator_token():
+        return True
+
+    data = request.get_json(silent=True) or {}
+    supplied = (
+        request.headers.get("X-CSRF-Token")
+        or request.form.get("_csrf_token")
+        or data.get("_csrf_token")
+        or ""
+    )
+    expected = session.get("_csrf_token") or ""
+    return bool(expected and supplied and secrets.compare_digest(str(supplied), str(expected)))
+
+
+def _operator_denied_response():
+    message = (
+        "Operator token required. Set OPERATOR_TOKEN in project/.env, "
+        "unlock this browser session, and retry."
+    )
+    wants_json = request.is_json or request.path.startswith((
+        "/ai/",
+        "/api/",
+        "/caldera/",
+        "/exploitation/",
+        "/pentest/",
+        "/proof-of-access/",
+        "/scan/status/",
+    ))
+    if wants_json:
+        return jsonify({"ok": False, "error": message}), 403
+    return render_template("error.html", error_message=message), 403
+
+
+def operator_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if _operator_authenticated():
+            if not _csrf_valid():
+                return jsonify({"ok": False, "error": "Invalid or missing CSRF token."}), 403
+            return view(*args, **kwargs)
+        return _operator_denied_response()
+    return wrapper
+
+
+@app.context_processor
+def inject_operator_context():
+    return {
+        "operator_gate_required": _operator_gate_required(),
+        "operator_authenticated": _operator_authenticated(),
+        "operator_token_configured": bool(_operator_token()),
+        "operator_csrf_token": _csrf_token(),
+    }
 
 SERVER_STATE = {}
 HEAVY_STATE_KEYS = {
@@ -572,11 +681,34 @@ def _caldera_agent_server_host():
     return None
 
 
+def _host_is_loopback(host: str) -> bool:
+    value = str(host or "").strip().lower()
+    if value in {"127.0.0.1", "localhost", "::1"}:
+        return True
+    try:
+        return ipaddress.ip_address(value).is_loopback
+    except ValueError:
+        return False
+
+
+def _validate_runtime_security(host: str) -> None:
+    exposed = not _host_is_loopback(host)
+    if Config.SECRET_KEY == "change-me" and (exposed or not Config.DEBUG):
+        raise RuntimeError(
+            "Set SECRET_KEY in project/.env before running outside local debug mode."
+        )
+    if exposed and not _operator_token() and not Config.ALLOW_INSECURE_OPERATOR_ACCESS:
+        raise RuntimeError(
+            "Set OPERATOR_TOKEN in project/.env before binding the dashboard to a non-local interface."
+        )
+
+
 # ---------------------------------------------------
 # ROUTES
 # ---------------------------------------------------
 # edited ai route
 @app.route("/ai/chat", methods=["POST"])
+@operator_required
 def ai_chat():
     try:
         data = request.get_json(silent=True) or {}
@@ -729,6 +861,7 @@ Reply:
 
 
 @app.route("/ai/status", methods=["GET"])
+@operator_required
 def ai_status():
     settings = get_llm_settings()
     parsed = urlparse(settings["url"])
@@ -761,7 +894,39 @@ def index():
     return render_template("index.html", tool_options=TOOL_OPTIONS)
 
 
+@app.route("/operator/unlock", methods=["POST"])
+def operator_unlock():
+    token = _operator_token()
+    if not token:
+        if _operator_authenticated():
+            return jsonify({
+                "ok": True,
+                "message": "Local operator session is allowed.",
+                "csrf_token": _csrf_token(),
+            })
+        return jsonify({
+            "ok": False,
+            "error": "OPERATOR_TOKEN is not configured; remote operator access is disabled.",
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+    supplied = str(data.get("operator_token") or request.form.get("operator_token") or "")
+    if secrets.compare_digest(supplied, token):
+        session["operator_authenticated"] = True
+        return jsonify({"ok": True, "csrf_token": _csrf_token()})
+
+    return jsonify({"ok": False, "error": "Invalid operator token."}), 403
+
+
+@app.route("/operator/lock", methods=["POST"])
+@operator_required
+def operator_lock():
+    session.pop("operator_authenticated", None)
+    return jsonify({"ok": True})
+
+
 @app.route("/scan", methods=["POST"])
+@operator_required
 def scan():
     target = (request.form.get("target") or "").strip()
     if not target:
@@ -820,6 +985,7 @@ def scan():
 
 
 @app.route("/scan/status/<scan_id>")
+@operator_required
 def scan_status(scan_id):
     data = scan_store.progress(scan_id)
     if not data:
@@ -828,6 +994,7 @@ def scan_status(scan_id):
 
 
 @app.route("/scan/results/<scan_id>")
+@operator_required
 def scan_results(scan_id):
     data = scan_store.load(scan_id)
     if not data:
@@ -863,12 +1030,14 @@ def scan_results(scan_id):
 
 
 @app.route("/latest")
+@operator_required
 def latest():
     sid = session.get("scan_id")
     return redirect(url_for("scan_results", scan_id=sid)) if sid else redirect(url_for("index"))
 
 
 @app.route("/download/handoff/<scan_id>")
+@operator_required
 def handoff(scan_id):
     data = scan_store.load(scan_id) or {}
     path = (data.get("results") or {}).get("handoff_file")
@@ -878,6 +1047,7 @@ def handoff(scan_id):
 
 
 @app.route("/download/pdf/<scan_id>")
+@operator_required
 def pdf_report(scan_id):
     data = scan_store.load(scan_id) or {}
     if not data:
@@ -905,6 +1075,7 @@ def pdf_report(scan_id):
 
 
 @app.route("/caldera/handoff/<scan_id>")
+@operator_required
 def caldera_handoff(scan_id):
     data = scan_store.load(scan_id) or {}
     return jsonify((data.get("results") or {}).get("caldera_handoff") or {})
@@ -915,6 +1086,7 @@ def caldera_handoff(scan_id):
 # ---------------------------------------------------
 
 @app.route("/caldera/status", methods=["GET"])
+@operator_required
 def caldera_status():
     target_context = _current_target_context()
     status = operation_manager.check_readiness(target=target_context["target"])
@@ -930,6 +1102,7 @@ def caldera_status():
 
 
 @app.route("/caldera/deploy-command", methods=["GET"])
+@operator_required
 def caldera_deploy_command():
     target_context = _current_target_context()
     return jsonify({
@@ -946,6 +1119,7 @@ def caldera_deploy_command():
 
 
 @app.route("/caldera/agent/delete", methods=["POST"])
+@operator_required
 def caldera_agent_delete():
     try:
         data = request.get_json(silent=True) or {}
@@ -958,6 +1132,7 @@ def caldera_agent_delete():
 
 
 @app.route("/caldera/agents/remove-stale", methods=["POST"])
+@operator_required
 def caldera_agents_remove_stale():
     try:
         target_context = _current_target_context()
@@ -969,6 +1144,7 @@ def caldera_agents_remove_stale():
 
 
 @app.route("/caldera/agent/select", methods=["POST"])
+@operator_required
 def caldera_agent_select():
     data = request.get_json(silent=True) or {}
     paw = data.get("paw")
@@ -978,6 +1154,7 @@ def caldera_agent_select():
     return jsonify({"ok": True, "selected_agent_paw": paw})
 
 @app.route("/caldera/operation/status", methods=["GET"])
+@operator_required
 def operation_status():
     return jsonify(_active_operation_results() or _state_get("operation_results", {}))
 
@@ -1005,6 +1182,7 @@ def redeem_proof_of_access():
 
 
 @app.route("/exploitation/run", methods=["POST"])
+@operator_required
 def exploitation_run():
     try:
         parsed_results = _load_current_scan_results()
@@ -1040,6 +1218,7 @@ def exploitation_run():
 
 
 @app.route("/pentest/advice", methods=["POST"])
+@operator_required
 def pentest_advice():
     try:
         parsed_results = _load_current_scan_results()
@@ -1090,11 +1269,13 @@ def pentest_advice():
 
 
 @app.route("/pentest/metasploit/status", methods=["GET"])
+@operator_required
 def metasploit_status():
     return jsonify(metasploit_service.status())
 
 
 @app.route("/pentest/metasploit/propose", methods=["POST"])
+@operator_required
 def metasploit_propose():
     try:
         parsed_results = _load_current_scan_results()
@@ -1121,6 +1302,7 @@ def metasploit_propose():
 
 
 @app.route("/pentest/metasploit/run", methods=["POST"])
+@operator_required
 def metasploit_run():
     try:
         data = request.get_json(silent=True) or {}
@@ -1177,6 +1359,7 @@ def metasploit_run():
 
 
 @app.route("/api/caldera/check-coverage", methods=["POST"])
+@operator_required
 def check_coverage():
     """
     Check CALDERA ability coverage for given technique IDs.
@@ -1231,6 +1414,7 @@ def check_coverage():
         }), 500
     
 @app.route("/caldera/run", methods=["POST"])
+@operator_required
 def caldera_run():
     try:
         data = request.get_json(silent=True) or {}
@@ -1422,6 +1606,7 @@ def caldera_run():
 
 
 @app.route("/caldera/operation/<operation_id>", methods=["GET"])
+@operator_required
 def caldera_operation(operation_id):
     return jsonify(operation_manager.poll_operation(operation_id))
 
@@ -1431,6 +1616,7 @@ def caldera_operation(operation_id):
 # ---------------------------------------------------
 
 @app.route("/results")
+@operator_required
 def results():
     scan_id = session.get("scan_id")
     if scan_id:
@@ -1501,6 +1687,7 @@ def results():
 
 
 @app.route("/technical-appendix")
+@operator_required
 def technical_appendix():
     scan_id = session.get("scan_id")
     if not scan_id:
@@ -1526,6 +1713,7 @@ def technical_appendix():
 
 
 @app.route("/generate_report", methods=["POST"])
+@operator_required
 def generate_report():
     context = _build_active_report_context()
     return jsonify({
@@ -1537,6 +1725,7 @@ def generate_report():
 
 
 @app.route("/report/view", methods=["GET"])
+@operator_required
 def report_view():
     context = _build_active_report_context()
     return render_template("report_view.html", **context)
@@ -1547,6 +1736,7 @@ def report_view():
 # ---------------------------------------------------
 
 @app.route("/scan/save", methods=["POST"])
+@operator_required
 def save_scan():
     scan_results = request.get_json(silent=True) or {}
 
@@ -1569,6 +1759,7 @@ def save_scan():
 
 
 @app.route("/vulnerabilities/save", methods=["POST"])
+@operator_required
 def save_vulnerabilities():
     data = request.get_json(silent=True) or {}
 
@@ -1595,11 +1786,10 @@ def save_vulnerabilities():
 # ---------------------------------------------------
 
 @app.route("/report/export", methods=["GET"])
+@operator_required
 def export_report():
     from reports.report_generator import generate_text_report
     context = _build_active_report_context()
-    if not context["operation"]:
-        return "No results to export", 400
 
     report_path = generate_text_report(
         scan=context["scan"],
@@ -1623,9 +1813,14 @@ def export_report():
 # ---------------------------------------------------
 
 if __name__ == "__main__":
+    if ENV_BOOTSTRAP_RESULT is not None:
+        from runtime_env import startup_messages
+
+        for message in startup_messages(ENV_BOOTSTRAP_RESULT):
+            print(message)
+
     port = int(os.getenv('PORT', '5000'))
-    # Bind to all interfaces by default so the dashboard is reachable from the
-    # host browser and other lab VMs at http://<kali-ip>:5000.
-    # Override with APP_HOST=127.0.0.1 if you only want local access.
-    host = os.getenv("APP_HOST", "0.0.0.0")
-    app.run(host=host, port=port, debug=True)
+    # Bind locally by default. Set APP_HOST=0.0.0.0 for a host-browser demo.
+    host = os.getenv("APP_HOST", "127.0.0.1")
+    _validate_runtime_security(host)
+    app.run(host=host, port=port, debug=Config.DEBUG)

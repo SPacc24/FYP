@@ -801,6 +801,24 @@ input[type="radio"] {
   gap: 12px;
 }
 
+.operator-panel {
+  border: 1px solid rgba(255, 190, 11, 0.35);
+  background: rgba(255, 190, 11, 0.06);
+}
+
+.operator-unlock-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 700px) {
+  .operator-unlock-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .caldera-grid {
   display: grid;
   grid-template-columns: minmax(260px, 0.85fr) minmax(320px, 1.15fr);

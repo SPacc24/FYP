@@ -20,7 +20,27 @@
 
       <div class="index-layout">
         <div class="index-form-column">
+          {% if not operator_authenticated %}
+          <section class="operator-panel index-section">
+            <span class="label">Operator Access</span>
+            {% if operator_token_configured %}
+              <p class="muted small">Unlock this browser session before starting scans or running lab tools.</p>
+              <div class="operator-unlock-row">
+                <input id="operatorTokenInput" type="password" placeholder="Operator token" autocomplete="current-password" />
+                <button class="btn ghost mini" id="operatorUnlockBtn" type="button">Unlock</button>
+              </div>
+              <p class="muted small" id="operatorUnlockStatus"></p>
+            {% else %}
+              <p class="muted small">
+                Remote operator actions are disabled because OPERATOR_TOKEN is not configured.
+                Use the Kali browser locally or set OPERATOR_TOKEN in project/.env and restart Flask.
+              </p>
+            {% endif %}
+          </section>
+          {% endif %}
+
           <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting...';">
+            <input type="hidden" name="_csrf_token" id="csrfTokenInput" value="{{ operator_csrf_token }}" />
             <section class="index-section target-section">
               <label for="target">
                 <span class="label">Target</span>
@@ -83,7 +103,7 @@
             </section>
 
             <div class="index-actions">
-              <button id="startBtn" class="btn" type="submit">Start Enumeration</button>
+              <button id="startBtn" class="btn" type="submit" {% if not operator_authenticated %}disabled{% endif %}>Start Enumeration</button>
               <p class="note">No scoring, no ranking, no prioritisation. Recon links CVE findings only where collected evidence supports them.</p>
             </div>
           </form>
@@ -113,6 +133,34 @@
   }));
   document.getElementById('selectAll')?.addEventListener('click', () => {document.querySelector('input[value="custom"]').checked=true;applyProfile('custom');document.querySelectorAll('.tool-toggle input').forEach(cb=>cb.checked=true);});
   document.getElementById('selectFast')?.addEventListener('click', () => {document.querySelector('input[name="scan_profile"][value="fast"]').checked=true;applyProfile('fast');});
+
+  document.getElementById('operatorUnlockBtn')?.addEventListener('click', async () => {
+    const input = document.getElementById('operatorTokenInput');
+    const status = document.getElementById('operatorUnlockStatus');
+    const token = input?.value || '';
+    if (status) status.textContent = 'Checking operator token...';
+    try {
+      const response = await fetch('{{ url_for("operator_unlock") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({operator_token: token})
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        if (status) status.textContent = data.error || 'Operator unlock failed.';
+        return;
+      }
+      if (status) status.textContent = 'Operator session unlocked.';
+      if (data.csrf_token) {
+        const csrfInput = document.getElementById('csrfTokenInput');
+        if (csrfInput) csrfInput.value = data.csrf_token;
+      }
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) startBtn.disabled = false;
+    } catch (err) {
+      if (status) status.textContent = 'Could not unlock operator session.';
+    }
+  });
   </script>
 </body>
 </html>

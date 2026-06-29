@@ -15,8 +15,12 @@ env/
 ENV/
 
 # Runtime scan output
+storage/results/*
+storage/scans/*
 project/storage/scans/*
+project/storage/results/*
 !project/storage/scans/.gitkeep
+!project/storage/results/.gitkeep
 project/storage/mitre_cve/*
 !project/storage/mitre_cve/.gitkeep
 project/storage/*.db
@@ -39,5 +43,7 @@ Thumbs.db
 
 # Generated project artifacts
 project/storage/reports/
+storage/reports/
 project/storage/logs/*.json
 project/storage/scans/*.xml
+storage/scans/*.xml

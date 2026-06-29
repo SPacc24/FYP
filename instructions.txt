@@ -22,17 +22,33 @@ The Metasploit RPC client needs the msgpack package listed in requirements.txt.
 
 Metasploit RPC setup
 --------------------
+Create or refresh the local app configuration first:
+
+   python project/scripts/bootstrap_env.py
+
+To print the generated Metasploit RPC password in a trusted terminal:
+
+   python project/scripts/bootstrap_env.py --show-secrets
+
 Start Metasploit RPC on the machine that runs Metasploit:
 
-   msfrpcd -U msf -P <password> -a 127.0.0.1 -p 55552
+   msfrpcd -U msf -P <METASPLOIT_RPC_PASS from project/.env> -a 127.0.0.1 -p 55552
 
 Then set these environment variables for the Flask app:
 
    ENABLE_METASPLOIT=1
    METASPLOIT_RPC_URL=https://127.0.0.1:55552
    METASPLOIT_RPC_USER=msf
-   METASPLOIT_RPC_PASS=<password>
+   METASPLOIT_RPC_PASS=<generated-rpc-password>
    METASPLOIT_RPC_VERIFY_SSL=0
+
+The bootstrapper already fills these local security values. For any non-local
+dashboard demo, set APP_HOST to 0.0.0.0 and unlock the browser with the
+generated operator token:
+
+   SECRET_KEY=<generated-secret-key>
+   OPERATOR_TOKEN=<generated-operator-token>
+   APP_HOST=0.0.0.0
 
 Keep exploit-class execution disabled unless the lab supervisor explicitly
 approves that part of the test:
