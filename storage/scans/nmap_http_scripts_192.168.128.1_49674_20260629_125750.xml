@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Mon Jun 29 12:57:50 2026 as: /usr/lib/nmap/nmap -&#45;privileged -sV -&#45;script http-title,http-headers,http-server-header,http-enum -p 49674 -oX storage/scans/nmap_http_scripts_192.168.128.1_49674_20260629_125750.xml 192.168.128.1 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -&#45;privileged -sV -&#45;script http-title,http-headers,http-server-header,http-enum -p 49674 -oX storage/scans/nmap_http_scripts_192.168.128.1_49674_20260629_125750.xml 192.168.128.1" start="1782752270" startstr="Mon Jun 29 12:57:50 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="1" services="49674"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="unknown-response" reason_ttl="0"/>
+<address addr="192.168.128.1" addrtype="ipv4"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1782752271" endtime="1782752271"><status state="up" reason="echo-reply" reason_ttl="128"/>
+<address addr="192.168.128.1" addrtype="ipv4"/>
+<hostnames>
+</hostnames>
+<ports><port protocol="tcp" portid="49674"><state state="filtered" reason="no-response" reason_ttl="0"/></port>
+</ports>
+<times srtt="424" rttvar="5000" to="100000"/>
+</host>
+<runstats><finished time="1782752271" timestr="Mon Jun 29 12:57:51 2026" summary="Nmap done at Mon Jun 29 12:57:51 2026; 1 IP address (1 host up) scanned in 0.94 seconds" elapsed="0.94" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>
