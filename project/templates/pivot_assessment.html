@@ -1,0 +1,105 @@
+<section class="panel" id="pivot-assessment">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">POST-CALDERA ANALYSIS</p>
+      <h2>Lateral Movement / Pivot Assessment</h2>
+      <p class="muted">
+        Checks whether a successful CALDERA operation creates possible post-pivot targets.
+      </p>
+    </div>
+  </div>
+
+  {% set pivot = operation_results.pivot_assessment if operation_results and operation_results.pivot_assessment is defined else none %}
+
+  {% if pivot %}
+    <div class="metric-grid">
+      <div class="metric-card">
+        <span class="metric-label">Entry Host</span>
+        <strong>{{ pivot.entry_host or "Unknown" }}</strong>
+      </div>
+
+      <div class="metric-card">
+        <span class="metric-label">Pivot Possible</span>
+        <strong>{{ "Yes" if pivot.pivot_possible else "No" }}</strong>
+      </div>
+
+      <div class="metric-card">
+        <span class="metric-label">Post-Pivot Candidates</span>
+        <strong>{{ pivot.candidate_count or 0 }}</strong>
+      </div>
+
+      <div class="metric-card">
+        <span class="metric-label">Mode</span>
+        <strong>{{ pivot.mode or "safe_pivot_awareness" }}</strong>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top: 1rem;">
+      <strong>Assessment Summary</strong>
+      <p>{{ pivot.summary or "No summary available." }}</p>
+    </div>
+
+    {% if pivot.reachable_targets %}
+      <div class="table-wrap" style="margin-top: 1rem;">
+        <table>
+          <thead>
+            <tr>
+              <th>Host</th>
+              <th>Segment</th>
+              <th>Relation</th>
+              <th>Interesting Services</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for target in pivot.reachable_targets %}
+              <tr>
+                <td>{{ target.host }}</td>
+                <td>{{ target.segment }}</td>
+                <td>{{ target.segment_relation }}</td>
+                <td>
+                  {% if target.interesting_services %}
+                    {% for svc in target.interesting_services %}
+                      <span class="badge">{{ svc.service }}:{{ svc.port }}</span>
+                    {% endfor %}
+                  {% else %}
+                    None
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted" style="margin-top: 1rem;">
+        No post-pivot candidate hosts were identified.
+      </p>
+    {% endif %}
+
+    {% if pivot.paths %}
+      <div class="callout" style="margin-top: 1rem;">
+        <strong>Potential Attack Paths</strong>
+        <ul>
+          {% for path in pivot.paths %}
+            <li>
+              {{ path.from }} → {{ path.to }}
+              <span class="muted">({{ path.relation }})</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+    <p class="muted small" style="margin-top: 1rem;">
+      This module is non-destructive. It does not exploit systems or bypass controls.
+    </p>
+
+  {% else %}
+    <div class="empty-state">
+      <h3>No pivot assessment yet</h3>
+      <p class="muted">
+        Run CALDERA first. After execution, this card will show whether any post-pivot targets were identified.
+      </p>
+    </div>
+  {% endif %}
+</section>

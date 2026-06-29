@@ -45,6 +45,7 @@ from caldera.coverage_checker import CoverageChecker
 
 from caldera.risk_scorer import RiskScorer
 from exploitation.validator import ExploitabilityValidator
+from pivot.pivot_assessor import PivotAssessor
 from proof_of_access import ProofTicketError, ProofTicketManager
 from reports.report_generator import build_report_summary
 from storage.db import Database
@@ -110,6 +111,8 @@ operation_manager = OperationManager(caldera_client)
 coverage_checker = CoverageChecker(caldera_client)
 risk_scorer = RiskScorer()
 exploitability_validator = ExploitabilityValidator()
+pivot_assessor = PivotAssessor(operation_manager)
+
 proof_ticket_manager = ProofTicketManager(
     secret=Config.PROOF_OF_ACCESS_SECRET,
     enabled=Config.PROOF_OF_ACCESS_ENABLED,
