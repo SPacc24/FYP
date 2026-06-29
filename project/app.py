@@ -1,7 +1,3 @@
-# app.py - FIXED VERSION
-# Main Flask application for vulnerability assessment + attack simulation.
-
-# edited
 import sys
 import os as _os_for_path
 # Ensure the project directory is on sys.path so local top-level packages (ai, scanners, etc.) import correctly when running as a module
@@ -706,7 +702,6 @@ def _validate_runtime_security(host: str) -> None:
 # ---------------------------------------------------
 # ROUTES
 # ---------------------------------------------------
-# edited ai route
 @app.route("/ai/chat", methods=["POST"])
 @operator_required
 def ai_chat():
@@ -857,7 +852,6 @@ Reply:
             "ok": False,
             "reply": f"AI chat error: {e}"
         }), 500
-# edited
 
 
 @app.route("/ai/status", methods=["GET"])

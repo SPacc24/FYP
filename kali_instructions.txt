@@ -1,236 +1,31 @@
-AutoPenTest Kali Setup Instructions
-===================================
+Main commands
+-------------
 
-Use this file when running the project inside Kali Linux. This is the preferred
-setup for the FYP exploitation layer because Metasploit, Nmap, and other
-offensive tooling stay inside Kali instead of being installed on the Windows
-host.
+Install once from the repository root:
 
+   chmod +x install.sh
+   ./install.sh
 
-1. Clone the repo
------------------
-Open a terminal in Kali:
+Start the dashboard:
 
-   cd ~
-   git clone https://github.com/SPacc24/FYP.git
-   cd FYP
-
-Check that Git is working:
-
-   git status
-
-If you see "not a git repository", you are in the wrong folder. Run:
-
-   cd ~/FYP
-
-
-2. Create a Python virtual environment
---------------------------------------
-Kali blocks system-wide pip installs with the externally-managed-environment
-error. Do not use --break-system-packages. Use a virtual environment instead.
-
-Install venv support:
-
-   sudo apt update
-   sudo apt install -y python3-venv python3-pip
-
-Create and activate the virtual environment:
-
-   python3 -m venv .venv
-   source .venv/bin/activate
-
-Your prompt should now show something like:
-
-   (.venv) kali@kali:~/FYP$
-
-
-3. Install Python requirements
-------------------------------
-From inside the repo, with the virtual environment activated:
-
-   python -m pip install --upgrade pip setuptools wheel
-   python -m pip install -r project/requirements.txt
-
-Use Linux-style paths on Kali:
-
-   project/requirements.txt
-
-Do not use the Windows path:
-
-   project\requirements.txt
-
-If WeasyPrint fails later, install its system libraries:
-
-   sudo apt install -y libcairo2 libpango-1.0-0 libpangoft2-1.0-0 libgdk-pixbuf-2.0-0 shared-mime-info
-
-
-4. Install/check security tools
--------------------------------
-Kali usually already includes Nmap and Metasploit, but check:
-
-   nmap --version
-   msfconsole --version
-
-If either command is missing:
-
-   sudo apt install -y nmap metasploit-framework
-
-
-5. Configure environment variables
-----------------------------------
-The app can create and fill the local runtime values automatically:
-
-   python project/scripts/bootstrap_env.py
-
-To display the generated operator token and Metasploit RPC password in a
-trusted terminal:
-
-   python project/scripts/bootstrap_env.py --show-secrets
-
-This creates or refreshes:
-
-   project/.env
-
-Minimum useful Kali configuration after bootstrap:
-
-   SECRET_KEY=<generated-secret-key>
-   DEBUG=false
-   OPERATOR_TOKEN=<generated-operator-token>
-   APP_HOST=127.0.0.1
-
-   ENABLE_METASPLOIT=1
-   ENABLE_METASPLOIT_EXPLOITS=0
-   METASPLOIT_RPC_URL=https://127.0.0.1:55552
-   METASPLOIT_RPC_USER=msf
-   METASPLOIT_RPC_PASS=<generated-rpc-password>
-   METASPLOIT_RPC_VERIFY_SSL=0
-
-   CALDERA_URL=http://127.0.0.1:8888
-   CALDERA_API_KEY=
-   KALI_IP=127.0.0.1
-
-Keep ENABLE_METASPLOIT_EXPLOITS=0 unless a supervised lab run explicitly
-requires exploit-class modules.
-
-
-6. Start Metasploit RPC
------------------------
-In a separate Kali terminal, use the exact same password that appears in
-METASPLOIT_RPC_PASS:
-
-   msfrpcd -U msf -P <generated-rpc-password> -a 127.0.0.1 -p 55552
-
-Leave this terminal running.
-
-The password must match METASPLOIT_RPC_PASS in project/.env.
-
-Use only one RPC method at a time. The command above starts msfrpcd, which uses
-HTTPS by default, so this .env value is correct:
-
-   METASPLOIT_RPC_URL=https://127.0.0.1:55552
-
-If you use msfconsole's msgrpc plugin instead, do not load it with random
-credentials. Start it with explicit options:
-
-   msfconsole -q
-   load msgrpc ServerHost=127.0.0.1 ServerPort=55552 User=msf Pass=<generated-rpc-password> SSL=true
-
-If you set SSL=false or omit SSL for msgrpc, use http instead:
-
-   METASPLOIT_RPC_URL=http://127.0.0.1:55552
-
-After changing project/.env, restart the Flask app. The app reads these values
-when it starts.
-
-
-7. Run the Flask app
---------------------
-In another Kali terminal:
-
-   cd ~/FYP
    bash start.sh
 
-Open the dashboard in Kali's browser:
+Open locally:
 
    http://127.0.0.1:5000
 
-If you want to open it from the Windows host browser, run Flask on all
-interfaces instead. Keep OPERATOR_TOKEN configured and unlock the browser
-session on the landing page before scanning:
+For access from the Windows host browser:
 
    APP_HOST=0.0.0.0 bash start.sh
 
-Then browse to:
+Then unlock the browser session with the generated OPERATOR_TOKEN.
 
-   http://<kali-ip>:5000
+Show generated local secrets:
 
-Find the Kali IP with:
+   python project/scripts/bootstrap_env.py --show-secrets
 
-   ip addr
+Start Metasploit RPC with the generated METASPLOIT_RPC_PASS:
 
+   msfrpcd -U msf -P <METASPLOIT_RPC_PASS> -a 127.0.0.1 -p 55552
 
-8. Dashboard workflow
----------------------
-1. Run a scan against the authorised lab target.
-2. Generate Ollama attack-path advice.
-3. Click "Check Metasploit".
-4. Click "Find Metasploit Actions".
-5. Run one of the server-approved auxiliary validation actions.
-6. Generate the report and confirm the Metasploit execution record is included.
-
-
-9. Pulling new changes
-----------------------
-When changes are pushed from the Windows workspace to GitHub, update Kali with:
-
-   cd ~/FYP
-   git pull origin main
-
-Then reinstall requirements only if project/requirements.txt changed:
-
-   source .venv/bin/activate
-   python -m pip install -r project/requirements.txt
-
-
-10. Common errors
------------------
-externally-managed-environment:
-   You tried to install packages outside a virtual environment. Run:
-   source .venv/bin/activate
-
-fatal: not a git repository:
-   You are not inside the cloned repo. Run:
-   cd ~/FYP
-
-Metasploit RPC integration is disabled:
-   ENABLE_METASPLOIT=1 is missing from project/.env, or Flask was not restarted.
-
-Metasploit RPC authentication failed:
-   METASPLOIT_RPC_PASS does not match the password used with msfrpcd/msgrpc, or
-   Flask was not restarted after editing project/.env.
-
-   Recovery checklist:
-
-   1. Stop the old msfrpcd terminal with Ctrl+C.
-   2. Print the generated project password:
-
-      python project/scripts/bootstrap_env.py --show-secrets
-
-   3. Confirm project/.env uses that exact value:
-
-      METASPLOIT_RPC_USER=msf
-      METASPLOIT_RPC_PASS=<generated-rpc-password>
-      METASPLOIT_RPC_URL=https://127.0.0.1:55552
-
-   4. Start RPC with the same value:
-
-      msfrpcd -U msf -P <generated-rpc-password> -a 127.0.0.1 -p 55552
-
-   5. Restart Flask.
-
-No Metasploit actions loaded:
-   The active scan did not find services matching the allowlist, or the scan has
-   not completed yet.
-
-Connection refused on port 55552:
-   msfrpcd is not running, crashed, or is bound to a different IP/port.
+See README.md for the full runbook.

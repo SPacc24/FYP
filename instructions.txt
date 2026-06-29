@@ -1,127 +1,24 @@
-AutoPenTest Metasploit Integration Instructions
-==============================================
+Quick reference
+---------------
 
-Scope
------
-The application does not let Ollama or the browser choose arbitrary Metasploit
-modules. Ollama proposes attack-path reasoning; AutoPenTest policy chooses from
-an allowlist; Metasploit RPC executes the approved action.
-
-
-Python setup
-------------
-From the project folder:
-
-1. Create or activate your Python virtual environment.
-2. Install dependencies:
-
-   pip install -r project/requirements.txt
-
-The Metasploit RPC client needs the msgpack package listed in requirements.txt.
-
-
-Metasploit RPC setup
---------------------
-Create or refresh the local app configuration first:
+1. Create or refresh local configuration:
 
    python project/scripts/bootstrap_env.py
 
-To print the generated Metasploit RPC password in a trusted terminal:
+2. Show generated local secrets in a trusted terminal:
 
    python project/scripts/bootstrap_env.py --show-secrets
 
-Start Metasploit RPC on the machine that runs Metasploit:
+3. Set `ENABLE_METASPLOIT=1` in `project/.env`.
 
-   msfrpcd -U msf -P <METASPLOIT_RPC_PASS from project/.env> -a 127.0.0.1 -p 55552
+4. Start RPC with the generated password:
 
-Then set these environment variables for the Flask app:
+   msfrpcd -U msf -P <METASPLOIT_RPC_PASS> -a 127.0.0.1 -p 55552
 
-   ENABLE_METASPLOIT=1
-   METASPLOIT_RPC_URL=https://127.0.0.1:55552
-   METASPLOIT_RPC_USER=msf
-   METASPLOIT_RPC_PASS=<generated-rpc-password>
-   METASPLOIT_RPC_VERIFY_SSL=0
+5. Start or restart the dashboard:
 
-The bootstrapper already fills these local security values. For any non-local
-dashboard demo, set APP_HOST to 0.0.0.0 and unlock the browser with the
-generated operator token:
+   bash start.sh
 
-   SECRET_KEY=<generated-secret-key>
-   OPERATOR_TOKEN=<generated-operator-token>
-   APP_HOST=0.0.0.0
-
-Keep exploit-class execution disabled unless the lab supervisor explicitly
-approves that part of the test:
-
-   ENABLE_METASPLOIT_EXPLOITS=0
-
-
-Dashboard workflow
-------------------
-1. Run a scan against the authorised lab target.
-2. Open the results page.
-3. Run "Generate Attack-Path Advice" to create the Ollama reasoning layer.
-4. Run "Check Metasploit" to confirm RPC connectivity.
-5. Run "Find Metasploit Actions" to load server-approved actions from the
-   active scan evidence.
-6. Run an action. The result is stored with the scan and appears in the report.
-
-
-Default allowlist
------------------
-The current default allowlist is auxiliary validation only:
-
-- auxiliary/scanner/ftp/anonymous
-- auxiliary/scanner/http/title
-- auxiliary/scanner/smb/smb_version
-- auxiliary/scanner/rdp/rdp_scanner
-- auxiliary/scanner/winrm/winrm_auth_methods
-- auxiliary/scanner/ssh/ssh_version
-- auxiliary/scanner/mysql/mysql_version
-
-These modules are selected only when the matching service and port were seen in
-the active scan.
-
-
-Adding exploit-class modules later
-----------------------------------
-Add new modules in:
-
-   project/exploitation/metasploit_allowlist.py
-
-Recommended rollout:
-
-1. Add the module as module_type="exploit", mode="check", requires_approval=True.
-2. Test the check path in the isolated lab.
-3. Record the required scan evidence, CVE/reference, and expected outcome.
-4. Only then consider mode="execute", allow_session=True, and
-   ENABLE_METASPLOIT_EXPLOITS=1 for a supervised run.
-
-Do not add a route or UI field that accepts arbitrary module names.
-
-
-Blue-team test notes
---------------------
-For each action, record:
-
-- timestamp
-- target and port
-- Metasploit module
-- policy key
-- result or job ID
-- blue-team alert/log evidence
-
-The generated report includes the Metasploit execution records stored with the
-scan.
-
-
-Troubleshooting (just fucking hope and pray)
----------------
-- "Metasploit RPC integration is disabled": set ENABLE_METASPLOIT=1 and restart
-  Flask.
-- Authentication failed: check METASPLOIT_RPC_USER and METASPLOIT_RPC_PASS.
-- TLS/SSL errors: keep METASPLOIT_RPC_VERIFY_SSL=0 for a local self-signed lab
-  RPC service, or configure a trusted certificate.
-- No actions loaded: confirm the scan has open services that match the allowlist.
-- Module option errors: inspect the module in Metasploit and adjust the policy
-  defaults in project/exploitation/metasploit_allowlist.py.
+The application does not expose arbitrary Metasploit module execution. It maps
+active scan evidence to the server-side allowlist in
+`project/exploitation/metasploit_allowlist.py`.

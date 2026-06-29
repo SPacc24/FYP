@@ -37,9 +37,10 @@ The recon module does not exploit targets or make execution decisions by itself.
 ```text
 project/
   app.py                 Flask routes and dashboard endpoints
+  runtime_env.py         .env bootstrap and generated local secrets
   ai/                    Ollama client, AI planner, safety filters
   caldera/               CALDERA API client, coverage checker, operation manager
-  exploitation/          Lab-safe validation helpers
+  exploitation/          Lab-safe validation and Metasploit policy helpers
   mapping/               Vulnerability-to-ATT&CK mapping helpers
   reports/               Report summary and export generation
   scanners/              Recon pipeline, parsers, tooling, CVE matching
@@ -165,11 +166,22 @@ MySQL is optional for the GUI to load, but database persistence requires a reach
 
 ## Kali Runbook
 
-Terminal 1, install and start AutoPenTest:
+Kali is the preferred runtime when using Nmap, Metasploit, and the wider
+enumeration toolchain.
+
+Install once from the repository root:
 
 ```bash
 chmod +x install.sh
 ./install.sh
+```
+
+The installer creates `project/.venv`, installs Python packages, prepares
+storage folders, and creates `project/.env` with generated local secrets.
+
+Start or restart the dashboard:
+
+```bash
 bash start.sh
 ```
 
@@ -177,13 +189,13 @@ For access from the Windows host browser, keep `OPERATOR_TOKEN` configured and
 start the dashboard with `APP_HOST=0.0.0.0 bash start.sh`, then unlock the
 browser session on the landing page.
 
-Terminal 2, start Ollama:
+Start Ollama in another terminal:
 
 ```bash
 ollama serve
 ```
 
-Terminal 3, pull/check the configured model:
+Pull/check the configured model:
 
 ```bash
 ollama pull llama3.2:1b
@@ -191,12 +203,44 @@ ollama list
 curl http://127.0.0.1:11434/api/tags
 ```
 
-Terminal 4, start CALDERA:
+Optional Metasploit RPC setup:
+
+```bash
+python project/scripts/bootstrap_env.py --show-secrets
+```
+
+Set `ENABLE_METASPLOIT=1` in `project/.env`, then start RPC with the exact
+generated `METASPLOIT_RPC_PASS`:
+
+```bash
+msfrpcd -U msf -P <METASPLOIT_RPC_PASS> -a 127.0.0.1 -p 55552
+```
+
+Leave `ENABLE_METASPLOIT_EXPLOITS=0` unless a supervised lab run explicitly
+requires exploit-class modules. Restart the Flask app after editing `.env`.
+
+Optional CALDERA setup:
 
 ```bash
 cd /path/to/caldera
 source .venv/bin/activate 2>/dev/null || true
 python3 server.py --insecure
+```
+
+Update an existing Kali checkout:
+
+```bash
+cd ~/FYP
+git pull origin main
+python project/scripts/bootstrap_env.py
+```
+
+Reinstall Python requirements only when `project/requirements.txt` changes:
+
+```bash
+cd ~/FYP/project
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 
 ## CVE Data
@@ -226,6 +270,36 @@ python scripts/audit_cve_source.py
 5. Refresh CALDERA agent status and deploy/confirm Sandcat only inside the authorised lab.
 6. Select supported techniques and run CALDERA when execution is explicitly enabled and authorised.
 7. Generate the report, review the technical appendix, and export JSON/PDF/text handoff artefacts.
+
+## Metasploit Integration
+
+Ollama and the browser do not choose arbitrary Metasploit modules. Ollama can
+generate attack-path reasoning, but AutoPenTest maps scan evidence to a server
+side allowlist before any RPC action is available.
+
+Default allowlist:
+
+- `auxiliary/scanner/ftp/anonymous`
+- `auxiliary/scanner/http/title`
+- `auxiliary/scanner/smb/smb_version`
+- `auxiliary/scanner/rdp/rdp_scanner`
+- `auxiliary/scanner/winrm/winrm_auth_methods`
+- `auxiliary/scanner/ssh/ssh_version`
+- `auxiliary/scanner/mysql/mysql_version`
+
+Actions are offered only when the matching service and port were observed in
+the active scan. To add exploit-class modules later, update
+`project/exploitation/metasploit_allowlist.py`, start with `mode="check"` and
+`requires_approval=True`, test inside the isolated lab, then enable
+`ENABLE_METASPLOIT_EXPLOITS=1` only for a supervised run. Do not add routes or
+UI fields that accept arbitrary module names.
+
+Useful Metasploit troubleshooting:
+
+- `Metasploit RPC integration is disabled`: set `ENABLE_METASPLOIT=1` and restart Flask.
+- `Metasploit RPC authentication failed`: confirm `METASPLOIT_RPC_USER` and `METASPLOIT_RPC_PASS` match the running `msfrpcd` or `msgrpc` instance.
+- TLS errors: keep `METASPLOIT_RPC_VERIFY_SSL=0` for the local self-signed lab RPC service, or configure a trusted certificate.
+- No actions loaded: confirm the scan completed and found open services matching the allowlist.
 
 ## Cleanup
 
