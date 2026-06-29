@@ -38,6 +38,30 @@ function formatEvidenceList(items) {
   return `<ul class="compact-list">${items.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
 }
 
+function renderProofOfAccessInfo(proof) {
+  if (!proof) return "";
+
+  if (!proof.enabled) {
+    return `<p class="small muted">Proof-of-access ticketing is disabled.</p>`;
+  }
+
+  if (!proof.issued_count) {
+    return `<p class="small muted">No proof-of-access ticket issued. A qualifying technique must finish successfully.</p>`;
+  }
+
+  const tickets = proof.tickets || [];
+  return `
+    <details class="small">
+      <summary><strong>Proof-of-access ticket issued (${escapeHtml(proof.issued_count)})</strong></summary>
+      <p>Save one ticket on the validated agent host, then redeem it with the proof-of-access script.</p>
+      ${tickets.map(item => `
+        <p><strong>${escapeHtml(item.technique_id)}</strong> on ${escapeHtml(item.agent_host)}</p>
+        <pre class="small mono">${escapeHtml(item.ticket)}</pre>
+      `).join("")}
+    </details>
+  `;
+}
+
 function getEndpoint(name, fallback) {
   return window.DASHBOARD_ENDPOINTS?.[name] || fallback;
 }
@@ -582,6 +606,7 @@ async function runCaldera() {
         data.state === "unsupported"
           ? `<p><strong>No CALDERA operation created.</strong></p><p class="small">${escapeHtml(data.message || "Unsupported techniques require external validation.")}</p>`
           : `<p><strong>Operation completed.</strong></p>`;
+      operationBox.innerHTML += renderProofOfAccessInfo(data.proof_of_access);
 
       const tbody = document.getElementById("techniqueResultsBody");
       const executionSummary = document.getElementById("executionSummary");

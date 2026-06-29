@@ -15,6 +15,7 @@ from ai.safety import SAFE_REFUSAL, is_unsafe_user_request, sanitize_llm_reply
 from functools import wraps
 import ipaddress
 import json
+import re
 import os
 import secrets
 import socket
@@ -54,6 +55,7 @@ from exploitation.metasploit_client import MetasploitRpcClient
 from exploitation.metasploit_service import MetasploitService
 from exploitation.validator import ExploitabilityValidator
 from pentest_ai.advisor import generate_attack_path_advice
+from pivot.pivot_assessor import PivotAssessor
 from reports.report_generator import build_report_summary
 from storage.db import Database
 from storage import scan_store
@@ -254,6 +256,7 @@ metasploit_service = MetasploitService(
     metasploit_client,
     exploit_execution_enabled=Config.ENABLE_METASPLOIT_EXPLOITS,
 )
+pivot_assessor = PivotAssessor(operation_manager)
 
 db = Database(
     host=Config.MYSQL_HOST,
@@ -393,6 +396,10 @@ def _allowed_technique_ids_for_mode(mode, mapping_results, ai_plan):
         return ai_selected_ids & mapped_ids
 
     return mapped_ids
+
+
+def _as_list(value):
+    return value if isinstance(value, list) else []
 
 
 def _load_current_scan_results():
@@ -926,13 +933,13 @@ def scan():
     if not target:
         return render_template("error.html", error_message="No target provided"), 400
 
-    profile = (request.form.get("scan_profile") or "fast").strip().lower()
-    enabled_tools = request.form.getlist("tools")
+    profile = (request.form.get("profile") or request.form.get("scan_profile") or "full").strip().lower()
+    enabled_tools = request.form.getlist("enabled_tools") or request.form.getlist("tools")
     technique_mode = request.form.get("technique_mode")
     if technique_mode not in {"auto", "hybrid", "manual"}:
         technique_mode = "hybrid"
 
-    scan_options = normalise_scan_options(profile, enabled_tools if enabled_tools else None)
+    scan_options = normalise_scan_options(profile, enabled_tools if profile == "custom" or enabled_tools else None)
     scan_options["technique_mode"] = technique_mode
     scan_id = scan_store.new_scan(
         target,
@@ -1493,6 +1500,12 @@ def caldera_run():
                 },
             }
             result["validation_results"] = _active_validation_results()
+            proof_tickets = proof_ticket_manager.issue_for_operation(result)
+            result["proof_of_access"] = {
+                "enabled": proof_ticket_manager.active,
+                "issued_count": len(proof_tickets),
+                "tickets": proof_tickets,
+            }
             risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), result)
             session["operation_results"] = result
             session["risk_score"] = risk
@@ -1526,13 +1539,6 @@ def caldera_run():
         if not result.get("success", True):
             return jsonify(result), 500
 
-        proof_tickets = proof_ticket_manager.issue_for_operation(result)
-        result["proof_of_access"] = {
-            "enabled": proof_ticket_manager.active,
-            "issued_count": len(proof_tickets),
-            "tickets": proof_tickets,
-        }
-
         # Risk score
         vulns = (
             data.get("vulnerabilities")
@@ -1541,18 +1547,28 @@ def caldera_run():
         )
         session["vulnerabilities"] = vulns
         result["validation_results"] = _active_validation_results()
+        proof_tickets = proof_ticket_manager.issue_for_operation(result)
+        result["proof_of_access"] = {
+            "enabled": proof_ticket_manager.active,
+            "issued_count": len(proof_tickets),
+            "tickets": proof_tickets,
+        }
         risk = _safe_risk_calculate(vulns, result)
 
         # Remediation
         vulnerability_remediations = []
         try:
-            vulnerability_remediations = risk_scorer.get_vulnerability_remediations(mapping_results) or []
+            vulnerability_remediations = _as_list(
+                risk_scorer.get_vulnerability_remediations(mapping_results)
+            )
         except Exception:
             vulnerability_remediations = []
 
         technique_remediations = []
         try:
-            technique_remediations = risk_scorer.get_all_remediations(result) or []
+            technique_remediations = _as_list(
+                risk_scorer.get_all_remediations(result)
+            )
         except Exception:
             technique_remediations = []
 

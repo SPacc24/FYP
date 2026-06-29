@@ -447,7 +447,7 @@ class OperationManager:
             return self._error_result(agent_info)
         agent_host = agent_info.get('host', 'unknown')
         agent_paw = agent_info.get('paw', '')
-        agent_ip_addrs = agent_info.get('host_ip_addrs', [])
+        agent_ip_addrs = agent_info.get('host_ip_addrs') or []
         adversary_id, is_custom, selected_abilities = self.resolve_adversary(technique_ids)
         if not adversary_id:
             return self._error_result('Could not find or create a suitable adversary profile. Check Caldera has abilities loaded.')

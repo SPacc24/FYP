@@ -43,6 +43,7 @@ Thumbs.db
 
 # Generated project artifacts
 project/storage/reports/
+project/storage/cache/
 storage/reports/
 project/storage/logs/*.json
 project/storage/scans/*.xml

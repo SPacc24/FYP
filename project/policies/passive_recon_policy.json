@@ -1,0 +1,14 @@
+{
+  "description": "Policy-controlled passive intelligence collection for authorised reconnaissance. External CT lookup is disabled by default unless the engagement explicitly permits public-intelligence queries.",
+  "dns_record_types": ["A", "AAAA", "MX", "TXT", "NS", "CNAME", "SRV"],
+  "srv_prefixes": ["_ldap._tcp", "_ldap._tcp.dc._msdcs", "_kerberos._tcp", "_kerberos._udp", "_gc._tcp", "_kpasswd._tcp", "_sip._tcp", "_sipfederationtls._tcp"],
+  "tls_ports": [443, 636, 8443, 9443, 5986, 993, 995, 465, 853],
+  "timeout_seconds": 3,
+  "max_dns_answers": 25,
+  "ct_lookup": {
+    "enabled": false,
+    "requires_engagement_approval": true,
+    "max_results": 50,
+    "user_agent": "AutoPenTest Passive Recon Authorised Assessment"
+  }
+}

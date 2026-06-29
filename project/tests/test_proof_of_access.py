@@ -119,6 +119,22 @@ def test_short_signing_secret_keeps_feature_inactive():
     assert manager.issue_for_operation(operation_result()) == []
 
 
+def test_ticket_issue_tolerates_missing_agent_ip_list():
+    manager = ProofTicketManager(
+        secret="test-secret-that-is-at-least-32-bytes",
+        enabled=True,
+        clock=lambda: 1000,
+    )
+    result = operation_result()
+    result["agent_ip_addrs"] = None
+
+    tickets = manager.issue_for_operation(result)
+
+    assert len(tickets) == 1
+    proof = manager.redeem(tickets[0]["ticket"], "client01")
+    assert proof["agent_ip_addrs"] == []
+
+
 def test_flask_redemption_endpoint_enforces_one_time_use(monkeypatch):
     import app as app_module
 

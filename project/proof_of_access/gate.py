@@ -90,11 +90,15 @@ class ProofTicketManager:
 
         operation_id = str(operation_results.get("operation_id") or "").strip()
         agent_host = str(operation_results.get("agent_host") or "").strip()
+        raw_agent_ip_addrs = operation_results.get("agent_ip_addrs") or []
+        if not isinstance(raw_agent_ip_addrs, list):
+            raw_agent_ip_addrs = []
+
         agent_ip_addrs = [
             normalised
             for normalised in (
                 _normalise_ip(value)
-                for value in operation_results.get("agent_ip_addrs", [])
+                for value in raw_agent_ip_addrs
             )
             if normalised
         ]
@@ -108,7 +112,9 @@ class ProofTicketManager:
         with self._lock:
             self._cleanup_locked(now)
 
-            for step in operation_results.get("techniques_run", []):
+            for step in operation_results.get("techniques_run") or []:
+                if not isinstance(step, dict):
+                    continue
                 if step.get("status") != "success":
                     continue
                 if not _qualifies(step.get("technique_id")):
@@ -173,11 +179,15 @@ class ProofTicketManager:
         if _normalise_host(observed_host) != _normalise_host(payload.get("agent_host")):
             raise ProofTicketError("Proof ticket is not valid for this host.")
 
+        raw_expected_ips = payload.get("agent_ip_addrs") or []
+        if not isinstance(raw_expected_ips, list):
+            raw_expected_ips = []
+
         expected_ips = {
             normalised
             for normalised in (
                 _normalise_ip(value)
-                for value in payload.get("agent_ip_addrs", [])
+                for value in raw_expected_ips
             )
             if normalised
         }

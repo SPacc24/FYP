@@ -5,9 +5,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
-PROJECT_DIR = Path(__file__).resolve().parents[1]
-SCAN_DIR = PROJECT_DIR / 'storage' / 'scans'
-SCAN_DIR.mkdir(parents=True, exist_ok=True)
+from storage import scan_store
+
+SCAN_DIR = scan_store.SCANS_DIR
 
 
 def safe_name(value: str) -> str:
@@ -16,7 +16,7 @@ def safe_name(value: str) -> str:
 
 def outfile(prefix: str, host: str, suffix: str) -> Path:
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-    return SCAN_DIR / f'{safe_name(prefix)}_{safe_name(host)}_{ts}.{suffix}'
+    return scan_store.scan_path(f'{safe_name(prefix)}_{safe_name(host)}_{ts}.{suffix}')
 
 
 def which(name: str, alternatives: list[str] | None = None) -> str | None:
@@ -46,7 +46,11 @@ def run_cmd(cmd: list[str], output_file: Path | None = None, timeout: int = 300,
             text_out = stdout
             if stderr:
                 text_out += '\n[stderr]\n' + stderr
-            output_file.write_text(text_out, encoding='utf-8', errors='ignore')
+            try:
+                output_file.parent.mkdir(parents=True, exist_ok=True)
+                output_file.write_text(text_out, encoding='utf-8', errors='ignore')
+            except OSError as exc:
+                return {'success': False, 'status': 'failed', 'command': cmd_str, 'returncode': proc.returncode, 'stdout': stdout, 'stderr': stderr, 'output_file': str(output_file), 'error': f'could not write output file: {exc}'}
         success = proc.returncode == 0
         return {
             'success': success,
@@ -62,7 +66,11 @@ def run_cmd(cmd: list[str], output_file: Path | None = None, timeout: int = 300,
         stdout = _as_text(exc.stdout)
         stderr = _as_text(exc.stderr)
         if output_file and not tool_writes_file:
-            output_file.write_text(stdout + '\n[TIMEOUT]\n' + stderr, encoding='utf-8', errors='ignore')
+            try:
+                output_file.parent.mkdir(parents=True, exist_ok=True)
+                output_file.write_text(stdout + '\n[TIMEOUT]\n' + stderr, encoding='utf-8', errors='ignore')
+            except OSError:
+                pass
         return {'success': False, 'status': 'failed', 'command': cmd_str, 'returncode': -1, 'stdout': stdout, 'stderr': ('timeout\n' + stderr).strip(), 'output_file': str(output_file or ''), 'error': 'timeout'}
     except FileNotFoundError:
         return {'success': False, 'status': 'failed', 'command': cmd_str, 'returncode': -1, 'stdout': '', 'stderr': 'binary not found', 'output_file': str(output_file or ''), 'error': 'binary not found'}
