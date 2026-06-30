@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Thu Jun  4 09:37:59 2026 as: /usr/lib/nmap/nmap -Pn -T 4 -p 1-1000 -oX /home/kali/FYP/project/storage/scans/scan_192.168.86.130_20260604_093758_ac8204c5.xml -sV -sC -O -&#45;version-all 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -Pn -T 4 -p 1-1000 -oX /home/kali/FYP/project/storage/scans/scan_192.168.86.130_20260604_093758_ac8204c5.xml -sV -sC -O -&#45;version-all 192.168.86.130" start="1780580279" startstr="Thu Jun  4 09:37:59 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="1000" services="1-1000"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1780580283" endtime="1780580296"><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+<ports><extraports state="closed" count="997">
+<extrareasons reason="reset" count="997" proto="tcp" ports="1-134,136-138,140-444,446-1000"/>
+</extraports>
+<port protocol="tcp" portid="135"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" product="Microsoft Windows RPC" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="139"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="netbios-ssn" product="Microsoft Windows netbios-ssn" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="445"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="microsoft-ds" product="Windows 10 Enterprise 10240 microsoft-ds" extrainfo="workgroup: FYP_67" hostname="CLIENT01" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+</ports>
+<os><portused state="open" proto="tcp" portid="135"/>
+<portused state="closed" proto="tcp" portid="1"/>
+<portused state="closed" proto="udp" portid="34884"/>
+<osmatch name="Microsoft Windows 10 1507 - 1607" accuracy="100" line="75448">
+<osclass type="general purpose" vendor="Microsoft" osfamily="Windows" osgen="10" accuracy="100"><cpe>cpe:/o:microsoft:windows_10</cpe></osclass>
+</osmatch>
+</os>
+<uptime seconds="617456" lastboot="Thu May 28 06:07:20 2026"/>
+<distance value="1"/>
+<tcpsequence index="260" difficulty="Good luck!" values="BBDC02E6,4FF74379,400CC55D,1DBD2819,6416ECF2,9BAE2F5A"/>
+<ipidsequence class="Incremental" values="66D2,66D3,66D4,66D5,66D6,66D7"/>
+<tcptssequence class="1000HZ" values="24CD8D6C,24CD8DD0,24CD8E34,24CD8E98,24CD8EFD,24CD8F61"/>
+<hostscript><script id="smb2-time" output="&#xa;  date: 2026-06-04T13:38:12&#xa;  start_date: 2026-05-19T06:45:22"><elem key="date">2026-06-04T13:38:12</elem>
+<elem key="start_date">2026-05-19T06:45:22</elem>
+</script><script id="nbstat" output="NetBIOS name: CLIENT01, NetBIOS user: &lt;unknown&gt;, NetBIOS MAC: 00:0c:29:a1:d7:1b (VMware)"/><script id="smb-os-discovery" output="&#xa;  OS: Windows 10 Enterprise 10240 (Windows 10 Enterprise 6.3)&#xa;  OS CPE: cpe:/o:microsoft:windows_10::-&#xa;  Computer name: client01&#xa;  NetBIOS computer name: CLIENT01\x00&#xa;  Domain name: fyp.server2012&#xa;  Forest name: fyp.server2012&#xa;  FQDN: client01.fyp.server2012&#xa;  System time: 2026-06-04T06:38:12-07:00&#xa;"><elem key="os">Windows 10 Enterprise 10240</elem>
+<elem key="lanmanager">Windows 10 Enterprise 6.3</elem>
+<elem key="server">CLIENT01\x00</elem>
+<elem key="date">2026-06-04T06:38:12-07:00</elem>
+<elem key="fqdn">client01.fyp.server2012</elem>
+<elem key="domain_dns">fyp.server2012</elem>
+<elem key="forest_dns">fyp.server2012</elem>
+<elem key="workgroup">FYP_67\x00</elem>
+<elem key="cpe">cpe:/o:microsoft:windows_10::-</elem>
+</script><script id="smb-security-mode" output="&#xa;  account_used: &lt;blank&gt;&#xa;  authentication_level: user&#xa;  challenge_response: supported&#xa;  message_signing: disabled (dangerous, but default)"><elem key="account_used">&lt;blank&gt;</elem>
+<elem key="authentication_level">user</elem>
+<elem key="challenge_response">supported</elem>
+<elem key="message_signing">disabled</elem>
+</script><script id="clock-skew" output="mean: 2h20m00s, deviation: 4h02m29s, median: 0s"><elem key="median">0</elem>
+<elem key="mean">8400</elem>
+<elem key="count">3</elem>
+<elem key="stddev">14549</elem>
+</script><script id="smb2-security-mode" output="&#xa;  3.1.1: &#xa;    Message signing enabled but not required"><table key="3.1.1">
+<elem>Message signing enabled but not required</elem>
+</table>
+</script></hostscript><times srtt="1187" rttvar="494" to="100000"/>
+</host>
+<runstats><finished time="1780580296" timestr="Thu Jun  4 09:38:16 2026" summary="Nmap done at Thu Jun  4 09:38:16 2026; 1 IP address (1 host up) scanned in 18.53 seconds" elapsed="18.53" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

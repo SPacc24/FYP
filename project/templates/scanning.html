@@ -104,7 +104,11 @@ document.addEventListener('keydown', e => { if(e.key === 'Escape') closeOutputMo
 async function poll(){
  let d;
  try {
-   const r=await fetch(`/scan/status/${scanId}?t=${Date.now()}`, {cache:'no-store'});
+   const r=await fetch(`/scan/status/${scanId}?t=${Date.now()}`, {cache:'no-store',
+    headers : {
+      "X-Operator-Token": "{{ operator_token }}",
+    }
+   });
    d=await r.json();
  } catch (err) {
    document.getElementById('current').textContent='Waiting for scan status';

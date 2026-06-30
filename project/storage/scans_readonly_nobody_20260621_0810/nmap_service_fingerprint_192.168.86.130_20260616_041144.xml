@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Tue Jun 16 04:11:45 2026 as: /usr/lib/nmap/nmap -sV -&#45;version-light -O -&#45;osscan-guess -p 135,139,445,3389,49408,49409,49410,49412,49413,49414 -oX storage/scans/nmap_service_fingerprint_192.168.86.130_20260616_041144.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -sV -&#45;version-light -O -&#45;osscan-guess -p 135,139,445,3389,49408,49409,49410,49412,49413,49414 -oX storage/scans/nmap_service_fingerprint_192.168.86.130_20260616_041144.xml 192.168.86.130" start="1781597505" startstr="Tue Jun 16 04:11:45 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="10" services="135,139,445,3389,49408-49410,49412-49414"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1781597508" endtime="1781597536"><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+<ports><port protocol="tcp" portid="135"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" product="Microsoft Windows RPC" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="139"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="netbios-ssn" product="Microsoft Windows netbios-ssn" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="445"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="microsoft-ds" product="Microsoft Windows 7 - 10 microsoft-ds" extrainfo="workgroup: FYP_67" hostname="CLIENT01" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="3389"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="ms-wbt-server" product="Microsoft Terminal Services" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="49408"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49409"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49410"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49412"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49413"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49414"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+</ports>
+<os><portused state="open" proto="tcp" portid="135"/>
+<portused state="closed" proto="udp" portid="30268"/>
+<osmatch name="Microsoft Windows 10 1507 - 1607" accuracy="100" line="75448">
+<osclass type="general purpose" vendor="Microsoft" osfamily="Windows" osgen="10" accuracy="100"><cpe>cpe:/o:microsoft:windows_10</cpe></osclass>
+</osmatch>
+</os>
+<uptime seconds="321" lastboot="Tue Jun 16 04:06:55 2026"/>
+<distance value="1"/>
+<tcpsequence index="261" difficulty="Good luck!" values="1984829D,921BD8A2,2282BFF6,3E26BB95,9BD58ED2,70665778"/>
+<ipidsequence class="Incremental" values="4A63,4A64,4A65,4A66,4A67,4A68"/>
+<tcptssequence class="1000HZ" values="4E42F,4E493,4E4FA,4E55E,4E5C2,4E626"/>
+<times srtt="1465" rttvar="485" to="100000"/>
+</host>
+<runstats><finished time="1781597536" timestr="Tue Jun 16 04:12:16 2026" summary="Nmap done at Tue Jun 16 04:12:16 2026; 1 IP address (1 host up) scanned in 31.58 seconds" elapsed="31.58" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

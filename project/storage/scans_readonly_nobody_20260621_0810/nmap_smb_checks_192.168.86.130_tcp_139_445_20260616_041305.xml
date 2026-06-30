@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Tue Jun 16 04:13:05 2026 as: /usr/lib/nmap/nmap -sV -&#45;script smb-enum-shares,smb-enum-users,smb-os-discovery,smb-protocols,smb-security-mode -p 139,445 -oX storage/scans/nmap_smb_checks_192.168.86.130_tcp_139_445_20260616_041305.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -sV -&#45;script smb-enum-shares,smb-enum-users,smb-os-discovery,smb-protocols,smb-security-mode -p 139,445 -oX storage/scans/nmap_smb_checks_192.168.86.130_tcp_139_445_20260616_041305.xml 192.168.86.130" start="1781597585" startstr="Tue Jun 16 04:13:05 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="2" services="139,445"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1781597588" endtime="1781597599"><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+<ports><port protocol="tcp" portid="139"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="netbios-ssn" product="Microsoft Windows netbios-ssn" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="445"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="microsoft-ds" product="Windows 10 Enterprise 10240 microsoft-ds" extrainfo="workgroup: FYP_67" hostname="CLIENT01" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+</ports>
+<hostscript><script id="smb-os-discovery" output="&#xa;  OS: Windows 10 Enterprise 10240 (Windows 10 Enterprise 6.3)&#xa;  OS CPE: cpe:/o:microsoft:windows_10::-&#xa;  Computer name: client01&#xa;  NetBIOS computer name: CLIENT01\x00&#xa;  Domain name: fyp.server2012&#xa;  Forest name: fyp.server2012&#xa;  FQDN: client01.fyp.server2012&#xa;  System time: 2026-06-16T01:13:28-07:00&#xa;"><elem key="os">Windows 10 Enterprise 10240</elem>
+<elem key="lanmanager">Windows 10 Enterprise 6.3</elem>
+<elem key="server">CLIENT01\x00</elem>
+<elem key="date">2026-06-16T01:13:28-07:00</elem>
+<elem key="fqdn">client01.fyp.server2012</elem>
+<elem key="domain_dns">fyp.server2012</elem>
+<elem key="forest_dns">fyp.server2012</elem>
+<elem key="workgroup">FYP_67\x00</elem>
+<elem key="cpe">cpe:/o:microsoft:windows_10::-</elem>
+</script><script id="smb-protocols" output="&#xa;  dialects: &#xa;    NT LM 0.12 (SMBv1) [dangerous, but default]&#xa;    2.0.2&#xa;    2.1&#xa;    3.0&#xa;    3.0.2&#xa;    3.1.1"><table key="dialects">
+<elem>NT LM 0.12 (SMBv1) [dangerous, but default]</elem>
+<elem>2.0.2</elem>
+<elem>2.1</elem>
+<elem>3.0</elem>
+<elem>3.0.2</elem>
+<elem>3.1.1</elem>
+</table>
+</script><script id="smb-enum-shares" output="&#xa;  note: ERROR: Enumerating shares failed, guessing at common ones (NT_STATUS_ACCESS_DENIED)&#xa;  account_used: &lt;blank&gt;&#xa;  \\192.168.86.130\ADMIN$: &#xa;    warning: Couldn&apos;t get details for share: NT_STATUS_ACCESS_DENIED&#xa;    Anonymous access: &lt;none&gt;&#xa;  \\192.168.86.130\C$: &#xa;    warning: Couldn&apos;t get details for share: NT_STATUS_ACCESS_DENIED&#xa;    Anonymous access: &lt;none&gt;&#xa;  \\192.168.86.130\IPC$: &#xa;    warning: Couldn&apos;t get details for share: NT_STATUS_ACCESS_DENIED&#xa;    Anonymous access: READ"><elem key="note">ERROR: Enumerating shares failed, guessing at common ones (NT_STATUS_ACCESS_DENIED)</elem>
+<elem key="account_used">&lt;blank&gt;</elem>
+<table key="\\192.168.86.130\ADMIN$">
+<elem key="warning">Couldn&apos;t get details for share: NT_STATUS_ACCESS_DENIED</elem>
+<elem key="Anonymous access">&lt;none&gt;</elem>
+</table>
+<table key="\\192.168.86.130\C$">
+<elem key="warning">Couldn&apos;t get details for share: NT_STATUS_ACCESS_DENIED</elem>
+<elem key="Anonymous access">&lt;none&gt;</elem>
+</table>
+<table key="\\192.168.86.130\IPC$">
+<elem key="warning">Couldn&apos;t get details for share: NT_STATUS_ACCESS_DENIED</elem>
+<elem key="Anonymous access">READ</elem>
+</table>
+</script><script id="smb-security-mode" output="&#xa;  account_used: &lt;blank&gt;&#xa;  authentication_level: user&#xa;  challenge_response: supported&#xa;  message_signing: disabled (dangerous, but default)"><elem key="account_used">&lt;blank&gt;</elem>
+<elem key="authentication_level">user</elem>
+<elem key="challenge_response">supported</elem>
+<elem key="message_signing">disabled</elem>
+</script></hostscript><times srtt="959" rttvar="2918" to="100000"/>
+</host>
+<runstats><finished time="1781597599" timestr="Tue Jun 16 04:13:19 2026" summary="Nmap done at Tue Jun 16 04:13:19 2026; 1 IP address (1 host up) scanned in 13.69 seconds" elapsed="13.69" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

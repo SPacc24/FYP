@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Tue Jun 16 04:12:16 2026 as: /usr/lib/nmap/nmap -sU -&#45;top-ports 50 -sV -&#45;version-intensity 0 -T4 -oX storage/scans/nmap_udp_top_50_192.168.86.130_20260616_041216.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -sU -&#45;top-ports 50 -sV -&#45;version-intensity 0 -T4 -oX storage/scans/nmap_udp_top_50_192.168.86.130_20260616_041216.xml 192.168.86.130" start="1781597536" startstr="Tue Jun 16 04:12:16 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="udp" protocol="udp" numservices="50" services="7,53,67-69,80,111,123,135-139,161-162,445,500,514,518,520,593,626,631,996-999,1025-1027,1433-1434,1645-1646,1701,1812,1900,2048-2049,2222,3283,3456,4500,5060,5353,20031,32768,49152-49154"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1781597540" endtime="1781597582"><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+<ports><extraports state="open|filtered" count="28">
+<extrareasons reason="no-response" count="28" proto="udp" ports="7,53,67-68,111,123,138-139,162,500,518,520,593,631,998,1027,1433-1434,1645,1900,2049,2222,3283,4500,5060,5353,32768,49153"/>
+</extraports>
+<port protocol="udp" portid="69"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="tftp" method="table" conf="3"/></port>
+<port protocol="udp" portid="80"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="http" method="table" conf="3"/></port>
+<port protocol="udp" portid="135"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="msrpc" method="table" conf="3"/></port>
+<port protocol="udp" portid="136"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="profile" method="table" conf="3"/></port>
+<port protocol="udp" portid="137"><state state="open" reason="udp-response" reason_ttl="128"/><service name="netbios-ns" product="Microsoft Windows netbios-ns" extrainfo="workgroup: FYP_67" hostname="CLIENT01" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="udp" portid="161"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="snmp" method="table" conf="3"/></port>
+<port protocol="udp" portid="445"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="microsoft-ds" method="table" conf="3"/></port>
+<port protocol="udp" portid="514"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="syslog" method="table" conf="3"/></port>
+<port protocol="udp" portid="626"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="serialnumberd" method="table" conf="3"/></port>
+<port protocol="udp" portid="996"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="vsinet" method="table" conf="3"/></port>
+<port protocol="udp" portid="997"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="maitrd" method="table" conf="3"/></port>
+<port protocol="udp" portid="999"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="applix" method="table" conf="3"/></port>
+<port protocol="udp" portid="1025"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="blackjack" method="table" conf="3"/></port>
+<port protocol="udp" portid="1026"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="win-rpc" method="table" conf="3"/></port>
+<port protocol="udp" portid="1646"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="radacct" method="table" conf="3"/></port>
+<port protocol="udp" portid="1701"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="L2TP" method="table" conf="3"/></port>
+<port protocol="udp" portid="1812"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="radius" method="table" conf="3"/></port>
+<port protocol="udp" portid="2048"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="dls-monitor" method="table" conf="3"/></port>
+<port protocol="udp" portid="3456"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="IISrpc-or-vat" method="table" conf="3"/></port>
+<port protocol="udp" portid="20031"><state state="closed" reason="port-unreach" reason_ttl="128"/><service name="bakbonenetvault" method="table" conf="3"/></port>
+<port protocol="udp" portid="49152"><state state="closed" reason="port-unreach" reason_ttl="128"/></port>
+<port protocol="udp" portid="49154"><state state="closed" reason="port-unreach" reason_ttl="128"/></port>
+</ports>
+<times srtt="1231" rttvar="232" to="100000"/>
+</host>
+<runstats><finished time="1781597582" timestr="Tue Jun 16 04:13:02 2026" summary="Nmap done at Tue Jun 16 04:13:02 2026; 1 IP address (1 host up) scanned in 45.68 seconds" elapsed="45.68" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>
