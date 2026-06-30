@@ -88,6 +88,9 @@ class RiskScorer:
               'breakdown':   dict  (for report transparency)
             }
         """
+        vulnerabilities = vulnerabilities if isinstance(vulnerabilities, list) else []
+        operation_results = operation_results if isinstance(operation_results, dict) else {}
+
         cve_component = self._score_cve(vulnerabilities)
         exposure_component = self._score_exposure(vulnerabilities)
         attack_component = self._score_attack(operation_results)
@@ -212,7 +215,10 @@ class RiskScorer:
         Each successful technique adds its tactic weight.
         Normalised to 0-5 (ATT&CK contributes up to 50% of final score).
         """
-        techniques = operation_results.get('techniques_run', [])
+        operation_results = operation_results if isinstance(operation_results, dict) else {}
+        techniques = operation_results.get('techniques_run') or []
+        if not isinstance(techniques, list):
+            return 0.0
         if not techniques:
             return 0.0
         raw_score = 0.0
@@ -386,7 +392,10 @@ class RiskScorer:
     def get_all_remediations(self, operation_results: dict) -> list:
         remediations = []
         seen = set()
-        for t in operation_results.get('techniques_run', []):
+        operation_results = operation_results if isinstance(operation_results, dict) else {}
+        for t in operation_results.get('techniques_run') or []:
+            if not isinstance(t, dict):
+                continue
             if t.get('status') == 'success':
                 tid = t.get('technique_id', '')
                 if tid and tid not in seen:
@@ -403,7 +412,10 @@ class RiskScorer:
         remediations = []
         seen = set()
 
-        for vuln in mapping_results.get('vulnerabilities', []):
+        mapping_results = mapping_results if isinstance(mapping_results, dict) else {}
+        for vuln in mapping_results.get('vulnerabilities') or []:
+            if not isinstance(vuln, dict):
+                continue
             host = vuln.get('host', 'Unknown host')
             port = vuln.get('port', 'Unknown port')
             service = vuln.get('service', 'Unknown service')

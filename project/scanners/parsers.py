@@ -46,18 +46,17 @@ def parse_nmap_xml(path: str, protocol_hint: str = 'tcp') -> list[dict[str, Any]
             version = service_el.get('version','') if service_el is not None else ''
             extra = service_el.get('extrainfo','') if service_el is not None else ''
             script_text = ' '.join(str(x.get('output','')) for x in scripts)
+            # Some services expose the real version only inside NSE script output
+            # rather than the <service version=...> attribute. Keep this generic
+            # and evidence-driven: infer only when the product name and script text
+            # both contain a clear product/version marker.
+            if product.lower() == 'unrealircd' and not version:
+                match = re.search(r'Unreal(?:IRCd)?\s*([0-9]+(?:\.[0-9]+){2,})', script_text, re.I)
+                if match:
+                    version = match.group(1)
+            if product.lower() == 'unrealircd' and version and not cpes:
+                cpes.append(f'cpe:/a:unrealircd:unrealircd:{version}')
 
-            # Some Nmap service probes report UnrealIRCd only in irc-info/banner
-            # script output instead of the structured <service version=> field.
-            # Preserve it as normal product/version evidence so official CVE
-            # matching can evaluate CVE-2010-2075 from collected banner data.
-            unreal = re.search(r'Unreal(?:IRCd)?\s*([0-9]+(?:\.[0-9]+){2,4})', ' '.join([product, version, extra, script_text]), flags=re.I)
-            if unreal:
-                product = product or 'UnrealIRCd'
-                version = version or unreal.group(1)
-                cpe_value = f'cpe:/a:unrealircd:unrealircd:{version}'
-                if cpe_value not in cpes:
-                    cpes.append(cpe_value)
 
             rows.append({
                 'host': host_ip,
@@ -74,20 +73,6 @@ def parse_nmap_xml(path: str, protocol_hint: str = 'tcp') -> list[dict[str, Any]
             })
     return rows
 
-def parse_gobuster(path: str, host: str, port: int) -> list[dict[str, Any]]:
-    out=[]
-    for line in _text(path).splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith('=') or stripped.startswith('['):
-            continue
-        m=re.search(r'^(?P<path>/?[^\s]+)\s+\(Status:\s*(?P<status>\d+).*?Size:\s*(?P<size>[0-9]+)', stripped)
-        if m:
-            path_value = m.group('path')
-            if not path_value.startswith('/'):
-                path_value = '/' + path_value
-            out.append({'host':host,'port':port,'tool':'gobuster','path':path_value,'status_code':m.group('status'),'size':m.group('size'),'raw_evidence_file':path})
-    return out
-
 def parse_httpx_jsonl(path: str) -> list[dict[str, Any]]:
     rows=[]
     for line in _text(path).splitlines():
@@ -98,3 +83,56 @@ def parse_httpx_jsonl(path: str) -> list[dict[str, Any]]:
 
 def parse_simple_lines(path: str) -> list[str]:
     return [l.strip() for l in _text(path).splitlines() if l.strip()]
+
+
+def parse_gobuster(path: str, host: str = '', port: int | str | None = None, scheme: str = 'http') -> list[dict[str, Any]]:
+    """Parse Gobuster/dir output into observed web paths.
+
+    Parser is deliberately tolerant so partial output is preserved when the
+    command times out. It extracts only paths/status/size/redirect evidence;
+    it does not infer vulnerabilities or run follow-up requests.
+    """
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, int | None]] = set()
+    text = _text(path)
+    pattern = re.compile(
+        r"^\s*(?P<raw>/?[\w.\-~/:%]+)\s+\(Status:\s*(?P<status>\d{3})\)"
+        r"(?:\s*\[Size:\s*(?P<size>\d+)\])?"
+        r"(?:\s*\[-->\s*(?P<redirect>[^\]]+)\])?",
+        re.I,
+    )
+    for line in text.splitlines():
+        match = pattern.search(line)
+        if not match:
+            continue
+        raw_path = match.group('raw').strip()
+        if raw_path.startswith(('http://', 'https://')):
+            # Keep just the URL path if gobuster printed an absolute URL.
+            from urllib.parse import urlparse
+            parsed = urlparse(raw_path)
+            web_path = parsed.path or '/'
+        else:
+            web_path = raw_path if raw_path.startswith('/') else f'/{raw_path}'
+        status = int(match.group('status')) if match.group('status') else None
+        key = (web_path, status)
+        if key in seen:
+            continue
+        seen.add(key)
+        size = match.group('size')
+        url = ''
+        if host and port:
+            default_port = (scheme == 'http' and str(port) == '80') or (scheme == 'https' and str(port) == '443')
+            authority = str(host) if default_port else f'{host}:{port}'
+            url = f'{scheme}://{authority}{web_path}'
+        rows.append({
+            'host': host,
+            'port': int(port) if str(port or '').isdigit() else port,
+            'path': web_path,
+            'url': url,
+            'status_code': status,
+            'size': int(size) if size and size.isdigit() else None,
+            'redirect': (match.group('redirect') or '').strip(),
+            'raw_evidence_file': path,
+            'evidence_sources': ['gobuster'],
+        })
+    return rows

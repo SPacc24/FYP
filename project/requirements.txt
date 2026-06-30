@@ -4,3 +4,5 @@ requests==2.31.0
 
 weasyprint==62.3
 reportlab==4.2.2
+
+responses==0.25.3

@@ -1,0 +1,249 @@
+{
+  "description": "Modern authorised active validation policy. Collects evidence only; no exploitation, brute forcing, credential use, intrusive payloads, or post-exploitation.",
+  "timeouts": {
+    "http_seconds": 4,
+    "nmap_seconds": 180,
+    "nuclei_seconds": 240
+  },
+  "detection_budget": {
+    "enabled": true,
+    "max_native_http_requests_per_host": 40,
+    "max_nmap_script_groups_per_host": 18,
+    "max_nuclei_requests_per_host": 10,
+    "pause_on_budget_exceeded": false,
+    "budget_action": "warn_and_continue_for_full_recon"
+  },
+  "api_paths": [
+    "/.well-known/openid-configuration",
+    "/openapi.json",
+    "/swagger.json",
+    "/swagger/v1/swagger.json",
+    "/api-docs",
+    "/v3/api-docs",
+    "/graphql",
+    "/graphiql"
+  ],
+  "targeted_web_paths": [
+    "/robots.txt",
+    "/sitemap.xml",
+    "/.well-known/security.txt",
+    "/.well-known/change-password",
+    "/.well-known/assetlinks.json",
+    "/.well-known/apple-app-site-association"
+  ],
+  "kubernetes_paths": [
+    "/version",
+    "/api",
+    "/apis",
+    "/healthz"
+  ],
+  "container_paths": [
+    "/version",
+    "/_ping",
+    "/v2/"
+  ],
+  "vpn_paths": [
+    "/",
+    "/global-protect/login.esp",
+    "/remote/login",
+    "/vpn/index.html",
+    "/+CSCOE+/logon.html"
+  ],
+  "nmap_script_sets": {
+    "ldap_rootdse": [
+      "ldap-rootdse"
+    ],
+    "kerberos_info": [
+      "krb5-info"
+    ],
+    "tls_cipher_validation": [
+      "ssl-enum-ciphers"
+    ],
+    "rdp_negotiation": [
+      "rdp-enum-encryption"
+    ],
+    "telnet_readiness": [
+      "telnet-encryption",
+      "telnet-ntlm-info"
+    ],
+    "snmp_readiness": [
+      "snmp-info"
+    ],
+    "mssql_info": [
+      "ms-sql-info"
+    ],
+    "vnc_info": [
+      "vnc-info"
+    ],
+    "tomcat_ajp_readiness": [
+      "ajp-headers"
+    ]
+  },
+  "nuclei": {
+    "enabled_by_default": false,
+    "allowed_severities": [
+      "info",
+      "low"
+    ],
+    "allowed_tags": [
+      "fingerprint",
+      "exposure",
+      "misconfig",
+      "panel"
+    ],
+    "excluded_tags": [
+      "auth-bypass",
+      "bruteforce",
+      "cve",
+      "default-login",
+      "dos",
+      "exploit",
+      "file-upload",
+      "fuzz",
+      "generic",
+      "headless",
+      "intrusive",
+      "lfi",
+      "network",
+      "oast",
+      "rce",
+      "sqli",
+      "ssrf",
+      "takeover",
+      "tech"
+    ],
+    "rate_limit_per_second": 0.5,
+    "retries": 0,
+    "templates_directory_env": "NUCLEI_TEMPLATES_DIR"
+  },
+  "service_validation": {
+    "telnet_readiness": {
+      "ports": [
+        23
+      ],
+      "services": [
+        "telnet"
+      ],
+      "label": "Telnet exposure/security hint evidence"
+    },
+    "snmp_readiness": {
+      "ports": [
+        161,
+        162
+      ],
+      "services": [
+        "snmp"
+      ],
+      "label": "SNMP basic information evidence"
+    },
+    "mssql_info": {
+      "ports": [
+        1433
+      ],
+      "services": [
+        "ms-sql",
+        "mssql"
+      ],
+      "label": "MSSQL information evidence"
+    },
+    "vnc_info": {
+      "ports": [
+        5900,
+        5901
+      ],
+      "services": [
+        "vnc"
+      ],
+      "label": "VNC protocol/security-type evidence"
+    },
+    "tomcat_ajp_readiness": {
+      "ports": [
+        8009
+      ],
+      "services": [
+        "ajp13",
+        "ajp"
+      ],
+      "label": "AJP/Tomcat header evidence"
+    }
+  },
+  "native_http_services": {
+    "redis_info": {
+      "ports": [
+        6379
+      ],
+      "paths": [
+        "/"
+      ],
+      "markers": [
+        "redis",
+        "-NOAUTH",
+        "+PONG"
+      ],
+      "label": "Redis exposure evidence"
+    },
+    "elasticsearch_info": {
+      "ports": [
+        9200,
+        9201
+      ],
+      "paths": [
+        "/",
+        "/_cluster/health"
+      ],
+      "markers": [
+        "cluster_name",
+        "elasticsearch",
+        "tagline"
+      ],
+      "label": "Elasticsearch metadata exposure evidence"
+    }
+  },
+  "federation_paths": [
+    "/.well-known/openid-configuration",
+    "/adfs/.well-known/openid-configuration",
+    "/adfs/ls/IdpInitiatedSignOn.aspx",
+    "/oauth2/.well-known/openid-configuration",
+    "/saml/metadata",
+    "/sso/saml/metadata",
+    "/realms/master/.well-known/openid-configuration"
+  ],
+  "tls_intelligence": {
+    "enabled": true,
+    "alpn_protocols": [
+      "h2",
+      "http/1.1"
+    ],
+    "certificate_correlation": true
+  },
+  "dns_relationships": {
+    "enabled": true,
+    "include_ptr": true,
+    "include_soa_ns": true
+  },
+  "noise_optimisation": {
+    "reduced_udp_ports": [
+      53,
+      123,
+      137,
+      161
+    ],
+    "gobuster_policy": "disabled_by_default_use_known_paths_only",
+    "nuclei_policy": "fingerprint_exposure_misconfig_only"
+  },
+  "noise_yield_policy": {
+    "goal": "Increase information per probe by preferring passive, metadata, targeted OID, TLS/certificate, DNS relationship and protocol-capability checks over broad enumeration.",
+    "broad_scans_removed": [
+      "second targeted TCP burst",
+      "broad UDP",
+      "broad content discovery",
+      "broad template sweeps"
+    ],
+    "high_yield_udp_only": [
+      53,
+      137,
+      161
+    ],
+    "web_discovery": "metadata_paths_only_no_wordlist"
+  }
+}

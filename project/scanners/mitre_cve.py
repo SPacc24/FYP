@@ -22,68 +22,23 @@ OFFICIAL_CVE_SOURCE = 'Official CVE List via CVEProject/cvelistV5 (MITRE/CVE Pro
 # needs exact CPE evidence, exact product identity plus exact observed version,
 # or a clearly bounded affected-version range for the same product family.
 
-PRODUCTS: dict[str, dict[str, Any]] = {
-    'vsftpd': {
-        'detect': [r'\bvsftpd\b'],
-        'affected_products': {'vsftpd'},
-        'desc_phrases': [r'\bvsftpd\b'],
-        'blocked': {'sftpgo'},
-    },
-    'proftpd': {
-        'detect': [r'\bproftpd\b'],
-        'affected_products': {'proftpd', 'proftpd server'},
-        'desc_phrases': [r'\bproftpd\b'],
-        'blocked': set(),
-    },
-    'openssh': {
-        'detect': [r'\bopenssh\b'],
-        'affected_products': {'openssh'},
-        'desc_phrases': [r'\bopenssh\b'],
-        'blocked': {'tectia', 'rundeck', 'jenkins', 'pam_usb', 'usbview', 'smartos'},
-    },
-    'apache_http_server': {
-        'detect': [r'\bapache\s+httpd\b', r'\bapache\s+http\s+server\b', r'\bhttp_server\b'],
-        'affected_products': {'apache http server', 'apache httpd', 'http server', 'httpd'},
-        'desc_phrases': [r'\bapache\s+http\s+server\b', r'\bapache\s+httpd\b', r'\bhttpd\b'],
-        'blocked': {'archiva','cassandra','jmeter','struts','tomcat','trafficserver','solr','ofbiz','hive','ignite','wicket','couchdb','openmeetings','uhttpd'},
-    },
-    'isc_bind': {
-        'detect': [r'\bisc\s+bind\b', r'\bbind\s*9\b', r'\bbind\b'],
-        'affected_products': {'bind', 'bind9', 'isc bind'},
-        'desc_phrases': [r'\bisc\s+bind\b', r'\bbind\s*9\b'],
-        'blocked': {'binding', 'blink', 'xbl'},
-    },
-    'samba': {
-        'detect': [r'\bsamba\b', r'\bsmbd\b'],
-        'affected_products': {'samba', 'smbd'},
-        'desc_phrases': [r'\bsamba\b'],
-        'blocked': {'sambar'},
-    },
-    'mysql': {
-        'detect': [r'\bmysql\b'],
-        'affected_products': {'mysql server', 'mysql'},
-        'desc_phrases': [],
-        'blocked': {'workbench', 'open dental', 'drobo', 'arcms', 'puppet', 'scms', 'phpmyadmin', 'mariadb'},
-    },
-    'postgresql': {
-        'detect': [r'\bpostgresql\b', r'\bpostgresql\s+db\b'],
-        'affected_products': {'postgresql', 'postgresql server'},
-        'desc_phrases': [r'\bpostgresql\b'],
-        'blocked': {'libpq', 'cpanel'},
-    },
-    'unrealircd': {
-        'detect': [r'\bunrealircd\b'],
-        'affected_products': {'unrealircd'},
-        'desc_phrases': [r'\bunrealircd\b'],
-        'blocked': set(),
-    },
-    'distcc': {
-        'detect': [r'\bdistccd\b', r'\bdistcc\b'],
-        'affected_products': {'distcc', 'distccd'},
-        'desc_phrases': [r'\bdistcc\b', r'\bdistccd\b'],
-        'blocked': set(),
-    },
-}
+def _load_product_alias_registry() -> dict[str, dict[str, Any]]:
+    candidates = [Path('project/policies/product_alias_registry.json'), Path('policies/product_alias_registry.json')]
+    path = next((x for x in candidates if x.exists()), None)
+    if path is None:
+        raise RuntimeError('Product alias registry missing; CVE matching cannot safely infer product families.')
+    data = json.loads(path.read_text(encoding='utf-8'))
+    out: dict[str, dict[str, Any]] = {}
+    for key, spec in data.items():
+        out[key] = {
+            'detect': list(spec.get('detect') or []),
+            'affected_products': set(spec.get('affected_products') or []),
+            'desc_phrases': list(spec.get('desc_phrases') or []),
+            'blocked': set(spec.get('blocked') or []),
+        }
+    return out
+
+PRODUCTS: dict[str, dict[str, Any]] = _load_product_alias_registry()
 
 GENERIC_TOKENS = {
     'linux','debian','ubuntu','windows','microsoft','server','daemon','service','protocol','tcp','udp',

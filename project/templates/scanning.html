@@ -10,7 +10,7 @@
   <div>
     <div class="eyebrow">Reconnaissance in Progress</div>
     <h1>{{ target }}</h1>
-    <p class="muted">Evidence collection is running. CVE review begins when enough service identity evidence is available and is finalised after consolidation.</p>
+    <p class="muted">Adaptive recon is running. Environment characterisation and low-impact discovery run first; preliminary attack-surface results appear before final CVE correlation and handoff preparation.</p>
   </div>
   <a class="btn ghost" href="/">New Scan</a>
 </header>
@@ -44,7 +44,7 @@
       </div>
       <div class="overview-card">
         <span>Scan Profile</span>
-        <b>{{ scan_options.profile_label if scan_options else 'Fast Recon' }}</b>
+        <b>{{ scan_options.profile_label if scan_options else 'Full Recon' }}</b>
       </div>
     </section>
 
@@ -75,9 +75,9 @@
 
 <script>
 const scanId = "{{ scan_id }}";
-const labels = {queued:'Queued', running:'In Progress', success:'Completed', empty:'No Evidence Found', failed:'Evidence Incomplete'};
+const labels = {queued:'Queued', running:'In Progress', success:'Completed Successfully', empty:'Completed - No Relevant Information Returned', failed:'Failed - Error', timeout:'Timed Out - Partial Results Retained', skipped:'Skipped - Not Applicable'};
 let latestCommandLog = [];
-function cls(s){return {queued:'queued',running:'running',success:'done',empty:'empty',failed:'failed'}[s]||'queued'}
+function cls(s){return {queued:'queued',running:'running',success:'done',empty:'empty',failed:'failed',timeout:'failed',skipped:'empty'}[s]||'queued'}
 function countTcp(services){return (services||[]).filter(s => (s.protocol||'tcp') === 'tcp').length}
 function countUdp(services){return (services||[]).filter(s => (s.protocol||'') === 'udp').length}
 function escapeHtml(s){return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -85,7 +85,7 @@ function shortText(s, n=160){s=String(s||''); return s.length>n ? s.slice(0,n)+'
 function logRow(l, idx){
   const command = l.command ? `<code>${escapeHtml(shortText(l.command, 180))}</code>` : '<span class="muted">No shell command</span>';
   const status = escapeHtml(l.status || l.level || '');
-  return `<tr class="logline ${escapeHtml(l.status || l.level || 'Completed')}"><td>${escapeHtml(l.time||'')}</td><td>${escapeHtml(l.purpose || l.message || '')}<div class="muted small">${status}</div></td><td class="cmd-cell">${command}</td><td><button class="btn mini" onclick="openOutputModal(${idx})">View Output</button></td></tr>`;
+  return `<tr class="logline ${escapeHtml(l.status || l.level || 'Completed')}"><td>${escapeHtml(l.time||'')}</td><td>${escapeHtml(l.purpose || l.message || '')}<div class="muted small">${status}</div></td><td class="cmd-cell">${command}</td><td><span class="small">${escapeHtml(shortText(l.output_summary || l.output || '', 140))}</span><br><button class="btn mini" onclick="openOutputModal(${idx})">View Raw Evidence</button></td></tr>`;
 }
 function openOutputModal(idx){
   const l = latestCommandLog[idx] || {};
@@ -116,7 +116,14 @@ async function poll(){
  document.getElementById('doneCount').textContent=`${d.task_done||0} / ${d.task_total||0} tasks`;
  document.getElementById('percent').textContent=`${d.task_percent||0}%`;
  document.getElementById('bar').style.width=`${d.task_percent||0}%`;
- document.getElementById('tasks').innerHTML=(d.tasks||[]).map(t=>`<div class="task ${cls(t.status)}"><span>${escapeHtml(t.name)}</span><b>${labels[t.status]||escapeHtml(t.status)}</b><small>${escapeHtml(t.summary||'')}</small></div>`).join('');
+ const allTasks = d.tasks || [];
+ const activeTasks = allTasks.filter(t => t.status === 'running');
+ const queuedTasks = allTasks.filter(t => t.status === 'queued');
+ const completedTasks = allTasks.filter(t => !['running','queued'].includes(t.status));
+ function taskBlock(title, items){
+   return `<div class="task-group"><h3>${title}</h3>` + (items.length ? items.map(t=>`<div class="task ${cls(t.status)}"><span>${escapeHtml(t.name)}</span><b>${labels[t.status]||escapeHtml(t.status)}</b><small>${escapeHtml(t.summary||'')}</small></div>`).join('') : '<p class="muted small">None</p>') + '</div>';
+ }
+ document.getElementById('tasks').innerHTML = taskBlock('Running', activeTasks) + taskBlock('Queued', queuedTasks) + taskBlock('Completed', completedTasks);
  latestCommandLog = (d.command_log || []).slice(-80);
  document.getElementById('log').innerHTML=latestCommandLog.map((entry, idx)=>logRow(entry, idx)).join('') || '<tr><td colspan="4" class="muted">No command has completed yet.</td></tr>';
  const res=d.results||{}; const services=res.service_inventory||[];
@@ -124,7 +131,7 @@ async function poll(){
    <div class="mini-card"><b>${(res.hosts||[]).length||0}</b><span>Hosts Observed</span></div>
    <div class="mini-card"><b>${countTcp(services)}</b><span>TCP Services</span></div>
    <div class="mini-card"><b>${countUdp(services)}</b><span>UDP Services</span></div>
-   <div class="mini-card"><b>${(res.cve_matches||[]).length||0}</b><span>CVE Findings</span></div>`;
+   <div class="mini-card"><b>${(res.cve_matches||[]).length||0}</b><span>Validated MITRE References</span></div>`;
  // The backend stores completed scans as success. Redirect only when a result
  // package exists; otherwise a failed pipeline would open an empty dashboard.
  const hasSavedResults = Boolean(res.service_inventory || res.hosts || res.handoff_file || res.caldera_handoff);

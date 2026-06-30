@@ -1,0 +1,371 @@
+{
+  "description": "Evidence-only passive fingerprint indicators. These are vendor/product string indicators, not CVE mappings, severity labels, priorities, or exploit decisions.",
+  "rules": {
+    "email_security": {
+      "Microsoft 365": {
+        "indicators": [
+          "protection.outlook.com",
+          "spf.protection.outlook.com",
+          "outlook.com"
+        ]
+      },
+      "Google Workspace": {
+        "indicators": [
+          "aspmx.l.google.com",
+          "_spf.google.com",
+          "google.com"
+        ]
+      },
+      "Proofpoint": {
+        "indicators": [
+          "pphosted.com",
+          "proofpoint"
+        ]
+      },
+      "Mimecast": {
+        "indicators": [
+          "mimecast.com",
+          "mimecast"
+        ]
+      },
+      "Barracuda": {
+        "indicators": [
+          "barracudanetworks.com",
+          "barracuda"
+        ]
+      }
+    },
+    "authentication": {
+      "Azure AD": {
+        "indicators": [
+          "login.microsoftonline.com",
+          "sts.windows.net",
+          "microsoftonline"
+        ]
+      },
+      "ADFS": {
+        "indicators": [
+          "/adfs/",
+          "adfs"
+        ]
+      },
+      "Okta": {
+        "indicators": [
+          "okta.com",
+          "okta"
+        ]
+      },
+      "Duo": {
+        "indicators": [
+          "duosecurity.com",
+          "duo"
+        ]
+      },
+      "SAML": {
+        "indicators": [
+          "samlrequest",
+          "samlresponse",
+          "saml"
+        ]
+      },
+      "OIDC": {
+        "indicators": [
+          "openid",
+          "oauth2",
+          "oidc"
+        ]
+      },
+      "PingFederate": {
+        "indicators": [
+          "pingfederate",
+          "ping identity"
+        ]
+      },
+      "Keycloak": {
+        "indicators": [
+          "keycloak",
+          "realms/",
+          "openid-configuration"
+        ]
+      }
+    },
+    "vpn": {
+      "GlobalProtect": {
+        "indicators": [
+          "globalprotect",
+          "palo alto"
+        ]
+      },
+      "FortiGate SSL VPN": {
+        "indicators": [
+          "fortinet",
+          "fortigate",
+          "fortisslvpn"
+        ]
+      },
+      "Cisco AnyConnect": {
+        "indicators": [
+          "anyconnect",
+          "webvpn",
+          "cisco"
+        ]
+      },
+      "Citrix Gateway": {
+        "indicators": [
+          "citrix",
+          "netscaler",
+          "gateway"
+        ]
+      },
+      "OpenVPN": {
+        "indicators": [
+          "openvpn"
+        ]
+      },
+      "Pulse Secure / Ivanti Connect Secure": {
+        "indicators": [
+          "pulse secure",
+          "ivanti connect secure",
+          "dana-na"
+        ]
+      }
+    },
+    "reverse_proxy": {
+      "Cloudflare": {
+        "indicators": [
+          "cloudflare",
+          "cf-ray"
+        ]
+      },
+      "F5 BIG-IP": {
+        "indicators": [
+          "bigip",
+          "f5",
+          "x-wa-info"
+        ]
+      },
+      "Citrix ADC / Netscaler": {
+        "indicators": [
+          "netscaler",
+          "citrix"
+        ]
+      },
+      "HAProxy": {
+        "indicators": [
+          "haproxy"
+        ]
+      },
+      "Nginx": {
+        "indicators": [
+          "nginx"
+        ]
+      },
+      "Azure Front Door": {
+        "indicators": [
+          "azurefd",
+          "x-azure-ref",
+          "azure front door"
+        ]
+      }
+    },
+    "cdn": {
+      "Cloudflare": {
+        "indicators": [
+          "cloudflare",
+          "cf-cache-status"
+        ]
+      },
+      "Akamai": {
+        "indicators": [
+          "akamai",
+          "edgesuite",
+          "edgekey"
+        ]
+      },
+      "Fastly": {
+        "indicators": [
+          "fastly",
+          "x-served-by"
+        ]
+      },
+      "Amazon CloudFront": {
+        "indicators": [
+          "cloudfront",
+          "x-amz-cf-id"
+        ]
+      }
+    },
+    "cloud": {
+      "Microsoft Azure": {
+        "indicators": [
+          "azure",
+          "cloudapp.net",
+          "azurewebsites.net",
+          "trafficmanager.net",
+          "onmicrosoft.com"
+        ]
+      },
+      "AWS": {
+        "indicators": [
+          "amazonaws.com",
+          "cloudfront.net",
+          "elb.amazonaws.com",
+          "s3.amazonaws.com"
+        ]
+      },
+      "Google Cloud": {
+        "indicators": [
+          "googleusercontent.com",
+          "appspot.com",
+          "gcp",
+          "googleapis.com"
+        ]
+      }
+    },
+    "technology": {
+      "SharePoint": {
+        "indicators": [
+          "sharepoint",
+          "x-sharepointhealthscore"
+        ]
+      },
+      "Exchange / OWA": {
+        "indicators": [
+          "owa",
+          "outlook",
+          "x-owa-version",
+          "exchange"
+        ]
+      },
+      "Confluence": {
+        "indicators": [
+          "confluence",
+          "atl-confluence"
+        ]
+      },
+      "Jira": {
+        "indicators": [
+          "jira",
+          "atlassian"
+        ]
+      },
+      "Tomcat": {
+        "indicators": [
+          "tomcat",
+          "coyote"
+        ]
+      },
+      "WordPress": {
+        "indicators": [
+          "wp-content",
+          "wordpress"
+        ]
+      },
+      "Drupal": {
+        "indicators": [
+          "drupal"
+        ]
+      }
+    },
+    "network_device": {
+      "Cisco Infrastructure": {
+        "indicators": [
+          "cisco",
+          "ios",
+          "ios-xe",
+          "nx-os",
+          "catalyst",
+          "asa",
+          "meraki"
+        ]
+      },
+      "Palo Alto Networks": {
+        "indicators": [
+          "palo alto",
+          "pan-os",
+          "globalprotect",
+          "panorama"
+        ]
+      },
+      "Fortinet": {
+        "indicators": [
+          "fortinet",
+          "fortigate",
+          "fortios"
+        ]
+      },
+      "Juniper": {
+        "indicators": [
+          "juniper",
+          "junos",
+          "srx"
+        ]
+      },
+      "Aruba / HP Networking": {
+        "indicators": [
+          "aruba",
+          "procurve",
+          "hpe",
+          "hewlett packard enterprise"
+        ]
+      }
+    },
+    "virtualisation": {
+      "VMware ESXi / vCenter": {
+        "indicators": [
+          "vmware",
+          "esxi",
+          "vcenter",
+          "vsphere"
+        ]
+      },
+      "Proxmox": {
+        "indicators": [
+          "proxmox",
+          "pve"
+        ]
+      },
+      "Hyper-V": {
+        "indicators": [
+          "hyper-v",
+          "microsoft hyper-v"
+        ]
+      },
+      "Xen": {
+        "indicators": [
+          "xenserver",
+          "citrix hypervisor",
+          "xcp-ng"
+        ]
+      }
+    },
+    "message_broker": {
+      "RabbitMQ": {
+        "indicators": [
+          "rabbitmq",
+          "amqp",
+          "management plugin"
+        ]
+      },
+      "Apache Kafka": {
+        "indicators": [
+          "kafka",
+          "zookeeper"
+        ]
+      },
+      "ActiveMQ": {
+        "indicators": [
+          "activemq",
+          "openwire"
+        ]
+      },
+      "MQTT": {
+        "indicators": [
+          "mqtt",
+          "mosquitto",
+          "emqx"
+        ]
+      }
+    }
+  }
+}

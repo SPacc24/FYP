@@ -447,6 +447,7 @@ class OperationManager:
             return self._error_result(agent_info)
         agent_host = agent_info.get('host', 'unknown')
         agent_paw = agent_info.get('paw', '')
+        agent_ip_addrs = agent_info.get('host_ip_addrs') or []
         adversary_id, is_custom, selected_abilities = self.resolve_adversary(technique_ids)
         if not adversary_id:
             return self._error_result('Could not find or create a suitable adversary profile. Check Caldera has abilities loaded.')
@@ -468,6 +469,7 @@ class OperationManager:
             result['unsupported_count'] = len(unsupported_techniques)
         result['agent_host'] = agent_host
         result['agent_paw'] = agent_paw
+        result['agent_ip_addrs'] = agent_ip_addrs
         result['selected_abilities'] = selected_abilities
         return result
 
@@ -535,7 +537,8 @@ class OperationManager:
             'discarded_count': discarded_count,
             'timed_out': timed_out,
             'agent_host': '',
-            'agent_paw': ''
+            'agent_paw': '',
+            'agent_ip_addrs': [],
         }
 
     def _extract_technique_id(self, ability):

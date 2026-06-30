@@ -11,6 +11,7 @@ from ai.technique_planner import generate_ai_technique_plan
 from ai.llm_client import ask_llm_text, get_llm_settings
 from ai.safety import SAFE_REFUSAL, is_unsafe_user_request, sanitize_llm_reply
 import json
+import re
 import os
 import socket
 import threading
@@ -44,6 +45,8 @@ from caldera.coverage_checker import CoverageChecker
 
 from caldera.risk_scorer import RiskScorer
 from exploitation.validator import ExploitabilityValidator
+from pivot.pivot_assessor import PivotAssessor
+from proof_of_access import ProofTicketError, ProofTicketManager
 from reports.report_generator import build_report_summary
 from storage.db import Database
 from storage import scan_store
@@ -108,6 +111,19 @@ operation_manager = OperationManager(caldera_client)
 coverage_checker = CoverageChecker(caldera_client)
 risk_scorer = RiskScorer()
 exploitability_validator = ExploitabilityValidator()
+pivot_assessor = PivotAssessor(operation_manager)
+
+proof_ticket_manager = ProofTicketManager(
+    secret=Config.PROOF_OF_ACCESS_SECRET,
+    enabled=Config.PROOF_OF_ACCESS_ENABLED,
+    ttl_seconds=Config.PROOF_OF_ACCESS_TTL,
+)
+
+if Config.PROOF_OF_ACCESS_ENABLED and not proof_ticket_manager.active:
+    log.warning(
+        "Proof-of-access is enabled but PROOF_OF_ACCESS_SECRET is shorter "
+        "than 32 bytes; ticket issuance is disabled."
+    )
 
 db = Database(
     host=Config.MYSQL_HOST,
@@ -161,6 +177,10 @@ def _safe_risk_calculate(vulns, op_results):
             "colour": "orange",
              "badge": "warning",
         }
+
+
+def _as_list(value):
+    return value if isinstance(value, list) else []
 
 
 def _load_current_scan_results():
@@ -596,13 +616,13 @@ def scan():
     if not target:
         return render_template("error.html", error_message="No target provided"), 400
 
-    profile = (request.form.get("scan_profile") or "fast").strip().lower()
-    enabled_tools = request.form.getlist("tools")
+    profile = (request.form.get("profile") or request.form.get("scan_profile") or "full").strip().lower()
+    enabled_tools = request.form.getlist("enabled_tools") or request.form.getlist("tools")
     technique_mode = request.form.get("technique_mode")
     if technique_mode not in {"auto", "hybrid", "manual"}:
         technique_mode = "hybrid"
 
-    scan_options = normalise_scan_options(profile, enabled_tools if enabled_tools else None)
+    scan_options = normalise_scan_options(profile, enabled_tools if profile == "custom" or enabled_tools else None)
     scan_options["technique_mode"] = technique_mode
     scan_id = scan_store.new_scan(
         target,
@@ -808,6 +828,28 @@ def operation_status():
     return jsonify(_active_operation_results())
 
 
+@app.route("/proof-of-access/redeem", methods=["POST"])
+def redeem_proof_of_access():
+    data = request.get_json(silent=True) or {}
+
+    try:
+        proof = proof_ticket_manager.redeem(
+            ticket=data.get("ticket", ""),
+            observed_host=data.get("observed_host", ""),
+            observed_ip=request.remote_addr or "",
+        )
+    except ProofTicketError:
+        return jsonify({
+            "ok": False,
+            "error": "Proof ticket is invalid, expired, already used, or for another host.",
+        }), 400
+
+    return jsonify({
+        "ok": True,
+        "proof": proof,
+    })
+
+
 @app.route("/exploitation/run", methods=["POST"])
 def exploitation_run():
     try:
@@ -955,6 +997,12 @@ def caldera_run():
                 },
             }
             result["validation_results"] = _active_validation_results()
+            proof_tickets = proof_ticket_manager.issue_for_operation(result)
+            result["proof_of_access"] = {
+                "enabled": proof_ticket_manager.active,
+                "issued_count": len(proof_tickets),
+                "tickets": proof_tickets,
+            }
             risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), result)
             session["operation_results"] = result
             session["risk_score"] = risk
@@ -993,18 +1041,28 @@ def caldera_run():
         vulns = data.get("vulnerabilities") or session.get("vulnerabilities") or mapping_results.get("vulnerabilities", [])
         session["vulnerabilities"] = vulns
         result["validation_results"] = _active_validation_results()
+        proof_tickets = proof_ticket_manager.issue_for_operation(result)
+        result["proof_of_access"] = {
+            "enabled": proof_ticket_manager.active,
+            "issued_count": len(proof_tickets),
+            "tickets": proof_tickets,
+        }
         risk = _safe_risk_calculate(vulns, result)
 
         # Remediation
         vulnerability_remediations = []
         try:
-            vulnerability_remediations = risk_scorer.get_vulnerability_remediations(mapping_results) or []
+            vulnerability_remediations = _as_list(
+                risk_scorer.get_vulnerability_remediations(mapping_results)
+            )
         except Exception:
             vulnerability_remediations = []
 
         technique_remediations = []
         try:
-            technique_remediations = risk_scorer.get_all_remediations(result) or []
+            technique_remediations = _as_list(
+                risk_scorer.get_all_remediations(result)
+            )
         except Exception:
             technique_remediations = []
 
