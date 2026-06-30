@@ -32,7 +32,11 @@
         calderaAgentDelete: "{{ url_for('caldera_agent_delete') }}",
         calderaAgentsRemoveStale: "{{ url_for('caldera_agents_remove_stale') }}",
         calderaAgentSelect: "{{ url_for('caldera_agent_select') }}",
+        pentestAdvice: "{{ url_for('pentest_advice') }}",
         exploitationRun: "{{ url_for('exploitation_run') }}",
+        metasploitStatus: "{{ url_for('metasploit_status') }}",
+        metasploitPropose: "{{ url_for('metasploit_propose') }}",
+        metasploitRun: "{{ url_for('metasploit_run') }}",
         calderaRun: "{{ url_for('caldera_run') }}",
         operationStatus: "{{ url_for('operation_status') }}",
         generateReport: "{{ url_for('generate_report') }}",
@@ -44,6 +48,10 @@
         target: "{{ scan.target_ip if scan and scan.target_ip else session.get('target_ip', 'Unknown') }}",
         portRange: "{{ scan.port_range if scan and scan.port_range else session.get('port_range', '1-1024') }}",
         selectedMode: "{{ active_mode }}"
+      };
+
+      window.DASHBOARD_SECURITY = {
+        csrfToken: "{{ operator_csrf_token }}"
       };
     </script>
 

@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 import re
 import requests
@@ -296,7 +296,7 @@ def _repair_llm_json(parsed: dict) -> dict:
 
     if any(phrase in reasoning for phrase in bad_reasoning_phrases):
         parsed["reasoning"] = "AI selected techniques based on the mapped services, CVEs, and MITRE ATT&CK context."
-        
+
     if not isinstance(parsed.get("technique_explanations"), list):
         parsed["technique_explanations"] = []
 

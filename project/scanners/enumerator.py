@@ -1,4 +1,4 @@
-
+﻿
 from __future__ import annotations
 import json, os, re, ipaddress, contextvars, threading, logging, time, random, socket
 from pathlib import Path
@@ -404,7 +404,7 @@ def _collect_single_page_form_hints(host: str, port: int, url: str) -> dict[str,
     if not curl_bin:
         return {'success': False, 'forms': [], 'links': [], 'error': 'curl not found'}
     p = outfile('web_form_hints', f'{host}_{port}', 'html')
-    
+
     guard = _policy_required(_load_recon_policy(), 'http_probe_guardrails')
     result = run_cmd([curl_bin, '-sS', '--max-time', str(_policy_required(guard, 'curl_timeout_seconds')), '-L', '--max-redirs', str(_policy_required(guard, 'max_redirects')), url], p, 30)
     html = Path(p).read_text(encoding='utf-8', errors='ignore') if Path(p).exists() else str(result.get('stdout') or '')
@@ -2157,9 +2157,68 @@ def _text_has_ssh_audit_evidence(text: str) -> bool:
     return any(marker in value for marker in markers)
 
 
-# Recon ownership boundary: credential-combo sanitisation and brute-force preparation
-# were removed from the recon package. Downstream credential validation, if any,
-# belongs to teammate-owned modules and is not invoked or prepared here.
+def _sanitize_hydra_combo_file(path: str) -> str:
+    """Create a Hydra -C compatible combo file without invoking Hydra."""
+    source = Path(path)
+    if not source.exists():
+        return ''
+
+    valid: list[str] = []
+    try:
+        for line in source.read_text(encoding='utf-8', errors='ignore').splitlines():
+            item = line.strip()
+            if not item or item.startswith('#') or ':' not in item:
+                continue
+            user, password = item.split(':', 1)
+            user = user.strip()
+            password = password.strip()
+            if not user or not password:
+                continue
+            valid.append(f'{user}:{password}')
+    except OSError:
+        return ''
+
+    if not valid:
+        return ''
+
+    seen: set[str] = set()
+    clean = []
+    for item in valid:
+        if item not in seen:
+            seen.add(item)
+            clean.append(item)
+
+    out = scan_store.scan_path('hydra_combo_autopentest_sanitized.txt')
+    out.write_text('\n'.join(clean) + '\n', encoding='utf-8')
+    return str(out)
+
+
+def _credential_combo_file() -> str:
+    """Return a sanitized credential combo file for downstream validators."""
+    configured = os.getenv('HYDRA_CREDENTIAL_FILE', '').strip()
+    candidates = []
+    if configured:
+        candidates.append(configured)
+    candidates.extend([
+        '/usr/share/seclists/Passwords/Default-Credentials/default_credentials_for_services_unhashed.txt',
+        '/usr/share/seclists/Passwords/Default-Credentials/default_credentials_for_services.txt',
+        '/usr/share/seclists/Passwords/Common-Credentials/top-20.txt',
+    ])
+    packaged = Path(__file__).resolve().parents[1] / 'wordlists' / 'default_credentials_autopentest.txt'
+    candidates.append(str(packaged))
+
+    for item in candidates:
+        candidate = Path(item)
+        if candidate.exists() and candidate.stat().st_size > 0:
+            sanitized = _sanitize_hydra_combo_file(str(candidate))
+            if sanitized:
+                return sanitized
+    return ''
+
+
+# Recon ownership boundary: the helpers above only prepare a sanitized combo
+# file for compatibility/downstream validators. The recon pipeline does not run
+# Hydra, brute force, or password attempts.
 
 
 def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] | None = None) -> None:

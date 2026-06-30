@@ -706,6 +706,7 @@ class OperationManager:
             'timed_out': False,
             'agent_host': '',
             'agent_paw': '',
+            'agent_ip_addrs': [],
         }
 
     def save_log(self, data, filename):
@@ -718,5 +719,3 @@ class OperationManager:
 
     def is_caldera_alive(self):
         return self.client.health_check() is not None
-
- 

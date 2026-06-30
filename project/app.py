@@ -1,20 +1,26 @@
-# app.py - FIXED VERSION
-# Main Flask application for vulnerability assessment + attack simulation.
-
-# edited
 import sys
 import os as _os_for_path
 # Ensure the project directory is on sys.path so local top-level packages (ai, scanners, etc.) import correctly when running as a module
 sys.path.insert(0, _os_for_path.path.dirname(__file__))
 
+ENV_BOOTSTRAP_RESULT = None
+if __name__ == "__main__":
+    from runtime_env import ensure_env_file
+
+    ENV_BOOTSTRAP_RESULT = ensure_env_file()
+
 from ai.technique_planner import generate_ai_technique_plan
 from ai.llm_client import ask_llm_text, get_llm_settings
 from ai.safety import SAFE_REFUSAL, is_unsafe_user_request, sanitize_llm_reply
+from functools import wraps
+import ipaddress
 import json
 import re
 import os
+import secrets
 import socket
 import threading
+import uuid
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 import requests
@@ -44,9 +50,12 @@ from caldera.operation_manager import OperationManager
 from caldera.coverage_checker import CoverageChecker
 
 from caldera.risk_scorer import RiskScorer
-from exploitation.validator import ExploitabilityValidator
-from pivot.pivot_assessor import PivotAssessor
 from proof_of_access import ProofTicketError, ProofTicketManager
+from exploitation.metasploit_client import MetasploitRpcClient
+from exploitation.metasploit_service import MetasploitService
+from exploitation.validator import ExploitabilityValidator
+from pentest_ai.advisor import generate_attack_path_advice
+from pivot.pivot_assessor import PivotAssessor
 from reports.report_generator import build_report_summary
 from storage.db import Database
 from storage import scan_store
@@ -98,6 +107,105 @@ def status_class(value):
         return "failed"
     return "queued"
 
+
+def _is_local_request() -> bool:
+    remote_addr = request.remote_addr or ""
+    try:
+        return ipaddress.ip_address(remote_addr).is_loopback
+    except ValueError:
+        return remote_addr in {"localhost", ""}
+
+
+def _operator_token() -> str:
+    return str(getattr(Config, "OPERATOR_TOKEN", "") or "").strip()
+
+
+def _operator_gate_required() -> bool:
+    return bool(_operator_token())
+
+
+def _operator_authenticated() -> bool:
+    if not _operator_token():
+        return _is_local_request() or bool(getattr(Config, "ALLOW_INSECURE_OPERATOR_ACCESS", False))
+
+    return session.get("operator_authenticated") is True
+
+
+def _csrf_token() -> str:
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+def _csrf_valid() -> bool:
+    if request.method in {"GET", "HEAD", "OPTIONS"} or not _operator_token():
+        return True
+
+    data = request.get_json(silent=True) or {}
+    supplied = (
+        request.headers.get("X-CSRF-Token")
+        or request.form.get("_csrf_token")
+        or data.get("_csrf_token")
+        or ""
+    )
+    expected = session.get("_csrf_token") or ""
+    return bool(expected and supplied and secrets.compare_digest(str(supplied), str(expected)))
+
+
+def _operator_denied_response():
+    message = (
+        "Operator token required. Set OPERATOR_TOKEN in project/.env, "
+        "unlock this browser session, and retry."
+    )
+    wants_json = request.is_json or request.path.startswith((
+        "/ai/",
+        "/api/",
+        "/caldera/",
+        "/exploitation/",
+        "/pentest/",
+        "/proof-of-access/",
+        "/scan/status/",
+    ))
+    if wants_json:
+        return jsonify({"ok": False, "error": message}), 403
+    return render_template("error.html", error_message=message), 403
+
+
+def operator_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if _operator_authenticated():
+            if not _csrf_valid():
+                return jsonify({"ok": False, "error": "Invalid or missing CSRF token."}), 403
+            return view(*args, **kwargs)
+        return _operator_denied_response()
+    return wrapper
+
+
+@app.context_processor
+def inject_operator_context():
+    return {
+        "operator_gate_required": _operator_gate_required(),
+        "operator_authenticated": _operator_authenticated(),
+        "operator_token_configured": bool(_operator_token()),
+        "operator_csrf_token": _csrf_token(),
+    }
+
+SERVER_STATE = {}
+HEAVY_STATE_KEYS = {
+    "mapping_results",
+    "ai_plan",
+    "attack_plan",
+    "operation_results",
+    "risk_score",
+    "remediations",
+    "vulnerabilities",
+    "attack_advice",
+    "metasploit_results",
+}
+
 # ---------------------------------------------------
 # INIT SERVICES
 # ---------------------------------------------------
@@ -110,9 +218,6 @@ caldera_client = CalderaClient(
 operation_manager = OperationManager(caldera_client)
 coverage_checker = CoverageChecker(caldera_client)
 risk_scorer = RiskScorer()
-exploitability_validator = ExploitabilityValidator()
-pivot_assessor = PivotAssessor(operation_manager)
-
 proof_ticket_manager = ProofTicketManager(
     secret=Config.PROOF_OF_ACCESS_SECRET,
     enabled=Config.PROOF_OF_ACCESS_ENABLED,
@@ -124,6 +229,20 @@ if Config.PROOF_OF_ACCESS_ENABLED and not proof_ticket_manager.active:
         "Proof-of-access is enabled but PROOF_OF_ACCESS_SECRET is shorter "
         "than 32 bytes; ticket issuance is disabled."
     )
+exploitability_validator = ExploitabilityValidator()
+metasploit_client = MetasploitRpcClient(
+    base_url=Config.METASPLOIT_RPC_URL,
+    username=Config.METASPLOIT_RPC_USER,
+    password=Config.METASPLOIT_RPC_PASS,
+    verify_ssl=Config.METASPLOIT_RPC_VERIFY_SSL,
+    timeout=Config.METASPLOIT_RPC_TIMEOUT,
+    enabled=Config.ENABLE_METASPLOIT,
+)
+metasploit_service = MetasploitService(
+    metasploit_client,
+    exploit_execution_enabled=Config.ENABLE_METASPLOIT_EXPLOITS,
+)
+pivot_assessor = PivotAssessor(operation_manager)
 
 db = Database(
     host=Config.MYSQL_HOST,
@@ -177,6 +296,92 @@ def _safe_risk_calculate(vulns, op_results):
             "colour": "orange",
              "badge": "warning",
         }
+
+def _drop_client_side_heavy_state():
+    for key in HEAVY_STATE_KEYS:
+        session.pop(key, None)
+
+
+def _get_assessment_state():
+    state_id = session.get("assessment_state_id")
+
+    if not state_id:
+        state_id = uuid.uuid4().hex
+        session["assessment_state_id"] = state_id
+
+    _drop_client_side_heavy_state()
+    return SERVER_STATE.setdefault(state_id, {})
+
+
+def _replace_assessment_state(**values):
+    old_state_id = session.get("assessment_state_id")
+
+    if old_state_id:
+        SERVER_STATE.pop(old_state_id, None)
+
+    state_id = uuid.uuid4().hex
+    session["assessment_state_id"] = state_id
+    SERVER_STATE[state_id] = dict(values)
+    _drop_client_side_heavy_state()
+
+
+def _state_get(key, default=None):
+    return _get_assessment_state().get(key, default)
+
+
+def _state_set(**values):
+    _get_assessment_state().update(values)
+
+
+def _technique_id_from_mapping_item(item):
+    if not isinstance(item, dict):
+        return ""
+
+    return str(item.get("id") or item.get("technique_id") or "").strip()
+
+
+def _mapped_technique_ids(mapping_results):
+    if not isinstance(mapping_results, dict):
+        return set()
+
+    return {
+        technique_id
+        for technique_id in (
+            _technique_id_from_mapping_item(item)
+            for item in mapping_results.get("recommended_techniques", [])
+        )
+        if technique_id
+    }
+
+
+def _normalise_selected_techniques(value):
+    if not isinstance(value, list):
+        return []
+
+    selected = []
+
+    for item in value:
+        technique_id = str(item).strip()
+
+        if technique_id and technique_id not in selected:
+            selected.append(technique_id)
+
+    return selected
+
+
+def _allowed_technique_ids_for_mode(mode, mapping_results, ai_plan):
+    mapped_ids = _mapped_technique_ids(mapping_results)
+
+    if mode == "auto":
+        ai_selected_ids = {
+            str(technique_id).strip()
+            for technique_id in ai_plan.get("selected_technique_ids", [])
+            if str(technique_id).strip()
+        }
+
+        return ai_selected_ids & mapped_ids
+
+    return mapped_ids
 
 
 def _as_list(value):
@@ -281,6 +486,18 @@ def _active_validation_results() -> dict:
     return validation if isinstance(validation, dict) else {}
 
 
+def _active_attack_advice() -> dict:
+    data = _active_scan_record()
+    advice = data.get("attack_advice") or session.get("attack_advice") or {}
+    return advice if isinstance(advice, dict) else {}
+
+
+def _active_metasploit_results() -> dict:
+    data = _active_scan_record()
+    results = data.get("metasploit_results") or session.get("metasploit_results") or {}
+    return results if isinstance(results, dict) else {}
+
+
 def _active_operation_results() -> dict:
     data = _active_scan_record()
     operation = data.get("operation_results") or session.get("operation_results") or {}
@@ -315,11 +532,23 @@ def _build_active_report_context(data: dict | None = None) -> dict:
     scan["os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
     scan["ports"] = parsed_results.get("ports", [])
 
-    mapping_results = active.get("mapping") or _active_mapping_results()
-    operation_results = active.get("operation_results") or _active_operation_results()
+    mapping_results = active.get("mapping") or _active_mapping_results() or _state_get("mapping_results", {})
+    operation_results = active.get("operation_results") or _active_operation_results() or _state_get("operation_results", {})
     validation_results = active.get("validation_results") or _active_validation_results()
-    risk = active.get("risk") or session.get("risk_score", {})
-    remediations = active.get("remediations") or session.get("remediations", [])
+    attack_advice = active.get("attack_advice") or _active_attack_advice() or _state_get("attack_advice", {})
+    metasploit_results = active.get("metasploit_results") or _active_metasploit_results() or _state_get("metasploit_results", {})
+    if isinstance(validation_results, dict) and attack_advice:
+        validation_results = {
+            **validation_results,
+            "attack_advice": attack_advice,
+        }
+    if isinstance(validation_results, dict) and metasploit_results:
+        validation_results = {
+            **validation_results,
+            "metasploit_results": metasploit_results,
+        }
+    risk = active.get("risk") or session.get("risk_score") or _state_get("risk_score", {})
+    remediations = active.get("remediations") or session.get("remediations") or _state_get("remediations", [])
 
     report = build_report_summary(
         scan=scan,
@@ -335,6 +564,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         "mapping": mapping_results,
         "operation": operation_results,
         "validation": validation_results,
+        "metasploit": metasploit_results,
         "risk": risk,
         "remediations": remediations,
         "report": report,
@@ -440,11 +670,33 @@ def _caldera_agent_server_host():
     return None
 
 
+def _host_is_loopback(host: str) -> bool:
+    value = str(host or "").strip().lower()
+    if value in {"127.0.0.1", "localhost", "::1"}:
+        return True
+    try:
+        return ipaddress.ip_address(value).is_loopback
+    except ValueError:
+        return False
+
+
+def _validate_runtime_security(host: str) -> None:
+    exposed = not _host_is_loopback(host)
+    if Config.SECRET_KEY == "change-me" and (exposed or not Config.DEBUG):
+        raise RuntimeError(
+            "Set SECRET_KEY in project/.env before running outside local debug mode."
+        )
+    if exposed and not _operator_token() and not Config.ALLOW_INSECURE_OPERATOR_ACCESS:
+        raise RuntimeError(
+            "Set OPERATOR_TOKEN in project/.env before binding the dashboard to a non-local interface."
+        )
+
+
 # ---------------------------------------------------
 # ROUTES
 # ---------------------------------------------------
-# edited ai route
 @app.route("/ai/chat", methods=["POST"])
+@operator_required
 def ai_chat():
     try:
         data = request.get_json(silent=True) or {}
@@ -462,12 +714,18 @@ def ai_chat():
                 "reply": SAFE_REFUSAL
             }), 400
 
-        mapping_results = _active_mapping_results()
-        ai_plan = _active_ai_plan()
-        attack_plan = _active_attack_plan()
-        operation_results = _active_operation_results()
+        mapping_results = _active_mapping_results() or _state_get("mapping_results", {})
+        ai_plan = _active_ai_plan() or _state_get("ai_plan", {})
+        attack_plan = _active_attack_plan() or _state_get("attack_plan", {})
+        operation_results = _active_operation_results() or _state_get("operation_results", {})
         validation_results = _active_validation_results()
-        risk_score = (_active_scan_record().get("risk") or session.get("risk_score", {}))
+        attack_advice = _active_attack_advice() or _state_get("attack_advice", {})
+        metasploit_results = _active_metasploit_results() or _state_get("metasploit_results", {})
+        risk_score = (
+            _active_scan_record().get("risk")
+            or session.get("risk_score")
+            or _state_get("risk_score", {})
+        )
 
         safe_context = {
             "mapping_summary": {
@@ -502,6 +760,15 @@ def ai_chat():
                 "confirmed": validation_results.get("confirmed", 0),
                 "potential": validation_results.get("potential", 0),
                 "findings": validation_results.get("findings", []),
+            },
+            "attack_path_advice": {
+                "summary": attack_advice.get("summary"),
+                "source": attack_advice.get("source"),
+                "paths": attack_advice.get("attack_paths", []),
+            },
+            "metasploit_execution": {
+                "mode": metasploit_results.get("mode"),
+                "runs": metasploit_results.get("runs", []),
             },
             "risk_score": risk_score,
         }
@@ -542,6 +809,10 @@ Safety rules:
 - For normal definitions like "what is SMB", answer using general cybersecurity knowledge.
 - Only recommend MITRE ATT&CK technique IDs that appear in the project context.
 - Reply in normal plain text, not JSON.
+- When mentioning MITRE ATT&CK techniques, include the technique ID, name, and MITRE URL if available.
+- Explain reasoning in this structure: Observation -> Risk meaning -> Recommended next step.
+- Keep next steps safe and high-level.
+- Do not provide exploit commands or payloads.
 - Keep replies concise and useful.
 
 Formatting rules:
@@ -574,10 +845,10 @@ Reply:
             "ok": False,
             "reply": f"AI chat error: {e}"
         }), 500
-# edited
 
 
 @app.route("/ai/status", methods=["GET"])
+@operator_required
 def ai_status():
     settings = get_llm_settings()
     parsed = urlparse(settings["url"])
@@ -610,7 +881,39 @@ def index():
     return render_template("index.html", tool_options=TOOL_OPTIONS)
 
 
+@app.route("/operator/unlock", methods=["POST"])
+def operator_unlock():
+    token = _operator_token()
+    if not token:
+        if _operator_authenticated():
+            return jsonify({
+                "ok": True,
+                "message": "Local operator session is allowed.",
+                "csrf_token": _csrf_token(),
+            })
+        return jsonify({
+            "ok": False,
+            "error": "OPERATOR_TOKEN is not configured; remote operator access is disabled.",
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+    supplied = str(data.get("operator_token") or request.form.get("operator_token") or "")
+    if secrets.compare_digest(supplied, token):
+        session["operator_authenticated"] = True
+        return jsonify({"ok": True, "csrf_token": _csrf_token()})
+
+    return jsonify({"ok": False, "error": "Invalid operator token."}), 403
+
+
+@app.route("/operator/lock", methods=["POST"])
+@operator_required
+def operator_lock():
+    session.pop("operator_authenticated", None)
+    return jsonify({"ok": True})
+
+
 @app.route("/scan", methods=["POST"])
+@operator_required
 def scan():
     target = (request.form.get("target") or "").strip()
     if not target:
@@ -634,10 +937,17 @@ def scan():
     log.info(f"[scan] new_scan created: {scan_id} target={target} profile={profile} technique_mode={technique_mode} enabled_tools={enabled_tools}")
     scan_store.log(scan_id, f"Scan requested: target={target} profile={profile} technique_mode={technique_mode}")
 
+    operator_authenticated = session.get("operator_authenticated") is True
+    csrf_token = session.get("_csrf_token")
     session.clear()
+    if operator_authenticated:
+        session["operator_authenticated"] = True
+    if csrf_token:
+        session["_csrf_token"] = csrf_token
     session["scan_id"] = scan_id
     session["target_ip"] = target
     session["technique_mode"] = technique_mode
+    _replace_assessment_state()
 
     # Start pipeline in background thread
     if os.getenv('PIPELINE_STUB') == '1':
@@ -668,6 +978,7 @@ def scan():
 
 
 @app.route("/scan/status/<scan_id>")
+@operator_required
 def scan_status(scan_id):
     data = scan_store.progress(scan_id)
     if not data:
@@ -676,6 +987,7 @@ def scan_status(scan_id):
 
 
 @app.route("/scan/results/<scan_id>")
+@operator_required
 def scan_results(scan_id):
     data = scan_store.load(scan_id)
     if not data:
@@ -702,6 +1014,8 @@ def scan_results(scan_id):
         selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
         attack_plan=data.get("attack_plan"),
         validation_results=data.get("validation_results"),
+        attack_advice=data.get("attack_advice"),
+        metasploit_results=data.get("metasploit_results"),
         operation_results=data.get("operation_results"),
         risk=data.get("risk"),
         remediations=data.get("remediations") or [],
@@ -709,12 +1023,14 @@ def scan_results(scan_id):
 
 
 @app.route("/latest")
+@operator_required
 def latest():
     sid = session.get("scan_id")
     return redirect(url_for("scan_results", scan_id=sid)) if sid else redirect(url_for("index"))
 
 
 @app.route("/download/handoff/<scan_id>")
+@operator_required
 def handoff(scan_id):
     data = scan_store.load(scan_id) or {}
     path = (data.get("results") or {}).get("handoff_file")
@@ -724,6 +1040,7 @@ def handoff(scan_id):
 
 
 @app.route("/download/pdf/<scan_id>")
+@operator_required
 def pdf_report(scan_id):
     data = scan_store.load(scan_id) or {}
     if not data:
@@ -751,6 +1068,7 @@ def pdf_report(scan_id):
 
 
 @app.route("/caldera/handoff/<scan_id>")
+@operator_required
 def caldera_handoff(scan_id):
     data = scan_store.load(scan_id) or {}
     return jsonify((data.get("results") or {}).get("caldera_handoff") or {})
@@ -761,6 +1079,7 @@ def caldera_handoff(scan_id):
 # ---------------------------------------------------
 
 @app.route("/caldera/status", methods=["GET"])
+@operator_required
 def caldera_status():
     target_context = _current_target_context()
     status = operation_manager.check_readiness(target=target_context["target"])
@@ -776,6 +1095,7 @@ def caldera_status():
 
 
 @app.route("/caldera/deploy-command", methods=["GET"])
+@operator_required
 def caldera_deploy_command():
     target_context = _current_target_context()
     return jsonify({
@@ -792,6 +1112,7 @@ def caldera_deploy_command():
 
 
 @app.route("/caldera/agent/delete", methods=["POST"])
+@operator_required
 def caldera_agent_delete():
     try:
         data = request.get_json(silent=True) or {}
@@ -804,6 +1125,7 @@ def caldera_agent_delete():
 
 
 @app.route("/caldera/agents/remove-stale", methods=["POST"])
+@operator_required
 def caldera_agents_remove_stale():
     try:
         target_context = _current_target_context()
@@ -815,6 +1137,7 @@ def caldera_agents_remove_stale():
 
 
 @app.route("/caldera/agent/select", methods=["POST"])
+@operator_required
 def caldera_agent_select():
     data = request.get_json(silent=True) or {}
     paw = data.get("paw")
@@ -824,8 +1147,9 @@ def caldera_agent_select():
     return jsonify({"ok": True, "selected_agent_paw": paw})
 
 @app.route("/caldera/operation/status", methods=["GET"])
+@operator_required
 def operation_status():
-    return jsonify(_active_operation_results())
+    return jsonify(_active_operation_results() or _state_get("operation_results", {}))
 
 
 @app.route("/proof-of-access/redeem", methods=["POST"])
@@ -851,6 +1175,7 @@ def redeem_proof_of_access():
 
 
 @app.route("/exploitation/run", methods=["POST"])
+@operator_required
 def exploitation_run():
     try:
         parsed_results = _load_current_scan_results()
@@ -884,16 +1209,159 @@ def exploitation_run():
             "error": str(e)
         }), 500
 
+
+@app.route("/pentest/advice", methods=["POST"])
+@operator_required
+def pentest_advice():
+    try:
+        parsed_results = _load_current_scan_results()
+        if not parsed_results:
+            return jsonify({
+                "ok": False,
+                "error": "No scan results available. Run a scan before requesting attack-path advice."
+            }), 400
+
+        mapping_results = _active_mapping_results() or _state_get("mapping_results", {})
+        ai_plan = _active_ai_plan() or _state_get("ai_plan", {})
+        validation_results = _active_validation_results()
+        technique_ids = ai_plan.get("selected_technique_ids") or [
+            item.get("id") or item.get("technique_id")
+            for item in mapping_results.get("recommended_techniques", [])
+            if isinstance(item, dict)
+        ]
+        technique_ids = [str(tid).strip() for tid in technique_ids if str(tid or "").strip()]
+
+        coverage_info = ai_plan.get("caldera_coverage") or {}
+        if technique_ids and not coverage_info:
+            try:
+                coverage_info = coverage_checker.check_technique_coverage(technique_ids)
+            except Exception:
+                log.exception("Could not collect CALDERA coverage for attack-path advice")
+                coverage_info = {}
+
+        advice = generate_attack_path_advice(
+            parsed_results=parsed_results,
+            mapping_results=mapping_results,
+            ai_plan=ai_plan,
+            validation_results=validation_results,
+            coverage_info=coverage_info,
+        )
+
+        session["attack_advice"] = advice
+        _state_set(attack_advice=advice)
+        _save_active_scan_fields(attack_advice=advice)
+
+        return jsonify(advice)
+
+    except Exception as e:
+        log.error(f"Attack-path advice failed: {e}")
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route("/pentest/metasploit/status", methods=["GET"])
+@operator_required
+def metasploit_status():
+    return jsonify(metasploit_service.status())
+
+
+@app.route("/pentest/metasploit/propose", methods=["POST"])
+@operator_required
+def metasploit_propose():
+    try:
+        parsed_results = _load_current_scan_results()
+        if not parsed_results:
+            return jsonify({
+                "ok": False,
+                "error": "No scan results available. Run a scan before requesting Metasploit actions."
+            }), 400
+
+        attack_advice = _active_attack_advice() or _state_get("attack_advice", {})
+        result = metasploit_service.propose_actions(
+            parsed_results=parsed_results,
+            attack_advice=attack_advice,
+        )
+        result["status"] = metasploit_service.status()
+        return jsonify(result)
+
+    except Exception as e:
+        log.error(f"Metasploit proposal generation failed: {e}")
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+        }), 500
+
+
+@app.route("/pentest/metasploit/run", methods=["POST"])
+@operator_required
+def metasploit_run():
+    try:
+        data = request.get_json(silent=True) or {}
+        action_id = str(data.get("action_id") or "").strip()
+        if not action_id:
+            return jsonify({
+                "ok": False,
+                "error": "action_id is required."
+            }), 400
+
+        parsed_results = _load_current_scan_results()
+        if not parsed_results:
+            return jsonify({
+                "ok": False,
+                "error": "No scan results available. Run a scan before Metasploit validation."
+            }), 400
+
+        attack_advice = _active_attack_advice() or _state_get("attack_advice", {})
+        result = metasploit_service.run_action(
+            action_id=action_id,
+            parsed_results=parsed_results,
+            attack_advice=attack_advice,
+            approved=bool(data.get("approved")),
+        )
+
+        if not result.get("ok"):
+            return jsonify(result), 400
+
+        existing = _active_metasploit_results() or _state_get("metasploit_results", {})
+        runs = list(existing.get("runs", [])) if isinstance(existing, dict) else []
+        runs.append(result)
+        metasploit_results = {
+            "ok": True,
+            "mode": "metasploit_rpc",
+            "target": result.get("action", {}).get("target"),
+            "runs": runs[-20:],
+            "last_summary": result.get("summary"),
+        }
+        session["metasploit_results"] = metasploit_results
+        _state_set(metasploit_results=metasploit_results)
+        _save_active_scan_fields(metasploit_results=metasploit_results)
+
+        return jsonify({
+            **result,
+            "metasploit_results": metasploit_results,
+        })
+
+    except Exception as e:
+        log.error(f"Metasploit execution failed: {e}")
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+        }), 500
+
+
 @app.route("/api/caldera/check-coverage", methods=["POST"])
+@operator_required
 def check_coverage():
     """
     Check CALDERA ability coverage for given technique IDs.
-    
+
     Request:
     {
         "technique_ids": ["T1046", "T1110", "T1078"]
     }
-    
+
     Response:
     {
         "ok": True,
@@ -917,20 +1385,20 @@ def check_coverage():
     try:
         data = request.get_json(silent=True) or {}
         technique_ids = data.get("technique_ids", [])
-        
+
         if not technique_ids:
             return jsonify({
                 "ok": False,
                 "error": "technique_ids list is required"
             }), 400
-        
+
         coverage = coverage_checker.check_technique_coverage(technique_ids)
-        
+
         return jsonify({
             "ok": True,
             **coverage,
         })
-    
+
     except Exception as e:
         log.error(f"Coverage check failed: {e}")
         return jsonify({
@@ -939,16 +1407,44 @@ def check_coverage():
         }), 500
     
 @app.route("/caldera/run", methods=["POST"])
+@operator_required
 def caldera_run():
     try:
         data = request.get_json(silent=True) or {}
 
-        selected_techniques = data.get("selected_techniques", [])
+        selected_techniques = _normalise_selected_techniques(
+            data.get("selected_techniques", [])
+        )
 
         if not selected_techniques:
             return jsonify({
                 "ok": False,
                 "error": "No techniques selected"
+            }), 400
+
+        mapping_results = _active_mapping_results() or _state_get("mapping_results", {})
+        ai_plan = _active_ai_plan() or _state_get("ai_plan", {})
+        technique_mode = session.get("technique_mode", "hybrid")
+        allowed_ids = _allowed_technique_ids_for_mode(
+            technique_mode,
+            mapping_results,
+            ai_plan,
+        )
+        invalid_techniques = [
+            technique_id
+            for technique_id in selected_techniques
+            if technique_id not in allowed_ids
+        ]
+
+        if invalid_techniques:
+            return jsonify({
+                "ok": False,
+                "error": (
+                    "One or more selected techniques are not allowed for the "
+                    "current scan and technique mode."
+                ),
+                "invalid_techniques": invalid_techniques,
+                "allowed_techniques": sorted(allowed_ids),
             }), 400
 
         # Check coverage first
@@ -964,7 +1460,6 @@ def caldera_run():
             )
 
         if not supported_techniques:
-            mapping_results = _active_mapping_results()
             unsupported_results = operation_manager.build_unsupported_results(
                 selected_techniques,
                 {
@@ -1022,7 +1517,7 @@ def caldera_run():
             selected_paw=session.get("selected_agent_paw"),
             unsupported_techniques=[t for t in selected_techniques if t not in supported_techniques],
             unsupported_context={
-                "vulnerabilities": _active_mapping_results().get("vulnerabilities", []),
+                "vulnerabilities": mapping_results.get("vulnerabilities", []),
                 "scan_context": {"os": session.get("target_os", "Unknown")},
             },
         )
@@ -1037,8 +1532,11 @@ def caldera_run():
             return jsonify(result), 500
 
         # Risk score
-        mapping_results = _active_mapping_results()
-        vulns = data.get("vulnerabilities") or session.get("vulnerabilities") or mapping_results.get("vulnerabilities", [])
+        vulns = (
+            data.get("vulnerabilities")
+            or _state_get("vulnerabilities")
+            or mapping_results.get("vulnerabilities", [])
+        )
         session["vulnerabilities"] = vulns
         result["validation_results"] = _active_validation_results()
         proof_tickets = proof_ticket_manager.issue_for_operation(result)
@@ -1067,6 +1565,13 @@ def caldera_run():
             technique_remediations = []
 
         remediations = vulnerability_remediations + technique_remediations
+
+        _state_set(
+            operation_results=result,
+            risk_score=risk,
+            remediations=remediations,
+            vulnerabilities=vulns,
+        )
 
         # Add coverage info to results for display
         result["coverage_info"] = {
@@ -1103,6 +1608,7 @@ def caldera_run():
 
 
 @app.route("/caldera/operation/<operation_id>", methods=["GET"])
+@operator_required
 def caldera_operation(operation_id):
     return jsonify(operation_manager.poll_operation(operation_id))
 
@@ -1112,6 +1618,7 @@ def caldera_operation(operation_id):
 # ---------------------------------------------------
 
 @app.route("/results")
+@operator_required
 def results():
     scan_id = session.get("scan_id")
     if scan_id:
@@ -1127,6 +1634,8 @@ def results():
                 selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
                 attack_plan=data.get("attack_plan"),
                 validation_results=data.get("validation_results"),
+                attack_advice=data.get("attack_advice"),
+                metasploit_results=data.get("metasploit_results"),
                 operation_results=data.get("operation_results"),
                 risk=data.get("risk"),
                 remediations=data.get("remediations") or [],
@@ -1140,8 +1649,8 @@ def results():
     }
 
     parsed_results = None
-    mapping_results = _active_mapping_results() or session.get("mapping_results", [])
-    risk = session.get("risk_score")
+    mapping_results = _active_mapping_results() or _state_get("mapping_results", [])
+    risk = session.get("risk_score") or _state_get("risk_score")
 
     if scan["output_file"]:
         try:
@@ -1157,7 +1666,7 @@ def results():
 
     if not risk and isinstance(mapping_results, dict):
         risk = _safe_risk_calculate(mapping_results.get("vulnerabilities", []), {})
-        session["risk_score"] = risk
+        _state_set(risk_score=risk)
 
     return render_template(
         "results.html",
@@ -1167,17 +1676,20 @@ def results():
             "ports": scan["ports"],
         },
         mapping=mapping_results,
-        ai_plan=session.get("ai_plan"),
+        ai_plan=_active_ai_plan() or _state_get("ai_plan"),
         selected_mode=session.get("technique_mode", "hybrid"),
-        attack_plan=session.get("attack_plan"),
-        validation_results=session.get("validation_results"),
-        operation_results=session.get("operation_results"),
+        attack_plan=_active_attack_plan() or _state_get("attack_plan"),
+        validation_results=_active_validation_results(),
+        attack_advice=_active_attack_advice() or _state_get("attack_advice"),
+        metasploit_results=_active_metasploit_results() or _state_get("metasploit_results"),
+        operation_results=_active_operation_results() or _state_get("operation_results"),
         risk=risk,
-        remediations=session.get("remediations", []),
+        remediations=session.get("remediations") or _state_get("remediations", []),
     )
 
 
 @app.route("/technical-appendix")
+@operator_required
 def technical_appendix():
     scan_id = session.get("scan_id")
     if not scan_id:
@@ -1188,7 +1700,7 @@ def technical_appendix():
         return render_template("error.html", error_message="Technical appendix data not found."), 404
 
     results = data.get("results") or {}
-    mapping_results = data.get("mapping") or session.get("mapping_results", [])
+    mapping_results = data.get("mapping") or _active_mapping_results() or _state_get("mapping_results", {})
 
     data["scan_id"] = scan_id
 
@@ -1203,6 +1715,7 @@ def technical_appendix():
 
 
 @app.route("/generate_report", methods=["POST"])
+@operator_required
 def generate_report():
     context = _build_active_report_context()
     return jsonify({
@@ -1214,6 +1727,7 @@ def generate_report():
 
 
 @app.route("/report/view", methods=["GET"])
+@operator_required
 def report_view():
     context = _build_active_report_context()
     return render_template("report_view.html", **context)
@@ -1224,6 +1738,7 @@ def report_view():
 # ---------------------------------------------------
 
 @app.route("/scan/save", methods=["POST"])
+@operator_required
 def save_scan():
     scan_results = request.get_json(silent=True) or {}
 
@@ -1246,6 +1761,7 @@ def save_scan():
 
 
 @app.route("/vulnerabilities/save", methods=["POST"])
+@operator_required
 def save_vulnerabilities():
     data = request.get_json(silent=True) or {}
 
@@ -1259,7 +1775,7 @@ def save_vulnerabilities():
         }), 400
 
     db.save_vulnerabilities(scan_id, vulns)
-    session["vulnerabilities"] = vulns
+    _state_set(vulnerabilities=vulns)
 
     return jsonify({
         "success": True,
@@ -1272,6 +1788,7 @@ def save_vulnerabilities():
 # ---------------------------------------------------
 
 @app.route("/report/export", methods=["GET"])
+@operator_required
 def export_report():
     from reports.report_generator import generate_text_report
     context = _build_active_report_context()
@@ -1298,9 +1815,14 @@ def export_report():
 # ---------------------------------------------------
 
 if __name__ == "__main__":
+    if ENV_BOOTSTRAP_RESULT is not None:
+        from runtime_env import startup_messages
+
+        for message in startup_messages(ENV_BOOTSTRAP_RESULT):
+            print(message)
+
     port = int(os.getenv('PORT', '5000'))
-    # Bind to all interfaces by default so the dashboard is reachable from the
-    # host browser and other lab VMs at http://<kali-ip>:5000.
-    # Override with APP_HOST=127.0.0.1 if you only want local access.
-    host = os.getenv("APP_HOST", "0.0.0.0")
-    app.run(host=host, port=port, debug=True)
+    # Bind locally by default. Set APP_HOST=0.0.0.0 for a host-browser demo.
+    host = os.getenv("APP_HOST", "127.0.0.1")
+    _validate_runtime_security(host)
+    app.run(host=host, port=port, debug=Config.DEBUG)

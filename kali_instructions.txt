@@ -1,0 +1,31 @@
+Main commands
+-------------
+
+Install once from the repository root:
+
+   chmod +x install.sh
+   ./install.sh
+
+Start the dashboard:
+
+   bash start.sh
+
+Open locally:
+
+   http://127.0.0.1:5000
+
+For access from the Windows host browser:
+
+   APP_HOST=0.0.0.0 bash start.sh
+
+Then unlock the browser session with the generated OPERATOR_TOKEN.
+
+Show generated local secrets:
+
+   python project/scripts/bootstrap_env.py --show-secrets
+
+Start Metasploit RPC with the generated METASPLOIT_RPC_PASS:
+
+   msfrpcd -U msf -P <METASPLOIT_RPC_PASS> -a 127.0.0.1 -p 55552
+
+See README.md for the full runbook.
