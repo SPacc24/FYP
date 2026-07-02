@@ -1,0 +1,131 @@
+{
+  "ldap_rootdse": [],
+  "kerberos_info": [],
+  "tls_cipher_validation": [],
+  "rdp_negotiation": [
+    {
+      "tool": "rdp_negotiation",
+      "host": "192.168.86.130",
+      "port": 3389,
+      "scripts": [
+        "rdp-enum-encryption"
+      ],
+      "rows": [
+        {
+          "host": "192.168.86.130",
+          "port": 3389,
+          "protocol": "tcp",
+          "service": "ms-wbt-server",
+          "product": "",
+          "version": "",
+          "extra": "",
+          "cpe": [],
+          "evidence_sources": [
+            "nmap"
+          ],
+          "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_135051.xml",
+          "scripts": [
+            {
+              "id": "rdp-enum-encryption",
+              "output": "\n  Security layer\n    CredSSP (NLA): SUCCESS\n    CredSSP with Early User Auth: SUCCESS\n    RDSTLS: SUCCESS\n"
+            }
+          ]
+        }
+      ],
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_135051.xml",
+      "recon_boundary": "Evidence-only protocol validation; no credential use or exploitation."
+    }
+  ],
+  "api_discovery": [],
+  "targeted_web_discovery": [],
+  "kubernetes_exposure": [],
+  "container_exposure": [],
+  "vpn_validation": [],
+  "nuclei_safe": [],
+  "telnet_readiness": [],
+  "snmp_readiness": [],
+  "mssql_info": [],
+  "vnc_info": [],
+  "tomcat_ajp_readiness": [],
+  "redis_info": [],
+  "elasticsearch_info": [],
+  "ldapsearch_rootdse": [],
+  "snmp_targeted_oids": [],
+  "dns_context": [],
+  "http_security_context": [
+    {
+      "tool": "http_security_context",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "command": "curl -k -I -sS --max-time 5 http://192.168.86.130:5985",
+      "parsed": {
+        "tool": "http_security_context",
+        "evidence_state": "observed",
+        "fields": {
+          "headers": {
+            "Server": "Microsoft-HTTPAPI/2.0"
+          },
+          "capabilities": []
+        },
+        "information_gained": "HTTP header, runtime, authentication challenge, cookie, redirect, WebDAV and security-header evidence."
+      },
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\http_security_context_192.168.86.130_5985_20260702_135057.txt",
+      "recon_boundary": "Targeted information gathering only; no credentials, brute force, writes, mounting, or exploitation."
+    }
+  ],
+  "rpcinfo_native": [],
+  "showmount_native": [],
+  "ssh_audit_native": [],
+  "federation_detection": [],
+  "tls_intelligence": [],
+  "noise_evaluation": {
+    "overall": "low",
+    "counts": {
+      "passive": 0,
+      "low": 2,
+      "medium": 0,
+      "high": 0,
+      "very_high": 0
+    },
+    "highest_noise_checks": [],
+    "excluded_checks": [
+      "credential_attack_tools",
+      "intrusive_vulnerability_scanners",
+      "broad_content_discovery",
+      "broad_udp_discovery",
+      "broad_template_sweeps",
+      "unauthenticated_share_user_enumeration"
+    ],
+    "high_yield_checks": [
+      {
+        "check": "http_security_context",
+        "noise": "low",
+        "information_value": "high",
+        "items": 1
+      }
+    ],
+    "lower_yield_checks": [],
+    "recommendations": [
+      "Current execution favours low-noise/high-yield enumeration; repeat scans should reuse cached evidence where possible."
+    ],
+    "summary": "Overall validation noise level: low. High-noise tooling is excluded; low-noise/high-yield metadata, TLS, DNS, identity and targeted protocol checks are preferred."
+  },
+  "information_gathering_summary": [
+    "http security context: 1 targeted information-gathering item(s) retained."
+  ],
+  "summary": [
+    "RDP/NLA negotiation evidence: 1 evidence item(s) retained.",
+    "Detection-budget governance was applied to modern active validation collectors.",
+    "http security context: 1 targeted information-gathering item(s) retained.",
+    "Overall validation noise level: low. High-noise tooling is excluded; low-noise/high-yield metadata, TLS, DNS, identity and targeted protocol checks are preferred."
+  ],
+  "policy": {
+    "nuclei_enabled_by_default": false,
+    "detection_budget_enabled": true
+  },
+  "budget": {
+    "native_http_budget_per_host": 40,
+    "nmap_script_budget_per_host": 18,
+    "enforced": true
+  }
+}

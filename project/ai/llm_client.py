@@ -4,23 +4,50 @@ import re
 import requests
 from urllib.parse import urljoin
 
-
-# ---------------------------------------------------
-# OLLAMA SETTINGS
-# ---------------------------------------------------
+DEFAULT_TIMEOUT_SECONDS = 300
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "")
 
-if not OLLAMA_URL:
-    OLLAMA_URL = urljoin(OLLAMA_BASE_URL.rstrip("/") + "/", "api/generate")
-elif OLLAMA_URL.rstrip("/").endswith(":11434"):
-    OLLAMA_URL = OLLAMA_URL.rstrip("/") + "/api/generate"
-elif OLLAMA_URL.rstrip("/").endswith("/api"):
-    OLLAMA_URL = OLLAMA_URL.rstrip("/") + "/generate"
 
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "300"))
+def _normalise_ollama_url(value: str = "") -> str:
+    ollama_url = str(value or os.getenv("OLLAMA_URL", "")).strip()
+    ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+
+    if not ollama_url:
+        return urljoin(ollama_base_url.rstrip("/") + "/", "api/generate")
+
+    stripped = ollama_url.rstrip("/")
+
+    if stripped.endswith("/api/generate"):
+        return stripped
+
+    if stripped.endswith(":11434") or "/api" not in stripped:
+        return stripped + "/api/generate"
+
+    if stripped.endswith("/api"):
+        return stripped + "/generate"
+
+    return stripped
+
+
+def _ollama_timeout() -> int:
+    try:
+        return int(os.getenv("OLLAMA_TIMEOUT", str(DEFAULT_TIMEOUT_SECONDS)))
+    except (TypeError, ValueError):
+        return DEFAULT_TIMEOUT_SECONDS
+
+
+def _ollama_settings() -> tuple[str, str, int]:
+    return (
+        _normalise_ollama_url(),
+        os.getenv("OLLAMA_MODEL", "llama3.2:latest"),
+        _ollama_timeout(),
+    )
+
+
+OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT = _ollama_settings()
+
 
 # ---------------------------------------------------
 # LOW-LEVEL OLLAMA CALL
@@ -34,17 +61,19 @@ def ask_ollama(
     json_mode: bool = False,
 ) -> str:
 
+    ollama_url, ollama_model, default_timeout = _ollama_settings()
+
     if timeout is None:
-        timeout = OLLAMA_TIMEOUT
+        timeout = default_timeout
 
     payload = {
-        "model": OLLAMA_MODEL,
+        "model": ollama_model,
         "prompt": prompt,
         "stream": False,
         "options": {
             "temperature": temperature,
             "num_predict": num_predict,
-            "num_ctx": 4096
+            "num_ctx": 4096,
         },
     }
 
@@ -53,16 +82,17 @@ def ask_ollama(
 
     try:
         print("==== OLLAMA DEBUG ====")
-        print("OLLAMA_URL =", OLLAMA_URL)
-        print("OLLAMA_MODEL =", OLLAMA_MODEL)
+        print("OLLAMA_URL =", ollama_url)
+        print("OLLAMA_MODEL =", ollama_model)
         print("timeout =", timeout)
         print("json_mode =", json_mode)
         print("prompt length =", len(prompt))
         print("num_predict =", num_predict)
+        print("num_ctx =", payload["options"].get("num_ctx"))
         print("======================")
 
         response = requests.post(
-            OLLAMA_URL,
+            ollama_url,
             json=payload,
             timeout=timeout,
         )
@@ -96,7 +126,7 @@ def ask_llm_text(prompt: str) -> str:
 
     return ask_ollama(
         prompt,
-        timeout=OLLAMA_TIMEOUT,
+        timeout=_ollama_timeout(),
         num_predict=300,
         temperature=0.5,
         json_mode=False,
@@ -117,42 +147,36 @@ def ask_llm_json(prompt: str) -> dict:
 Return ONLY valid JSON.
 Do not include markdown.
 Do not include explanation outside the JSON.
-Do not wrap the JSON in ```json fences.
+Do not wrap the JSON in code fences.
 
-The JSON must be an object.
+The JSON must be one object with this exact structure:
 
-Important JSON rules:
-- selected_technique_ids must be a list of technique IDs.
-- If you recommend or explain a technique in technique_explanations, its ID must also appear in selected_technique_ids.
-- Do not leave selected_technique_ids empty unless there are no allowed techniques.
-- The reasoning must be specific, not generic.
-- The reasoning must explain why each selected technique matches the scan context.
-- If selected techniques are similar, explain the difference between them.
-- Mention relevant services, ports, CVEs, or mapper reasons if available.
-- Avoid vague phrases like "safe validation" unless you explain what is being validated.
-- Do not simply say "recommended due to open services"; explain what the services indicate.
-
-Required JSON structure:
 {{
-  "selected_technique_ids": ["T1046", "T1135"],
-  "reasoning": "Explain specifically why each selected technique fits the scan. If T1046 and T1135 are both selected, explain that T1046 is for exposed services/ports while T1135 is for network shares over SMB/NetBIOS.",
-  "technique_explanations": [
-    {{
-      "technique_id": "T1046",
-      "technique_name": "REPLACE_WITH_TECHNIQUE_NAME",
-      "why_recommended": "Link this technique to a detected port, service, CVE, severity, or mapper reason.",
-      "caldera_validation": "REPLACE_WITH_SAFE_VALIDATION_OR_REPORTING_APPROACH"
-    }}
-  ],
-  "next_steps": [
-    "REPLACE_WITH_ACTUAL_NEXT_STEP_1",
-    "REPLACE_WITH_ACTUAL_NEXT_STEP_2",
-    "REPLACE_WITH_ACTUAL_NEXT_STEP_3"
-  ]
+  "selected_technique_ids": [],
+  "reasoning": "",
+  "technique_explanations": [],
+  "next_steps": []
 }}
 
-Do NOT copy the placeholder values above.
-Replace every REPLACE_THIS / REPLACE_WITH value with real content from the scan context.
+Rules:
+- selected_technique_ids must be a list of technique IDs from the allowed list only.
+- reasoning must be written using the actual scan context.
+- reasoning must not copy these instructions.
+- reasoning must mention the actual selected technique IDs and why they match the scan.
+- technique_explanations must contain one object per selected technique.
+- Each technique_explanations object must include:
+  - technique_id
+  - technique_name
+  - why_recommended
+  - caldera_validation
+- why_recommended must mention a detected service, port, severity, CVE, mapper reason, or scan finding where available.
+- caldera_validation must be a safe high-level validation goal only.
+- next_steps must contain 3 to 4 safe follow-up actions.
+- Do not use placeholder text.
+- Do not invent technique IDs, CVEs, ports, or services.
+- Do not provide exploit commands, payloads, or intrusion steps.
+
+Now use this input and return only the final JSON:
 
 {prompt}
 """
@@ -179,7 +203,6 @@ Replace every REPLACE_THIS / REPLACE_WITH value with real content from the scan 
     if text.startswith(error_prefixes):
         return _json_fallback(text, raw=text)
 
-    # First try direct JSON parse
     try:
         parsed = json.loads(text)
 
@@ -194,7 +217,6 @@ Replace every REPLACE_THIS / REPLACE_WITH value with real content from the scan 
     except json.JSONDecodeError:
         pass
 
-    # Fallback: extract first {...} block from messy response
     match = re.search(r"\{.*\}", text, re.DOTALL)
 
     if match:
@@ -260,6 +282,8 @@ def _repair_llm_json(parsed: dict) -> dict:
 
     bad_reasoning_phrases = (
         "Brief reasoning based on the actual scan context",
+        "Explain specifically why each selected technique fits the scan",
+        "If T1046 and T1135 are both selected",
         "REPLACE_THIS",
         "REPLACE_WITH",
     )
@@ -268,7 +292,7 @@ def _repair_llm_json(parsed: dict) -> dict:
 
     if any(phrase in reasoning for phrase in bad_reasoning_phrases):
         parsed["reasoning"] = "AI selected techniques based on the mapped services, CVEs, and MITRE ATT&CK context."
-        
+
     if not isinstance(parsed.get("technique_explanations"), list):
         parsed["technique_explanations"] = []
 
@@ -311,6 +335,7 @@ def _repair_llm_json(parsed: dict) -> dict:
 
     if not isinstance(parsed.get("next_steps"), list):
         parsed["next_steps"] = []
+
     bad_steps = {
         "Review selected techniques.",
         "Check CALDERA coverage.",
@@ -330,13 +355,14 @@ def _repair_llm_json(parsed: dict) -> dict:
         parsed["next_steps"] = [
             "Review the mapped open services and linked CVEs.",
             "Confirm that the selected MITRE techniques match the scan findings.",
-            "Run only safe authorised CALDERA validation steps."
+            "Run only safe authorised CALDERA validation steps.",
         ]
+
     return parsed
 
 
 def _normalise_technique_id(value) -> str:
-    technique_id = str(value or "").strip()
+    technique_id = str(value or "").strip().upper()
 
     if not technique_id:
         return ""
@@ -352,9 +378,10 @@ def _normalise_technique_id(value) -> str:
 # ---------------------------------------------------
 
 def get_llm_settings() -> dict:
+    ollama_url, ollama_model, _ = _ollama_settings()
     return {
-        "url": OLLAMA_URL,
-        "model": OLLAMA_MODEL,
+        "url": ollama_url,
+        "model": ollama_model,
     }
 
 

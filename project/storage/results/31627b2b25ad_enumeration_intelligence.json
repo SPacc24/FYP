@@ -1,0 +1,526 @@
+{
+  "functional_service_groups": [
+    {
+      "group": "Remote Administration",
+      "services": [
+        {
+          "host": "192.168.86.130",
+          "port": 3389,
+          "protocol": "tcp",
+          "service": "ms-wbt-server",
+          "product": "Microsoft Terminal Services",
+          "version": "",
+          "state": "open"
+        },
+        {
+          "host": "192.168.86.130",
+          "port": 5985,
+          "protocol": "tcp",
+          "service": "http",
+          "product": "Microsoft HTTPAPI httpd",
+          "version": "2.0",
+          "state": "open"
+        }
+      ],
+      "service_count": 2
+    },
+    {
+      "group": "Infrastructure Services",
+      "services": [
+        {
+          "host": "192.168.86.130",
+          "port": 135,
+          "protocol": "tcp",
+          "service": "msrpc",
+          "product": "Microsoft Windows RPC",
+          "version": "",
+          "state": "open"
+        },
+        {
+          "host": "192.168.86.130",
+          "port": 139,
+          "protocol": "tcp",
+          "service": "netbios-ssn",
+          "product": "Microsoft Windows netbios-ssn",
+          "version": "",
+          "state": "open"
+        },
+        {
+          "host": "192.168.86.130",
+          "port": 445,
+          "protocol": "tcp",
+          "service": "microsoft-ds",
+          "product": "Microsoft Windows 7 - 10 microsoft-ds",
+          "version": "",
+          "state": "open"
+        },
+        {
+          "host": "192.168.86.130",
+          "port": 137,
+          "protocol": "udp",
+          "service": "netbios-ns",
+          "product": "",
+          "version": "",
+          "state": "open"
+        }
+      ],
+      "service_count": 4
+    }
+  ],
+  "identity_correlation": [
+    {
+      "host": "192.168.86.130",
+      "role": "Directory or identity-adjacent service",
+      "signals": {
+        "ldap": false,
+        "kerberos": false,
+        "smb": true
+      },
+      "fields": {},
+      "evidence_sources": [
+        "SMB protocol/service evidence"
+      ],
+      "what_it_means": "Identity-related services were observed together. This helps define authentication and directory boundaries without performing credentialed enumeration."
+    }
+  ],
+  "cross_service_relationships": [
+    {
+      "host": "192.168.86.130",
+      "relationship": "Windows management relationship",
+      "source": "RDP",
+      "target": "WinRM",
+      "what_it_means": "Remote desktop and remote management services were observed together.",
+      "evidence_sources": [
+        "RDP",
+        "WinRM"
+      ]
+    }
+  ],
+  "service_roles": [
+    {
+      "host": "192.168.86.130",
+      "role": "Likely Remote Administration Surface",
+      "signals": [
+        "Remote administration listener"
+      ],
+      "basis": "Role inferred from service combination only; no scoring or exploitation performed."
+    }
+  ],
+  "web_context": [
+    {
+      "host": "192.168.86.130",
+      "port": "5985",
+      "observed": [
+        "Http Security Context evidence retained."
+      ],
+      "learned": [],
+      "meaning": [
+        "Web context supports application surface understanding without sending attack payloads."
+      ],
+      "evidence_sources": [
+        "HTTP probe",
+        "http_security_context"
+      ]
+    }
+  ],
+  "network_device_context": [
+    {
+      "host": "192.168.86.130",
+      "device_context": "Likely Cisco infrastructure",
+      "evidence_sources": [
+        "Cisco/IOS indicator"
+      ],
+      "what_it_means": "Network device context is inferred only from existing banners/SNMP/headers; no additional probing is required."
+    }
+  ],
+  "dns_naming_intelligence": [],
+  "tls_trust_intelligence": [],
+  "inference_decision_plan": [
+    {
+      "host": "192.168.86.130",
+      "hypothesis_basis": [
+        "Identity or Windows networking surface observed",
+        "Remote administration surface observed"
+      ],
+      "minimal_next_validation": [
+        "Correlate LDAP RootDSE, Kerberos realm and SMB identity before wider enumeration",
+        "Collect protocol posture and banners only; no login attempts"
+      ],
+      "architecture": "inference_first_then_targeted_validation",
+      "what_it_means": "The platform should prioritise evidence relationships before broad follow-up scans."
+    }
+  ],
+  "enumeration_memory_guidance": {
+    "enabled_for_future_runs": true,
+    "recommended_ttl_hours": {
+      "http_security_context": 6,
+      "service_fingerprint": 6
+    },
+    "repeat_scan_guidance": "Reuse unchanged low-noise metadata evidence within TTL and re-run active validators only when service inventory changes.",
+    "what_it_means": "Enumeration memory reduces repeat noise without reducing first-run coverage."
+  },
+  "information_yield_model": {
+    "retained_collectors": [
+      {
+        "collector": "rdp_negotiation",
+        "yield_level": "conditional",
+        "items": 1,
+        "context": "remote",
+        "explanation": "Collector retained evidence for analyst context only."
+      },
+      {
+        "collector": "http_security_context",
+        "yield_level": "exceptional",
+        "items": 1,
+        "context": "web",
+        "explanation": "Collector matched observed web context and produced run-specific evidence."
+      },
+      {
+        "collector": "information_gathering_summary",
+        "yield_level": "conditional",
+        "items": 1,
+        "context": "general",
+        "explanation": "Collector retained evidence for analyst context only."
+      },
+      {
+        "collector": "summary",
+        "yield_level": "medium",
+        "items": 4,
+        "context": "general",
+        "explanation": "Collector produced evidence, but context linkage was limited."
+      }
+    ],
+    "preferred_collectors": [
+      "http_security_context"
+    ],
+    "conditional_collectors": [
+      "rdp_negotiation",
+      "information_gathering_summary"
+    ],
+    "unresolved_hypotheses_count": 0,
+    "summary": "1 high-yield collector(s), 2 conditional collector(s), and 0 unresolved hypothesis item(s) retained.",
+    "boundary": "Information yield explains evidence value only; it is not severity, risk, priority, or exploitation guidance."
+  },
+  "evidence_boundary_summary": [
+    {
+      "boundary": "Transport reachability",
+      "applies_to": "Nmap, TCP/UDP discovery, banner collection",
+      "interpretation": "Open or responsive ports show reachability at scan time only; they do not prove application-layer permission, exploitability, firewall rule intent, or persistent accessibility.",
+      "confidence_language": "Observed"
+    },
+    {
+      "boundary": "Time-window aggregation",
+      "applies_to": "Micro-batched TCP/UDP discovery and repeated validation checks",
+      "interpretation": "Lowering packet frequency reduces immediate burst behaviour but extended IDS/SIEM correlation windows may still flag one source probing multiple distinct ports over several minutes.",
+      "confidence_language": "Detection Context"
+    },
+    {
+      "boundary": "Connection-state anomalies",
+      "applies_to": "SYN scanning, banner checks, validators that do not complete normal application workflows",
+      "interpretation": "Traffic that does not follow normal completed application sessions can remain visible to stateful monitoring even when packet volume is low.",
+      "confidence_language": "Detection Context"
+    },
+    {
+      "boundary": "Administrative and non-standard service context",
+      "applies_to": "Management, print, alternate web/proxy, database, RPC/NFS and legacy remote administration services",
+      "interpretation": "Traffic to sensitive destination services may alert because of destination context rather than velocity.",
+      "confidence_language": "Detection Context"
+    },
+    {
+      "boundary": "Correlation and role inference",
+      "applies_to": "Identity, network device, certificate, DNS naming and service role conclusions",
+      "interpretation": "Role labels are likely/supported/unresolved descriptions based on collected evidence; they are not confirmations unless multiple independent evidence sources agree.",
+      "confidence_language": "Likely / Supported / Unresolved"
+    },
+    {
+      "boundary": "Negative evidence",
+      "applies_to": "Filtered, closed, no-response, open|filtered and missing validator output",
+      "interpretation": "Absence of evidence is retained as an information gap and is not treated as proof that the service or control does not exist.",
+      "confidence_language": "Not Observed / Context Required"
+    }
+  ],
+  "negative_evidence_register": [
+    {
+      "host": "192.168.86.130",
+      "check": "winrm_validation",
+      "negative_observation": "WinRM listener evidence not observed or not reachable.",
+      "interpretation": "No conclusion drawn from absence alone.",
+      "possible_causes": [
+        "service absent",
+        "filtered by policy",
+        "not selected in Custom Recon",
+        "tool unavailable",
+        "time-bound access condition"
+      ],
+      "evidence_state": "Not Observed"
+    }
+  ],
+  "hypothesis_ledger": [
+    {
+      "host": "192.168.86.130",
+      "hypothesis": "Likely Remote Administration Surface",
+      "status": "supported",
+      "supporting_evidence": [
+        "Remote administration listener"
+      ],
+      "contradicting_or_missing_evidence": [
+        "winrm_validation"
+      ],
+      "confidence_language": "Likely",
+      "what_it_means": "Hypotheses explain environment role inference and are not vulnerability confirmations."
+    },
+    {
+      "host": "192.168.86.130",
+      "hypothesis": "Directory or identity-adjacent service",
+      "status": "supported",
+      "supporting_evidence": [
+        "SMB protocol/service evidence"
+      ],
+      "contradicting_or_missing_evidence": [
+        "winrm_validation"
+      ],
+      "confidence_language": "Consistent with",
+      "what_it_means": "Identity conclusions require multiple signals; single banners are treated as insufficient for confirmation."
+    }
+  ],
+  "decision_timeline": [
+    {
+      "stage": "1. Scope and evidence boundary",
+      "decision": "Use observed evidence only.",
+      "basis": "Rules-of-engagement and fixed collection policy.",
+      "outcome": "No cyber-range configuration changes."
+    },
+    {
+      "stage": "2. Passive and metadata-first evidence",
+      "decision": "Prefer passive, DNS, TLS, HTTP metadata and low-noise protocol context before broad validation.",
+      "basis": "Low noise / high information yield.",
+      "outcome": "Initial hypotheses generated."
+    },
+    {
+      "stage": "3. Service inventory",
+      "decision": "Use micro-batched, scoped discovery only where inventory is still needed.",
+      "basis": "6 service record(s) retained.",
+      "outcome": "Open services converted into functional groups."
+    },
+    {
+      "stage": "4. Hypothesis-driven validation",
+      "decision": "Correlate LDAP RootDSE, Kerberos realm and SMB identity before wider enumeration; Collect protocol posture and banners only; no login attempts",
+      "basis": "Identity or Windows networking surface observed; Remote administration surface observed",
+      "outcome": "The platform should prioritise evidence relationships before broad follow-up scans."
+    },
+    {
+      "stage": "5. Noise/yield checkpoint",
+      "decision": "Retain high-yield checks and suppress broad low-yield expansion.",
+      "basis": "http_security_context",
+      "outcome": "Information yield favoured over tool volume."
+    },
+    {
+      "stage": "6. Evidence normalisation",
+      "decision": "Classify outcomes as Observed, Candidate, Validated, Not Observed, or Context Required.",
+      "basis": "Evidence diversity and explicit information gaps.",
+      "outcome": "No unsupported confirmation language."
+    }
+  ],
+  "confidence": [
+    {
+      "host": "192.168.86.130",
+      "evidence_state": "Validated",
+      "evidence_sources": [
+        "Service banner",
+        "Validator"
+      ],
+      "services": "http, microsoft-ds, ms-wbt-server, msrpc, netbios-ns, netbios-ssn",
+      "explanation": "Confidence reflects evidence diversity, not risk or severity."
+    }
+  ],
+  "knowledge_graph": {
+    "nodes": [
+      {
+        "id": "192.168.86.130",
+        "label": "192.168.86.130",
+        "type": "host"
+      },
+      {
+        "id": "192.168.86.130:135/tcp",
+        "label": "msrpc:135",
+        "type": "service"
+      },
+      {
+        "id": "192.168.86.130:139/tcp",
+        "label": "netbios-ssn:139",
+        "type": "service"
+      },
+      {
+        "id": "192.168.86.130:445/tcp",
+        "label": "microsoft-ds:445",
+        "type": "service"
+      },
+      {
+        "id": "192.168.86.130:3389/tcp",
+        "label": "ms-wbt-server:3389",
+        "type": "service"
+      },
+      {
+        "id": "192.168.86.130:5985/tcp",
+        "label": "http:5985",
+        "type": "service"
+      },
+      {
+        "id": "192.168.86.130:137/udp",
+        "label": "netbios-ns:137",
+        "type": "service"
+      },
+      {
+        "id": "role:Likely Remote Administration Surface",
+        "label": "Likely Remote Administration Surface",
+        "type": "role"
+      },
+      {
+        "id": "192.168.86.130:RDP",
+        "label": "RDP",
+        "type": "relationship_source"
+      },
+      {
+        "id": "192.168.86.130:WinRM",
+        "label": "WinRM",
+        "type": "relationship_target"
+      }
+    ],
+    "edges": [
+      {
+        "source": "192.168.86.130",
+        "target": "192.168.86.130:135/tcp",
+        "relationship": "exposes"
+      },
+      {
+        "source": "192.168.86.130",
+        "target": "192.168.86.130:139/tcp",
+        "relationship": "exposes"
+      },
+      {
+        "source": "192.168.86.130",
+        "target": "192.168.86.130:445/tcp",
+        "relationship": "exposes"
+      },
+      {
+        "source": "192.168.86.130",
+        "target": "192.168.86.130:3389/tcp",
+        "relationship": "exposes"
+      },
+      {
+        "source": "192.168.86.130",
+        "target": "192.168.86.130:5985/tcp",
+        "relationship": "exposes"
+      },
+      {
+        "source": "192.168.86.130",
+        "target": "192.168.86.130:137/udp",
+        "relationship": "exposes"
+      },
+      {
+        "source": "192.168.86.130",
+        "target": "role:Likely Remote Administration Surface",
+        "relationship": "inferred_as"
+      },
+      {
+        "source": "192.168.86.130:RDP",
+        "target": "192.168.86.130:WinRM",
+        "relationship": "Windows management relationship"
+      }
+    ],
+    "summary": "10 node(s) and 8 relationship edge(s) retained."
+  },
+  "detection_budget_summary": {
+    "status": "Governed",
+    "authentication_attempts": "None performed by recon module",
+    "service_validation": "Completed within configured recon boundary",
+    "operator_checkpoints": "Generated only when configured thresholds are exceeded",
+    "details": {
+      "native_http_budget_per_host": 40,
+      "nmap_script_budget_per_host": 18,
+      "enforced": true
+    }
+  },
+  "acceptance_matrix": [
+    {
+      "area": "Enumeration coverage",
+      "status": "meets_target",
+      "evidence": "6 service record(s) retained."
+    },
+    {
+      "area": "Information yield",
+      "status": "meets_target",
+      "evidence": "1 high-yield collector(s), 2 conditional collector(s), and 0 unresolved hypothesis item(s) retained."
+    },
+    {
+      "area": "Noise discipline",
+      "status": "meets_target",
+      "evidence": "Overall validation noise level: low. High-noise tooling is excluded; low-noise/high-yield metadata, TLS, DNS, identity and targeted protocol checks are preferred."
+    },
+    {
+      "area": "Evidence accuracy",
+      "status": "meets_target",
+      "evidence": "Evidence boundaries and confidence sources are recorded."
+    },
+    {
+      "area": "Hypothesis discipline",
+      "status": "meets_target",
+      "evidence": "Hypotheses and negative evidence are retained separately."
+    },
+    {
+      "area": "Defensive interpretation",
+      "status": "needs_review",
+      "evidence": "Detection mechanics are retained without operator-declared path assumptions."
+    },
+    {
+      "area": "Report readability",
+      "status": "needs_review",
+      "evidence": "Decision timeline and executive summary are front-loaded."
+    },
+    {
+      "area": "Scope discipline",
+      "status": "meets_target",
+      "evidence": "No brute force, exploitation, evasion, decoy, spoofing, or teammate-module execution added by recon."
+    }
+  ],
+  "executive_summary": [
+    {
+      "question": "What was discovered?",
+      "answer": "1 host(s) with 6 service record(s) were retained for recon analysis."
+    },
+    {
+      "question": "What was validated?",
+      "answer": "1 host-level evidence confidence row(s) generated from banners, validators, passive observations, or correlations."
+    },
+    {
+      "question": "What remains uncertain?",
+      "answer": "Uncertainty is retained as Information Gaps, Negative Evidence, Unresolved Hypotheses, or MITRE Candidate References when supporting context is incomplete."
+    },
+    {
+      "question": "What evidence boundary was applied?",
+      "answer": "Open ports are treated as transport reachability evidence, not absolute proof of application permission, firewall policy, or exploitable exposure."
+    },
+    {
+      "question": "How was information gathered?",
+      "answer": "Information gathering used passive, metadata, protocol capability, hypothesis tracking and targeted validation evidence. Per-command visibility modelling is intentionally excluded from the recon report."
+    }
+  ],
+  "summary": [
+    "Functional service groups: 2 retained.",
+    "Identity correlation item(s): 1.",
+    "Cross-service relationship(s): 1.",
+    "Service role inference item(s): 1.",
+    "Web context item(s): 1.",
+    "Network device context item(s): 1.",
+    "Inference decision plan item(s): 1.",
+    "Negative evidence register item(s): 1.",
+    "Hypothesis ledger item(s): 2.",
+    "Decision timeline item(s): 6.",
+    "Evidence boundary item(s): 6.",
+    "Acceptance matrix item(s): 8.",
+    "TLS trust intelligence item(s): 0.",
+    "DNS naming intelligence item(s): 0.",
+    "1 high-yield collector(s), 2 conditional collector(s), and 0 unresolved hypothesis item(s) retained."
+  ],
+  "knowledge_graph_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\31627b2b25ad_knowledge_graph.json"
+}

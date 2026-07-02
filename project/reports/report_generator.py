@@ -140,6 +140,34 @@ def _summarize_validation(validation: dict[str, Any]) -> list[str]:
             )
             lines.append(f"  Evidence: {finding.get('evidence', '')}")
             lines.append(f"  Next step: {finding.get('next_step', '')}")
+
+    advice = validation.get("attack_advice") or {}
+    if advice.get("attack_paths"):
+        lines.append("\nOllama attack-path advice:")
+        lines.append(f"Source: {advice.get('source', 'unknown')}")
+        lines.append(f"Summary: {advice.get('summary', 'N/A')}")
+        for path in advice.get("attack_paths", [])[:5]:
+            lines.append(
+                f"- {path.get('title', 'Safe validation path')} "
+                f"({path.get('confidence', 'low')}) via {path.get('recommended_validation', 'manual_review')}"
+            )
+            lines.append(f"  Techniques: {_safe_text(path.get('technique_ids', []))}")
+            lines.append(f"  Reasoning: {path.get('reasoning', '')}")
+            lines.append(f"  Next step: {path.get('next_step', '')}")
+
+    metasploit = validation.get("metasploit_results") or {}
+    if metasploit.get("runs"):
+        lines.append("\nMetasploit RPC execution records:")
+        lines.append(f"Last summary: {metasploit.get('last_summary', 'N/A')}")
+        for run in metasploit.get("runs", [])[:5]:
+            action = run.get("action") or {}
+            lines.append(
+                f"- {run.get('timestamp', 'N/A')} "
+                f"{action.get('module_type', 'module')}/{action.get('module_name', 'unknown')} "
+                f"against {action.get('target', 'Unknown')}:{action.get('port', 'N/A')}"
+            )
+            lines.append(f"  Policy: {action.get('policy_key', 'N/A')} ({action.get('risk', 'unknown')} risk)")
+            lines.append(f"  Result: {run.get('summary', 'N/A')}")
     return lines
 
 

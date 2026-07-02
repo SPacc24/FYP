@@ -1,0 +1,478 @@
+{
+  "hosts": [
+    "192.168.86.130"
+  ],
+  "services": [
+    {
+      "host": "192.168.86.130",
+      "port": 135,
+      "protocol": "tcp",
+      "service": "msrpc",
+      "product": "Microsoft Windows RPC",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 139,
+      "protocol": "tcp",
+      "service": "netbios-ssn",
+      "product": "Microsoft Windows netbios-ssn",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 445,
+      "protocol": "tcp",
+      "service": "microsoft-ds",
+      "product": "Microsoft Windows 7 - 10 microsoft-ds",
+      "version": "",
+      "extra": "workgroup: FYP_67",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 3389,
+      "protocol": "tcp",
+      "service": "ms-wbt-server",
+      "product": "Microsoft Terminal Services",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 5357,
+      "protocol": "tcp",
+      "service": "http",
+      "product": "Microsoft HTTPAPI httpd",
+      "version": "2.0",
+      "extra": "SSDP/UPnP",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": []
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 7680,
+      "protocol": "tcp",
+      "service": "pando-pub",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49408,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49409,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49410,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49411,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49412,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49413,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49415,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_101507.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 137,
+      "protocol": "udp",
+      "service": "netbios-ns",
+      "product": "Microsoft Windows netbios-ns",
+      "version": "",
+      "extra": "workgroup: FYP_67",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_udp_top_50_192.168.86.130_20260612_101544.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    }
+  ],
+  "web": [
+    {
+      "tool": "nmap_http_scripts",
+      "host": "192.168.86.130",
+      "port": 5357,
+      "output_file": "storage/scans/nmap_http_scripts_192.168.86.130_5357_20260612_101613.xml",
+      "rows": [
+        {
+          "host": "192.168.86.130",
+          "port": 5357,
+          "protocol": "tcp",
+          "service": "http",
+          "product": "Microsoft HTTPAPI httpd",
+          "version": "2.0",
+          "extra": "SSDP/UPnP",
+          "cpe": [
+            "cpe:/o:microsoft:windows"
+          ],
+          "evidence_sources": [
+            "nmap_http_scripts"
+          ],
+          "raw_evidence_file": "storage/scans/nmap_http_scripts_192.168.86.130_5357_20260612_101613.xml",
+          "scripts": [
+            {
+              "id": "http-headers",
+              "output": "\n  Content-Type: text/html; charset=us-ascii\n  Server: Microsoft-HTTPAPI/2.0\n  Date: Fri, 12 Jun 2026 14:16:38 GMT\n  Connection: close\n  Content-Length: 326\n  \n  (Request type: GET)\n"
+            },
+            {
+              "id": "http-title",
+              "output": "Service Unavailable Service Unavailable title"
+            },
+            {
+              "id": "http-server-header",
+              "output": "Microsoft-HTTPAPI/2.0 Microsoft-HTTPAPI/2.0"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "smb": [
+    {
+      "tool": "enum4linux-ng",
+      "host": "192.168.86.130",
+      "output_file": "storage/scans/enum4linux_ng_192.168.86.130_20260612_101728.json"
+    },
+    {
+      "tool": "smbclient",
+      "host": "192.168.86.130",
+      "output_file": "storage/scans/smbclient_192.168.86.130_20260612_101733.txt",
+      "lines": [
+        "session setup failed: NT_STATUS_ACCESS_DENIED"
+      ]
+    }
+  ],
+  "snmp": [],
+  "ssh": [],
+  "ldap": [],
+  "tls": [],
+  "rdp": [],
+  "hydra": [],
+  "service_level_checks": [
+    {
+      "check": "nmap_ftp_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_telnet_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_smtp_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_dns_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_rpc_nfs_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "host": "192.168.86.130",
+      "port": "139,445",
+      "protocol": "tcp",
+      "service": "nmap_smb_checks",
+      "check": "SMB shares, protocol, users, and security-mode evidence",
+      "status": "Completed",
+      "note": "192.168.86.130:139,445/tcp | Scripts: smb-enum-shares, smb-enum-users, smb-os-discovery, smb-protocols, smb-security-mode",
+      "evidence_file": "storage/scans/nmap_smb_checks_192.168.86.130_tcp_139_445_20260612_101733.xml",
+      "command": "/usr/bin/nmap -sV --script smb-enum-shares,smb-enum-users,smb-os-discovery,smb-protocols,smb-security-mode -p 139,445 -oX storage/scans/nmap_smb_checks_192.168.86.130_tcp_139_445_20260612_101733.xml 192.168.86.130"
+    },
+    {
+      "host": "192.168.86.130",
+      "port": "137",
+      "protocol": "udp",
+      "service": "nmap_smb_checks",
+      "check": "SMB shares, protocol, users, and security-mode evidence",
+      "status": "Completed",
+      "note": "192.168.86.130:137/udp | Scripts: smb-enum-shares, smb-enum-users, smb-os-discovery, smb-protocols, smb-security-mode",
+      "evidence_file": "storage/scans/nmap_smb_checks_192.168.86.130_udp_137_20260612_101755.xml",
+      "command": "/usr/bin/nmap -sV -sU --script smb-enum-shares,smb-enum-users,smb-os-discovery,smb-protocols,smb-security-mode -p 137 -oX storage/scans/nmap_smb_checks_192.168.86.130_udp_137_20260612_101755.xml 192.168.86.130"
+    },
+    {
+      "check": "nmap_rservices_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_rmi_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_bindshell_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_mysql_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_postgresql_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_vnc_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_x11_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_irc_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_ajp_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_tomcat_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_drb_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "host": "192.168.86.130",
+      "port": "7680,49408,49409,49410,49411,49412,49413,49415",
+      "protocol": "tcp",
+      "service": "nmap_unknown_high_ports",
+      "check": "Unknown high-port service re-probe evidence",
+      "status": "Completed",
+      "note": "192.168.86.130:7680,49408,49409,49410,49411,49412,49413,49415/tcp | Scripts: banner",
+      "evidence_file": "storage/scans/nmap_unknown_high_ports_192.168.86.130_tcp_7680_49408_49409_49410_49411_49412_49413_49415_20260612_101759.xml",
+      "command": "/usr/bin/nmap -sV --script banner --version-all -p 7680,49408,49409,49410,49411,49412,49413,49415 -oX storage/scans/nmap_unknown_high_ports_192.168.86.130_tcp_7680_49408_49409_49410_49411_49412_49413_49415_20260612_101759.xml 192.168.86.130"
+    }
+  ],
+  "security_observations": []
+}

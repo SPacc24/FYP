@@ -1,0 +1,32 @@
+{
+  "web_investigation": {
+    "label": "Web Surface Investigation",
+    "services": ["http", "https", "http-proxy", "ssl/http", "ajp13"],
+    "ports": [80, 443, 8080, 8081, 8180, 8443, 8009],
+    "evidence_needed": ["headers", "titles", "server_banner", "technology_hints", "forms", "parameters", "login_surfaces", "upload_surfaces"]
+  },
+  "file_sharing_investigation": {
+    "label": "File Sharing Investigation",
+    "services": ["smb", "netbios-ssn", "netbios-ns", "microsoft-ds", "nfs", "rpcbind"],
+    "ports": [137, 139, 445, 111, 2049],
+    "evidence_needed": ["service_exposure", "protocol_family", "credential_readiness", "evidence_gaps"]
+  },
+  "remote_access_investigation": {
+    "label": "Remote Access Investigation",
+    "services": ["ssh", "telnet", "rdp", "vnc", "exec", "login", "winrm"],
+    "ports": [22, 23, 3389, 5900, 512, 513, 5985, 5986],
+    "evidence_needed": ["service_identity", "auth_surface", "configuration_hints"]
+  },
+  "database_investigation": {
+    "label": "Database Investigation",
+    "services": ["mysql", "postgresql", "ms-sql-s", "oracle"],
+    "ports": [3306, 5432, 1433, 1521],
+    "evidence_needed": ["product", "version", "auth_surface", "network_exposure"]
+  },
+  "network_services_investigation": {
+    "label": "Network Services Investigation",
+    "services": ["domain", "dns", "snmp", "ntp", "smtp"],
+    "ports": [53, 161, 123, 25],
+    "evidence_needed": ["service_identity", "service_configuration", "exposure_context"]
+  }
+}

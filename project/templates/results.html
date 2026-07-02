@@ -32,6 +32,12 @@
         calderaAgentDelete: "{{ url_for('caldera_agent_delete') }}",
         calderaAgentsRemoveStale: "{{ url_for('caldera_agents_remove_stale') }}",
         calderaAgentSelect: "{{ url_for('caldera_agent_select') }}",
+
+        pentestAdvice: "/pentest/advice",
+        metasploitStatus: "/pentest/metasploit/status",
+        metasploitPropose: "/pentest/metasploit/propose",
+        metasploitRun: "/pentest/metasploit/run",
+
         exploitationRun: "{{ url_for('exploitation_run') }}",
         calderaRun: "{{ url_for('caldera_run') }}",
         operationStatus: "{{ url_for('operation_status') }}",
@@ -45,6 +51,18 @@
         portRange: "{{ scan.port_range if scan and scan.port_range else session.get('port_range', '1-1024') }}",
         selectedMode: "{{ active_mode }}"
       };
+
+      window.DASHBOARD_SECURITY = {
+        csrfToken: "{{ operator_csrf_token|default('') }}"
+      };
+    </script>
+
+    <script type="application/json" id="coverageRowsJson">
+      {{ results.tool_coverage|default([])|tojson }}
+    </script>
+
+    <script type="application/json" id="commandRowsJson">
+      {{ scan.command_log|default([])|tojson }}
     </script>
 
     <section class="dashboard-wireframe" data-components="service-card finding-card">
@@ -58,6 +76,7 @@
         {% include "ai_techniques.html" %}
         {% include "exploitation_validation.html" %}
         {% include "caldera_execution.html" %}
+        {% include "pivot_assessment.html" %}
         {% include "report.html" %}
       </div>
 
@@ -75,7 +94,7 @@
         <p class="muted">
           Use the dedicated appendix page for the full evidence tables. Candidate CVE References are retained for analyst review.
         </p>
-        <a class="button secondary" href="{{ url_for('technical_appendix') }}" target="_blank">Open Technical Appendix</a>
+        <a class="button secondary" href="/technical-appendix" target="_blank">Open Technical Appendix</a>
       </details>
     </section>
   </main>
@@ -87,11 +106,19 @@
         <h2 id="recordModalTitle">Command Evidence Viewer</h2>
         <button class="icon-btn" onclick="closeRecordModal()" type="button">Close</button>
       </div>
+
       <div class="modal-body">
-        <h3>Summary</h3><p id="recordPurpose" class="modal-purpose"></p>
-        <h3>Exact Command</h3><pre id="recordCommand"></pre>
-        <h3>Captured Output</h3><pre id="recordOutput"></pre>
-        <h3>Evidence File</h3><p id="recordFile" class="muted small"></p>
+        <h3>Summary</h3>
+        <p id="recordPurpose" class="modal-purpose"></p>
+
+        <h3>Exact Command</h3>
+        <pre id="recordCommand"></pre>
+
+        <h3>Captured Output</h3>
+        <pre id="recordOutput"></pre>
+
+        <h3>Evidence File</h3>
+        <p id="recordFile" class="muted small"></p>
       </div>
     </div>
   </div>
@@ -103,19 +130,59 @@
   <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
   <script src="{{ url_for('static', filename='technique_selection.js') }}"></script>
   <script src="{{ url_for('static', filename='ai_chat.js') }}"></script>
+
   <script>
+    function readJsonScript(id) {
+      const element = document.getElementById(id);
+
+      if (!element) {
+        return [];
+      }
+
+      try {
+        return JSON.parse(element.textContent || "[]");
+      } catch (error) {
+        console.error("Could not parse JSON data:", id, error);
+        return [];
+      }
+    }
+
+    function getDashboardRows(type) {
+      const coverageRows = readJsonScript("coverageRowsJson");
+      const commandRows = readJsonScript("commandRowsJson");
+
+      if (type === "coverage") {
+        return coverageRows;
+      }
+
+      return commandRows;
+    }
+
     function openRecordModal(type, idx) {
-      const rows = type === "coverage"
-        ? {{ results.tool_coverage|default([])|tojson }}
-        : {{ scan.command_log|default([])|tojson }};
+      const rows = getDashboardRows(type);
       const row = rows[idx] || {};
-      document.getElementById("recordCommand").textContent = row.command || "No shell command recorded.";
-      document.getElementById("recordPurpose").textContent = row.purpose || row.evidence_type || row.information_added || row.message || row.note || "";
-      document.getElementById("recordOutput").textContent = row.output || "[no console output captured]";
-      document.getElementById("recordFile").textContent = row.output_file || "No evidence file recorded.";
+
+      document.getElementById("recordCommand").textContent =
+        row.command || "No shell command recorded.";
+
+      document.getElementById("recordPurpose").textContent =
+        row.purpose ||
+        row.evidence_type ||
+        row.information_added ||
+        row.message ||
+        row.note ||
+        "";
+
+      document.getElementById("recordOutput").textContent =
+        row.output || "[no console output captured]";
+
+      document.getElementById("recordFile").textContent =
+        row.output_file || "No evidence file recorded.";
+
       document.getElementById("recordModal").classList.add("open");
       document.getElementById("recordModal").setAttribute("aria-hidden", "false");
     }
+
     function closeRecordModal() {
       document.getElementById("recordModal").classList.remove("open");
       document.getElementById("recordModal").setAttribute("aria-hidden", "true");

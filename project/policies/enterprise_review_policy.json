@@ -1,0 +1,161 @@
+{
+  "description": "Enterprise review controls for authorised, low-noise recon readiness. Values are policy data, not code hardcoding.",
+  "standards_alignment": [
+    {
+      "standard": "NIST SP 800-115",
+      "alignment": "planning, rules of engagement, execution evidence, post-test reporting"
+    },
+    {
+      "standard": "OWASP WSTG",
+      "alignment": "web information gathering and architecture mapping without attack payloads"
+    },
+    {
+      "standard": "MITRE ATT&CK",
+      "alignment": "shared language for environment context and evidence interpretation"
+    },
+    {
+      "standard": "CREST-style penetration testing governance",
+      "alignment": "scope, communication, approvals and reporting expectations"
+    }
+  ],
+  "review_controls": [
+    {
+      "id": "scope_control",
+      "name": "Rules-of-engagement scope enforcement"
+    },
+    {
+      "id": "environment_context",
+      "name": "Environment context interpretation"
+    },
+    {
+      "id": "decision_register",
+      "name": "Evidence-driven decision register"
+    },
+    {
+      "id": "chain_of_custody",
+      "name": "SHA256 evidence chain of custody"
+    },
+    {
+      "id": "approval_gates",
+      "name": "Human approval gates before high-visibility validation",
+      "state": "policy_documented_downstream_required"
+    },
+    {
+      "id": "rbac",
+      "name": "Role-based access control",
+      "state": "productisation_required"
+    },
+    {
+      "id": "multi_tenant",
+      "name": "Client/engagement isolation",
+      "state": "productisation_required"
+    },
+    {
+      "id": "secrets_management",
+      "name": "Vault-backed secrets management",
+      "state": "productisation_required"
+    },
+    {
+      "id": "ad_cloud_awareness",
+      "name": "AD, Entra ID and cloud passive discovery",
+      "state": "future_enterprise_range_required"
+    }
+  ],
+  "limitations": [
+    "Recon module does not attempt SOC bypass, authentication attacks, exploitation, persistence or evasion.",
+    "Default demo policy permits private lab targets; company review should require explicit signed allow-lists.",
+    "RBAC, multi-tenancy and enterprise secret vault integration are productisation controls, not FYP recon-only execution controls."
+  ],
+  "decision_rules": {
+    "readiness_basis": "Collect only evidence needed for handoff; pause before high-visibility validation or exploitation."
+  },
+  "environment_context_catalog": {
+    "nmap_syn": {
+      "match_any": [
+        "nmap",
+        "-ss",
+        "--top-ports"
+      ],
+      "visibility": "medium",
+      "likely_logs": [
+        "firewall session logs",
+        "IDS scan heuristics",
+        "NetFlow fan-out"
+      ],
+      "soc_view": "Staged TCP discovery can still appear as port fan-out from one source.",
+      "operator_action": "Keep packet rate within policy, limit stages, and document business justification."
+    },
+    "nmap_service": {
+      "match_any": [
+        "-sv",
+        "--version-intensity",
+        "banner"
+      ],
+      "visibility": "medium",
+      "likely_logs": [
+        "service banner negotiation",
+        "IDS protocol anomaly metadata"
+      ],
+      "soc_view": "Banner-first identity collection is lower impact than broad scripts but still observable.",
+      "operator_action": "Restrict to critical ports and stop when product/version evidence is sufficient."
+    },
+    "nmap_http": {
+      "match_any": [
+        "http-title",
+        "http-headers",
+        "http-server-header",
+        "httpx",
+        "curl"
+      ],
+      "visibility": "low-to-medium",
+      "likely_logs": [
+        "web access logs",
+        "WAF metadata",
+        "reverse-proxy logs"
+      ],
+      "soc_view": "HTTP headers/title collection creates normal-looking requests but remains attributable.",
+      "operator_action": "Prefer HEAD/single-page GET; avoid brute-force discovery unless approved."
+    },
+    "smb_protocol": {
+      "match_any": [
+        "smb-protocols",
+        "smb-security-mode",
+        "445",
+        "139"
+      ],
+      "visibility": "high",
+      "likely_logs": [
+        "Windows logon/network events",
+        "SMB server audit logs",
+        "EDR network telemetry"
+      ],
+      "soc_view": "SMB protocol probing is commonly investigated because it resembles lateral-movement preparation.",
+      "operator_action": "Collect protocol/signing readiness only; do not enumerate shares/users in recon."
+    },
+    "credential_activity": {
+      "match_any": [
+        "login",
+        "password",
+        "credential"
+      ],
+      "visibility": "very-high",
+      "likely_logs": [
+        "authentication failures",
+        "account lockout telemetry",
+        "SIEM correlation"
+      ],
+      "soc_view": "Credential validation is intentionally outside recon scope.",
+      "operator_action": "Require explicit downstream approval; do not run from recon."
+    },
+    "generic_active_probe": {
+      "match_any": [],
+      "visibility": "observable",
+      "likely_logs": [
+        "network telemetry",
+        "host/service logs"
+      ],
+      "soc_view": "Any active probe may be visible to defenders.",
+      "operator_action": "Keep within RoE, record evidence and stop when sufficient."
+    }
+  }
+}

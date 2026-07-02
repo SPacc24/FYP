@@ -110,15 +110,18 @@ class CalderaClient:
             or ""
         )
         if isinstance(ip, list):
-            ip = ", ".join(str(item) for item in ip if item)
+            host_ip_addrs = [str(item) for item in ip if item]
+            ip = ", ".join(host_ip_addrs)
         else:
-            ip = ", ".join(re.findall(r"(?:\d{1,3}\.){3}\d{1,3}", str(ip))) or str(ip or "")
+            host_ip_addrs = re.findall(r"(?:\d{1,3}\.){3}\d{1,3}", str(ip))
+            ip = ", ".join(host_ip_addrs) or str(ip or "")
 
         return {
             "paw": agent.get("paw"),
             "host": host,
             "hostname": host,
             "ip": ip,
+            "host_ip_addrs": host_ip_addrs,
             "platform": agent.get("platform") or agent.get("os") or agent.get("architecture") or "unknown",
             "group": agent.get("group"),
             "last_seen": last_seen,

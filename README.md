@@ -1,18 +1,24 @@
 # AutoPenTest
 
-AutoPenTest is a Flask-based authorised lab assessment dashboard. It runs reconnaissance, normalises evidence, links official CVE List records where product/version evidence supports them, plans MITRE ATT&CK techniques with an optional local LLM, and can hand selected techniques to MITRE Caldera.
+AutoPenTest is a Flask-based Final Year Project dashboard for authorised lab assessment, reconnaissance evidence collection, MITRE ATT&CK planning, lab-safe validation, CALDERA handoff, and remediation-focused reporting.
 
-## What This Build Does
+This project is intended only for owned or explicitly authorised cyber range and lab environments.
 
-This build includes the v32.8 recon-module handoff fixes:
+## Current Features
 
-- Evidence collection and normalisation for Nmap, Gobuster, SMB, SSH, SNMP, LDAP, TLS, RDP, Hydra, and supporting tools.
-- Official CVE List matching using the local CVEProject/cvelistV5 mirror.
-- Service-centric Attack Surface Workbench with exposure evidence, CVE findings, candidate references, evidence gaps, and service-check evidence.
-- HTML/PDF reports and JSON handoff output.
-- Sanitised Hydra credential combos, safer command-output decoding, partial Gobuster result handling, improved SMB/Samba evidence merging, and clearer CVE wording.
+- Web dashboard for scan setup, progress tracking, results review, ATT&CK technique selection, CALDERA execution, validation evidence, AI chat, and report export.
+- Async reconnaissance pipeline for Nmap, Gobuster, SMB, SSH, SNMP, LDAP, TLS, RDP, Hydra, and supporting tools where available.
+- Evidence normalisation for hosts, services, command logs, tool coverage, candidate references, and handoff JSON.
+- Official CVE List matching using a local CVEProject/cvelistV5 mirror, with strict product/version evidence checks.
+- Service-centric Attack Surface Workbench with confirmed CVEs, candidate CVE references, evidence gaps, and service-check output.
+- MITRE ATT&CK mapping and optional Ollama-assisted technique planning with deterministic fallback.
+- CALDERA integration for agent readiness checks, Sandcat deploy-command display, ability coverage checks, custom adversary creation, operation polling, and result parsing.
+- Lab-safe exploitability validation for non-destructive checks such as TCP reachability, HTTP default-content checks, and FTP anonymous-login validation.
+- Optional controlled proof-of-access tickets for authorised lab demonstrations.
+- Risk scoring, remediation guidance, HTML/PDF/text reporting, and MySQL persistence helpers.
+- Pytest coverage for planner behavior, CALDERA integration, validation helpers, report quality, scan profiles, and frontend quality checks.
 
-Recon boundaries:
+Recon and validation boundaries:
 
 ```text
 footprinting
@@ -20,49 +26,34 @@ enumeration
 evidence normalisation
 official CVE List strict matching
 service-level exposure checks
-JSON/PDF handoff generation
+JSON/PDF/text handoff generation
+CALDERA post-access emulation when explicitly enabled
 ```
 
-The recon module does not score, rank, prioritise, exploit, or make execution decisions by itself.
+The recon module does not exploit targets or make execution decisions by itself. CALDERA execution requires explicit configuration and an authorised trusted agent.
 
-## Full Kali Runbook
+## Project Layout
 
-Run these from separate terminal tabs because the Flask app, Ollama, and
-CALDERA server are long-running processes.
-
-Terminal 1, install and start AutoPenTest:
-
-```bash
-cd /home/kali/Desktop/AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31 or your fyp dir
-chmod +x install.sh
-sudo ./install.sh
-cd project
-sudo .venv/bin/python app.py
+```text
+project/
+  app.py                 Flask routes and dashboard endpoints
+  runtime_env.py         .env bootstrap and generated local secrets
+  ai/                    Ollama client, AI planner, safety filters
+  caldera/               CALDERA API client, coverage checker, operation manager
+  exploitation/          Lab-safe validation and Metasploit policy helpers
+  mapping/               Vulnerability-to-ATT&CK mapping helpers
+  reports/               Report summary and export generation
+  scanners/              Recon pipeline, parsers, tooling, CVE matching
+  scripts/               Tool checks and CVE index maintenance
+  storage/               Runtime scan state and database helpers
+  templates/             Dashboard HTML
+  static/                CSS and browser JavaScript
+  tests/                 Pytest coverage
 ```
 
-Terminal 2, start Ollama and prepare the model:
+## Quick Start
 
-```bash
-ollama serve
-```
-
-Terminal 3, pull/check the model while Ollama is running:
-
-```bash
-ollama pull llama3.2:1b
-ollama list
-curl http://127.0.0.1:11434/api/tags
-```
-
-Terminal 4, start CALDERA:
-
-```bash
-cd /path/to/caldera
-source .venv/bin/activate 2>/dev/null || true
-python3 server.py --insecure
-```
-
-## Manual Python Setup
+Run commands from the repository root unless noted.
 
 ```bash
 cd project
@@ -73,13 +64,53 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-## Environment
-
-Create `project/.env` or export these variables:
+`python app.py` creates or refreshes `project/.env` on startup. From the
+repository root, you can use the launcher instead:
 
 ```bash
-SECRET_KEY=change-me
+bash start.sh
+```
+
+On Windows PowerShell:
+
+```powershell
+cd project
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+python app.py
+```
+
+Or from the repository root:
+
+```powershell
+.\start_windows.ps1
+```
+
+Open:
+
+```text
+http://127.0.0.1:5000
+```
+
+## Environment
+
+`project/.env` is created automatically by `python app.py`, `bash start.sh`,
+`.\start_windows.ps1`, or:
+
+```bash
+python project/scripts/bootstrap_env.py
+```
+
+The bootstrapper fills generated local secrets and safe defaults while
+preserving existing non-placeholder values. The generated file uses this shape:
+
+```env
+SECRET_KEY=<generated-secret-key>
 DEBUG=false
+OPERATOR_TOKEN=<generated-operator-token>
+APP_HOST=127.0.0.1
 
 CALDERA_URL=http://127.0.0.1:8888
 CALDERA_API_KEY=your-caldera-api-key
@@ -91,6 +122,14 @@ OPERATION_TIMEOUT=180
 OLLAMA_URL=http://localhost:11434/api/generate
 OLLAMA_MODEL=llama3.2:1b
 OLLAMA_TIMEOUT=180
+
+ENABLE_METASPLOIT=0
+ENABLE_METASPLOIT_EXPLOITS=0
+METASPLOIT_RPC_URL=https://127.0.0.1:55552
+METASPLOIT_RPC_USER=msf
+METASPLOIT_RPC_PASS=<generated-rpc-password>
+METASPLOIT_RPC_VERIFY_SSL=0
+METASPLOIT_RPC_TIMEOUT=20
 
 MYSQL_HOST=127.0.0.1
 MYSQL_USER=autopentest
@@ -106,37 +145,102 @@ ENABLE_HYDRA=0
 GOBUSTER_WORDLIST=/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
 HYDRA_CREDENTIAL_FILE=
 MITRE_CVE_REPO=https://github.com/CVEProject/cvelistV5.git
+
+PROOF_OF_ACCESS_ENABLED=false
+PROOF_OF_ACCESS_SECRET=<generated-proof-secret>
+PROOF_OF_ACCESS_TTL=300
 ```
 
-MySQL is optional for the GUI to load, but database persistence requires a reachable MySQL server and the configured credentials.
-
-`OLLAMA_URL` can be either `http://127.0.0.1:11434` or
-`http://127.0.0.1:11434/api/generate`; the app adds `/api/generate`
-automatically when only the base URL is configured.
-
-## Scanning Tools
-
-The Kali installer installs the main toolchain:
+To print the current generated operator/RPC values in a trusted terminal:
 
 ```bash
-sudo apt-get install -y \
-  arp-scan nmap bind9-dnsutils jq gobuster enum4linux-ng smbclient smbmap \
-  snmp ldap-utils sslscan mtr-tiny traceroute hydra seclists git \
-  python3 python3-venv python3-pip
+python project/scripts/bootstrap_env.py --show-secrets
 ```
 
-Optional helpers are used when available:
+Keep `APP_HOST=127.0.0.1` for local-only use. If you need to open the Kali
+dashboard from the Windows host browser, set `APP_HOST=0.0.0.0` and configure
+`OPERATOR_TOKEN` first. The bootstrapper generates `OPERATOR_TOKEN`; copy it
+from `project/.env` or print it with `--show-secrets`.
+
+MySQL is optional for the GUI to load, but database persistence requires a reachable MySQL server and matching credentials.
+
+## Kali Runbook
+
+Kali is the preferred runtime when using Nmap, Metasploit, and the wider
+enumeration toolchain.
+
+Install once from the repository root:
 
 ```bash
-sudo apt-get install -y ssh-audit httpx-toolkit rdpscan snmp-mibs-downloader
+chmod +x install.sh
+./install.sh
 ```
 
-Check local tool availability:
+The installer creates `project/.venv`, installs Python packages, prepares
+storage folders, and creates `project/.env` with generated local secrets.
+
+Start or restart the dashboard:
 
 ```bash
-cd project
+bash start.sh
+```
+
+For access from the Windows host browser, keep `OPERATOR_TOKEN` configured and
+start the dashboard with `APP_HOST=0.0.0.0 bash start.sh`, then unlock the
+browser session on the landing page.
+
+Start Ollama in another terminal:
+
+```bash
+ollama serve
+```
+
+Pull/check the configured model:
+
+```bash
+ollama pull llama3.2:1b
+ollama list
+curl http://127.0.0.1:11434/api/tags
+```
+
+Optional Metasploit RPC setup:
+
+```bash
+python project/scripts/bootstrap_env.py --show-secrets
+```
+
+Set `ENABLE_METASPLOIT=1` in `project/.env`, then start RPC with the exact
+generated `METASPLOIT_RPC_PASS`:
+
+```bash
+msfrpcd -U msf -P <METASPLOIT_RPC_PASS> -a 127.0.0.1 -p 55552
+```
+
+Leave `ENABLE_METASPLOIT_EXPLOITS=0` unless a supervised lab run explicitly
+requires exploit-class modules. Restart the Flask app after editing `.env`.
+
+Optional CALDERA setup:
+
+```bash
+cd /path/to/caldera
+source .venv/bin/activate 2>/dev/null || true
+python3 server.py --insecure
+```
+
+Update an existing Kali checkout:
+
+```bash
+cd ~/FYP
+git pull origin main
+python project/scripts/bootstrap_env.py
+```
+
+Reinstall Python requirements only when `project/requirements.txt` changes:
+
+```bash
+cd ~/FYP/project
 source .venv/bin/activate
-python3 scripts/check_tooling.py
+python -m pip install -r requirements.txt
 ```
 
 ## CVE Data
@@ -157,93 +261,62 @@ If CVE data looks stale or CVSS metadata is missing:
 python scripts/audit_cve_source.py
 ```
 
-The CVE review is strict by design. Confirmed CVE findings appear only when
-the collected product/version/service evidence matches the official CVE List
-records closely enough. If no confirmed CVEs are linked, use **Open CVE
-Review** on the dashboard to see source/index status and any candidate CVE
-references retained for analyst review.
-
-## Ollama
-
-The app uses Ollama for AI technique planning and the AI chat panel. If Ollama is unavailable, the app still runs and returns a safe unavailable message.
-
-The AI Chatbox shows Ollama status in the sidebar. If it says the model is not
-pulled, run:
-
-```bash
-ollama pull llama3.2:1b
-```
-
-## Caldera
-
-Start MITRE Caldera separately and configure `CALDERA_URL` plus `CALDERA_API_KEY`. The dashboard checks agent readiness for the scanned target IP and shows a copyable deploy command when no trusted agent is matched.
-
-Editable Windows Sandcat deploy command. Paste it into an authorised Windows
-lab target PowerShell session and edit only the IP in `$server` when your Kali
-VM IP changes.
-
-Then in AutoPenTest:
-
-1. Run a scan.
-2. Open the dashboard.
-3. Use the Caldera panel to refresh agent status.
-4. Copy the deploy command into the authorised lab target if needed.
-5. Select techniques and run Caldera only when execution is explicitly enabled and authorised.
-
 ## Dashboard Flow
 
-After a scan completes, the browser redirects to the results dashboard. Use:
+1. Enter an authorised target and choose a scan profile/tool set.
+2. Wait for the scan progress page to complete, then open the results dashboard.
+3. Review service evidence, confirmed CVEs, candidate references, evidence gaps, ATT&CK recommendations, and AI planning notes.
+4. Optionally run lab-safe validation to collect non-destructive exposure evidence.
+5. Refresh CALDERA agent status and deploy/confirm Sandcat only inside the authorised lab.
+6. Select supported techniques and run CALDERA when execution is explicitly enabled and authorised.
+7. Generate the report, review the technical appendix, and export JSON/PDF/text handoff artefacts.
 
-- **Open CVE Review** to inspect confirmed CVEs, candidate references, and CVE index status.
-- **Run Lab Validation** to run non-destructive reachability/default-content checks against allowlisted services.
-- **Refresh Agent Status** to verify CALDERA/Sandcat readiness.
-- **Generate Report** to open a dedicated report page.
-- **Download Report** to export the generated text report.
+## Metasploit Integration
 
-Lab validation does not exploit the target. It performs safe checks such as TCP
-reachability, HTTP default-content checks, and FTP anonymous-login validation
-where applicable.
+Ollama and the browser do not choose arbitrary Metasploit modules. Ollama can
+generate attack-path reasoning, but AutoPenTest maps scan evidence to a server
+side allowlist before any RPC action is available.
+
+Default allowlist:
+
+- `auxiliary/scanner/ftp/anonymous`
+- `auxiliary/scanner/http/title`
+- `auxiliary/scanner/smb/smb_version`
+- `auxiliary/scanner/rdp/rdp_scanner`
+- `auxiliary/scanner/winrm/winrm_auth_methods`
+- `auxiliary/scanner/ssh/ssh_version`
+- `auxiliary/scanner/mysql/mysql_version`
+
+Actions are offered only when the matching service and port were observed in
+the active scan. To add exploit-class modules later, update
+`project/exploitation/metasploit_allowlist.py`, start with `mode="check"` and
+`requires_approval=True`, test inside the isolated lab, then enable
+`ENABLE_METASPLOIT_EXPLOITS=1` only for a supervised run. Do not add routes or
+UI fields that accept arbitrary module names.
+
+Useful Metasploit troubleshooting:
+
+- `Metasploit RPC integration is disabled`: set `ENABLE_METASPLOIT=1` and restart Flask.
+- `Metasploit RPC authentication failed`: confirm `METASPLOIT_RPC_USER` and `METASPLOIT_RPC_PASS` match the running `msfrpcd` or `msgrpc` instance.
+- TLS errors: keep `METASPLOIT_RPC_VERIFY_SSL=0` for the local self-signed lab RPC service, or configure a trusted certificate.
+- No actions loaded: confirm the scan completed and found open services matching the allowlist.
 
 ## Cleanup
 
-Use the cleanup helper when you want to remove generated runtime files between
-demo/test runs:
+Preview cleanup:
 
 ```bash
 cd project
-python3 utils/cleanup.py
-```
-
-Default cleanup removes transient logs, scan evidence files, generated report
-files, and Python caches. It preserves saved result JSON, handoff packages, the
-local CVE mirror/index, and `.env`.
-
-Preview cleanup without deleting anything:
-
-```bash
 python3 utils/cleanup.py --dry-run
 ```
 
-Clear saved scan result JSON only when you intentionally want a fresh dashboard
-history:
+Run default cleanup:
 
 ```bash
-python3 utils/cleanup.py --include-results
+python3 utils/cleanup.py
 ```
 
-Keep command evidence files while still clearing logs/reports/caches:
-
-```bash
-python3 utils/cleanup.py --keep-scan-evidence
-```
-
-Clear the local CVE mirror/index only when you plan to resync/rebuild it:
-
-```bash
-python3 utils/cleanup.py --include-cve-data
-python3 scripts/sync_mitre_cve_database.py
-python3 scripts/rebuild_mitre_cve_index.py
-```
+Default cleanup removes transient logs, scan evidence files, generated report files, and Python caches. It preserves saved result JSON, handoff packages, the local CVE mirror/index, and `.env`.
 
 ## Testing
 
@@ -257,20 +330,12 @@ python3 scripts/audit_no_scoring.py
 python3 scripts/audit_cve_source.py
 ```
 
-## Project Layout
+Some tests mock CALDERA and Ollama behavior. Tests that depend on a real CALDERA server, agent, MySQL instance, Kali tooling, or network-reachable lab target need matching local configuration.
 
-```text
-project/
-  app.py                 Flask routes and dashboard endpoints
-  ai/                    Ollama client, AI planner, safety filters
-  caldera/               Caldera API client and operation manager
-  exploitation/          Lab-safe validation helpers
-  mapping/               MITRE ATT&CK mapping helpers
-  reports/               Text report generation
-  scanners/              Recon pipeline, parsers, tooling, CVE matching
-  scripts/               Tool checks and CVE index maintenance
-  storage/               Runtime scan state and database helpers
-  templates/             Dashboard HTML
-  static/                CSS and browser JavaScript
-  tests/                 Pytest coverage
-```
+## Safety Notes
+
+AutoPenTest is designed as a decision-support and authorised emulation tool. The AI chat safety layer refuses exploit commands, payloads, credential theft steps, bypass instructions, and intrusion walkthroughs. CALDERA execution and proof-of-access features should only be used against systems where you have explicit permission to test.
+
+## License
+
+No license has been specified yet.

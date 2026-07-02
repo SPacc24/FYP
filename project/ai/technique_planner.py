@@ -1,9 +1,10 @@
 import json
 from typing import Optional
 
+from ai import technique_context as technique_context_module
+from ai import technique_intel as technique_intel_module
 from ai.llm_client import ask_llm_json
-from ai.technique_context import extract_allowed_techniques
-from ai.technique_intel import build_mitre_url
+from ai.technique_intel import build_mitre_url, fetch_cve_from_nvd, get_mitre_technique_info
 from ai.technique_helpers import (
     MAX_SELECTED_TECHNIQUES,
     shorten_text,
@@ -23,6 +24,54 @@ DEFAULT_AI_NEXT_STEPS = [
 ]
 
 
+def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
+    old_fetch_cve = technique_intel_module.fetch_cve_from_nvd
+    old_mitre_info = technique_context_module.get_mitre_technique_info
+    old_mitre_url = technique_context_module.build_mitre_url
+
+    technique_intel_module.fetch_cve_from_nvd = fetch_cve_from_nvd
+    technique_context_module.get_mitre_technique_info = get_mitre_technique_info
+    technique_context_module.build_mitre_url = build_mitre_url
+
+    try:
+        return technique_context_module.extract_allowed_techniques(mapping_result)
+    finally:
+        technique_intel_module.fetch_cve_from_nvd = old_fetch_cve
+        technique_context_module.get_mitre_technique_info = old_mitre_info
+        technique_context_module.build_mitre_url = old_mitre_url
+
+
+def safe_json_loads(value) -> dict:
+    if isinstance(value, dict):
+        return value
+
+    if not isinstance(value, str):
+        return {
+            "selected_technique_ids": [],
+            "reasoning": "The LLM response could not be parsed because it had an unexpected JSON shape.",
+            "technique_explanations": [],
+            "next_steps": DEFAULT_AI_NEXT_STEPS,
+        }
+
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return {
+            "selected_technique_ids": [],
+            "reasoning": "The LLM response could not be parsed as valid JSON.",
+            "technique_explanations": [],
+            "next_steps": DEFAULT_AI_NEXT_STEPS,
+        }
+
+    if isinstance(parsed, dict):
+        return parsed
+
+    return {
+        "selected_technique_ids": [],
+        "reasoning": "The LLM response could not be parsed because it had an unexpected JSON shape.",
+        "technique_explanations": [],
+        "next_steps": DEFAULT_AI_NEXT_STEPS,
+    }
 def normalise_technique_explanations(
     plan: dict,
     selected_ids: list[str],
@@ -224,7 +273,7 @@ Field requirements:
 - next_steps: 3 to 4 safe follow-up actions.
 """
 
-    plan = ask_llm_json(prompt)
+    plan = safe_json_loads(ask_llm_json(prompt))
 
     if not isinstance(plan, dict):
         plan = {

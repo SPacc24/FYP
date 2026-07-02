@@ -1,0 +1,367 @@
+{
+  "scan_id": "31627b2b25ad",
+  "generated_at_utc": "2026-07-02T05:41:29+00:00",
+  "hash_algorithm": "sha256",
+  "entries": [
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_1_192.168.86.130_20260702_133722.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_1",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "d7316d01528fb6704b3c7a4dce89f676146709d3c1c7fdc4a97001c03eef9ef1",
+      "size_bytes": 1477
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_2_192.168.86.130_20260702_133733.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_2",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "c4b02bc395af53a27264f64ccc67a48084772ea297302dc3721a351596855575",
+      "size_bytes": 2092
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_3_192.168.86.130_20260702_133744.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_3",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "a2708dd32222bc5430eb1a5821ce5ffcfb329a8fe8fdd1ceea454b86f91f7e76",
+      "size_bytes": 2106
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_4_192.168.86.130_20260702_133756.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_4",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "525adc1ff097188aee809967145d589a91ce93814f5d12dae75b2cd74e08c0e2",
+      "size_bytes": 2107
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_5_192.168.86.130_20260702_133808.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_5",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "5ea08e78f315b2a2b4c15d5d1b0522594f34f10ab76f47ae6ca33b347414b876",
+      "size_bytes": 1507
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_6_192.168.86.130_20260702_133816.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_6",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "2dc15711e1aa275e0b59130c559d63c22c0a66bc91c84e939945f1228c8fbf38",
+      "size_bytes": 2127
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_7_192.168.86.130_20260702_133826.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_7",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "0ae3162f9c789606052de00b7a33006c7295ebfdd3b707ba8fe59b326b49029a",
+      "size_bytes": 2119
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_8_192.168.86.130_20260702_133838.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_8",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "ed18ae34a95b4f9e9e1ac5f81c816a6b1d02e2220552e39522488e336d71e0bb",
+      "size_bytes": 1510
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_9_192.168.86.130_20260702_133847.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_9",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "bc68c43cc3d706c96f38c21d2e29e6837735934169bdbc1feb4f7efef58ad5b5",
+      "size_bytes": 1510
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_10_192.168.86.130_20260702_133857.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_10",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "6ca42aec3668cfb4353dee18ac308bf0f72778a33abf97f2457fa4378910bc02",
+      "size_bytes": 1497
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_11_192.168.86.130_20260702_133908.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_11",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "e5a7d921bc702e76170bae93f98f1a8001d06f5d05abff96d89f649f599d2cb9",
+      "size_bytes": 1501
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_12_192.168.86.130_20260702_133918.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_12",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "3c17aca8f88b5a5f2c4c67babefc6d5e6116e7a46accc5128558d1101ce9b2d2",
+      "size_bytes": 1512
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_13_192.168.86.130_20260702_133929.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_13",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "b3fb4abc6ea7d143099efe9e163d577a6cdb2f290300d6d760da1559245acd33",
+      "size_bytes": 1512
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_14_192.168.86.130_20260702_133939.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_14",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "acffe5adf6814634ad21e476b36489c63bb869c7af1e0e6626bcc7ab76374155",
+      "size_bytes": 1512
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_15_192.168.86.130_20260702_133949.xml",
+      "exists": true,
+      "source": "nmap_tcp_microbatch_15",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "dc336b43e3445c53aa65267c8a97f5cc08a1fcfe7edcb7dc3ce81d4d2cc16a7d",
+      "size_bytes": 1515
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_133955.xml",
+      "exists": true,
+      "source": "nmap_service_fingerprint",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "b03f024b366994b341d56e7eded83fa45f5c720a1f8d6d948dcaa58ad28f325f",
+      "size_bytes": 3286
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_udp_targeted_192.168.86.130_20260702_134105.xml",
+      "exists": true,
+      "source": "udp_discovery",
+      "host": "192.168.86.130",
+      "port": "",
+      "content_type": "",
+      "sha256": "771b10c1c028e04761440f4409f332c51938284b893570f3c10478372b22b76f",
+      "size_bytes": 2030
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_134111.xml",
+      "exists": true,
+      "source": "smb_protocol_security",
+      "host": "192.168.86.130",
+      "port": 445,
+      "content_type": "",
+      "sha256": "01ccc0e4316db4a17653c8583f66a1399dc5924a33425f82a64ff78ba9b3deed",
+      "size_bytes": 2640
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\winrm_wsman_probe_192.168.86.130_5985_20260702_134115.txt",
+      "exists": true,
+      "source": "winrm_wsman_probe",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "content_type": "",
+      "sha256": "3468eecdb86fc6cfc45a6f344cb109415ed8904f69a8759242737405e509a35e",
+      "size_bytes": 117
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\web_form_hints_192.168.86.130_5985_20260702_134117.html",
+      "exists": true,
+      "source": "html_form_parser",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "content_type": "",
+      "sha256": "ce7127c38e30e92a021ed2bd09287713c6a923db9ffdb43f126e8965d777fbf0",
+      "size_bytes": 315
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_134118.xml",
+      "exists": true,
+      "source": "rdp_negotiation",
+      "host": "192.168.86.130",
+      "port": 3389,
+      "content_type": "",
+      "sha256": "3d083ebecf90df39678d503168bb53b32937135f269b7ab5379db34c199c2cd5",
+      "size_bytes": 2177
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\http_security_context_192.168.86.130_5985_20260702_134122.txt",
+      "exists": true,
+      "source": "http_security_context",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "content_type": "",
+      "sha256": "b9862364d1829ccd8d825ed146c90698c8f36d38a7913820a3876b88c8b13cd7",
+      "size_bytes": 177
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\targeted_web_discovery_31627b2b25ad.json",
+      "exists": true,
+      "source": "targeted_web_discovery",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size_bytes": 2
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\api_discovery_31627b2b25ad.json",
+      "exists": true,
+      "source": "api_discovery",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size_bytes": 2
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\kubernetes_exposure_31627b2b25ad.json",
+      "exists": true,
+      "source": "kubernetes_exposure",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size_bytes": 2
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\container_exposure_31627b2b25ad.json",
+      "exists": true,
+      "source": "container_exposure",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size_bytes": 2
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\vpn_validation_31627b2b25ad.json",
+      "exists": true,
+      "source": "vpn_validation",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size_bytes": 2
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\redis_info_31627b2b25ad.json",
+      "exists": true,
+      "source": "redis_info",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size_bytes": 2
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\elasticsearch_info_31627b2b25ad.json",
+      "exists": true,
+      "source": "elasticsearch_info",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size_bytes": 2
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\modern_active_validation_31627b2b25ad.json",
+      "exists": true,
+      "source": "modern_active_validation",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "a71ec2d8970aa334e8a5b906371df18eaba4b4304f0d5fa43a2fea5c413fdcf5",
+      "size_bytes": 4485
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\native_protocol_enrichment_31627b2b25ad.json",
+      "exists": true,
+      "source": "native_protocol_enrichment",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size_bytes": 2
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\passive_intelligence_31627b2b25ad.json",
+      "exists": true,
+      "source": "passive_intelligence",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "44254011747d6c3a6b5157076f24a66b03938bf4354b158edd038a0b001821d2",
+      "size_bytes": 1152
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\normalised_31627b2b25ad.json",
+      "exists": true,
+      "source": "python_normaliser",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "3f47aaa48f958c6f4e5bcd5db6acb7d414f9345e7529ef5cfc1b4ec7da042f9b",
+      "size_bytes": 17596
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\31627b2b25ad_knowledge_graph.json",
+      "exists": true,
+      "source": "knowledge_graph",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "63a1ce1de93d7edc87266f6a7312894fffaa3b89168f267522be24a868f82c3b",
+      "size_bytes": 2319
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\31627b2b25ad_enumeration_intelligence.json",
+      "exists": true,
+      "source": "enumeration_intelligence",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "31ec844a553b6913026d16e0689e2cc2a73a95d92be4de14e162aa6e44bf407d",
+      "size_bytes": 18930
+    },
+    {
+      "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\31627b2b25ad_operational_maturity.json",
+      "exists": true,
+      "source": "operational_maturity",
+      "host": "",
+      "port": "",
+      "content_type": "",
+      "sha256": "0e167268fa7b1adfe110cdb9be50f01a5e3c54397e516d2f28caacef19a77d93",
+      "size_bytes": 9149
+    }
+  ]
+}

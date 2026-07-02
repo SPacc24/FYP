@@ -1,0 +1,82 @@
+{
+  "scan_id": "31627b2b25ad",
+  "target": "192.168.86.130",
+  "created_at": "2026-07-02T05:41:29.507448+00:00",
+  "policy": "Reuse stable metadata only when target, network-path context and service signature remain consistent.",
+  "reusable_collectors": [
+    {
+      "collector": "http_security_context",
+      "ttl_seconds": 21600,
+      "reuse_boundary": "metadata only; do not infer service absence from cached data"
+    },
+    {
+      "collector": "service_inventory",
+      "ttl_seconds": 21600,
+      "reuse_boundary": "metadata only; do not infer service absence from cached data"
+    }
+  ],
+  "service_signatures": [
+    {
+      "key": "192.168.86.130:135/tcp",
+      "signature": "msrpc | Microsoft Windows RPC",
+      "host": "192.168.86.130",
+      "port": 135,
+      "protocol": "tcp",
+      "service": "msrpc",
+      "product": "Microsoft Windows RPC",
+      "version": ""
+    },
+    {
+      "key": "192.168.86.130:139/tcp",
+      "signature": "netbios-ssn | Microsoft Windows netbios-ssn",
+      "host": "192.168.86.130",
+      "port": 139,
+      "protocol": "tcp",
+      "service": "netbios-ssn",
+      "product": "Microsoft Windows netbios-ssn",
+      "version": ""
+    },
+    {
+      "key": "192.168.86.130:445/tcp",
+      "signature": "microsoft-ds | Microsoft Windows 7 - 10 microsoft-ds",
+      "host": "192.168.86.130",
+      "port": 445,
+      "protocol": "tcp",
+      "service": "microsoft-ds",
+      "product": "Microsoft Windows 7 - 10 microsoft-ds",
+      "version": ""
+    },
+    {
+      "key": "192.168.86.130:3389/tcp",
+      "signature": "ms-wbt-server | Microsoft Terminal Services",
+      "host": "192.168.86.130",
+      "port": 3389,
+      "protocol": "tcp",
+      "service": "ms-wbt-server",
+      "product": "Microsoft Terminal Services",
+      "version": ""
+    },
+    {
+      "key": "192.168.86.130:5985/tcp",
+      "signature": "http | Microsoft HTTPAPI httpd | 2.0",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "protocol": "tcp",
+      "service": "http",
+      "product": "Microsoft HTTPAPI httpd",
+      "version": "2.0"
+    },
+    {
+      "key": "192.168.86.130:137/udp",
+      "signature": "netbios-ns",
+      "host": "192.168.86.130",
+      "port": 137,
+      "protocol": "udp",
+      "service": "netbios-ns",
+      "product": "",
+      "version": ""
+    }
+  ],
+  "passive_summary_count": 1,
+  "summary": "6 service signature(s) and 2 reusable metadata collector type(s) recorded."
+}

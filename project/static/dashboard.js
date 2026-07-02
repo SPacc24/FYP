@@ -38,6 +38,30 @@ function formatEvidenceList(items) {
   return `<ul class="compact-list">${items.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
 }
 
+function renderProofOfAccessInfo(proof) {
+  if (!proof) return "";
+
+  if (!proof.enabled) {
+    return `<p class="small muted">Proof-of-access ticketing is disabled.</p>`;
+  }
+
+  if (!proof.issued_count) {
+    return `<p class="small muted">No proof-of-access ticket issued. A qualifying technique must finish successfully.</p>`;
+  }
+
+  const tickets = proof.tickets || [];
+  return `
+    <details class="small">
+      <summary><strong>Proof-of-access ticket issued (${escapeHtml(proof.issued_count)})</strong></summary>
+      <p>Save one ticket on the validated agent host, then redeem it with the proof-of-access script.</p>
+      ${tickets.map(item => `
+        <p><strong>${escapeHtml(item.technique_id)}</strong> on ${escapeHtml(item.agent_host)}</p>
+        <pre class="small mono">${escapeHtml(item.ticket)}</pre>
+      `).join("")}
+    </details>
+  `;
+}
+
 function getEndpoint(name, fallback) {
   return window.DASHBOARD_ENDPOINTS?.[name] || fallback;
 }
@@ -49,6 +73,22 @@ function getDashboardContext() {
     selectedMode: "hybrid"
   };
 }
+
+function getCsrfToken() {
+  return window.DASHBOARD_SECURITY?.csrfToken || "";
+}
+
+const originalFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  const method = String(init.method || "GET").toUpperCase();
+  const token = getCsrfToken();
+  if (token && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const headers = new Headers(init.headers || {});
+    headers.set("X-CSRF-Token", token);
+    return originalFetch(input, {...init, headers});
+  }
+  return originalFetch(input, init);
+};
 
 window.addEventListener("DOMContentLoaded", () => {
   if (typeof applyModeBehavior === "function") {
@@ -62,6 +102,15 @@ window.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("runValidationBtn")
     ?.addEventListener("click", runExploitabilityValidation);
+
+  document.getElementById("generateAdviceBtn")
+    ?.addEventListener("click", generatePentestAdvice);
+
+  document.getElementById("refreshMetasploitBtn")
+    ?.addEventListener("click", loadMetasploitStatus);
+
+  document.getElementById("loadMetasploitActionsBtn")
+    ?.addEventListener("click", loadMetasploitActions);
 
   document.getElementById("copyDeployCommandBtn")
     ?.addEventListener("click", copyDeployCommand);
@@ -92,6 +141,10 @@ window.addEventListener("DOMContentLoaded", () => {
       }
       document.getElementById("generateReportBtn")?.focus();
     });
+
+  if (document.getElementById("metasploitStatusSummary")) {
+    loadMetasploitStatus();
+  }
 });
 
 async function loadCalderaStatus() {
@@ -122,7 +175,7 @@ async function loadCalderaStatus() {
     if (data.agent_ready) {
       box.innerHTML =
         data.target_match_confirmed === false
-          ? `<p><strong>Ready</strong> - trusted agent online. Confirm it is the intended target before running.</p>`
+          ? `<p><strong>Ready</strong> - ${data.online_agents?.length || 1} trusted agent(s) online. Confirm the selected agent is the intended target before running.</p>`
           : `<p><strong>Ready</strong> - trusted agent matched.</p>`;
       if (deployBox) deployBox.style.display = "none";
     }
@@ -252,6 +305,256 @@ async function runExploitabilityValidation() {
   }
 }
 
+async function generatePentestAdvice() {
+  const tbody = document.getElementById("attackAdviceBody");
+  const summary = document.getElementById("attackAdviceSummary");
+
+  if (!tbody) return;
+
+  tbody.innerHTML =
+    `<tr>
+      <td colspan="6" class="small">Generating Ollama attack-path advice...</td>
+    </tr>`;
+
+  try {
+    const res = await fetch(getEndpoint("pentestAdvice", "/pentest/advice"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({})
+    });
+
+    const data = await res.json();
+
+    if (!data.ok) {
+      tbody.innerHTML =
+        `<tr>
+          <td colspan="6" class="small">${escapeHtml(data.error || "Attack-path advice failed.")}</td>
+        </tr>`;
+      return;
+    }
+
+    if (summary) {
+      summary.textContent = data.summary || "Attack-path advice generated.";
+    }
+
+    if (data.attack_paths && data.attack_paths.length) {
+      tbody.innerHTML = data.attack_paths.map(path => `
+        <tr>
+          <td><span class="state ${escapeHtml(path.confidence)}">${escapeHtml(path.confidence)}</span></td>
+          <td>${escapeHtml(path.service)}</td>
+          <td class="mono">${escapeHtml(path.port || "N/A")}</td>
+          <td class="mono small">${escapeHtml((path.technique_ids || []).join(", "))}</td>
+          <td>${escapeHtml(path.recommended_validation)}</td>
+          <td class="small">
+            <strong>${escapeHtml(path.title)}</strong><br>
+            ${escapeHtml(path.reasoning)}<br>
+            <span class="muted">${escapeHtml(path.next_step)}</span>
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    else {
+      tbody.innerHTML =
+        `<tr>
+          <td colspan="6" class="small">No safe attack-path advice could be generated from the current evidence.</td>
+        </tr>`;
+    }
+  }
+
+  catch (err) {
+    tbody.innerHTML =
+      `<tr>
+        <td colspan="6" class="small">Could not generate attack-path advice.</td>
+      </tr>`;
+  }
+}
+
+async function loadMetasploitStatus() {
+  const summary = document.getElementById("metasploitStatusSummary");
+  if (!summary) return;
+
+  summary.textContent = "Checking Metasploit RPC...";
+
+  try {
+    const res = await fetch(getEndpoint("metasploitStatus", "/pentest/metasploit/status"));
+    const data = await res.json();
+
+    if (!data.enabled) {
+      summary.textContent = data.message || "Metasploit RPC integration is disabled.";
+      return;
+    }
+
+    if (data.available) {
+      const version = data.version?.version || data.version?.ruby || "reachable";
+      summary.textContent = `Metasploit RPC available (${version}).`;
+      return;
+    }
+
+    summary.textContent = data.error || "Metasploit RPC is not reachable.";
+  }
+  catch (err) {
+    summary.textContent = "Could not check Metasploit RPC.";
+  }
+}
+
+async function loadMetasploitActions() {
+  const tbody = document.getElementById("metasploitActionsBody");
+  const summary = document.getElementById("metasploitStatusSummary");
+  if (!tbody) return;
+
+  tbody.innerHTML =
+    `<tr>
+      <td colspan="6" class="small">Loading allowlisted Metasploit actions...</td>
+    </tr>`;
+
+  try {
+    const res = await fetch(getEndpoint("metasploitPropose", "/pentest/metasploit/propose"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+
+    if (!data.ok) {
+      tbody.innerHTML =
+        `<tr>
+          <td colspan="6" class="small">${escapeHtml(data.error || "Could not load Metasploit actions.")}</td>
+        </tr>`;
+      return;
+    }
+
+    if (summary && data.status) {
+      if (data.status.available) {
+        summary.textContent = "Metasploit RPC available.";
+      } else {
+        summary.textContent = data.status.message || data.status.error || "Metasploit RPC is not available.";
+      }
+    }
+
+    renderMetasploitActions(data.actions || []);
+  }
+  catch (err) {
+    tbody.innerHTML =
+      `<tr>
+        <td colspan="6" class="small">Could not load Metasploit actions.</td>
+      </tr>`;
+  }
+}
+
+function renderMetasploitActions(actions) {
+  const tbody = document.getElementById("metasploitActionsBody");
+  if (!tbody) return;
+
+  if (!actions.length) {
+    tbody.innerHTML =
+      `<tr>
+        <td colspan="6" class="small">No allowlisted Metasploit action matched the current scan.</td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = actions.map(action => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(action.title)}</strong><br>
+        <span class="small muted">${escapeHtml(action.reason)}</span>
+      </td>
+      <td class="mono small">${escapeHtml(action.module_type)}/${escapeHtml(action.module_name)}</td>
+      <td class="mono">${escapeHtml(action.target)}:${escapeHtml(action.port)}</td>
+      <td><span class="state ${escapeHtml(action.risk)}">${escapeHtml(action.risk)}</span></td>
+      <td>${escapeHtml(action.source)}</td>
+      <td>
+        <button
+          class="button secondary"
+          type="button"
+          data-msf-action="${escapeHtml(action.action_id)}"
+          data-msf-approval="${action.requires_approval ? "true" : "false"}">
+          Run
+        </button>
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll("[data-msf-action]").forEach(button => {
+    button.addEventListener("click", () => runMetasploitAction(button));
+  });
+}
+
+async function runMetasploitAction(button) {
+  const actionId = button.dataset.msfAction;
+  const approvalRequired = button.dataset.msfApproval === "true";
+  const summary = document.getElementById("metasploitStatusSummary");
+  if (!actionId) return;
+
+  let approved = false;
+  if (approvalRequired) {
+    approved = window.confirm("Approve this Metasploit action for the authorised lab target?");
+    if (!approved) return;
+  }
+
+  button.disabled = true;
+  const previousText = button.textContent;
+  button.textContent = "Running";
+  if (summary) summary.textContent = "Submitting Metasploit action...";
+
+  try {
+    const res = await fetch(getEndpoint("metasploitRun", "/pentest/metasploit/run"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        action_id: actionId,
+        approved
+      })
+    });
+    const data = await res.json();
+
+    if (!data.ok) {
+      if (summary) summary.textContent = data.error || "Metasploit action was rejected.";
+      button.disabled = false;
+      button.textContent = previousText;
+      return;
+    }
+
+    if (summary) summary.textContent = data.summary || "Metasploit action submitted.";
+    appendMetasploitRun(data);
+    button.textContent = "Done";
+  }
+  catch (err) {
+    if (summary) summary.textContent = "Metasploit action failed.";
+    button.disabled = false;
+    button.textContent = previousText;
+  }
+}
+
+function appendMetasploitRun(run) {
+  const tbody = document.getElementById("metasploitRunsBody");
+  if (!tbody) return;
+
+  const action = run.action || {};
+  const row = `
+    <tr>
+      <td class="mono small">${escapeHtml(run.timestamp || "-")}</td>
+      <td class="mono small">${escapeHtml(action.module_type || "-")}/${escapeHtml(action.module_name || "-")}</td>
+      <td class="mono">${escapeHtml(action.target || "-")}:${escapeHtml(action.port || "-")}</td>
+      <td class="small">${escapeHtml(run.summary || "Metasploit action completed.")}</td>
+    </tr>
+  `;
+
+  const placeholder = tbody.querySelector("td[colspan]");
+  if (placeholder) {
+    tbody.innerHTML = row;
+  } else {
+    tbody.insertAdjacentHTML("beforeend", row);
+  }
+}
+
 async function runCaldera() {
   const operationBox = document.getElementById("operationBox");
   const selected = typeof getSelectedTechniqueIds === "function"
@@ -290,7 +593,7 @@ async function runCaldera() {
       const { unsupported_count, unsupported, supported } = data.coverage_info;
       if (unsupported_count > 0) {
         if (coverageWarningBox && coverageWarningText) {
-          coverageWarningText.textContent = 
+          coverageWarningText.textContent =
             `${unsupported_count} technique(s) not supported by CALDERA (${unsupported.join(", ")}). ` +
             `${supported.length ? `Executing only ${supported.length} supported technique(s).` : "Recording external validation requirement."}`;
           coverageWarningBox.style.display = "block";
@@ -303,6 +606,7 @@ async function runCaldera() {
         data.state === "unsupported"
           ? `<p><strong>No CALDERA operation created.</strong></p><p class="small">${escapeHtml(data.message || "Unsupported techniques require external validation.")}</p>`
           : `<p><strong>Operation completed.</strong></p>`;
+      operationBox.innerHTML += renderProofOfAccessInfo(data.proof_of_access);
 
       const tbody = document.getElementById("techniqueResultsBody");
       const executionSummary = document.getElementById("executionSummary");
@@ -375,9 +679,9 @@ async function runCaldera() {
       operationBox.innerHTML =
         `<p><strong>Operation failed.</strong></p>
          <p class="small">${escapeHtml(data.message || data.error || "No error message returned.")}</p>`;
-      
+
       if (data.coverage) {
-        operationBox.innerHTML += 
+        operationBox.innerHTML +=
           `<p class="small"><strong>Coverage Info:</strong> ${data.coverage.unsupported} technique(s) not supported.</p>`;
       }
     }
