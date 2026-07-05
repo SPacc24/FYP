@@ -1,0 +1,55 @@
+{
+  "dns": [],
+  "reverse_dns": [
+    {
+      "host": "192.168.86.130",
+      "ptr": "client01",
+      "aliases": [],
+      "collection_method": "reverse_dns"
+    }
+  ],
+  "tls": [],
+  "certificate_transparency": [],
+  "findings": {
+    "email_security": [],
+    "authentication": [],
+    "vpn": [],
+    "reverse_proxy": [],
+    "cdn": [],
+    "cloud": [],
+    "technologies": [],
+    "network_device": [],
+    "virtualisation": [],
+    "message_broker": [],
+    "active_directory": {
+      "detected": false,
+      "evidence": [],
+      "collection_method": "dns_srv_records_only"
+    }
+  },
+  "relationships": [],
+  "dns_relationships": [
+    {
+      "source": "192.168.86.130",
+      "relation": "reverse_dns_ptr",
+      "target": "client01",
+      "evidence": "reverse_dns"
+    }
+  ],
+  "certificate_correlation": [],
+  "summary": [
+    "DNS relationship engine retained 1 forward/reverse/authority relationship(s)."
+  ],
+  "policy": {
+    "ct_lookup_enabled": false,
+    "dns_record_types": [
+      "A",
+      "AAAA",
+      "MX",
+      "TXT",
+      "NS",
+      "CNAME",
+      "SRV"
+    ]
+  }
+}

@@ -1,0 +1,582 @@
+{
+  "hosts": [
+    "192.168.86.130"
+  ],
+  "services": [
+    {
+      "host": "192.168.86.130",
+      "port": 135,
+      "protocol": "tcp",
+      "service": "msrpc",
+      "product": "Microsoft Windows RPC",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_134933.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 139,
+      "protocol": "tcp",
+      "service": "netbios-ssn",
+      "product": "Microsoft Windows netbios-ssn",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_134933.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 445,
+      "protocol": "tcp",
+      "service": "microsoft-ds",
+      "product": "Microsoft Windows 7 - 10 microsoft-ds",
+      "version": "",
+      "extra": "workgroup: FYP_67",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_134933.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 3389,
+      "protocol": "tcp",
+      "service": "ms-wbt-server",
+      "product": "Microsoft Terminal Services",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_134933.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 5985,
+      "protocol": "tcp",
+      "service": "http",
+      "product": "Microsoft HTTPAPI httpd",
+      "version": "2.0",
+      "extra": "SSDP/UPnP",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_134933.xml",
+      "scripts": [],
+      "missing_information": []
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 137,
+      "protocol": "udp",
+      "service": "netbios-ns",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_udp_targeted_192.168.86.130_20260702_135039.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    }
+  ],
+  "environment_intelligence": [],
+  "attack_surface_objectives": [
+    {
+      "id": "web_investigation",
+      "label": "Web Surface Investigation",
+      "matched_services": [
+        "http"
+      ],
+      "matched_ports": [],
+      "evidence_needed": [
+        "headers",
+        "titles",
+        "server_banner",
+        "technology_hints",
+        "forms",
+        "parameters",
+        "login_surfaces",
+        "upload_surfaces"
+      ]
+    },
+    {
+      "id": "file_sharing_investigation",
+      "label": "File Sharing Investigation",
+      "matched_services": [
+        "microsoft-ds",
+        "netbios-ns",
+        "netbios-ssn"
+      ],
+      "matched_ports": [
+        137,
+        139,
+        445
+      ],
+      "evidence_needed": [
+        "service_exposure",
+        "protocol_family",
+        "credential_readiness",
+        "evidence_gaps"
+      ]
+    },
+    {
+      "id": "remote_access_investigation",
+      "label": "Remote Access Investigation",
+      "matched_services": [],
+      "matched_ports": [
+        3389,
+        5985
+      ],
+      "evidence_needed": [
+        "service_identity",
+        "auth_surface",
+        "configuration_hints"
+      ]
+    }
+  ],
+  "evidence_gaps": [
+    {
+      "host": "192.168.86.130",
+      "port": 135,
+      "protocol": "tcp",
+      "service": "msrpc",
+      "gaps": [
+        "version_identity"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 139,
+      "protocol": "tcp",
+      "service": "netbios-ssn",
+      "gaps": [
+        "version_identity"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 445,
+      "protocol": "tcp",
+      "service": "microsoft-ds",
+      "gaps": [
+        "version_identity"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 3389,
+      "protocol": "tcp",
+      "service": "ms-wbt-server",
+      "gaps": [
+        "version_identity"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 137,
+      "protocol": "udp",
+      "service": "netbios-ns",
+      "gaps": [
+        "product_identity",
+        "version_identity",
+        "cpe_identity"
+      ]
+    }
+  ],
+  "web": [
+    {
+      "tool": "html_form_parser",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "url": "http://192.168.86.130:5985",
+      "forms": [],
+      "links": [],
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\web_form_hints_192.168.86.130_5985_20260702_135050.html"
+    }
+  ],
+  "smb": [
+    {
+      "tool": "smb_protocol_security",
+      "host": "192.168.86.130",
+      "port": 445,
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_135044.xml",
+      "rows": [
+        {
+          "host": "192.168.86.130",
+          "port": 445,
+          "protocol": "tcp",
+          "service": "microsoft-ds",
+          "product": "",
+          "version": "",
+          "extra": "",
+          "cpe": [],
+          "evidence_sources": [
+            "nmap"
+          ],
+          "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_135044.xml",
+          "scripts": []
+        }
+      ]
+    }
+  ],
+  "snmp": [],
+  "ssh": [],
+  "ldap": [],
+  "tls": [],
+  "rdp": [],
+  "credential_validation": [
+    {
+      "tool": "smb_protocol_security",
+      "host": "192.168.86.130",
+      "port": 445,
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_135044.xml",
+      "rows": [
+        {
+          "host": "192.168.86.130",
+          "port": 445,
+          "protocol": "tcp",
+          "service": "microsoft-ds",
+          "product": "",
+          "version": "",
+          "extra": "",
+          "cpe": [],
+          "evidence_sources": [
+            "nmap"
+          ],
+          "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_135044.xml",
+          "scripts": []
+        }
+      ]
+    },
+    {
+      "tool": "winrm_wsman_probe",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "url": "http://192.168.86.130:5985/wsman",
+      "auth_headers": [],
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\winrm_wsman_probe_192.168.86.130_5985_20260702_135048.txt",
+      "output": "HTTP/1.1 405 \nAllow: POST\nServer: Microsoft-HTTPAPI/2.0\nDate: Thu, 02 Jul 2026 05:50:50 GMT\nConnection: close"
+    }
+  ],
+  "service_level_checks": [
+    {
+      "tool": "smb_protocol_security",
+      "host": "192.168.86.130",
+      "port": 445,
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_135044.xml",
+      "rows": [
+        {
+          "host": "192.168.86.130",
+          "port": 445,
+          "protocol": "tcp",
+          "service": "microsoft-ds",
+          "product": "",
+          "version": "",
+          "extra": "",
+          "cpe": [],
+          "evidence_sources": [
+            "nmap"
+          ],
+          "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_135044.xml",
+          "scripts": []
+        }
+      ]
+    },
+    {
+      "tool": "winrm_wsman_probe",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "url": "http://192.168.86.130:5985/wsman",
+      "auth_headers": [],
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\winrm_wsman_probe_192.168.86.130_5985_20260702_135048.txt",
+      "output": "HTTP/1.1 405 \nAllow: POST\nServer: Microsoft-HTTPAPI/2.0\nDate: Thu, 02 Jul 2026 05:50:50 GMT\nConnection: close"
+    },
+    {
+      "tool": "rdp_negotiation",
+      "host": "192.168.86.130",
+      "port": 3389,
+      "scripts": [
+        "rdp-enum-encryption"
+      ],
+      "rows": [
+        {
+          "host": "192.168.86.130",
+          "port": 3389,
+          "protocol": "tcp",
+          "service": "ms-wbt-server",
+          "product": "",
+          "version": "",
+          "extra": "",
+          "cpe": [],
+          "evidence_sources": [
+            "nmap"
+          ],
+          "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_135051.xml",
+          "scripts": [
+            {
+              "id": "rdp-enum-encryption",
+              "output": "\n  Security layer\n    CredSSP (NLA): SUCCESS\n    CredSSP with Early User Auth: SUCCESS\n    RDSTLS: SUCCESS\n"
+            }
+          ]
+        }
+      ],
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_135051.xml",
+      "recon_boundary": "Evidence-only protocol validation; no credential use or exploitation."
+    },
+    {
+      "tool": "http_security_context",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "command": "curl -k -I -sS --max-time 5 http://192.168.86.130:5985",
+      "parsed": {
+        "tool": "http_security_context",
+        "evidence_state": "observed",
+        "fields": {
+          "headers": {
+            "Server": "Microsoft-HTTPAPI/2.0"
+          },
+          "capabilities": []
+        },
+        "information_gained": "HTTP header, runtime, authentication challenge, cookie, redirect, WebDAV and security-header evidence."
+      },
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\http_security_context_192.168.86.130_5985_20260702_135057.txt",
+      "recon_boundary": "Targeted information gathering only; no credentials, brute force, writes, mounting, or exploitation."
+    }
+  ],
+  "security_observations": [],
+  "passive_intelligence": {
+    "dns": [],
+    "reverse_dns": [
+      {
+        "host": "192.168.86.130",
+        "ptr": "client01",
+        "aliases": [],
+        "collection_method": "reverse_dns"
+      }
+    ],
+    "tls": [],
+    "certificate_transparency": [],
+    "findings": {
+      "email_security": [],
+      "authentication": [],
+      "vpn": [],
+      "reverse_proxy": [],
+      "cdn": [],
+      "cloud": [],
+      "technologies": [],
+      "network_device": [],
+      "virtualisation": [],
+      "message_broker": [],
+      "active_directory": {
+        "detected": false,
+        "evidence": [],
+        "collection_method": "dns_srv_records_only"
+      }
+    },
+    "relationships": [],
+    "dns_relationships": [
+      {
+        "source": "192.168.86.130",
+        "relation": "reverse_dns_ptr",
+        "target": "client01",
+        "evidence": "reverse_dns"
+      }
+    ],
+    "certificate_correlation": [],
+    "summary": [
+      "DNS relationship engine retained 1 forward/reverse/authority relationship(s)."
+    ],
+    "policy": {
+      "ct_lookup_enabled": false,
+      "dns_record_types": [
+        "A",
+        "AAAA",
+        "MX",
+        "TXT",
+        "NS",
+        "CNAME",
+        "SRV"
+      ]
+    }
+  },
+  "passive_local_inventory": {
+    "tshark": {},
+    "p0f": {},
+    "summary": []
+  },
+  "modern_active_validation": {
+    "ldap_rootdse": [],
+    "kerberos_info": [],
+    "tls_cipher_validation": [],
+    "rdp_negotiation": [
+      {
+        "tool": "rdp_negotiation",
+        "host": "192.168.86.130",
+        "port": 3389,
+        "scripts": [
+          "rdp-enum-encryption"
+        ],
+        "rows": [
+          {
+            "host": "192.168.86.130",
+            "port": 3389,
+            "protocol": "tcp",
+            "service": "ms-wbt-server",
+            "product": "",
+            "version": "",
+            "extra": "",
+            "cpe": [],
+            "evidence_sources": [
+              "nmap"
+            ],
+            "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_135051.xml",
+            "scripts": [
+              {
+                "id": "rdp-enum-encryption",
+                "output": "\n  Security layer\n    CredSSP (NLA): SUCCESS\n    CredSSP with Early User Auth: SUCCESS\n    RDSTLS: SUCCESS\n"
+              }
+            ]
+          }
+        ],
+        "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_135051.xml",
+        "recon_boundary": "Evidence-only protocol validation; no credential use or exploitation."
+      }
+    ],
+    "api_discovery": [],
+    "targeted_web_discovery": [],
+    "kubernetes_exposure": [],
+    "container_exposure": [],
+    "vpn_validation": [],
+    "nuclei_safe": [],
+    "telnet_readiness": [],
+    "snmp_readiness": [],
+    "mssql_info": [],
+    "vnc_info": [],
+    "tomcat_ajp_readiness": [],
+    "redis_info": [],
+    "elasticsearch_info": [],
+    "ldapsearch_rootdse": [],
+    "snmp_targeted_oids": [],
+    "dns_context": [],
+    "http_security_context": [
+      {
+        "tool": "http_security_context",
+        "host": "192.168.86.130",
+        "port": 5985,
+        "command": "curl -k -I -sS --max-time 5 http://192.168.86.130:5985",
+        "parsed": {
+          "tool": "http_security_context",
+          "evidence_state": "observed",
+          "fields": {
+            "headers": {
+              "Server": "Microsoft-HTTPAPI/2.0"
+            },
+            "capabilities": []
+          },
+          "information_gained": "HTTP header, runtime, authentication challenge, cookie, redirect, WebDAV and security-header evidence."
+        },
+        "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\http_security_context_192.168.86.130_5985_20260702_135057.txt",
+        "recon_boundary": "Targeted information gathering only; no credentials, brute force, writes, mounting, or exploitation."
+      }
+    ],
+    "rpcinfo_native": [],
+    "showmount_native": [],
+    "ssh_audit_native": [],
+    "federation_detection": [],
+    "tls_intelligence": [],
+    "noise_evaluation": {
+      "overall": "low",
+      "counts": {
+        "passive": 0,
+        "low": 2,
+        "medium": 0,
+        "high": 0,
+        "very_high": 0
+      },
+      "highest_noise_checks": [],
+      "excluded_checks": [
+        "credential_attack_tools",
+        "intrusive_vulnerability_scanners",
+        "broad_content_discovery",
+        "broad_udp_discovery",
+        "broad_template_sweeps",
+        "unauthenticated_share_user_enumeration"
+      ],
+      "high_yield_checks": [
+        {
+          "check": "http_security_context",
+          "noise": "low",
+          "information_value": "high",
+          "items": 1
+        }
+      ],
+      "lower_yield_checks": [],
+      "recommendations": [
+        "Current execution favours low-noise/high-yield enumeration; repeat scans should reuse cached evidence where possible."
+      ],
+      "summary": "Overall validation noise level: low. High-noise tooling is excluded; low-noise/high-yield metadata, TLS, DNS, identity and targeted protocol checks are preferred."
+    },
+    "information_gathering_summary": [
+      "http security context: 1 targeted information-gathering item(s) retained."
+    ],
+    "summary": [
+      "RDP/NLA negotiation evidence: 1 evidence item(s) retained.",
+      "Detection-budget governance was applied to modern active validation collectors.",
+      "http security context: 1 targeted information-gathering item(s) retained.",
+      "Overall validation noise level: low. High-noise tooling is excluded; low-noise/high-yield metadata, TLS, DNS, identity and targeted protocol checks are preferred."
+    ],
+    "policy": {
+      "nuclei_enabled_by_default": false,
+      "detection_budget_enabled": true
+    },
+    "budget": {
+      "native_http_budget_per_host": 40,
+      "nmap_script_budget_per_host": 18,
+      "enforced": true
+    },
+    "native_protocol_enrichment": []
+  }
+}

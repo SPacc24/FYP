@@ -1,0 +1,97 @@
+{
+  "nodes": [
+    {
+      "id": "192.168.86.130",
+      "label": "192.168.86.130",
+      "type": "host"
+    },
+    {
+      "id": "192.168.86.130:135/tcp",
+      "label": "msrpc:135",
+      "type": "service"
+    },
+    {
+      "id": "192.168.86.130:139/tcp",
+      "label": "netbios-ssn:139",
+      "type": "service"
+    },
+    {
+      "id": "192.168.86.130:445/tcp",
+      "label": "microsoft-ds:445",
+      "type": "service"
+    },
+    {
+      "id": "192.168.86.130:3389/tcp",
+      "label": "ms-wbt-server:3389",
+      "type": "service"
+    },
+    {
+      "id": "192.168.86.130:5985/tcp",
+      "label": "http:5985",
+      "type": "service"
+    },
+    {
+      "id": "192.168.86.130:137/udp",
+      "label": "netbios-ns:137",
+      "type": "service"
+    },
+    {
+      "id": "role:Likely Remote Administration Surface",
+      "label": "Likely Remote Administration Surface",
+      "type": "role"
+    },
+    {
+      "id": "192.168.86.130:RDP",
+      "label": "RDP",
+      "type": "relationship_source"
+    },
+    {
+      "id": "192.168.86.130:WinRM",
+      "label": "WinRM",
+      "type": "relationship_target"
+    }
+  ],
+  "edges": [
+    {
+      "source": "192.168.86.130",
+      "target": "192.168.86.130:135/tcp",
+      "relationship": "exposes"
+    },
+    {
+      "source": "192.168.86.130",
+      "target": "192.168.86.130:139/tcp",
+      "relationship": "exposes"
+    },
+    {
+      "source": "192.168.86.130",
+      "target": "192.168.86.130:445/tcp",
+      "relationship": "exposes"
+    },
+    {
+      "source": "192.168.86.130",
+      "target": "192.168.86.130:3389/tcp",
+      "relationship": "exposes"
+    },
+    {
+      "source": "192.168.86.130",
+      "target": "192.168.86.130:5985/tcp",
+      "relationship": "exposes"
+    },
+    {
+      "source": "192.168.86.130",
+      "target": "192.168.86.130:137/udp",
+      "relationship": "exposes"
+    },
+    {
+      "source": "192.168.86.130",
+      "target": "role:Likely Remote Administration Surface",
+      "relationship": "inferred_as"
+    },
+    {
+      "source": "192.168.86.130:RDP",
+      "target": "192.168.86.130:WinRM",
+      "relationship": "Windows management relationship"
+    }
+  ],
+  "summary": "10 node(s) and 8 relationship edge(s) retained."
+}

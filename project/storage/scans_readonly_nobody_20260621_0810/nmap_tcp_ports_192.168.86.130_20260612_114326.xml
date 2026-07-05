@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Fri Jun 12 11:43:26 2026 as: /usr/lib/nmap/nmap -p- -&#45;open -T4 -&#45;min-rate 3000 -oX storage/scans/nmap_tcp_ports_192.168.86.130_20260612_114326.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -p- -&#45;open -T4 -&#45;min-rate 3000 -oX storage/scans/nmap_tcp_ports_192.168.86.130_20260612_114326.xml 192.168.86.130" start="1781279006" startstr="Fri Jun 12 11:43:26 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="65535" services="1-65535"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+</hosthint>

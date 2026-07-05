@@ -341,6 +341,7 @@ def extract_cves_from_mapping(mapping_result: dict) -> dict:
 
 def get_cves_for_technique(technique_id: str, mapping_result: dict) -> list[str]:
     linked_cves = set()
+    has_per_finding_technique_context = False
 
     vulnerabilities = mapping_result.get("vulnerabilities", [])
 
@@ -352,15 +353,19 @@ def get_cves_for_technique(technique_id: str, mapping_result: dict) -> list[str]
             str(vuln.get("technique_id", "")),
             str(vuln.get("technique_ids", "")),
             str(vuln.get("attack_technique", "")),
+            str(vuln.get("attack_techniques", "")),
             str(vuln.get("mitre_technique", "")),
             str(vuln.get("mapped_techniques", "")),
             str(vuln.get("recommended_techniques", "")),
         ])
 
+        if technique_text.strip():
+            has_per_finding_technique_context = True
+
         if technique_id in technique_text:
             linked_cves.update(cves)
 
-    if not linked_cves:
+    if not linked_cves and not has_per_finding_technique_context:
         for vuln in vulnerabilities:
             linked_cves.update(normalise_cve_ids(json.dumps(vuln, default=str)))
 

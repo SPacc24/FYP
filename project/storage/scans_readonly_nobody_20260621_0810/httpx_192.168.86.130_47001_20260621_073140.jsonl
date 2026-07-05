@@ -1,0 +1,15 @@
+{"timestamp":"2026-06-21T07:31:42.552653535-04:00","port":"47001","url":"http://192.168.86.130:47001","input":"http://192.168.86.130:47001","title":"Not Found","scheme":"http","webserver":"Microsoft-HTTPAPI/2.0","content_type":"text/html","method":"GET","host":"192.168.86.130","host_ip":"192.168.86.130","path":"/","time":"3.535295ms","a":["192.168.86.130"],"tech":["Microsoft HTTPAPI:2.0"],"words":19,"lines":6,"status_code":404,"content_length":315,"failed":false,"knowledgebase":{"pHash":0}}
+
+[stderr]
+
+    __    __  __       _  __
+   / /_  / /_/ /_____ | |/ /
+  / __ \/ __/ __/ __ \|   /
+ / / / / /_/ /_/ /_/ /   |
+/_/ /_/\__/\__/ .___/_/|_|
+             /_/
+
+		projectdiscovery.io
+
+[[34mINF[0m] Current httpx version v1.9.0 ([92mlatest[0m)
+[[93mWRN[0m] UI Dashboard is disabled, Use -dashboard option to enable

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Sun Jun 21 07:18:28 2026 as: /usr/lib/nmap/nmap -sU -&#45;top-ports 200 -sV -&#45;version-intensity 0 -T4 -oX storage/scans/nmap_udp_top_200_192.168.86.130_20260621_071828.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -sU -&#45;top-ports 200 -sV -&#45;version-intensity 0 -T4 -oX storage/scans/nmap_udp_top_200_192.168.86.130_20260621_071828.xml 192.168.86.130" start="1782040708" startstr="Sun Jun 21 07:18:28 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="udp" protocol="udp" numservices="200" services="7,9,13,17,19,21-23,37,42,49,53,67-69,80,88,111,120,123,135-139,158,161-162,177,192,199,389,407,427,443,445,464,497,500,514-515,517-518,520,593,623,626,631,664,683,800,989-990,996-999,1001,1008,1019,1021-1034,1036,1038-1039,1041,1043-1045,1049,1068,1419,1433-1434,1645-1646,1701,1718-1719,1782,1812-1813,1885,1900,2000,2002,2048-2049,2148,2222-2223,2967,3052,3130,3283,3389,3456,3659,3703,4000,4045,4444,4500,4672,5000-5001,5060,5093,5351,5353,5355,5500,5632,6000-6001,6346,7938,9200,9876,10000,10080,11487,16680,17185,19283,19682,20031,22986,27892,30718,31337,32768-32773,32815,33281,33354,34555,34861-34862,37444,39213,41524,44968,49152-49154,49156,49158-49159,49162-49163,49165-49166,49168,49171-49172,49179-49182,49184-49196,49199-49202,49205,49208-49211,58002,65024"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1782040711" endtime="1782040949"><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+<ports><extraports state="closed" count="179">
+<extrareasons reason="port-unreach" count="179" proto="udp" ports="7,9,13,17,19,21-23,37,42,49,53,67-69,80,88,111,120,135-136,139,161-162,177,192,199,389,407,427,443,445,464,497,514-515,517-518,520,593,623,626,631,664,683,800,989-990,996-999,1001,1008,1019,1022,1024-1026,1028-1034,1036,1039,1041,1043-1045,1049,1068,1419,1433-1434,1645,1701,1718-1719,1782,1812-1813,1885,2000,2002,2048-2049,2148,2222-2223,2967,3052,3130,3283,3456,3659,4000,4045,4444,4672,5000-5001,5060,5093,5351,5500,6000-6001,6346,9200,9876,10000,10080,11487,16680,17185,19283,19682,20031,22986,27892,30718,31337,32769-32773,32815,33281,33354,34555,34861-34862,37444,39213,41524,44968,49152-49154,49156,49158-49159,49162-49163,49165-49166,49171-49172,49179-49182,49184-49196,49199-49202,49208-49211,58002,65024"/>
+</extraports>
+<port protocol="udp" portid="123"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="ntp" method="table" conf="3"/></port>
+<port protocol="udp" portid="137"><state state="open" reason="udp-response" reason_ttl="128"/><service name="netbios-ns" product="Microsoft Windows netbios-ns" extrainfo="workgroup: FYP_67" hostname="CLIENT01" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="udp" portid="138"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="tcpwrapped" method="probed" conf="8"/></port>
+<port protocol="udp" portid="158"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="tcpwrapped" method="probed" conf="8"/></port>
+<port protocol="udp" portid="500"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="isakmp" method="table" conf="3"/></port>
+<port protocol="udp" portid="1021"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="tcpwrapped" method="probed" conf="8"/></port>
+<port protocol="udp" portid="1023"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="tcpwrapped" method="probed" conf="8"/></port>
+<port protocol="udp" portid="1027"><state state="open|filtered" reason="no-response" reason_ttl="0"/></port>
+<port protocol="udp" portid="1038"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="mtqp" method="table" conf="3"/></port>
+<port protocol="udp" portid="1646"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="tcpwrapped" method="probed" conf="8"/></port>
+<port protocol="udp" portid="1900"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="upnp" method="table" conf="3"/></port>
+<port protocol="udp" portid="3389"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="tcpwrapped" method="probed" conf="8"/></port>
+<port protocol="udp" portid="3703"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="tcpwrapped" method="probed" conf="8"/></port>
+<port protocol="udp" portid="4500"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="tcpwrapped" method="probed" conf="8"/></port>
+<port protocol="udp" portid="5353"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="zeroconf" method="table" conf="3"/></port>
+<port protocol="udp" portid="5355"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="tcpwrapped" method="probed" conf="8"/></port>
+<port protocol="udp" portid="5632"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="pcanywherestat" method="table" conf="3"/></port>
+<port protocol="udp" portid="7938"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="tcpwrapped" method="probed" conf="8"/></port>
+<port protocol="udp" portid="32768"><state state="open|filtered" reason="no-response" reason_ttl="0"/><service name="omad" method="table" conf="3"/></port>
+<port protocol="udp" portid="49168"><state state="open|filtered" reason="no-response" reason_ttl="0"/></port>
+<port protocol="udp" portid="49205"><state state="open|filtered" reason="no-response" reason_ttl="0"/></port>
+</ports>
+<times srtt="3533" rttvar="3104" to="100000"/>
+</host>
+<runstats><finished time="1782040949" timestr="Sun Jun 21 07:22:29 2026" summary="Nmap done at Sun Jun 21 07:22:29 2026; 1 IP address (1 host up) scanned in 240.77 seconds" elapsed="240.77" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

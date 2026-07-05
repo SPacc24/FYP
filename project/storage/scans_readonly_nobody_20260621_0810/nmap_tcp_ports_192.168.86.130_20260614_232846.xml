@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Sun Jun 14 23:28:46 2026 as: /usr/lib/nmap/nmap -p- -&#45;open -T4 -&#45;min-rate 3000 -oX storage/scans/nmap_tcp_ports_192.168.86.130_20260614_232846.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -p- -&#45;open -T4 -&#45;min-rate 3000 -oX storage/scans/nmap_tcp_ports_192.168.86.130_20260614_232846.xml 192.168.86.130" start="1781494126" startstr="Sun Jun 14 23:28:46 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="65535" services="1-65535"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1781494129" endtime="1781494148"><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+<ports><extraports state="closed" count="65484">
+<extrareasons reason="reset" count="65484" proto="tcp" ports="1-134,136-138,140-347,349-444,446-559,561-3388,3390-4765,4767-5984,5986-6968,6970-7679,7681-9692,9694-14951,14953-16143,16145-16944,16946-23544,23546-23759,23761-24049,24051-26078,26080-27416,27418-31738,31740-34574,34576-35494,35496-39696,39698-41703,41705-43962,43964-45202,45204-46190,46192-47000,47002-48423,48425-49407,49416-50507,50509-50801,50803-51330,51332-51592,51594-52571,52573-52930,52932-53173,53175-53881,53883-57099,57101-60373,60375-60457,60459-61185,61187-62534,62536-62961,62963-65535"/>
+</extraports>
+<extraports state="filtered" count="36">
+<extrareasons reason="no-response" count="36" proto="tcp" ports="348,560,4766,6969,9693,14952,16144,16945,23545,23760,24050,26079,27417,31739,34575,35495,39697,41704,43963,45203,46191,48424,50508,50802,51331,51593,52572,52931,53174,53882,57100,60374,60458,61186,62535,62962"/>
+</extraports>
+<port protocol="tcp" portid="135"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" method="table" conf="3"/></port>
+<port protocol="tcp" portid="139"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="netbios-ssn" method="table" conf="3"/></port>
+<port protocol="tcp" portid="445"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="microsoft-ds" method="table" conf="3"/></port>
+<port protocol="tcp" portid="3389"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="ms-wbt-server" method="table" conf="3"/></port>
+<port protocol="tcp" portid="5985"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="wsman" method="table" conf="3"/></port>
+<port protocol="tcp" portid="7680"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="pando-pub" method="table" conf="3"/></port>
+<port protocol="tcp" portid="47001"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="winrm" method="table" conf="3"/></port>
+<port protocol="tcp" portid="49408"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49409"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49410"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49411"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49412"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49413"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49414"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49415"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+</ports>
+<times srtt="951" rttvar="555" to="100000"/>
+</host>
+<runstats><finished time="1781494148" timestr="Sun Jun 14 23:29:08 2026" summary="Nmap done at Sun Jun 14 23:29:08 2026; 1 IP address (1 host up) scanned in 22.64 seconds" elapsed="22.64" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

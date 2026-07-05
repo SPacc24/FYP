@@ -1,0 +1,125 @@
+{
+  "hosts": [
+    "192.168.86.130"
+  ],
+  "services": [],
+  "web": [],
+  "smb": [],
+  "snmp": [],
+  "ssh": [],
+  "ldap": [],
+  "tls": [],
+  "rdp": [],
+  "hydra": [],
+  "service_level_checks": [
+    {
+      "check": "nmap_ftp_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_telnet_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_smtp_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_dns_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_rpc_nfs_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_smb_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_rservices_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_rmi_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_bindshell_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_mysql_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_postgresql_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_vnc_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_x11_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_irc_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_ajp_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_tomcat_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_drb_checks",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "Relevant service was not observed.",
+      "evidence_file": ""
+    },
+    {
+      "check": "nmap_unknown_high_ports",
+      "status": "Not Applicable - Service Not Observed",
+      "note": "No unknown high ports observed.",
+      "evidence_file": ""
+    }
+  ],
+  "security_observations": []
+}

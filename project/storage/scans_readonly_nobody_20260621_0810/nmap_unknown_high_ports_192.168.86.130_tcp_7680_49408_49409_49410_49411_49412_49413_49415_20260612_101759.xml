@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Fri Jun 12 10:18:00 2026 as: /usr/lib/nmap/nmap -sV -&#45;script banner -&#45;version-all -p 7680,49408,49409,49410,49411,49412,49413,49415 -oX storage/scans/nmap_unknown_high_ports_192.168.86.130_tcp_7680_49408_49409_49410_49411_49412_49413_49415_20260612_101759.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -sV -&#45;script banner -&#45;version-all -p 7680,49408,49409,49410,49411,49412,49413,49415 -oX storage/scans/nmap_unknown_high_ports_192.168.86.130_tcp_7680_49408_49409_49410_49411_49412_49413_49415_20260612_101759.xml 192.168.86.130" start="1781273880" startstr="Fri Jun 12 10:18:00 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="8" services="7680,49408-49413,49415"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1781273883" endtime="1781274006"><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+<ports><port protocol="tcp" portid="7680"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="pando-pub" method="table" conf="3"/></port>
+<port protocol="tcp" portid="49408"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" product="Microsoft Windows RPC" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="49409"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" product="Microsoft Windows RPC" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="49410"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" product="Microsoft Windows RPC" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="49411"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" product="Microsoft Windows RPC" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="49412"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" product="Microsoft Windows RPC" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="49413"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" product="Microsoft Windows RPC" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="49415"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" product="Microsoft Windows RPC" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+</ports>
+<times srtt="1613" rttvar="779" to="100000"/>
+</host>
+<runstats><finished time="1781274006" timestr="Fri Jun 12 10:20:06 2026" summary="Nmap done at Fri Jun 12 10:20:06 2026; 1 IP address (1 host up) scanned in 126.49 seconds" elapsed="126.49" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

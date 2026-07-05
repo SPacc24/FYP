@@ -37,11 +37,8 @@ python project/scripts/audit_cve_source.py
 ```bash
 cd /home/kali/Desktop/AutoPenTest_Recon_Autonomous_Update_v32_8_from_v31
 chmod +x install.sh
-sudo ./install.sh
-cd project
-source .venv/bin/activate
-python scripts/rebuild_mitre_cve_index.py
-sudo .venv/bin/python app.py
+./install.sh
+bash start.sh
 ```
 
 ## Git hygiene

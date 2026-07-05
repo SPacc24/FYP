@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Mon Jun 15 10:50:39 2026 as: /usr/lib/nmap/nmap -sV -&#45;script http-title,http-headers,http-server-header,http-enum -p 47001 -oX storage/scans/nmap_http_scripts_192.168.86.130_47001_20260615_105039.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -sV -&#45;script http-title,http-headers,http-server-header,http-enum -p 47001 -oX storage/scans/nmap_http_scripts_192.168.86.130_47001_20260615_105039.xml 192.168.86.130" start="1781535039" startstr="Mon Jun 15 10:50:39 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="1" services="47001"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1781535041" endtime="1781535072"><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+<ports><port protocol="tcp" portid="47001"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="http" product="Microsoft HTTPAPI httpd" version="2.0" extrainfo="SSDP/UPnP" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service><script id="http-headers" output="&#xa;  Content-Type: text/html; charset=us-ascii&#xa;  Server: Microsoft-HTTPAPI/2.0&#xa;  Date: Mon, 15 Jun 2026 14:51:01 GMT&#xa;  Connection: close&#xa;  Content-Length: 315&#xa;  &#xa;  (Request type: GET)&#xa;"/><script id="http-server-header" output="Microsoft-HTTPAPI/2.0"><elem>Microsoft-HTTPAPI/2.0</elem>
+</script><script id="http-title" output="Not Found"><elem key="title">Not Found</elem>
+</script></port>
+</ports>
+<times srtt="597" rttvar="3763" to="100000"/>
+</host>
+<runstats><finished time="1781535072" timestr="Mon Jun 15 10:51:12 2026" summary="Nmap done at Mon Jun 15 10:51:12 2026; 1 IP address (1 host up) scanned in 33.45 seconds" elapsed="33.45" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

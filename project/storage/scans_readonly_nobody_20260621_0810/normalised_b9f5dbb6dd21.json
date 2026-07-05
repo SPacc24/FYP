@@ -1,0 +1,307 @@
+{
+  "hosts": [
+    "192.168.86.130"
+  ],
+  "services": [
+    {
+      "host": "192.168.86.130",
+      "port": 135,
+      "protocol": "tcp",
+      "service": "msrpc",
+      "product": "Microsoft Windows RPC",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 139,
+      "protocol": "tcp",
+      "service": "netbios-ssn",
+      "product": "Microsoft Windows netbios-ssn",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 445,
+      "protocol": "tcp",
+      "service": "microsoft-ds",
+      "product": "Microsoft Windows 7 - 10 microsoft-ds",
+      "version": "",
+      "extra": "workgroup: FYP_67",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 3389,
+      "protocol": "tcp",
+      "service": "ms-wbt-server",
+      "product": "Microsoft Terminal Services",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 5357,
+      "protocol": "tcp",
+      "service": "http",
+      "product": "Microsoft HTTPAPI httpd",
+      "version": "2.0",
+      "extra": "SSDP/UPnP",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": []
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 5985,
+      "protocol": "tcp",
+      "service": "http",
+      "product": "Microsoft HTTPAPI httpd",
+      "version": "2.0",
+      "extra": "SSDP/UPnP",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": []
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49408,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49409,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49411,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49412,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49413,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49414,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 49415,
+      "protocol": "tcp",
+      "service": "unknown",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_112912.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 137,
+      "protocol": "udp",
+      "service": "netbios-ns",
+      "product": "Microsoft Windows netbios-ns",
+      "version": "",
+      "extra": "workgroup: FYP_67",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "storage/scans/nmap_udp_top_50_192.168.86.130_20260612_112954.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    }
+  ],
+  "web": [],
+  "smb": [
+    {
+      "tool": "enum4linux-ng",
+      "host": "192.168.86.130",
+      "output_file": "storage/scans/enum4linux_ng_192.168.86.130_20260612_113107.json"
+    },
+    {
+      "tool": "smbclient",
+      "host": "192.168.86.130",
+      "output_file": "storage/scans/smbclient_192.168.86.130_20260612_113115.txt",
+      "lines": [
+        "session setup failed: NT_STATUS_ACCESS_DENIED"
+      ]
+    }
+  ],
+  "snmp": [],
+  "ssh": [],
+  "ldap": [],
+  "tls": [],
+  "rdp": [],
+  "hydra": [],
+  "service_level_checks": [],
+  "security_observations": []
+}

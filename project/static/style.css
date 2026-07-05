@@ -514,6 +514,39 @@ section {
   margin: 14px 0;
 }
 
+.split-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.split-row > *:first-child {
+  min-width: 0;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .split-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .button-row {
+    justify-content: stretch;
+  }
+
+  .button-row .button {
+    width: 100%;
+  }
+}
+
 .details-block {
   margin-top: 14px;
   background: rgba(5, 10, 18, 0.35);
@@ -768,6 +801,24 @@ input[type="radio"] {
   gap: 12px;
 }
 
+.operator-panel {
+  border: 1px solid rgba(255, 190, 11, 0.35);
+  background: rgba(255, 190, 11, 0.06);
+}
+
+.operator-unlock-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 700px) {
+  .operator-unlock-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .caldera-grid {
   display: grid;
   grid-template-columns: minmax(260px, 0.85fr) minmax(320px, 1.15fr);
@@ -879,6 +930,7 @@ tr:hover td {
 
 .state.open,
 .state.confirmed,
+.state.low,
 .severity.low {
   color: var(--green);
   border-color: var(--green);
@@ -887,13 +939,15 @@ tr:hover td {
 .state.filtered,
 .state.potential,
 .state.not_tested,
+.state.medium,
 .severity.info {
   color: var(--yellow);
   border-color: var(--yellow);
 }
 
 .state.closed,
-.state.failed {
+.state.failed,
+.state.high {
   color: var(--red);
   border-color: var(--red);
 }

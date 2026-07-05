@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Tue Jun 16 04:09:25 2026 as: /usr/lib/nmap/nmap -sn -oX storage/scans/nmap_host_discovery_192.168.86.130_20260616_040924.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -sn -oX storage/scans/nmap_host_discovery_192.168.86.130_20260616_040924.xml 192.168.86.130" start="1781597365" startstr="Tue Jun 16 04:09:25 2026" version="7.99" xmloutputversion="1.05">
+<verbose level="0"/>
+<debugging level="0"/>
+<host><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+<times srtt="2014" rttvar="5000" to="100000"/>
+</host>
+<runstats><finished time="1781597368" timestr="Tue Jun 16 04:09:28 2026" summary="Nmap done at Tue Jun 16 04:09:28 2026; 1 IP address (1 host up) scanned in 2.85 seconds" elapsed="2.85" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

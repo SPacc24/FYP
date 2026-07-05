@@ -1,0 +1,3913 @@
+{
+  "scan_id": "d24bdd517691",
+  "target_input": "192.168.86.130",
+  "scan_options": {
+    "profile": "full",
+    "profile_label": "Full Recon",
+    "strategy": "two_mode_full_or_custom_enterprise_recon",
+    "enabled_tools": [
+      "api_discovery",
+      "certificate_transparency",
+      "container_exposure",
+      "dns_context",
+      "elasticsearch_info",
+      "environment_characterisation",
+      "ftp_anonymous_status",
+      "html_form_parser",
+      "http_security_context",
+      "httpx",
+      "kerberos_info",
+      "kubernetes_exposure",
+      "ldap_rootdse",
+      "ldapsearch_rootdse",
+      "mssql_info",
+      "nuclei_safe",
+      "passive_dns",
+      "passive_fingerprinting",
+      "passive_os_fingerprinting",
+      "passive_packet_inventory",
+      "passive_tls",
+      "postgres_readiness_native",
+      "rdp_negotiation",
+      "redis_info",
+      "rpcinfo_native",
+      "service_fingerprint",
+      "showmount_native",
+      "smb_protocol_security",
+      "snmp_readiness",
+      "snmp_targeted_oids",
+      "ssh_audit_native",
+      "ssh_auth_methods",
+      "targeted_web_discovery",
+      "tcp_discovery",
+      "telnet_readiness",
+      "tls_cipher_validation",
+      "tomcat_ajp_readiness",
+      "udp_discovery",
+      "vnc_info",
+      "vpn_validation",
+      "winrm_wsman_probe"
+    ],
+    "enabled_tool_labels": [
+      "Passive DNS intelligence",
+      "Passive TLS certificate intelligence",
+      "Passive enterprise fingerprinting",
+      "Certificate Transparency awareness",
+      "Passive local packet inventory",
+      "Passive OS fingerprinting",
+      "Environment characterisation",
+      "Full TCP discovery strategy",
+      "Targeted UDP discovery",
+      "All observed service identity",
+      "HTTP technology hints",
+      "HTTP security context",
+      "Web form/input readiness",
+      "Targeted web discovery",
+      "API documentation discovery",
+      "Nuclei safe fingerprint/misconfiguration templates",
+      "SSH authentication-method readiness",
+      "Native ssh-audit enrichment",
+      "FTP anonymous/system readiness",
+      "Telnet exposure readiness",
+      "DNS context gathering",
+      "SMB protocol/signing readiness",
+      "LDAP RootDSE readiness",
+      "Native LDAP RootDSE parsing",
+      "Kerberos realm readiness",
+      "WinRM listener readiness",
+      "RDP/NLA negotiation readiness",
+      "VNC protocol readiness",
+      "Native RPC program map",
+      "Native NFS export check",
+      "SNMP service readiness",
+      "SNMP targeted identity OIDs",
+      "Native PostgreSQL readiness probe",
+      "MSSQL information readiness",
+      "Redis exposure readiness",
+      "Elasticsearch exposure readiness",
+      "Tomcat/AJP readiness",
+      "TLS cipher/protocol validation",
+      "Kubernetes exposure check",
+      "Container/registry exposure check",
+      "VPN portal marker validation"
+    ],
+    "disabled_tool_labels": [],
+    "objective_driven": true
+  },
+  "hosts": [
+    "192.168.86.130"
+  ],
+  "scope_validation": {
+    "policy_file": "policies\\engagement_policy.json",
+    "target_input": "192.168.86.130",
+    "targets": [
+      "192.168.86.130"
+    ],
+    "validated_at_utc": "2026-07-02T05:59:09+00:00",
+    "engagement_id": "FYP-DEMO-RECON",
+    "engagement_name": "AutoPenTest private cyber-range recon demonstration",
+    "scope_mode": "private_lab_fallback",
+    "warnings": [
+      "192.168.86.130 allowed by private-lab fallback; replace with signed RoE allow-list before company review"
+    ],
+    "approvals": {
+      "require_reviewer_approval": false,
+      "require_manager_approval": false,
+      "reviewer_approval_record": "",
+      "manager_approval_record": ""
+    }
+  },
+  "enterprise_readiness": {
+    "scope_validation": {
+      "policy_file": "policies\\engagement_policy.json",
+      "target_input": "192.168.86.130",
+      "targets": [
+        "192.168.86.130"
+      ],
+      "validated_at_utc": "2026-07-02T05:59:09+00:00",
+      "engagement_id": "FYP-DEMO-RECON",
+      "engagement_name": "AutoPenTest private cyber-range recon demonstration",
+      "scope_mode": "private_lab_fallback",
+      "warnings": [
+        "192.168.86.130 allowed by private-lab fallback; replace with signed RoE allow-list before company review"
+      ],
+      "approvals": {
+        "require_reviewer_approval": false,
+        "require_manager_approval": false,
+        "reviewer_approval_record": "",
+        "manager_approval_record": ""
+      }
+    },
+    "decision_register_count": 3,
+    "evidence_manifest_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\d24bdd517691_evidence_manifest.json",
+    "evidence_manifest_sha256": "69b4805cf479efa6a8cdd9ec0c0c9457cf02c285f1eacd641f7df978dca6b8ea",
+    "company_review_controls": [
+      {
+        "id": "scope_control",
+        "name": "Rules-of-engagement scope enforcement",
+        "state": "implemented_in_recon_scope"
+      },
+      {
+        "id": "environment_context",
+        "name": "Environment context interpretation",
+        "state": "implemented_in_recon_scope"
+      },
+      {
+        "id": "decision_register",
+        "name": "Evidence-driven decision register",
+        "state": "implemented_in_recon_scope"
+      },
+      {
+        "id": "chain_of_custody",
+        "name": "SHA256 evidence chain of custody",
+        "state": "implemented_in_recon_scope"
+      },
+      {
+        "id": "approval_gates",
+        "name": "Human approval gates before high-visibility validation",
+        "state": "policy_documented_downstream_required"
+      },
+      {
+        "id": "rbac",
+        "name": "Role-based access control",
+        "state": "productisation_required"
+      },
+      {
+        "id": "multi_tenant",
+        "name": "Client/engagement isolation",
+        "state": "productisation_required"
+      },
+      {
+        "id": "secrets_management",
+        "name": "Vault-backed secrets management",
+        "state": "productisation_required"
+      },
+      {
+        "id": "ad_cloud_awareness",
+        "name": "AD, Entra ID and cloud passive discovery",
+        "state": "future_enterprise_range_required"
+      }
+    ],
+    "limitations": [
+      "Recon module does not attempt SOC bypass, authentication attacks, exploitation, persistence or evasion.",
+      "Default demo policy permits private lab targets; company review should require explicit signed allow-lists.",
+      "RBAC, multi-tenancy and enterprise secret vault integration are productisation controls, not FYP recon-only execution controls."
+    ],
+    "standards_alignment": [
+      {
+        "standard": "NIST SP 800-115",
+        "alignment": "planning, rules of engagement, execution evidence, post-test reporting"
+      },
+      {
+        "standard": "OWASP WSTG",
+        "alignment": "web information gathering and architecture mapping without attack payloads"
+      },
+      {
+        "standard": "MITRE ATT&CK",
+        "alignment": "shared language for environment context and evidence interpretation"
+      },
+      {
+        "standard": "CREST-style penetration testing governance",
+        "alignment": "scope, communication, approvals and reporting expectations"
+      }
+    ]
+  },
+  "passive_intelligence": {
+    "dns": [],
+    "reverse_dns": [
+      {
+        "host": "192.168.86.130",
+        "ptr": "client01",
+        "aliases": [],
+        "collection_method": "reverse_dns"
+      }
+    ],
+    "tls": [],
+    "certificate_transparency": [],
+    "findings": {
+      "email_security": [],
+      "authentication": [],
+      "vpn": [],
+      "reverse_proxy": [],
+      "cdn": [],
+      "cloud": [],
+      "technologies": [],
+      "network_device": [],
+      "virtualisation": [],
+      "message_broker": [],
+      "active_directory": {
+        "detected": false,
+        "evidence": [],
+        "collection_method": "dns_srv_records_only"
+      }
+    },
+    "relationships": [],
+    "dns_relationships": [
+      {
+        "source": "192.168.86.130",
+        "relation": "reverse_dns_ptr",
+        "target": "client01",
+        "evidence": "reverse_dns"
+      }
+    ],
+    "certificate_correlation": [],
+    "summary": [
+      "DNS relationship engine retained 1 forward/reverse/authority relationship(s)."
+    ],
+    "policy": {
+      "ct_lookup_enabled": false,
+      "dns_record_types": [
+        "A",
+        "AAAA",
+        "MX",
+        "TXT",
+        "NS",
+        "CNAME",
+        "SRV"
+      ]
+    }
+  },
+  "passive_local_inventory": {
+    "tshark": {},
+    "p0f": {},
+    "summary": []
+  },
+  "modern_active_validation": {
+    "ldap_rootdse": [],
+    "kerberos_info": [],
+    "tls_cipher_validation": [],
+    "rdp_negotiation": [
+      {
+        "tool": "rdp_negotiation",
+        "host": "192.168.86.130",
+        "port": 3389,
+        "scripts": [
+          "rdp-enum-encryption"
+        ],
+        "rows": [
+          {
+            "host": "192.168.86.130",
+            "port": 3389,
+            "protocol": "tcp",
+            "service": "ms-wbt-server",
+            "product": "",
+            "version": "",
+            "extra": "",
+            "cpe": [],
+            "evidence_sources": [
+              "nmap"
+            ],
+            "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml",
+            "scripts": [
+              {
+                "id": "rdp-enum-encryption",
+                "output": "\n  Security layer\n    CredSSP (NLA): SUCCESS\n    CredSSP with Early User Auth: SUCCESS\n    RDSTLS: SUCCESS\n"
+              }
+            ]
+          }
+        ],
+        "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml",
+        "recon_boundary": "Evidence-only protocol validation; no credential use or exploitation."
+      }
+    ],
+    "api_discovery": [],
+    "targeted_web_discovery": [],
+    "kubernetes_exposure": [],
+    "container_exposure": [],
+    "vpn_validation": [],
+    "nuclei_safe": [],
+    "telnet_readiness": [],
+    "snmp_readiness": [],
+    "mssql_info": [],
+    "vnc_info": [],
+    "tomcat_ajp_readiness": [],
+    "redis_info": [],
+    "elasticsearch_info": [],
+    "ldapsearch_rootdse": [],
+    "snmp_targeted_oids": [],
+    "dns_context": [],
+    "http_security_context": [
+      {
+        "tool": "http_security_context",
+        "host": "192.168.86.130",
+        "port": 5985,
+        "command": "curl -k -I -sS --max-time 5 http://192.168.86.130:5985",
+        "parsed": {
+          "tool": "http_security_context",
+          "evidence_state": "observed",
+          "fields": {
+            "headers": {
+              "Server": "Microsoft-HTTPAPI/2.0"
+            },
+            "capabilities": []
+          },
+          "information_gained": "HTTP header, runtime, authentication challenge, cookie, redirect, WebDAV and security-header evidence."
+        },
+        "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\http_security_context_192.168.86.130_5985_20260702_140315.txt",
+        "recon_boundary": "Targeted information gathering only; no credentials, brute force, writes, mounting, or exploitation."
+      }
+    ],
+    "rpcinfo_native": [],
+    "showmount_native": [],
+    "ssh_audit_native": [],
+    "federation_detection": [],
+    "tls_intelligence": [],
+    "noise_evaluation": {
+      "overall": "low",
+      "counts": {
+        "passive": 0,
+        "low": 2,
+        "medium": 0,
+        "high": 0,
+        "very_high": 0
+      },
+      "highest_noise_checks": [],
+      "excluded_checks": [
+        "credential_attack_tools",
+        "intrusive_vulnerability_scanners",
+        "broad_content_discovery",
+        "broad_udp_discovery",
+        "broad_template_sweeps",
+        "unauthenticated_share_user_enumeration"
+      ],
+      "high_yield_checks": [
+        {
+          "check": "http_security_context",
+          "noise": "low",
+          "information_value": "high",
+          "items": 1
+        }
+      ],
+      "lower_yield_checks": [],
+      "recommendations": [
+        "Current execution favours low-noise/high-yield enumeration; repeat scans should reuse cached evidence where possible."
+      ],
+      "summary": "Overall validation noise level: low. High-noise tooling is excluded; low-noise/high-yield metadata, TLS, DNS, identity and targeted protocol checks are preferred."
+    },
+    "information_gathering_summary": [
+      "http security context: 1 targeted information-gathering item(s) retained."
+    ],
+    "summary": [
+      "RDP/NLA negotiation evidence: 1 evidence item(s) retained.",
+      "Detection-budget governance was applied to modern active validation collectors.",
+      "http security context: 1 targeted information-gathering item(s) retained.",
+      "Overall validation noise level: low. High-noise tooling is excluded; low-noise/high-yield metadata, TLS, DNS, identity and targeted protocol checks are preferred."
+    ],
+    "policy": {
+      "nuclei_enabled_by_default": false,
+      "detection_budget_enabled": true
+    },
+    "budget": {
+      "native_http_budget_per_host": 40,
+      "nmap_script_budget_per_host": 18,
+      "enforced": true
+    },
+    "native_protocol_enrichment": []
+  },
+  "enumeration_intelligence": {
+    "functional_service_groups": [
+      {
+        "group": "Remote Administration",
+        "services": [
+          {
+            "host": "192.168.86.130",
+            "port": 3389,
+            "protocol": "tcp",
+            "service": "ms-wbt-server",
+            "product": "Microsoft Terminal Services",
+            "version": "",
+            "state": "open"
+          },
+          {
+            "host": "192.168.86.130",
+            "port": 5985,
+            "protocol": "tcp",
+            "service": "http",
+            "product": "Microsoft HTTPAPI httpd",
+            "version": "2.0",
+            "state": "open"
+          }
+        ],
+        "service_count": 2
+      },
+      {
+        "group": "Infrastructure Services",
+        "services": [
+          {
+            "host": "192.168.86.130",
+            "port": 135,
+            "protocol": "tcp",
+            "service": "msrpc",
+            "product": "Microsoft Windows RPC",
+            "version": "",
+            "state": "open"
+          },
+          {
+            "host": "192.168.86.130",
+            "port": 139,
+            "protocol": "tcp",
+            "service": "netbios-ssn",
+            "product": "Microsoft Windows netbios-ssn",
+            "version": "",
+            "state": "open"
+          },
+          {
+            "host": "192.168.86.130",
+            "port": 445,
+            "protocol": "tcp",
+            "service": "microsoft-ds",
+            "product": "Microsoft Windows 7 - 10 microsoft-ds",
+            "version": "",
+            "state": "open"
+          },
+          {
+            "host": "192.168.86.130",
+            "port": 137,
+            "protocol": "udp",
+            "service": "netbios-ns",
+            "product": "",
+            "version": "",
+            "state": "open"
+          }
+        ],
+        "service_count": 4
+      }
+    ],
+    "identity_correlation": [
+      {
+        "host": "192.168.86.130",
+        "role": "Directory or identity-adjacent service",
+        "signals": {
+          "ldap": false,
+          "kerberos": false,
+          "smb": true
+        },
+        "fields": {},
+        "evidence_sources": [
+          "SMB protocol/service evidence"
+        ],
+        "what_it_means": "Identity-related services were observed together. This helps define authentication and directory boundaries without performing credentialed enumeration."
+      }
+    ],
+    "cross_service_relationships": [
+      {
+        "host": "192.168.86.130",
+        "relationship": "Windows management relationship",
+        "source": "RDP",
+        "target": "WinRM",
+        "what_it_means": "Remote desktop and remote management services were observed together.",
+        "evidence_sources": [
+          "RDP",
+          "WinRM"
+        ]
+      }
+    ],
+    "service_roles": [
+      {
+        "host": "192.168.86.130",
+        "role": "Likely Remote Administration Surface",
+        "signals": [
+          "Remote administration listener"
+        ],
+        "basis": "Role inferred from service combination only; no scoring or exploitation performed."
+      }
+    ],
+    "web_context": [
+      {
+        "host": "192.168.86.130",
+        "port": "5985",
+        "observed": [
+          "Http Security Context evidence retained."
+        ],
+        "learned": [],
+        "meaning": [
+          "Web context supports application surface understanding without sending attack payloads."
+        ],
+        "evidence_sources": [
+          "HTTP probe",
+          "http_security_context"
+        ]
+      }
+    ],
+    "network_device_context": [
+      {
+        "host": "192.168.86.130",
+        "device_context": "Likely Cisco infrastructure",
+        "evidence_sources": [
+          "Cisco/IOS indicator"
+        ],
+        "what_it_means": "Network device context is inferred only from existing banners/SNMP/headers; no additional probing is required."
+      }
+    ],
+    "dns_naming_intelligence": [],
+    "tls_trust_intelligence": [],
+    "inference_decision_plan": [
+      {
+        "host": "192.168.86.130",
+        "hypothesis_basis": [
+          "Identity or Windows networking surface observed",
+          "Remote administration surface observed"
+        ],
+        "minimal_next_validation": [
+          "Correlate LDAP RootDSE, Kerberos realm and SMB identity before wider enumeration",
+          "Collect protocol posture and banners only; no login attempts"
+        ],
+        "architecture": "inference_first_then_targeted_validation",
+        "what_it_means": "The platform should prioritise evidence relationships before broad follow-up scans."
+      }
+    ],
+    "enumeration_memory_guidance": {
+      "enabled_for_future_runs": true,
+      "recommended_ttl_hours": {
+        "http_security_context": 6,
+        "service_fingerprint": 6
+      },
+      "repeat_scan_guidance": "Reuse unchanged low-noise metadata evidence within TTL and re-run active validators only when service inventory changes.",
+      "what_it_means": "Enumeration memory reduces repeat noise without reducing first-run coverage."
+    },
+    "information_yield_model": {
+      "retained_collectors": [
+        {
+          "collector": "rdp_negotiation",
+          "yield_level": "conditional",
+          "items": 1,
+          "context": "remote",
+          "explanation": "Collector retained evidence for analyst context only."
+        },
+        {
+          "collector": "http_security_context",
+          "yield_level": "exceptional",
+          "items": 1,
+          "context": "web",
+          "explanation": "Collector matched observed web context and produced run-specific evidence."
+        },
+        {
+          "collector": "information_gathering_summary",
+          "yield_level": "conditional",
+          "items": 1,
+          "context": "general",
+          "explanation": "Collector retained evidence for analyst context only."
+        },
+        {
+          "collector": "summary",
+          "yield_level": "medium",
+          "items": 4,
+          "context": "general",
+          "explanation": "Collector produced evidence, but context linkage was limited."
+        }
+      ],
+      "preferred_collectors": [
+        "http_security_context"
+      ],
+      "conditional_collectors": [
+        "rdp_negotiation",
+        "information_gathering_summary"
+      ],
+      "unresolved_hypotheses_count": 0,
+      "summary": "1 high-yield collector(s), 2 conditional collector(s), and 0 unresolved hypothesis item(s) retained.",
+      "boundary": "Information yield explains evidence value only; it is not severity, risk, priority, or exploitation guidance."
+    },
+    "evidence_boundary_summary": [
+      {
+        "boundary": "Transport reachability",
+        "applies_to": "Nmap, TCP/UDP discovery, banner collection",
+        "interpretation": "Open or responsive ports show reachability at scan time only; they do not prove application-layer permission, exploitability, firewall rule intent, or persistent accessibility.",
+        "confidence_language": "Observed"
+      },
+      {
+        "boundary": "Time-window aggregation",
+        "applies_to": "Micro-batched TCP/UDP discovery and repeated validation checks",
+        "interpretation": "Lowering packet frequency reduces immediate burst behaviour but extended IDS/SIEM correlation windows may still flag one source probing multiple distinct ports over several minutes.",
+        "confidence_language": "Detection Context"
+      },
+      {
+        "boundary": "Connection-state anomalies",
+        "applies_to": "SYN scanning, banner checks, validators that do not complete normal application workflows",
+        "interpretation": "Traffic that does not follow normal completed application sessions can remain visible to stateful monitoring even when packet volume is low.",
+        "confidence_language": "Detection Context"
+      },
+      {
+        "boundary": "Administrative and non-standard service context",
+        "applies_to": "Management, print, alternate web/proxy, database, RPC/NFS and legacy remote administration services",
+        "interpretation": "Traffic to sensitive destination services may alert because of destination context rather than velocity.",
+        "confidence_language": "Detection Context"
+      },
+      {
+        "boundary": "Correlation and role inference",
+        "applies_to": "Identity, network device, certificate, DNS naming and service role conclusions",
+        "interpretation": "Role labels are likely/supported/unresolved descriptions based on collected evidence; they are not confirmations unless multiple independent evidence sources agree.",
+        "confidence_language": "Likely / Supported / Unresolved"
+      },
+      {
+        "boundary": "Negative evidence",
+        "applies_to": "Filtered, closed, no-response, open|filtered and missing validator output",
+        "interpretation": "Absence of evidence is retained as an information gap and is not treated as proof that the service or control does not exist.",
+        "confidence_language": "Not Observed / Context Required"
+      }
+    ],
+    "negative_evidence_register": [
+      {
+        "host": "192.168.86.130",
+        "check": "winrm_validation",
+        "negative_observation": "WinRM listener evidence not observed or not reachable.",
+        "interpretation": "No conclusion drawn from absence alone.",
+        "possible_causes": [
+          "service absent",
+          "filtered by policy",
+          "not selected in Custom Recon",
+          "tool unavailable",
+          "time-bound access condition"
+        ],
+        "evidence_state": "Not Observed"
+      }
+    ],
+    "hypothesis_ledger": [
+      {
+        "host": "192.168.86.130",
+        "hypothesis": "Likely Remote Administration Surface",
+        "status": "supported",
+        "supporting_evidence": [
+          "Remote administration listener"
+        ],
+        "contradicting_or_missing_evidence": [
+          "winrm_validation"
+        ],
+        "confidence_language": "Likely",
+        "what_it_means": "Hypotheses explain environment role inference and are not vulnerability confirmations."
+      },
+      {
+        "host": "192.168.86.130",
+        "hypothesis": "Directory or identity-adjacent service",
+        "status": "supported",
+        "supporting_evidence": [
+          "SMB protocol/service evidence"
+        ],
+        "contradicting_or_missing_evidence": [
+          "winrm_validation"
+        ],
+        "confidence_language": "Consistent with",
+        "what_it_means": "Identity conclusions require multiple signals; single banners are treated as insufficient for confirmation."
+      }
+    ],
+    "decision_timeline": [
+      {
+        "stage": "1. Scope and evidence boundary",
+        "decision": "Use observed evidence only.",
+        "basis": "Rules-of-engagement and fixed collection policy.",
+        "outcome": "No cyber-range configuration changes."
+      },
+      {
+        "stage": "2. Passive and metadata-first evidence",
+        "decision": "Prefer passive, DNS, TLS, HTTP metadata and low-noise protocol context before broad validation.",
+        "basis": "Low noise / high information yield.",
+        "outcome": "Initial hypotheses generated."
+      },
+      {
+        "stage": "3. Service inventory",
+        "decision": "Use micro-batched, scoped discovery only where inventory is still needed.",
+        "basis": "6 service record(s) retained.",
+        "outcome": "Open services converted into functional groups."
+      },
+      {
+        "stage": "4. Hypothesis-driven validation",
+        "decision": "Correlate LDAP RootDSE, Kerberos realm and SMB identity before wider enumeration; Collect protocol posture and banners only; no login attempts",
+        "basis": "Identity or Windows networking surface observed; Remote administration surface observed",
+        "outcome": "The platform should prioritise evidence relationships before broad follow-up scans."
+      },
+      {
+        "stage": "5. Noise/yield checkpoint",
+        "decision": "Retain high-yield checks and suppress broad low-yield expansion.",
+        "basis": "http_security_context",
+        "outcome": "Information yield favoured over tool volume."
+      },
+      {
+        "stage": "6. Evidence normalisation",
+        "decision": "Classify outcomes as Observed, Candidate, Validated, Not Observed, or Context Required.",
+        "basis": "Evidence diversity and explicit information gaps.",
+        "outcome": "No unsupported confirmation language."
+      }
+    ],
+    "confidence": [
+      {
+        "host": "192.168.86.130",
+        "evidence_state": "Validated",
+        "evidence_sources": [
+          "Service banner",
+          "Validator"
+        ],
+        "services": "http, microsoft-ds, ms-wbt-server, msrpc, netbios-ns, netbios-ssn",
+        "explanation": "Confidence reflects evidence diversity, not risk or severity."
+      }
+    ],
+    "knowledge_graph": {
+      "nodes": [
+        {
+          "id": "192.168.86.130",
+          "label": "192.168.86.130",
+          "type": "host"
+        },
+        {
+          "id": "192.168.86.130:135/tcp",
+          "label": "msrpc:135",
+          "type": "service"
+        },
+        {
+          "id": "192.168.86.130:139/tcp",
+          "label": "netbios-ssn:139",
+          "type": "service"
+        },
+        {
+          "id": "192.168.86.130:445/tcp",
+          "label": "microsoft-ds:445",
+          "type": "service"
+        },
+        {
+          "id": "192.168.86.130:3389/tcp",
+          "label": "ms-wbt-server:3389",
+          "type": "service"
+        },
+        {
+          "id": "192.168.86.130:5985/tcp",
+          "label": "http:5985",
+          "type": "service"
+        },
+        {
+          "id": "192.168.86.130:137/udp",
+          "label": "netbios-ns:137",
+          "type": "service"
+        },
+        {
+          "id": "role:Likely Remote Administration Surface",
+          "label": "Likely Remote Administration Surface",
+          "type": "role"
+        },
+        {
+          "id": "192.168.86.130:RDP",
+          "label": "RDP",
+          "type": "relationship_source"
+        },
+        {
+          "id": "192.168.86.130:WinRM",
+          "label": "WinRM",
+          "type": "relationship_target"
+        }
+      ],
+      "edges": [
+        {
+          "source": "192.168.86.130",
+          "target": "192.168.86.130:135/tcp",
+          "relationship": "exposes"
+        },
+        {
+          "source": "192.168.86.130",
+          "target": "192.168.86.130:139/tcp",
+          "relationship": "exposes"
+        },
+        {
+          "source": "192.168.86.130",
+          "target": "192.168.86.130:445/tcp",
+          "relationship": "exposes"
+        },
+        {
+          "source": "192.168.86.130",
+          "target": "192.168.86.130:3389/tcp",
+          "relationship": "exposes"
+        },
+        {
+          "source": "192.168.86.130",
+          "target": "192.168.86.130:5985/tcp",
+          "relationship": "exposes"
+        },
+        {
+          "source": "192.168.86.130",
+          "target": "192.168.86.130:137/udp",
+          "relationship": "exposes"
+        },
+        {
+          "source": "192.168.86.130",
+          "target": "role:Likely Remote Administration Surface",
+          "relationship": "inferred_as"
+        },
+        {
+          "source": "192.168.86.130:RDP",
+          "target": "192.168.86.130:WinRM",
+          "relationship": "Windows management relationship"
+        }
+      ],
+      "summary": "10 node(s) and 8 relationship edge(s) retained."
+    },
+    "detection_budget_summary": {
+      "status": "Governed",
+      "authentication_attempts": "None performed by recon module",
+      "service_validation": "Completed within configured recon boundary",
+      "operator_checkpoints": "Generated only when configured thresholds are exceeded",
+      "details": {
+        "native_http_budget_per_host": 40,
+        "nmap_script_budget_per_host": 18,
+        "enforced": true
+      }
+    },
+    "acceptance_matrix": [
+      {
+        "area": "Enumeration coverage",
+        "status": "meets_target",
+        "evidence": "6 service record(s) retained."
+      },
+      {
+        "area": "Information yield",
+        "status": "meets_target",
+        "evidence": "1 high-yield collector(s), 2 conditional collector(s), and 0 unresolved hypothesis item(s) retained."
+      },
+      {
+        "area": "Noise discipline",
+        "status": "meets_target",
+        "evidence": "Overall validation noise level: low. High-noise tooling is excluded; low-noise/high-yield metadata, TLS, DNS, identity and targeted protocol checks are preferred."
+      },
+      {
+        "area": "Evidence accuracy",
+        "status": "meets_target",
+        "evidence": "Evidence boundaries and confidence sources are recorded."
+      },
+      {
+        "area": "Hypothesis discipline",
+        "status": "meets_target",
+        "evidence": "Hypotheses and negative evidence are retained separately."
+      },
+      {
+        "area": "Defensive interpretation",
+        "status": "needs_review",
+        "evidence": "Detection mechanics are retained without operator-declared path assumptions."
+      },
+      {
+        "area": "Report readability",
+        "status": "needs_review",
+        "evidence": "Decision timeline and executive summary are front-loaded."
+      },
+      {
+        "area": "Scope discipline",
+        "status": "meets_target",
+        "evidence": "No brute force, exploitation, evasion, decoy, spoofing, or teammate-module execution added by recon."
+      }
+    ],
+    "executive_summary": [
+      {
+        "question": "What was discovered?",
+        "answer": "1 host(s) with 6 service record(s) were retained for recon analysis."
+      },
+      {
+        "question": "What was validated?",
+        "answer": "1 host-level evidence confidence row(s) generated from banners, validators, passive observations, or correlations."
+      },
+      {
+        "question": "What remains uncertain?",
+        "answer": "Uncertainty is retained as Information Gaps, Negative Evidence, Unresolved Hypotheses, or MITRE Candidate References when supporting context is incomplete."
+      },
+      {
+        "question": "What evidence boundary was applied?",
+        "answer": "Open ports are treated as transport reachability evidence, not absolute proof of application permission, firewall policy, or exploitable exposure."
+      },
+      {
+        "question": "How was information gathered?",
+        "answer": "Information gathering used passive, metadata, protocol capability, hypothesis tracking and targeted validation evidence. Per-command visibility modelling is intentionally excluded from the recon report."
+      }
+    ],
+    "summary": [
+      "Functional service groups: 2 retained.",
+      "Identity correlation item(s): 1.",
+      "Cross-service relationship(s): 1.",
+      "Service role inference item(s): 1.",
+      "Web context item(s): 1.",
+      "Network device context item(s): 1.",
+      "Inference decision plan item(s): 1.",
+      "Negative evidence register item(s): 1.",
+      "Hypothesis ledger item(s): 2.",
+      "Decision timeline item(s): 6.",
+      "Evidence boundary item(s): 6.",
+      "Acceptance matrix item(s): 8.",
+      "TLS trust intelligence item(s): 0.",
+      "DNS naming intelligence item(s): 0.",
+      "1 high-yield collector(s), 2 conditional collector(s), and 0 unresolved hypothesis item(s) retained."
+    ],
+    "knowledge_graph_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\d24bdd517691_knowledge_graph.json",
+    "enumeration_intelligence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\d24bdd517691_enumeration_intelligence.json"
+  },
+  "operational_maturity": {
+    "enumeration_cache": {
+      "scan_id": "d24bdd517691",
+      "target": "192.168.86.130",
+      "created_at": "2026-07-02T06:03:22.566970+00:00",
+      "policy": "Reuse stable metadata only when target, network-path context and service signature remain consistent.",
+      "reusable_collectors": [
+        {
+          "collector": "http_security_context",
+          "ttl_seconds": 21600,
+          "reuse_boundary": "metadata only; do not infer service absence from cached data"
+        },
+        {
+          "collector": "service_inventory",
+          "ttl_seconds": 21600,
+          "reuse_boundary": "metadata only; do not infer service absence from cached data"
+        }
+      ],
+      "service_signatures": [
+        {
+          "key": "192.168.86.130:135/tcp",
+          "signature": "msrpc | Microsoft Windows RPC",
+          "host": "192.168.86.130",
+          "port": 135,
+          "protocol": "tcp",
+          "service": "msrpc",
+          "product": "Microsoft Windows RPC",
+          "version": ""
+        },
+        {
+          "key": "192.168.86.130:139/tcp",
+          "signature": "netbios-ssn | Microsoft Windows netbios-ssn",
+          "host": "192.168.86.130",
+          "port": 139,
+          "protocol": "tcp",
+          "service": "netbios-ssn",
+          "product": "Microsoft Windows netbios-ssn",
+          "version": ""
+        },
+        {
+          "key": "192.168.86.130:445/tcp",
+          "signature": "microsoft-ds | Microsoft Windows 7 - 10 microsoft-ds",
+          "host": "192.168.86.130",
+          "port": 445,
+          "protocol": "tcp",
+          "service": "microsoft-ds",
+          "product": "Microsoft Windows 7 - 10 microsoft-ds",
+          "version": ""
+        },
+        {
+          "key": "192.168.86.130:3389/tcp",
+          "signature": "ms-wbt-server | Microsoft Terminal Services",
+          "host": "192.168.86.130",
+          "port": 3389,
+          "protocol": "tcp",
+          "service": "ms-wbt-server",
+          "product": "Microsoft Terminal Services",
+          "version": ""
+        },
+        {
+          "key": "192.168.86.130:5985/tcp",
+          "signature": "http | Microsoft HTTPAPI httpd | 2.0",
+          "host": "192.168.86.130",
+          "port": 5985,
+          "protocol": "tcp",
+          "service": "http",
+          "product": "Microsoft HTTPAPI httpd",
+          "version": "2.0"
+        },
+        {
+          "key": "192.168.86.130:137/udp",
+          "signature": "netbios-ns",
+          "host": "192.168.86.130",
+          "port": 137,
+          "protocol": "udp",
+          "service": "netbios-ns",
+          "product": "",
+          "version": ""
+        }
+      ],
+      "passive_summary_count": 1,
+      "summary": "6 service signature(s) and 2 reusable metadata collector type(s) recorded.",
+      "cache_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\cache\\d24bdd517691_enumeration_cache.json"
+    },
+    "differential_recon": {
+      "baseline_found": true,
+      "baseline_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\5f9dabe98cdb_handoff.json",
+      "baseline_scan_id": "5f9dabe98cdb",
+      "summary": "Compared against previous run 5f9dabe98cdb: 0 new, 0 removed, 0 changed service item(s).",
+      "new_services": [],
+      "removed_services": [],
+      "changed_services": [],
+      "interpretation_boundary": "Differences reflect observed recon evidence between runs only; scheduled rules, filtering and scan position can change visibility."
+    },
+    "service_confidence_breakdown": [
+      {
+        "host": "192.168.86.130",
+        "port": 135,
+        "protocol": "tcp",
+        "service": "msrpc",
+        "confidence": "Supported",
+        "evidence_sources": [
+          "Banner or version evidence",
+          "Cross-service role inference",
+          "Passive or DNS/TLS evidence",
+          "Service inventory",
+          "Validator evidence"
+        ],
+        "role_context": [
+          "Likely Remote Administration Surface"
+        ],
+        "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 139,
+        "protocol": "tcp",
+        "service": "netbios-ssn",
+        "confidence": "Supported",
+        "evidence_sources": [
+          "Banner or version evidence",
+          "Cross-service role inference",
+          "Passive or DNS/TLS evidence",
+          "Service inventory",
+          "Validator evidence"
+        ],
+        "role_context": [
+          "Likely Remote Administration Surface"
+        ],
+        "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 445,
+        "protocol": "tcp",
+        "service": "microsoft-ds",
+        "confidence": "Supported",
+        "evidence_sources": [
+          "Banner or version evidence",
+          "Cross-service role inference",
+          "Passive or DNS/TLS evidence",
+          "Service inventory",
+          "Validator evidence"
+        ],
+        "role_context": [
+          "Likely Remote Administration Surface"
+        ],
+        "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 3389,
+        "protocol": "tcp",
+        "service": "ms-wbt-server",
+        "confidence": "Supported",
+        "evidence_sources": [
+          "Banner or version evidence",
+          "Cross-service role inference",
+          "Passive or DNS/TLS evidence",
+          "Service inventory",
+          "Validator evidence"
+        ],
+        "role_context": [
+          "Likely Remote Administration Surface"
+        ],
+        "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 5985,
+        "protocol": "tcp",
+        "service": "http",
+        "confidence": "Supported",
+        "evidence_sources": [
+          "Banner or version evidence",
+          "Cross-service role inference",
+          "Passive or DNS/TLS evidence",
+          "Service inventory",
+          "Validator evidence"
+        ],
+        "role_context": [
+          "Likely Remote Administration Surface"
+        ],
+        "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 137,
+        "protocol": "udp",
+        "service": "netbios-ns",
+        "confidence": "Supported",
+        "evidence_sources": [
+          "Banner or version evidence",
+          "Cross-service role inference",
+          "Passive or DNS/TLS evidence",
+          "Service inventory",
+          "Validator evidence"
+        ],
+        "role_context": [
+          "Likely Remote Administration Surface"
+        ],
+        "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+      }
+    ],
+    "operational_metrics": {
+      "scan_id": "d24bdd517691",
+      "started_at": "2026-07-02T13:59:09",
+      "completed_at": "2026-07-02T06:03:22.610033+00:00",
+      "service_records": 6,
+      "evidence_files": 0,
+      "validators_with_evidence": 4,
+      "validator_names": [
+        "http_security_context",
+        "information_gathering_summary",
+        "rdp_negotiation",
+        "summary"
+      ],
+      "summary": "6 service record(s), 0 evidence file reference(s), and 4 validator group(s) retained.",
+      "boundary": "Operational metrics describe collection volume and duration context only; they do not guide exploitation or downstream action selection."
+    },
+    "summary": [
+      "6 service signature(s) and 2 reusable metadata collector type(s) recorded.",
+      "Compared against previous run 5f9dabe98cdb: 0 new, 0 removed, 0 changed service item(s).",
+      "6 service record(s), 0 evidence file reference(s), and 4 validator group(s) retained.",
+      "6 service confidence row(s) retained."
+    ],
+    "operational_maturity_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\d24bdd517691_operational_maturity.json"
+  },
+  "decision_register": [
+    {
+      "objective_id": "web_investigation",
+      "objective_label": "Web Surface Investigation",
+      "matched_ports": [],
+      "matched_services": [
+        "http"
+      ],
+      "decision": "continue_with_context_checkpoint",
+      "basis": "Collect only evidence needed for handoff; pause before high-visibility validation or exploitation.",
+      "required_human_gate": false,
+      "pause_reasons": [
+        "identity_evidence_incomplete"
+      ],
+      "environment_notes": []
+    },
+    {
+      "objective_id": "file_sharing_investigation",
+      "objective_label": "File Sharing Investigation",
+      "matched_ports": [
+        137,
+        139,
+        445
+      ],
+      "matched_services": [
+        "microsoft-ds",
+        "netbios-ns",
+        "netbios-ssn"
+      ],
+      "decision": "continue_with_context_checkpoint",
+      "basis": "Collect only evidence needed for handoff; pause before high-visibility validation or exploitation.",
+      "required_human_gate": true,
+      "pause_reasons": [
+        "identity_evidence_incomplete"
+      ],
+      "environment_notes": []
+    },
+    {
+      "objective_id": "remote_access_investigation",
+      "objective_label": "Remote Access Investigation",
+      "matched_ports": [
+        3389,
+        5985
+      ],
+      "matched_services": [],
+      "decision": "continue_with_context_checkpoint",
+      "basis": "Collect only evidence needed for handoff; pause before high-visibility validation or exploitation.",
+      "required_human_gate": true,
+      "pause_reasons": [
+        "identity_evidence_incomplete"
+      ],
+      "environment_notes": []
+    }
+  ],
+  "evidence_manifest": {
+    "scan_id": "d24bdd517691",
+    "generated_at_utc": "2026-07-02T06:03:22+00:00",
+    "hash_algorithm": "sha256",
+    "entries": [
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_1_192.168.86.130_20260702_135909.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_1",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "9b535878ff74cd582fac229b19173f3d938ada7cba7ff3d90a64a06684d60739",
+        "size_bytes": 1477
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_2_192.168.86.130_20260702_135918.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_2",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "ff85d8196bff7b8d7e789a193c90a3a330c0907bcad88c434171e10bbc7000ef",
+        "size_bytes": 2092
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_3_192.168.86.130_20260702_135929.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_3",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "5e54cd43ad3a0a2aa4ee5113134e3d2dad7515dd1c6a9383edbca4e8cf83a4ec",
+        "size_bytes": 2106
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_4_192.168.86.130_20260702_135939.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_4",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "b1686ca4ce4cc7d217acd350fe773d13e02209bd9e0d5ba4193c10e77fd7d9b7",
+        "size_bytes": 2107
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_5_192.168.86.130_20260702_135950.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_5",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "6312ad34cf169ccf101cbefe587438b913c48e1446aff2602ed3d3df2789f98d",
+        "size_bytes": 1507
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_6_192.168.86.130_20260702_140003.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_6",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "4f0fa0e3220da597c69da56ef0dbdceb4e188053de0f36084ffc2502b6041ac6",
+        "size_bytes": 2128
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_7_192.168.86.130_20260702_140014.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_7",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "278fe447c9761a89b9252169d3949e63d2a35f1e485c0e9b1352f02be1d99176",
+        "size_bytes": 2120
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_8_192.168.86.130_20260702_140024.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_8",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "3eca470074eb11dd962b91ea0f9088c1d7c28f137d6c9e06896b9d790338d77b",
+        "size_bytes": 1510
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_9_192.168.86.130_20260702_140036.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_9",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "86f850e85c00bb31b220ac78909e827433d21308a4f16ec9e1eea42263da597c",
+        "size_bytes": 1510
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_10_192.168.86.130_20260702_140046.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_10",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "9948b7571246f27d23a7edf23cf524172d217d51a35a4c4d3fa6a6d79a069a6e",
+        "size_bytes": 1497
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_11_192.168.86.130_20260702_140058.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_11",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "0a87b4d5a9da3baa5e7193596b7bca862fe0e9301c9d6a8ba0ebea3d9feb09f1",
+        "size_bytes": 1501
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_12_192.168.86.130_20260702_140110.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_12",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "38aea8224f80bbd643f2ffd151d1d32959bb12462f9df5de4a554f08b7c25167",
+        "size_bytes": 1512
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_13_192.168.86.130_20260702_140121.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_13",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "14dcc95eda7932dd67a92816650ca7e875c7f11e46b2aaa09905c3cf8f15f867",
+        "size_bytes": 1512
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_14_192.168.86.130_20260702_140132.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_14",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "850f4e13e1faa9a1b2e33eefb9e5ad68a41c6104745e21d9c67747e80878d071",
+        "size_bytes": 1512
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_15_192.168.86.130_20260702_140142.xml",
+        "exists": true,
+        "source": "nmap_tcp_microbatch_15",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "6e155e19596ee8194f8072e5d0732912148bc278c35d4e4dc323610182e03958",
+        "size_bytes": 1515
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml",
+        "exists": true,
+        "source": "nmap_service_fingerprint",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "ee63c8bc64cbd95812bd031788478ec401757cf780463fab4251d58da2211d8a",
+        "size_bytes": 3287
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_udp_targeted_192.168.86.130_20260702_140257.xml",
+        "exists": true,
+        "source": "udp_discovery",
+        "host": "192.168.86.130",
+        "port": "",
+        "content_type": "",
+        "sha256": "9e673a6a25096c217f18aff80573f5f90471d139b2a6e490d4d626d23d583ff7",
+        "size_bytes": 2031
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml",
+        "exists": true,
+        "source": "smb_protocol_security",
+        "host": "192.168.86.130",
+        "port": 445,
+        "content_type": "",
+        "sha256": "682fcf186f0adc5557dd57c553eec07bec9c3ac3b3d444bd86937eb4519df1b9",
+        "size_bytes": 2641
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\winrm_wsman_probe_192.168.86.130_5985_20260702_140306.txt",
+        "exists": true,
+        "source": "winrm_wsman_probe",
+        "host": "192.168.86.130",
+        "port": 5985,
+        "content_type": "",
+        "sha256": "7e570c2ad2f4c3960b6535fb1feb6e21e8f89288d04f8d8bc378c282d572bc13",
+        "size_bytes": 117
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\web_form_hints_192.168.86.130_5985_20260702_140308.html",
+        "exists": true,
+        "source": "html_form_parser",
+        "host": "192.168.86.130",
+        "port": 5985,
+        "content_type": "",
+        "sha256": "ce7127c38e30e92a021ed2bd09287713c6a923db9ffdb43f126e8965d777fbf0",
+        "size_bytes": 315
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml",
+        "exists": true,
+        "source": "rdp_negotiation",
+        "host": "192.168.86.130",
+        "port": 3389,
+        "content_type": "",
+        "sha256": "e160b567a887dcae7b858888e854a2606e974e07566a086e97dcb710331993c2",
+        "size_bytes": 2177
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\http_security_context_192.168.86.130_5985_20260702_140315.txt",
+        "exists": true,
+        "source": "http_security_context",
+        "host": "192.168.86.130",
+        "port": 5985,
+        "content_type": "",
+        "sha256": "b6c6f1b53ec2188b3a3772cabd9376d83bb9f24b68962f9f308ac9f06ce4b188",
+        "size_bytes": 177
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\targeted_web_discovery_d24bdd517691.json",
+        "exists": true,
+        "source": "targeted_web_discovery",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "size_bytes": 2
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\api_discovery_d24bdd517691.json",
+        "exists": true,
+        "source": "api_discovery",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "size_bytes": 2
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\kubernetes_exposure_d24bdd517691.json",
+        "exists": true,
+        "source": "kubernetes_exposure",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "size_bytes": 2
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\container_exposure_d24bdd517691.json",
+        "exists": true,
+        "source": "container_exposure",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "size_bytes": 2
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\vpn_validation_d24bdd517691.json",
+        "exists": true,
+        "source": "vpn_validation",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "size_bytes": 2
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\redis_info_d24bdd517691.json",
+        "exists": true,
+        "source": "redis_info",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "size_bytes": 2
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\elasticsearch_info_d24bdd517691.json",
+        "exists": true,
+        "source": "elasticsearch_info",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "size_bytes": 2
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\modern_active_validation_d24bdd517691.json",
+        "exists": true,
+        "source": "modern_active_validation",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "178715d2040d19e3cb92f2bb5ebd38a461424554dd9ee2f67bedfe613b9bd0ef",
+        "size_bytes": 4485
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\native_protocol_enrichment_d24bdd517691.json",
+        "exists": true,
+        "source": "native_protocol_enrichment",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "size_bytes": 2
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\passive_intelligence_d24bdd517691.json",
+        "exists": true,
+        "source": "passive_intelligence",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "44254011747d6c3a6b5157076f24a66b03938bf4354b158edd038a0b001821d2",
+        "size_bytes": 1152
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\normalised_d24bdd517691.json",
+        "exists": true,
+        "source": "python_normaliser",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "5c22d8c56c537711ab82bb619cdf05ea03a00ab342817ea8595524bb169ac723",
+        "size_bytes": 17596
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\d24bdd517691_knowledge_graph.json",
+        "exists": true,
+        "source": "knowledge_graph",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "63a1ce1de93d7edc87266f6a7312894fffaa3b89168f267522be24a868f82c3b",
+        "size_bytes": 2319
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\d24bdd517691_enumeration_intelligence.json",
+        "exists": true,
+        "source": "enumeration_intelligence",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "a94fba78c5446d73d45ecffe4b667247346dd6e6327597a477ebe1f9e2124a18",
+        "size_bytes": 18930
+      },
+      {
+        "path": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\d24bdd517691_operational_maturity.json",
+        "exists": true,
+        "source": "operational_maturity",
+        "host": "",
+        "port": "",
+        "content_type": "",
+        "sha256": "4a957b553e69e853fd0d3a16291be04b2a80ae6406578c3a60981231b5ef784f",
+        "size_bytes": 7908
+      }
+    ],
+    "manifest_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\d24bdd517691_evidence_manifest.json",
+    "manifest_sha256": "69b4805cf479efa6a8cdd9ec0c0c9457cf02c285f1eacd641f7df978dca6b8ea"
+  },
+  "mitre_source": {
+    "source": "Official CVE List via CVEProject/cvelistV5 (MITRE/CVE Program)",
+    "available": false,
+    "records_indexed": 0,
+    "records_with_cvss_metadata": 0,
+    "cvss_metadata_stale": false,
+    "cvss_metadata_warning": "",
+    "rebuild_command": "python scripts/rebuild_mitre_cve_index.py",
+    "index_file": "storage\\mitre_cve\\official_mitre_cve_index.jsonl",
+    "repo_dir": "storage\\mitre_cve\\cvelistV5",
+    "matching_policy": "v32_from_v31_mitre_only_candidates: official CVE List via CVEProject/cvelistV5 only; candidate records are further classified by the report as strict CVE matches or relevant version/exposure information based on exact version/CPE and context evidence"
+  },
+  "tool_coverage": [
+    {
+      "tool": "http_security_context",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "HTTP security-header/authentication/cookie context evidence",
+      "information_added": "HTTP security-header/authentication/cookie context evidence",
+      "note": "192.168.86.130:5985/tcp; targeted information-gathering evidence only.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\http_security_context_192.168.86.130_5985_20260702_140315.txt",
+      "command": "curl -k -I -sS --max-time 5 http://192.168.86.130:5985",
+      "output": "HTTP/1.1 404 Not Found\nContent-Length: 315\nContent-Type: text/html; charset=us-ascii\nServer: Microsoft-HTTPAPI/2.0\nDate: Thu, 02 Jul 2026 06:03:17 GMT\nConnection: close",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "modern_active_validation",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "Modern active enterprise validation summary",
+      "information_added": "Modern active enterprise validation summary",
+      "note": "4 active validation summary item(s) retained.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\modern_active_validation_d24bdd517691.json",
+      "command": "python-native active_validation consolidate",
+      "output": "{\n  \"ldap_rootdse\": [],\n  \"kerberos_info\": [],\n  \"tls_cipher_validation\": [],\n  \"rdp_negotiation\": [\n    {\n      \"tool\": \"rdp_negotiation\",\n      \"host\": \"192.168.86.130\",\n      \"port\": 3389,\n      \"scripts\": [\n        \"rdp-enum-encryption\"\n      ],\n      \"rows\": [\n        {\n          \"host\": \"192.168.86.130\",\n          \"port\": 3389,\n          \"protocol\": \"tcp\",\n          \"service\": \"ms-wbt-server\",\n          \"product\": \"\",\n          \"version\": \"\",\n          \"extra\": \"\",\n          \"cpe\": [],\n          \"evidence_sources\": [\n            \"nmap\"\n          ],\n          \"raw_evidence_file\": \"C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml\",\n          \"scripts\": [\n            {\n              \"id\": \"rdp-enum-encryption\",\n              \"output\": \"\\n  Security layer\\n    CredSSP (NLA): SUCCESS\\n    CredSSP with Early User Auth: SUCCESS\\n    RDSTLS: SUCCESS\\n\"\n            }\n          ]\n        }\n      ],\n      \"output_file\": \"C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml\",\n      \"recon_boundary\": \"Evidence-only protocol validation; no credential use or exploitation.\"\n    }\n  ],\n  \"api_discovery\": [],\n  \"targeted_web_discovery\": [],\n  \"kubernetes_exposure\": [],\n  \"container_exposure\": [],\n  \"vpn_validation\": [],\n  \"nuclei_safe\": [],\n  \"telnet_readiness\": [],\n  \"snmp_readiness\": [],\n  \"mssql_info\": [],\n  \"vnc_info\": [],\n  \"tomcat_ajp_readiness\": [],\n  \"redis_info\": [],\n  \"elasticsearch_info\": [],\n  \"ldapsearch_rootdse\": [],\n  \"snmp_targeted_oids\": [],\n  \"dns_context\": [],\n  \"http_security_context\": [\n    {\n      \"tool\": \"http_security_context\",\n      \"host\": \"192.168.86.130\",\n      \"port\": 5985,\n      \"command\": \"curl -k -I -sS --max-time 5 http://192.168.86.130:5985\",\n      \"parsed\": {\n        \"tool\": \"http_security_context\",\n        \"evidence_state\": \"observed\",\n        \"fields\": {\n          \"headers\": {\n            \"Server\": \"Microsoft-HTTPAPI/2.0\"\n          },\n          \"capabilities\": []\n        },\n        \"information_gained\": \"HTTP header, runtime, authentication challenge, cookie, redirect, WebDAV and security-header evidence.\"\n      },\n      \"output_file\": \"C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\http_security_context_192.168.86.130_5985_20260702_140315.txt\",\n      \"recon_boundary\": \"Targeted information gathering only; no credentials, brute force, writes, mounting, or exploitation.\"\n    }\n  ],\n  \"rpcinfo_native\": [],\n  \"showmount_native\": [],\n  \"ssh_audit_native\": [],\n  \"federation_detection\": [],\n  \"tls_intelligence\": [],\n  \"noise_evaluation\": {\n    \"overall\": \"low\",\n    \"counts\": {\n      \"passive\": 0,\n      \"low\": 2,\n      \"medium\": 0,\n      \"high\": 0,\n      \"very_high\": 0\n    },\n    \"highest_noise_checks\": [],\n    \"excluded_checks\": [\n      \"credential_attack_tools\",\n      \"intrusive_vulnerability_scanners\",\n      \"broad_content_discovery\",\n      \"broad_udp_discovery\",\n      \"broad_template_sweeps\",\n      \"unauthenticated_share_user_enumeration\"\n    ],\n    \"high_yield_checks\": [\n      {\n        \"check\": \"http_security_context\",\n        \"noise\": \"low\",\n        \"information_value\": \"high\",\n        \"items\": 1\n      }\n    ],\n    \"lower_yield_checks\": [],\n    \"recommendations\": [\n      \"Current execution favours low-noise/high-yield enumeration; repeat scans should reuse cached evidence where possible.\"\n    ],\n    \"summary\": \"Overall validation noise level: low. High-noise tooling is excluded; low-noise/high-yield metadata, TLS, DNS, identity and targeted protocol checks are preferred.\"\n  },\n  \"information_gathering_summary\": [\n    \"http security context: 1 targeted information-gathering item(s) retained.\"\n  ],\n  \"summary\": [\n    \"RDP/NLA negotiation evidence: 1 evidence item(s) retained.\",\n    \"Detection-budget governance was applied to modern active validation collectors.\",\n    \"http security context: 1 targeted information-gathering item(s) retained.\",\n    \"Overall validation noise level: low. High-noise tooling is excluded; low-noise/high-yield metadata, TLS, DNS, identity and targeted protocol checks are preferred.\"\n  ],\n  \"policy\": {\n    \"nuclei_enabled_by_default\": false,\n    \"detection_budget_enabled\": true\n  },\n  \"budget\": {\n    \"native_http_budget_per_host\": 40,\n    \"nmap_script_budget_per_host\": 18,\n    \"enforced\": true\n  }\n}",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_service_fingerprint",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "all observed service product version cpe",
+      "information_added": "all observed service product version cpe",
+      "note": "5 service row(s); critical-first banner set used",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -sV --version-intensity 0 --script banner -p 135,139,445,3389,5985 -T1 --max-retries 1 --scan-delay 300ms --max-rate 15 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:01 +0800\nNmap scan report for 192.168.86.130\nHost is up (0.0012s latency).\n\nPORT     STATE SERVICE       VERSION\n135/tcp  open  msrpc         Microsoft Windows RPC\n139/tcp  open  netbios-ssn   Microsoft Windows netbios-ssn\n445/tcp  open  microsoft-ds  Microsoft Windows 7 - 10 microsoft-ds (workgroup: FYP_67)\n3389/tcp open  ms-wbt-server Microsoft Terminal Services\n5985/tcp open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)\nMAC Address: 00:0C:29:43:D2:A8 (VMware)\nService Info: Host: CLIENT01; OS: Windows; CPE: cpe:/o:microsoft:windows\n\nService detection performed. Please report any incorrect results at https://nmap.org/submit/ .\nNmap done: 1 IP address (1 host up) scanned in 68.79 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:01:48 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -sV -&#45;version-intensity 0 -&#45;script banner -p 135,139,445,3389,5985 -T1 -&#45;max-retries 1 -&#45;scan-delay 300ms -&#45;max-rate 15 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -sV -&#45;version-intensity 0 -&#45;script banner -p 135,139,445,3389,5985 -T1 -&#45;max-retries 1 -&#45;scan-delay 300ms -&#45;max-rate 15 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml 192.168.86.130\" start=\"1782972108\" startstr=\"Thu Jul  2 14:01:48 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"135,139,445,3389,5985\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<host starttime=\"1782972110\" endtime=\"1782972177\"><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n<ports><port protocol=\"tcp\" portid=\"135\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"msrpc\" product=\"Microsoft Windows RPC\" ostype=\"Windows\" method=\"probed\" conf=\"10\"><cpe>cpe:/o:microsoft:windows</cpe></service></port>\n<port protocol=\"tcp\" portid=\"139\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"netbios-ssn\" product=\"Microsoft Windows netbios-ssn\" ostype=\"Windows\" method=\"probed\" conf=\"10\"><cpe>cpe:/o:microsoft:windows</cpe></service></port>\n<port protocol=\"tcp\" portid=\"445\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"microsoft-ds\" product=\"Microsoft Windows 7 - 10 microsoft-ds\" extrainfo=\"workgroup: FYP_67\" hostname=\"CLIENT01\" ostype=\"Windows\" method=\"probed\" conf=\"10\"><cpe>cpe:/o:microsoft:windows</cpe></service></port>\n<port protocol=\"tcp\" portid=\"3389\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"ms-wbt-server\" product=\"Microsoft Terminal Services\" ostype=\"Windows\" method=\"probed\" conf=\"10\"><cpe>cpe:/o:microsoft:windows</cpe></service></port>\n<port protocol=\"tcp\" portid=\"5985\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"http\" product=\"Microsoft HTTPAPI httpd\" version=\"2.0\" extrainfo=\"SSDP/UPnP\" ostype=\"Windows\" method=\"probed\" conf=\"10\"><cpe>cpe:/o:microsoft:windows</cpe></service></port>\n</ports>\n<times srtt=\"1197\" rttvar=\"1540\" to=\"300000\"/>\n</host>\n<runstats><finished time=\"1782972177\" timestr=\"Thu Jul  2 14:02:57 2026\" summary=\"Nmap done at Thu Jul  2 14:02:57 2026; 1 IP address (1 host up) scanned in 68.79 seconds\" elapsed=\"68.79\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_2",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "TCP Service Discovery Batch 2",
+      "information_added": "TCP Service Discovery Batch 2",
+      "note": "1 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_2_192.168.86.130_20260702_135918.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 80,88,110,111,135 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_2_192.168.86.130_20260702_135918.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 13:59 +0800\nNmap scan report for 192.168.86.130\nHost is up (0.0019s latency).\nNot shown: 4 closed tcp ports (reset)\nPORT    STATE SERVICE\n135/tcp open  msrpc\nMAC Address: 00:0C:29:43:D2:A8 (VMware)\n\nNmap done: 1 IP address (1 host up) scanned in 3.36 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_2_192.168.86.130_20260702_135918.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 13:59:19 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 80,88,110,111,135 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_2_192.168.86.130_20260702_135918.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 80,88,110,111,135 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_2_192.168.86.130_20260702_135918.xml 192.168.86.130\" start=\"1782971959\" startstr=\"Thu Jul  2 13:59:19 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"80,88,110-111,135\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<host starttime=\"1782971961\" endtime=\"1782971963\"><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n<ports><extraports state=\"closed\" count=\"4\">\n<extrareasons reason=\"reset\" count=\"4\" proto=\"tcp\" ports=\"80,88,110-111\"/>\n</extraports>\n<port protocol=\"tcp\" portid=\"135\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"msrpc\" method=\"table\" conf=\"3\"/></port>\n</ports>\n<times srtt=\"1923\" rttvar=\"1889\" to=\"400000\"/>\n</host>\n<runstats><finished time=\"1782971963\" timestr=\"Thu Jul  2 13:59:23 2026\" summary=\"Nmap done at Thu Jul  2 13:59:23 2026; 1 IP address (1 host up) scanned in 3.36 seconds\" elapsed=\"3.36\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_3",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "TCP Service Discovery Batch 3",
+      "information_added": "TCP Service Discovery Batch 3",
+      "note": "1 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_3_192.168.86.130_20260702_135929.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 137,139,143,389,443 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_3_192.168.86.130_20260702_135929.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 13:59 +0800\nNmap scan report for 192.168.86.130\nHost is up (0.0018s latency).\nNot shown: 4 closed tcp ports (reset)\nPORT    STATE SERVICE\n139/tcp open  netbios-ssn\nMAC Address: 00:0C:29:43:D2:A8 (VMware)\n\nNmap done: 1 IP address (1 host up) scanned in 3.33 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_3_192.168.86.130_20260702_135929.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 13:59:31 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 137,139,143,389,443 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_3_192.168.86.130_20260702_135929.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 137,139,143,389,443 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_3_192.168.86.130_20260702_135929.xml 192.168.86.130\" start=\"1782971971\" startstr=\"Thu Jul  2 13:59:31 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"137,139,143,389,443\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<host starttime=\"1782971972\" endtime=\"1782971974\"><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n<ports><extraports state=\"closed\" count=\"4\">\n<extrareasons reason=\"reset\" count=\"4\" proto=\"tcp\" ports=\"137,143,389,443\"/>\n</extraports>\n<port protocol=\"tcp\" portid=\"139\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"netbios-ssn\" method=\"table\" conf=\"3\"/></port>\n</ports>\n<times srtt=\"1837\" rttvar=\"2292\" to=\"400000\"/>\n</host>\n<runstats><finished time=\"1782971974\" timestr=\"Thu Jul  2 13:59:34 2026\" summary=\"Nmap done at Thu Jul  2 13:59:34 2026; 1 IP address (1 host up) scanned in 3.33 seconds\" elapsed=\"3.33\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_4",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "TCP Service Discovery Batch 4",
+      "information_added": "TCP Service Discovery Batch 4",
+      "note": "1 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_4_192.168.86.130_20260702_135939.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 445,465,587,636,993 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_4_192.168.86.130_20260702_135939.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 13:59 +0800\nNmap scan report for 192.168.86.130\nHost is up (0.0020s latency).\nNot shown: 4 closed tcp ports (reset)\nPORT    STATE SERVICE\n445/tcp open  microsoft-ds\nMAC Address: 00:0C:29:43:D2:A8 (VMware)\n\nNmap done: 1 IP address (1 host up) scanned in 3.34 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_4_192.168.86.130_20260702_135939.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 13:59:41 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 445,465,587,636,993 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_4_192.168.86.130_20260702_135939.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 445,465,587,636,993 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_4_192.168.86.130_20260702_135939.xml 192.168.86.130\" start=\"1782971981\" startstr=\"Thu Jul  2 13:59:41 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"445,465,587,636,993\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<host starttime=\"1782971983\" endtime=\"1782971984\"><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n<ports><extraports state=\"closed\" count=\"4\">\n<extrareasons reason=\"reset\" count=\"4\" proto=\"tcp\" ports=\"465,587,636,993\"/>\n</extraports>\n<port protocol=\"tcp\" portid=\"445\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"microsoft-ds\" method=\"table\" conf=\"3\"/></port>\n</ports>\n<times srtt=\"1954\" rttvar=\"1743\" to=\"400000\"/>\n</host>\n<runstats><finished time=\"1782971984\" timestr=\"Thu Jul  2 13:59:44 2026\" summary=\"Nmap done at Thu Jul  2 13:59:44 2026; 1 IP address (1 host up) scanned in 3.34 seconds\" elapsed=\"3.34\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_6",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "TCP Service Discovery Batch 6",
+      "information_added": "TCP Service Discovery Batch 6",
+      "note": "1 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_6_192.168.86.130_20260702_140003.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 2376,3268,3269,3306,3389 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_6_192.168.86.130_20260702_140003.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:00 +0800\nNmap scan report for 192.168.86.130\nHost is up (0.0011s latency).\nNot shown: 4 closed tcp ports (reset)\nPORT     STATE SERVICE\n3389/tcp open  ms-wbt-server\nMAC Address: 00:0C:29:43:D2:A8 (VMware)\n\nNmap done: 1 IP address (1 host up) scanned in 3.34 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_6_192.168.86.130_20260702_140003.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:00:04 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 2376,3268,3269,3306,3389 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_6_192.168.86.130_20260702_140003.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 2376,3268,3269,3306,3389 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_6_192.168.86.130_20260702_140003.xml 192.168.86.130\" start=\"1782972004\" startstr=\"Thu Jul  2 14:00:04 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"2376,3268-3269,3306,3389\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<host starttime=\"1782972006\" endtime=\"1782972007\"><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n<ports><extraports state=\"closed\" count=\"4\">\n<extrareasons reason=\"reset\" count=\"4\" proto=\"tcp\" ports=\"2376,3268-3269,3306\"/>\n</extraports>\n<port protocol=\"tcp\" portid=\"3389\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"ms-wbt-server\" method=\"table\" conf=\"3\"/></port>\n</ports>\n<times srtt=\"1083\" rttvar=\"1352\" to=\"400000\"/>\n</host>\n<runstats><finished time=\"1782972007\" timestr=\"Thu Jul  2 14:00:07 2026\" summary=\"Nmap done at Thu Jul  2 14:00:07 2026; 1 IP address (1 host up) scanned in 3.34 seconds\" elapsed=\"3.34\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_7",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "TCP Service Discovery Batch 7",
+      "information_added": "TCP Service Discovery Batch 7",
+      "note": "1 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_7_192.168.86.130_20260702_140014.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 5000,5432,5900,5985,5986 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_7_192.168.86.130_20260702_140014.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:00 +0800\nNmap scan report for 192.168.86.130\nHost is up (0.0014s latency).\nNot shown: 4 closed tcp ports (reset)\nPORT     STATE SERVICE\n5985/tcp open  wsman\nMAC Address: 00:0C:29:43:D2:A8 (VMware)\n\nNmap done: 1 IP address (1 host up) scanned in 3.34 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_7_192.168.86.130_20260702_140014.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:00:15 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 5000,5432,5900,5985,5986 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_7_192.168.86.130_20260702_140014.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 5000,5432,5900,5985,5986 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_7_192.168.86.130_20260702_140014.xml 192.168.86.130\" start=\"1782972015\" startstr=\"Thu Jul  2 14:00:15 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"5000,5432,5900,5985-5986\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<host starttime=\"1782972017\" endtime=\"1782972019\"><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n<ports><extraports state=\"closed\" count=\"4\">\n<extrareasons reason=\"reset\" count=\"4\" proto=\"tcp\" ports=\"5000,5432,5900,5986\"/>\n</extraports>\n<port protocol=\"tcp\" portid=\"5985\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"wsman\" method=\"table\" conf=\"3\"/></port>\n</ports>\n<times srtt=\"1402\" rttvar=\"1721\" to=\"400000\"/>\n</host>\n<runstats><finished time=\"1782972019\" timestr=\"Thu Jul  2 14:00:19 2026\" summary=\"Nmap done at Thu Jul  2 14:00:19 2026; 1 IP address (1 host up) scanned in 3.34 seconds\" elapsed=\"3.34\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_top100",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "TCP Service Discovery Summary",
+      "information_added": "TCP Service Discovery Summary",
+      "note": "5 open TCP port(s) observed through micro-batched Full Recon discovery.",
+      "output_file": "",
+      "command": "",
+      "output": "[no console output captured]",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "passive_intelligence",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "Passive DNS/TLS/authentication/cloud/VPN/CDN/email/relationship intelligence",
+      "information_added": "Passive DNS/TLS/authentication/cloud/VPN/CDN/email/relationship intelligence",
+      "note": "1 passive summary item(s) retained.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\passive_intelligence_d24bdd517691.json",
+      "command": "python-native passive_intel collect_dns,collect_tls,infer_passive_findings,collect_certificate_transparency domains=0 hosts=1",
+      "output": "{\n  \"dns\": [],\n  \"reverse_dns\": [\n    {\n      \"host\": \"192.168.86.130\",\n      \"ptr\": \"client01\",\n      \"aliases\": [],\n      \"collection_method\": \"reverse_dns\"\n    }\n  ],\n  \"tls\": [],\n  \"certificate_transparency\": [],\n  \"findings\": {\n    \"email_security\": [],\n    \"authentication\": [],\n    \"vpn\": [],\n    \"reverse_proxy\": [],\n    \"cdn\": [],\n    \"cloud\": [],\n    \"technologies\": [],\n    \"network_device\": [],\n    \"virtualisation\": [],\n    \"message_broker\": [],\n    \"active_directory\": {\n      \"detected\": false,\n      \"evidence\": [],\n      \"collection_method\": \"dns_srv_records_only\"\n    }\n  },\n  \"relationships\": [],\n  \"dns_relationships\": [\n    {\n      \"source\": \"192.168.86.130\",\n      \"relation\": \"reverse_dns_ptr\",\n      \"target\": \"client01\",\n      \"evidence\": \"reverse_dns\"\n    }\n  ],\n  \"certificate_correlation\": [],\n  \"summary\": [\n    \"DNS relationship engine retained 1 forward/reverse/authority relationship(s).\"\n  ],\n  \"policy\": {\n    \"ct_lookup_enabled\": false,\n    \"dns_record_types\": [\n      \"A\",\n      \"AAAA\",\n      \"MX\",\n      \"TXT\",\n      \"NS\",\n      \"CNAME\",\n      \"SRV\"\n    ]\n  }\n}",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "rdp_negotiation",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "RDP encryption/NLA negotiation evidence",
+      "information_added": "RDP encryption/NLA negotiation evidence",
+      "note": "192.168.86.130:3389/tcp; no credentials, brute force, or exploitation performed.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE --script rdp-enum-encryption -p 3389 -T1 --max-retries 1 --scan-delay 500ms --max-rate 10 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:03 +0800\nNmap scan report for 192.168.86.130\nHost is up (0.0019s latency).\n\nPORT     STATE SERVICE\n3389/tcp open  ms-wbt-server\n| rdp-enum-encryption: \n|   Security layer\n|     CredSSP (NLA): SUCCESS\n|     CredSSP with Early User Auth: SUCCESS\n|_    RDSTLS: SUCCESS\nMAC Address: 00:0C:29:43:D2:A8 (VMware)\n\nNmap done: 1 IP address (1 host up) scanned in 3.43 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:03:12 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -&#45;script rdp-enum-encryption -p 3389 -T1 -&#45;max-retries 1 -&#45;scan-delay 500ms -&#45;max-rate 10 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -&#45;script rdp-enum-encryption -p 3389 -T1 -&#45;max-retries 1 -&#45;scan-delay 500ms -&#45;max-rate 10 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml 192.168.86.130\" start=\"1782972192\" startstr=\"Thu Jul  2 14:03:12 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"1\" services=\"3389\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<host starttime=\"1782972194\" endtime=\"1782972195\"><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n<ports><port protocol=\"tcp\" portid=\"3389\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"ms-wbt-server\" method=\"table\" conf=\"3\"/><script id=\"rdp-enum-encryption\" output=\"&#xa;  Security layer&#xa;    CredSSP (NLA): SUCCESS&#xa;    CredSSP with Early User Auth: SUCCESS&#xa;    RDSTLS: SUCCESS&#xa;\"/></port>\n</ports>\n<times srtt=\"1875\" rttvar=\"4000\" to=\"500000\"/>\n</host>\n<runstats><finished time=\"1782972195\" timestr=\"Thu Jul  2 14:03:15 2026\" summary=\"Nmap done at Thu Jul  2 14:03:15 2026; 1 IP address (1 host up) scanned in 3.43 seconds\" elapsed=\"3.43\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "smb_protocol_security",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "SMB dialect/signing readiness evidence",
+      "information_added": "SMB dialect/signing readiness evidence",
+      "note": "192.168.86.130:445/tcp; share/user enumeration not performed.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE --script smb2-security-mode,smb-protocols -p 445 -T1 --max-retries 1 --scan-delay 500ms --max-rate 10 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:03 +0800\nNmap scan report for 192.168.86.130\nHost is up (0.0019s latency).\n\nPORT    STATE SERVICE\n445/tcp open  microsoft-ds\nMAC Address: 00:0C:29:43:D2:A8 (VMware)\n\nHost script results:\n| smb2-security-mode: \n|   3.1.1: \n|_    Message signing enabled but not required\n| smb-protocols: \n|   dialects: \n|     NT LM 0.12 (SMBv1) [dangerous, but default]\n|     2.0.2\n|     2.1\n|     3.0\n|     3.0.2\n|_    3.1.1\n\nNmap done: 1 IP address (1 host up) scanned in 2.20 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:03:04 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -&#45;script smb2-security-mode,smb-protocols -p 445 -T1 -&#45;max-retries 1 -&#45;scan-delay 500ms -&#45;max-rate 10 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -&#45;script smb2-security-mode,smb-protocols -p 445 -T1 -&#45;max-retries 1 -&#45;scan-delay 500ms -&#45;max-rate 10 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml 192.168.86.130\" start=\"1782972184\" startstr=\"Thu Jul  2 14:03:04 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"1\" services=\"445\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<host starttime=\"1782972186\" endtime=\"1782972186\"><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n<ports><port protocol=\"tcp\" portid=\"445\"><state state=\"open\" reason=\"syn-ack\" reason_ttl=\"128\"/><service name=\"microsoft-ds\" method=\"table\" conf=\"3\"/></port>\n</ports>\n<hostscript><script id=\"smb2-security-mode\" output=\"&#xa;  3.1.1: &#xa;    Message signing enabled but not required\"><table key=\"3.1.1\">\n<elem>Message signing enabled but not required</elem>\n</table>\n</script><script id=\"smb-protocols\" output=\"&#xa;  dialects: &#xa;    NT LM 0.12 (SMBv1) [dangerous, but default]&#xa;    2.0.2&#xa;    2.1&#xa;    3.0&#xa;    3.0.2&#xa;    3.1.1\"><table key=\"dialects\">\n<elem>NT LM 0.12 (SMBv1) [dangerous, but default]</elem>\n<elem>2.0.2</elem>\n<elem>2.1</elem>\n<elem>3.0</elem>\n<elem>3.0.2</elem>\n<elem>3.1.1</elem>\n</table>\n</script></hostscript><times srtt=\"1875\" rttvar=\"4000\" to=\"500000\"/>\n</host>\n<runstats><finished time=\"1782972186\" timestr=\"Thu Jul  2 14:03:06 2026\" summary=\"Nmap done at Thu Jul  2 14:03:06 2026; 1 IP address (1 host up) scanned in 2.20 seconds\" elapsed=\"2.20\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "udp_discovery",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "Targeted UDP discovery",
+      "information_added": "Targeted UDP discovery",
+      "note": "1 UDP service row(s) observed from policy-defined high-value UDP ports.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_udp_targeted_192.168.86.130_20260702_140257.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -sU -p 53,137,161 --open -T2 --max-retries 1 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_udp_targeted_192.168.86.130_20260702_140257.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:02 +0800\nNmap scan report for 192.168.86.130\nHost is up (0.0011s latency).\nNot shown: 2 closed udp ports (port-unreach)\nPORT    STATE SERVICE\n137/udp open  netbios-ns\nMAC Address: 00:0C:29:43:D2:A8 (VMware)\n\nNmap done: 1 IP address (1 host up) scanned in 3.97 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_udp_targeted_192.168.86.130_20260702_140257.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:02:58 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -sU -p 53,137,161 -&#45;open -T2 -&#45;max-retries 1 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_udp_targeted_192.168.86.130_20260702_140257.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -sU -p 53,137,161 -&#45;open -T2 -&#45;max-retries 1 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_udp_targeted_192.168.86.130_20260702_140257.xml 192.168.86.130\" start=\"1782972178\" startstr=\"Thu Jul  2 14:02:58 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"udp\" protocol=\"udp\" numservices=\"3\" services=\"53,137,161\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<host starttime=\"1782972180\" endtime=\"1782972182\"><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n<ports><extraports state=\"closed\" count=\"2\">\n<extrareasons reason=\"port-unreach\" count=\"2\" proto=\"udp\" ports=\"53,161\"/>\n</extraports>\n<port protocol=\"udp\" portid=\"137\"><state state=\"open\" reason=\"udp-response\" reason_ttl=\"128\"/><service name=\"netbios-ns\" method=\"table\" conf=\"3\"/></port>\n</ports>\n<times srtt=\"1125\" rttvar=\"2359\" to=\"400000\"/>\n</host>\n<runstats><finished time=\"1782972182\" timestr=\"Thu Jul  2 14:03:02 2026\" summary=\"Nmap done at Thu Jul  2 14:03:02 2026; 1 IP address (1 host up) scanned in 3.97 seconds\" elapsed=\"3.97\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "winrm_wsman_probe",
+      "status": "Completed",
+      "raw_status": "success",
+      "evidence_type": "WinRM WSMan listener/header readiness evidence",
+      "information_added": "WinRM WSMan listener/header readiness evidence",
+      "note": "192.168.86.130:5985/tcp; no authentication performed.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\winrm_wsman_probe_192.168.86.130_5985_20260702_140306.txt",
+      "command": "C:\\WINDOWS\\system32\\curl.EXE -sS --max-time 4 -I http://192.168.86.130:5985/wsman",
+      "output": "HTTP/1.1 405 \nAllow: POST\nServer: Microsoft-HTTPAPI/2.0\nDate: Thu, 02 Jul 2026 06:03:08 GMT\nConnection: close",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "api_discovery",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "OpenAPI/Swagger/GraphQL documentation discovery only.",
+      "information_added": "OpenAPI/Swagger/GraphQL documentation discovery only.",
+      "note": "0 evidence item(s) retained.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\api_discovery_d24bdd517691.json",
+      "command": "python-native active_validation api_discovery items=0",
+      "output": "[]",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "container_exposure",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Container/registry metadata endpoint checks only.",
+      "information_added": "Container/registry metadata endpoint checks only.",
+      "note": "0 evidence item(s) retained.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\container_exposure_d24bdd517691.json",
+      "command": "python-native active_validation container_exposure items=0",
+      "output": "[]",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "credential_validation_handoff",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Downstream handoff",
+      "information_added": "Downstream handoff",
+      "note": "Credential validation deferred for 3 service surface(s); recon collected readiness evidence only and does not perform login attempts.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "curl",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "HTTP HEAD deferred for 192.168.86.130 until HTTP service is confirmed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "dig",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "Reverse DNS lookup deferred for 192.168.86.130; private-address PTR lookups often add little value.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "dns_context",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No dns context service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "elasticsearch_info",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Elasticsearch metadata exposure evidence",
+      "information_added": "Elasticsearch metadata exposure evidence",
+      "note": "0 evidence item(s) retained.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\elasticsearch_info_d24bdd517691.json",
+      "command": "python-native active_validation elasticsearch_info items=0",
+      "output": "[]",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "file_sharing_exposure",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Downstream handoff",
+      "information_added": "Downstream handoff",
+      "note": "SMB/file-sharing exposure observed. Share listing, user enumeration, password validation and permission mapping are deferred.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "full_tcp_sweep",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "Full 65k TCP sweep remains deferred; Full Recon uses top-100 plus targeted high-value expansion instead.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "html_form_parser",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Web form/input/link readiness evidence",
+      "information_added": "Web form/input/link readiness evidence",
+      "note": "http://192.168.86.130:5985; one page fetched; no attack payloads or directory brute force.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\web_form_hints_192.168.86.130_5985_20260702_140308.html",
+      "command": "C:\\WINDOWS\\system32\\curl.EXE -sS --max-time 4 -L --max-redirs 1 http://192.168.86.130:5985",
+      "output": "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\"\"http://www.w3.org/TR/html4/strict.dtd\">\n<HTML><HEAD><TITLE>Not Found</TITLE>\n<META HTTP-EQUIV=\"Content-Type\" Content=\"text/html; charset=us-ascii\"></HEAD>\n<BODY><h2>Not Found</h2>\n<hr><p>HTTP Error 404. The requested resource is not found.</p>\n</BODY></HTML>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "kerberos_info",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No kerberos info service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "kubernetes_exposure",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Kubernetes unauthenticated metadata endpoint checks only.",
+      "information_added": "Kubernetes unauthenticated metadata endpoint checks only.",
+      "note": "0 evidence item(s) retained.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\kubernetes_exposure_d24bdd517691.json",
+      "command": "python-native active_validation kubernetes_exposure items=0",
+      "output": "[]",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "ldap_rootdse",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No ldap rootdse service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "ldapsearch_rootdse",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No ldapsearch rootdse service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "mssql_info",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No mssql info service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "native_protocol_enrichment",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Native protocol product/version/capability enrichment",
+      "information_added": "Native protocol product/version/capability enrichment",
+      "note": "0 native protocol metadata item(s) retained.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\native_protocol_enrichment_d24bdd517691.json",
+      "command": "python-native native_protocol_enrichment services=6",
+      "output": "[]",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_host_discovery",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Passive-first posture",
+      "information_added": "Passive-first posture",
+      "note": "Single in-scope target accepted without active host sweep; service discovery uses -Pn micro-batches.",
+      "output_file": "",
+      "command": "",
+      "output": "[no console output captured]",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_1",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "TCP Service Discovery Batch 1",
+      "information_added": "TCP Service Discovery Batch 1",
+      "note": "0 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_1_192.168.86.130_20260702_135909.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 21,22,23,25,53 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_1_192.168.86.130_20260702_135909.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 13:59 +0800\nNmap done: 1 IP address (1 host up) scanned in 3.44 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_1_192.168.86.130_20260702_135909.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 13:59:10 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 21,22,23,25,53 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_1_192.168.86.130_20260702_135909.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 21,22,23,25,53 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_1_192.168.86.130_20260702_135909.xml 192.168.86.130\" start=\"1782971950\" startstr=\"Thu Jul  2 13:59:10 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"21-23,25,53\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<runstats><finished time=\"1782971953\" timestr=\"Thu Jul  2 13:59:13 2026\" summary=\"Nmap done at Thu Jul  2 13:59:13 2026; 1 IP address (1 host up) scanned in 3.44 seconds\" elapsed=\"3.44\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_10",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "TCP Service Discovery Batch 10",
+      "information_added": "TCP Service Discovery Batch 10",
+      "note": "0 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_10_192.168.86.130_20260702_140046.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 113,119,179,199,427 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_10_192.168.86.130_20260702_140046.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:00 +0800\nNmap done: 1 IP address (1 host up) scanned in 3.36 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_10_192.168.86.130_20260702_140046.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:00:48 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 113,119,179,199,427 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_10_192.168.86.130_20260702_140046.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 113,119,179,199,427 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_10_192.168.86.130_20260702_140046.xml 192.168.86.130\" start=\"1782972048\" startstr=\"Thu Jul  2 14:00:48 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"113,119,179,199,427\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<runstats><finished time=\"1782972051\" timestr=\"Thu Jul  2 14:00:51 2026\" summary=\"Nmap done at Thu Jul  2 14:00:51 2026; 1 IP address (1 host up) scanned in 3.36 seconds\" elapsed=\"3.36\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_11",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "TCP Service Discovery Batch 11",
+      "information_added": "TCP Service Discovery Batch 11",
+      "note": "0 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_11_192.168.86.130_20260702_140058.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 548,554,1025,1026,1027 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_11_192.168.86.130_20260702_140058.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:01 +0800\nNmap done: 1 IP address (1 host up) scanned in 3.34 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_11_192.168.86.130_20260702_140058.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:01:00 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 548,554,1025,1026,1027 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_11_192.168.86.130_20260702_140058.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 548,554,1025,1026,1027 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_11_192.168.86.130_20260702_140058.xml 192.168.86.130\" start=\"1782972060\" startstr=\"Thu Jul  2 14:01:00 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"548,554,1025-1027\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<runstats><finished time=\"1782972064\" timestr=\"Thu Jul  2 14:01:04 2026\" summary=\"Nmap done at Thu Jul  2 14:01:04 2026; 1 IP address (1 host up) scanned in 3.34 seconds\" elapsed=\"3.34\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_12",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "TCP Service Discovery Batch 12",
+      "information_added": "TCP Service Discovery Batch 12",
+      "note": "0 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_12_192.168.86.130_20260702_140110.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 1028,1029,1720,1723,2000 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_12_192.168.86.130_20260702_140110.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:01 +0800\nNmap done: 1 IP address (1 host up) scanned in 3.34 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_12_192.168.86.130_20260702_140110.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:01:12 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 1028,1029,1720,1723,2000 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_12_192.168.86.130_20260702_140110.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 1028,1029,1720,1723,2000 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_12_192.168.86.130_20260702_140110.xml 192.168.86.130\" start=\"1782972072\" startstr=\"Thu Jul  2 14:01:12 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"1028-1029,1720,1723,2000\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<runstats><finished time=\"1782972075\" timestr=\"Thu Jul  2 14:01:15 2026\" summary=\"Nmap done at Thu Jul  2 14:01:15 2026; 1 IP address (1 host up) scanned in 3.34 seconds\" elapsed=\"3.34\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_13",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "TCP Service Discovery Batch 13",
+      "information_added": "TCP Service Discovery Batch 13",
+      "note": "0 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_13_192.168.86.130_20260702_140121.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 2121,3128,4444,5060,5061 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_13_192.168.86.130_20260702_140121.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:01 +0800\nNmap done: 1 IP address (1 host up) scanned in 3.38 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_13_192.168.86.130_20260702_140121.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:01:23 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 2121,3128,4444,5060,5061 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_13_192.168.86.130_20260702_140121.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 2121,3128,4444,5060,5061 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_13_192.168.86.130_20260702_140121.xml 192.168.86.130\" start=\"1782972083\" startstr=\"Thu Jul  2 14:01:23 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"2121,3128,4444,5060-5061\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<runstats><finished time=\"1782972086\" timestr=\"Thu Jul  2 14:01:26 2026\" summary=\"Nmap done at Thu Jul  2 14:01:26 2026; 1 IP address (1 host up) scanned in 3.38 seconds\" elapsed=\"3.38\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_14",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "TCP Service Discovery Batch 14",
+      "information_added": "TCP Service Discovery Batch 14",
+      "note": "0 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_14_192.168.86.130_20260702_140132.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 5222,5901,6000,6667,7001 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_14_192.168.86.130_20260702_140132.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:01 +0800\nNmap done: 1 IP address (1 host up) scanned in 3.36 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_14_192.168.86.130_20260702_140132.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:01:33 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 5222,5901,6000,6667,7001 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_14_192.168.86.130_20260702_140132.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 5222,5901,6000,6667,7001 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_14_192.168.86.130_20260702_140132.xml 192.168.86.130\" start=\"1782972093\" startstr=\"Thu Jul  2 14:01:33 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"5222,5901,6000,6667,7001\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<runstats><finished time=\"1782972096\" timestr=\"Thu Jul  2 14:01:36 2026\" summary=\"Nmap done at Thu Jul  2 14:01:36 2026; 1 IP address (1 host up) scanned in 3.36 seconds\" elapsed=\"3.36\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_15",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "TCP Service Discovery Batch 15",
+      "information_added": "TCP Service Discovery Batch 15",
+      "note": "0 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_15_192.168.86.130_20260702_140142.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 7070,8000,8888,9100,10000 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_15_192.168.86.130_20260702_140142.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:01 +0800\nNmap done: 1 IP address (1 host up) scanned in 3.38 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_15_192.168.86.130_20260702_140142.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:01:43 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 7070,8000,8888,9100,10000 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_15_192.168.86.130_20260702_140142.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 7070,8000,8888,9100,10000 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_15_192.168.86.130_20260702_140142.xml 192.168.86.130\" start=\"1782972103\" startstr=\"Thu Jul  2 14:01:43 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"7070,8000,8888,9100,10000\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<runstats><finished time=\"1782972107\" timestr=\"Thu Jul  2 14:01:47 2026\" summary=\"Nmap done at Thu Jul  2 14:01:47 2026; 1 IP address (1 host up) scanned in 3.38 seconds\" elapsed=\"3.38\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_5",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "TCP Service Discovery Batch 5",
+      "information_added": "TCP Service Discovery Batch 5",
+      "note": "0 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_5_192.168.86.130_20260702_135950.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 995,1433,1521,2049,2375 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_5_192.168.86.130_20260702_135950.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 13:59 +0800\nNmap done: 1 IP address (1 host up) scanned in 3.34 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_5_192.168.86.130_20260702_135950.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 13:59:52 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 995,1433,1521,2049,2375 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_5_192.168.86.130_20260702_135950.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 995,1433,1521,2049,2375 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_5_192.168.86.130_20260702_135950.xml 192.168.86.130\" start=\"1782971992\" startstr=\"Thu Jul  2 13:59:52 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"995,1433,1521,2049,2375\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<runstats><finished time=\"1782971995\" timestr=\"Thu Jul  2 13:59:55 2026\" summary=\"Nmap done at Thu Jul  2 13:59:55 2026; 1 IP address (1 host up) scanned in 3.34 seconds\" elapsed=\"3.34\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_8",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "TCP Service Discovery Batch 8",
+      "information_added": "TCP Service Discovery Batch 8",
+      "note": "0 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_8_192.168.86.130_20260702_140024.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 6379,6443,8009,8080,8081 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_8_192.168.86.130_20260702_140024.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:00 +0800\nNmap done: 1 IP address (1 host up) scanned in 3.35 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_8_192.168.86.130_20260702_140024.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:00:26 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 6379,6443,8009,8080,8081 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_8_192.168.86.130_20260702_140024.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 6379,6443,8009,8080,8081 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_8_192.168.86.130_20260702_140024.xml 192.168.86.130\" start=\"1782972026\" startstr=\"Thu Jul  2 14:00:26 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"6379,6443,8009,8080-8081\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<runstats><finished time=\"1782972029\" timestr=\"Thu Jul  2 14:00:29 2026\" summary=\"Nmap done at Thu Jul  2 14:00:29 2026; 1 IP address (1 host up) scanned in 3.35 seconds\" elapsed=\"3.35\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nmap_tcp_microbatch_9",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "TCP Service Discovery Batch 9",
+      "information_added": "TCP Service Discovery Batch 9",
+      "note": "0 open TCP port(s) observed from 5 policy ports; 0 filtered/no-response.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_9_192.168.86.130_20260702_140036.xml",
+      "command": "C:\\Program Files (x86)\\Nmap\\nmap.EXE -Pn -sS --open -T2 --max-retries 1 --max-rate 2 -p 8180,8443,9000,9200,9443 -oX C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_9_192.168.86.130_20260702_140036.xml 192.168.86.130",
+      "output": "Starting Nmap 7.99 ( https://nmap.org ) at 2026-07-02 14:00 +0800\nNmap done: 1 IP address (1 host up) scanned in 3.35 seconds\n\n[evidence file: C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_9_192.168.86.130_20260702_140036.xml]\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE nmaprun>\n<?xml-stylesheet href=\"file:///C:/Program Files (x86)/Nmap/nmap.xsl\" type=\"text/xsl\"?>\n<!-- Nmap 7.99 scan initiated Thu Jul  2 14:00:37 2026 as: &quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 8180,8443,9000,9200,9443 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_9_192.168.86.130_20260702_140036.xml 192.168.86.130 -->\n<nmaprun scanner=\"nmap\" args=\"&quot;C:\\\\Program Files (x86)\\\\Nmap\\\\nmap.EXE&quot; -Pn -sS -&#45;open -T2 -&#45;max-retries 1 -&#45;max-rate 2 -p 8180,8443,9000,9200,9443 -oX C:\\\\Users\\\\mi\\\\Documents\\\\FYP\\\\project\\\\storage\\\\scans\\\\nmap_tcp_microbatch_9_192.168.86.130_20260702_140036.xml 192.168.86.130\" start=\"1782972037\" startstr=\"Thu Jul  2 14:00:37 2026\" version=\"7.99\" xmloutputversion=\"1.05\">\n<scaninfo type=\"syn\" protocol=\"tcp\" numservices=\"5\" services=\"8180,8443,9000,9200,9443\"/>\n<verbose level=\"0\"/>\n<debugging level=\"0\"/>\n<hosthint><status state=\"up\" reason=\"arp-response\" reason_ttl=\"0\"/>\n<address addr=\"192.168.86.130\" addrtype=\"ipv4\"/>\n<address addr=\"00:0C:29:43:D2:A8\" addrtype=\"mac\" vendor=\"VMware\"/>\n<hostnames>\n</hostnames>\n</hosthint>\n<runstats><finished time=\"1782972041\" timestr=\"Thu Jul  2 14:00:41 2026\" summary=\"Nmap done at Thu Jul  2 14:00:41 2026; 1 IP address (1 host up) scanned in 3.35 seconds\" elapsed=\"3.35\" exit=\"success\"/><hosts up=\"1\" down=\"0\" total=\"1\"/>\n</runstats>\n</nmaprun>",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "nuclei_safe",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "nuclei not available, disabled by profile/policy, evidence-trigger disabled by default, or no web services observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "passive_os_fingerprinting",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No approved capture interface configured; set AUTOPENTEST_PASSIVE_INTERFACE to enable listen-only passive inventory.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "passive_packet_inventory",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No approved capture interface configured; set AUTOPENTEST_PASSIVE_INTERFACE to enable listen-only passive inventory.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "ping",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Passive-first posture",
+      "information_added": "Passive-first posture",
+      "note": "Active ping reachability probe skipped for 192.168.86.130; scoped single-host validation can assume target availability before low-noise service checks.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "postgres_readiness_native",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No postgres readiness native service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "redis_info",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Redis exposure evidence",
+      "information_added": "Redis exposure evidence",
+      "note": "0 evidence item(s) retained.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\redis_info_d24bdd517691.json",
+      "command": "python-native active_validation redis_info items=0",
+      "output": "[]",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "route_trace",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "Route tracing deferred for 192.168.86.130; traceroute/mtr is visible to network monitoring.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "rpcinfo_native",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No rpcinfo native service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "showmount_native",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No showmount native service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "snmp_readiness",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No snmp readiness service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "snmp_targeted_oids",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No snmp targeted oids service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "ssh_audit_native",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No ssh audit native service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "targeted_web_discovery",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Policy-limited robots/sitemap/security/admin marker checks; no wordlist brute force.",
+      "information_added": "Policy-limited robots/sitemap/security/admin marker checks; no wordlist brute force.",
+      "note": "0 evidence item(s) retained.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\targeted_web_discovery_d24bdd517691.json",
+      "command": "python-native active_validation targeted_web_discovery items=0",
+      "output": "[]",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "telnet_readiness",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No telnet readiness service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "tls_cipher_validation",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No tls cipher validation service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "tomcat_ajp_readiness",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No tomcat ajp readiness service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "vnc_info",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "Suggested follow-up",
+      "information_added": "Suggested follow-up",
+      "note": "No vnc info service observed.",
+      "output_file": "",
+      "command": "",
+      "output": "",
+      "output_truncated": false,
+      "exit_code": "",
+      "stderr_summary": "",
+      "failure_reason": ""
+    },
+    {
+      "tool": "vpn_validation",
+      "status": "No Evidence Observed",
+      "raw_status": "empty",
+      "evidence_type": "VPN portal marker validation only; no authentication.",
+      "information_added": "VPN portal marker validation only; no authentication.",
+      "note": "0 evidence item(s) retained.",
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\vpn_validation_d24bdd517691.json",
+      "command": "python-native active_validation vpn_validation items=0",
+      "output": "[]",
+      "output_truncated": false,
+      "exit_code": 0,
+      "stderr_summary": "",
+      "failure_reason": ""
+    }
+  ],
+  "service_inventory": [
+    {
+      "host": "192.168.86.130",
+      "port": 135,
+      "protocol": "tcp",
+      "service": "msrpc",
+      "product": "Microsoft Windows RPC",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 139,
+      "protocol": "tcp",
+      "service": "netbios-ssn",
+      "product": "Microsoft Windows netbios-ssn",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 445,
+      "protocol": "tcp",
+      "service": "microsoft-ds",
+      "product": "Microsoft Windows 7 - 10 microsoft-ds",
+      "version": "",
+      "extra": "workgroup: FYP_67",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 3389,
+      "protocol": "tcp",
+      "service": "ms-wbt-server",
+      "product": "Microsoft Terminal Services",
+      "version": "",
+      "extra": "",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml",
+      "scripts": [],
+      "missing_information": [
+        "version"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 5985,
+      "protocol": "tcp",
+      "service": "http",
+      "product": "Microsoft HTTPAPI httpd",
+      "version": "2.0",
+      "extra": "SSDP/UPnP",
+      "cpe": [
+        "cpe:/o:microsoft:windows"
+      ],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml",
+      "scripts": [],
+      "missing_information": []
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 137,
+      "protocol": "udp",
+      "service": "netbios-ns",
+      "product": "",
+      "version": "",
+      "extra": "",
+      "cpe": [],
+      "evidence_sources": [
+        "nmap"
+      ],
+      "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_udp_targeted_192.168.86.130_20260702_140257.xml",
+      "scripts": [],
+      "missing_information": [
+        "product",
+        "version",
+        "cpe"
+      ]
+    }
+  ],
+  "service_summary": [
+    {
+      "host": "192.168.86.130",
+      "port": 135,
+      "protocol": "tcp",
+      "service": "msrpc",
+      "product": "Microsoft Windows RPC",
+      "version": "",
+      "status": "Service identified",
+      "evidence_gaps": "version"
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 139,
+      "protocol": "tcp",
+      "service": "netbios-ssn",
+      "product": "Microsoft Windows netbios-ssn",
+      "version": "",
+      "status": "Service identified",
+      "evidence_gaps": "version"
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 445,
+      "protocol": "tcp",
+      "service": "microsoft-ds",
+      "product": "Microsoft Windows 7 - 10 microsoft-ds",
+      "version": "",
+      "status": "Service identified",
+      "evidence_gaps": "version"
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 3389,
+      "protocol": "tcp",
+      "service": "ms-wbt-server",
+      "product": "Microsoft Terminal Services",
+      "version": "",
+      "status": "Service identified",
+      "evidence_gaps": "version"
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 5985,
+      "protocol": "tcp",
+      "service": "http",
+      "product": "Microsoft HTTPAPI httpd",
+      "version": "2.0",
+      "status": "Service identified",
+      "evidence_gaps": ""
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 137,
+      "protocol": "udp",
+      "service": "netbios-ns",
+      "product": "",
+      "version": "",
+      "status": "Service observed; identity incomplete",
+      "evidence_gaps": "product, version, cpe"
+    }
+  ],
+  "service_workbench": [
+    {
+      "host": "192.168.86.130",
+      "service": "smb",
+      "product": "Microsoft Windows netbios-ssn",
+      "version": "",
+      "category": "File Sharing and RPC Surface",
+      "ports": [
+        "139/tcp",
+        "445/tcp",
+        "137/udp"
+      ],
+      "confirmed_cves": [],
+      "candidate_references": [],
+      "observations": [],
+      "evidence_gaps": [],
+      "checks": [
+        {
+          "tool": "smb_protocol_security",
+          "host": "192.168.86.130",
+          "port": 445,
+          "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml",
+          "rows": [
+            {
+              "host": "192.168.86.130",
+              "port": 445,
+              "protocol": "tcp",
+              "service": "microsoft-ds",
+              "product": "",
+              "version": "",
+              "extra": "",
+              "cpe": [],
+              "evidence_sources": [
+                "nmap"
+              ],
+              "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml",
+              "scripts": []
+            }
+          ]
+        }
+      ],
+      "web_evidence": [],
+      "web_paths": [],
+      "smb_shares": [],
+      "state": "Identified Service"
+    },
+    {
+      "host": "192.168.86.130",
+      "service": "msrpc",
+      "product": "Microsoft Windows RPC",
+      "version": "",
+      "category": "Other Observed Services",
+      "ports": [
+        "135/tcp"
+      ],
+      "confirmed_cves": [],
+      "candidate_references": [],
+      "observations": [],
+      "evidence_gaps": [
+        "Version not identified"
+      ],
+      "checks": [],
+      "web_evidence": [],
+      "web_paths": [],
+      "smb_shares": [],
+      "state": "Identity Incomplete"
+    },
+    {
+      "host": "192.168.86.130",
+      "service": "ms-wbt-server",
+      "product": "Microsoft Terminal Services",
+      "version": "",
+      "category": "Other Observed Services",
+      "ports": [
+        "3389/tcp"
+      ],
+      "confirmed_cves": [],
+      "candidate_references": [],
+      "observations": [],
+      "evidence_gaps": [
+        "Version not identified"
+      ],
+      "checks": [
+        {
+          "tool": "rdp_negotiation",
+          "host": "192.168.86.130",
+          "port": 3389,
+          "scripts": [
+            "rdp-enum-encryption"
+          ],
+          "rows": [
+            {
+              "host": "192.168.86.130",
+              "port": 3389,
+              "protocol": "tcp",
+              "service": "ms-wbt-server",
+              "product": "",
+              "version": "",
+              "extra": "",
+              "cpe": [],
+              "evidence_sources": [
+                "nmap"
+              ],
+              "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml",
+              "scripts": [
+                {
+                  "id": "rdp-enum-encryption",
+                  "output": "\n  Security layer\n    CredSSP (NLA): SUCCESS\n    CredSSP with Early User Auth: SUCCESS\n    RDSTLS: SUCCESS\n"
+                }
+              ]
+            }
+          ],
+          "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml",
+          "recon_boundary": "Evidence-only protocol validation; no credential use or exploitation."
+        }
+      ],
+      "web_evidence": [],
+      "web_paths": [],
+      "smb_shares": [],
+      "state": "Identity Incomplete"
+    },
+    {
+      "host": "192.168.86.130",
+      "service": "http",
+      "product": "Microsoft HTTPAPI httpd",
+      "version": "2.0",
+      "category": "Web Surface",
+      "ports": [
+        "5985/tcp"
+      ],
+      "confirmed_cves": [],
+      "candidate_references": [],
+      "observations": [],
+      "evidence_gaps": [],
+      "checks": [
+        {
+          "tool": "winrm_wsman_probe",
+          "host": "192.168.86.130",
+          "port": 5985,
+          "url": "http://192.168.86.130:5985/wsman",
+          "auth_headers": [],
+          "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\winrm_wsman_probe_192.168.86.130_5985_20260702_140306.txt",
+          "output": "HTTP/1.1 405 \nAllow: POST\nServer: Microsoft-HTTPAPI/2.0\nDate: Thu, 02 Jul 2026 06:03:08 GMT\nConnection: close"
+        }
+      ],
+      "web_evidence": [],
+      "web_paths": [],
+      "smb_shares": [],
+      "state": "Identified Service"
+    }
+  ],
+  "attack_surface_sections": [
+    {
+      "category": "Web Surface",
+      "services": [
+        {
+          "host": "192.168.86.130",
+          "service": "http",
+          "product": "Microsoft HTTPAPI httpd",
+          "version": "2.0",
+          "category": "Web Surface",
+          "ports": [
+            "5985/tcp"
+          ],
+          "confirmed_cves": [],
+          "candidate_references": [],
+          "observations": [],
+          "evidence_gaps": [],
+          "checks": [
+            {
+              "tool": "winrm_wsman_probe",
+              "host": "192.168.86.130",
+              "port": 5985,
+              "url": "http://192.168.86.130:5985/wsman",
+              "auth_headers": [],
+              "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\winrm_wsman_probe_192.168.86.130_5985_20260702_140306.txt",
+              "output": "HTTP/1.1 405 \nAllow: POST\nServer: Microsoft-HTTPAPI/2.0\nDate: Thu, 02 Jul 2026 06:03:08 GMT\nConnection: close"
+            }
+          ],
+          "web_evidence": [],
+          "web_paths": [],
+          "smb_shares": [],
+          "state": "Identified Service"
+        }
+      ]
+    },
+    {
+      "category": "File Sharing and RPC Surface",
+      "services": [
+        {
+          "host": "192.168.86.130",
+          "service": "smb",
+          "product": "Microsoft Windows netbios-ssn",
+          "version": "",
+          "category": "File Sharing and RPC Surface",
+          "ports": [
+            "139/tcp",
+            "445/tcp",
+            "137/udp"
+          ],
+          "confirmed_cves": [],
+          "candidate_references": [],
+          "observations": [],
+          "evidence_gaps": [],
+          "checks": [
+            {
+              "tool": "smb_protocol_security",
+              "host": "192.168.86.130",
+              "port": 445,
+              "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml",
+              "rows": [
+                {
+                  "host": "192.168.86.130",
+                  "port": 445,
+                  "protocol": "tcp",
+                  "service": "microsoft-ds",
+                  "product": "",
+                  "version": "",
+                  "extra": "",
+                  "cpe": [],
+                  "evidence_sources": [
+                    "nmap"
+                  ],
+                  "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml",
+                  "scripts": []
+                }
+              ]
+            }
+          ],
+          "web_evidence": [],
+          "web_paths": [],
+          "smb_shares": [],
+          "state": "Identified Service"
+        }
+      ]
+    },
+    {
+      "category": "Other Observed Services",
+      "services": [
+        {
+          "host": "192.168.86.130",
+          "service": "msrpc",
+          "product": "Microsoft Windows RPC",
+          "version": "",
+          "category": "Other Observed Services",
+          "ports": [
+            "135/tcp"
+          ],
+          "confirmed_cves": [],
+          "candidate_references": [],
+          "observations": [],
+          "evidence_gaps": [
+            "Version not identified"
+          ],
+          "checks": [],
+          "web_evidence": [],
+          "web_paths": [],
+          "smb_shares": [],
+          "state": "Identity Incomplete"
+        },
+        {
+          "host": "192.168.86.130",
+          "service": "ms-wbt-server",
+          "product": "Microsoft Terminal Services",
+          "version": "",
+          "category": "Other Observed Services",
+          "ports": [
+            "3389/tcp"
+          ],
+          "confirmed_cves": [],
+          "candidate_references": [],
+          "observations": [],
+          "evidence_gaps": [
+            "Version not identified"
+          ],
+          "checks": [
+            {
+              "tool": "rdp_negotiation",
+              "host": "192.168.86.130",
+              "port": 3389,
+              "scripts": [
+                "rdp-enum-encryption"
+              ],
+              "rows": [
+                {
+                  "host": "192.168.86.130",
+                  "port": 3389,
+                  "protocol": "tcp",
+                  "service": "ms-wbt-server",
+                  "product": "",
+                  "version": "",
+                  "extra": "",
+                  "cpe": [],
+                  "evidence_sources": [
+                    "nmap"
+                  ],
+                  "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml",
+                  "scripts": [
+                    {
+                      "id": "rdp-enum-encryption",
+                      "output": "\n  Security layer\n    CredSSP (NLA): SUCCESS\n    CredSSP with Early User Auth: SUCCESS\n    RDSTLS: SUCCESS\n"
+                    }
+                  ]
+                }
+              ],
+              "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml",
+              "recon_boundary": "Evidence-only protocol validation; no credential use or exploitation."
+            }
+          ],
+          "web_evidence": [],
+          "web_paths": [],
+          "smb_shares": [],
+          "state": "Identity Incomplete"
+        }
+      ]
+    }
+  ],
+  "cve_matches": [],
+  "relevant_cve_information": [],
+  "candidate_cve_groups": [],
+  "possible_cve_references": [],
+  "service_level_checks": [
+    {
+      "tool": "smb_protocol_security",
+      "host": "192.168.86.130",
+      "port": 445,
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml",
+      "rows": [
+        {
+          "host": "192.168.86.130",
+          "port": 445,
+          "protocol": "tcp",
+          "service": "microsoft-ds",
+          "product": "",
+          "version": "",
+          "extra": "",
+          "cpe": [],
+          "evidence_sources": [
+            "nmap"
+          ],
+          "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml",
+          "scripts": []
+        }
+      ]
+    },
+    {
+      "tool": "winrm_wsman_probe",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "url": "http://192.168.86.130:5985/wsman",
+      "auth_headers": [],
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\winrm_wsman_probe_192.168.86.130_5985_20260702_140306.txt",
+      "output": "HTTP/1.1 405 \nAllow: POST\nServer: Microsoft-HTTPAPI/2.0\nDate: Thu, 02 Jul 2026 06:03:08 GMT\nConnection: close"
+    },
+    {
+      "tool": "rdp_negotiation",
+      "host": "192.168.86.130",
+      "port": 3389,
+      "scripts": [
+        "rdp-enum-encryption"
+      ],
+      "rows": [
+        {
+          "host": "192.168.86.130",
+          "port": 3389,
+          "protocol": "tcp",
+          "service": "ms-wbt-server",
+          "product": "",
+          "version": "",
+          "extra": "",
+          "cpe": [],
+          "evidence_sources": [
+            "nmap"
+          ],
+          "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml",
+          "scripts": [
+            {
+              "id": "rdp-enum-encryption",
+              "output": "\n  Security layer\n    CredSSP (NLA): SUCCESS\n    CredSSP with Early User Auth: SUCCESS\n    RDSTLS: SUCCESS\n"
+            }
+          ]
+        }
+      ],
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml",
+      "recon_boundary": "Evidence-only protocol validation; no credential use or exploitation."
+    },
+    {
+      "tool": "http_security_context",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "command": "curl -k -I -sS --max-time 5 http://192.168.86.130:5985",
+      "parsed": {
+        "tool": "http_security_context",
+        "evidence_state": "observed",
+        "fields": {
+          "headers": {
+            "Server": "Microsoft-HTTPAPI/2.0"
+          },
+          "capabilities": []
+        },
+        "information_gained": "HTTP header, runtime, authentication challenge, cookie, redirect, WebDAV and security-header evidence."
+      },
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\http_security_context_192.168.86.130_5985_20260702_140315.txt",
+      "recon_boundary": "Targeted information gathering only; no credentials, brute force, writes, mounting, or exploitation."
+    }
+  ],
+  "security_relevant_observations": [],
+  "key_exposure_indicators": [],
+  "tcp_service_count": 5,
+  "udp_service_count": 1,
+  "web_inventory": [
+    {
+      "tool": "html_form_parser",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "url": "http://192.168.86.130:5985",
+      "forms": [],
+      "links": [],
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\web_form_hints_192.168.86.130_5985_20260702_140308.html"
+    }
+  ],
+  "web_summary": {
+    "services": [],
+    "paths": [],
+    "unverified_technology_hints": []
+  },
+  "smb_inventory": [
+    {
+      "tool": "smb_protocol_security",
+      "host": "192.168.86.130",
+      "port": 445,
+      "output_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml",
+      "rows": [
+        {
+          "host": "192.168.86.130",
+          "port": 445,
+          "protocol": "tcp",
+          "service": "microsoft-ds",
+          "product": "",
+          "version": "",
+          "extra": "",
+          "cpe": [],
+          "evidence_sources": [
+            "nmap"
+          ],
+          "raw_evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml",
+          "scripts": []
+        }
+      ]
+    }
+  ],
+  "smb_summary": {
+    "shares": [],
+    "tools": [
+      {
+        "tool": "smb_protocol_security",
+        "host": "192.168.86.130",
+        "evidence_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml"
+      }
+    ]
+  },
+  "raw_evidence_index": [
+    {
+      "tool": "nmap_tcp_microbatch_1",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_1_192.168.86.130_20260702_135909.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_2",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_2_192.168.86.130_20260702_135918.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_3",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_3_192.168.86.130_20260702_135929.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_4",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_4_192.168.86.130_20260702_135939.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_5",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_5_192.168.86.130_20260702_135950.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_6",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_6_192.168.86.130_20260702_140003.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_7",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_7_192.168.86.130_20260702_140014.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_8",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_8_192.168.86.130_20260702_140024.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_9",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_9_192.168.86.130_20260702_140036.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_10",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_10_192.168.86.130_20260702_140046.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_11",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_11_192.168.86.130_20260702_140058.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_12",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_12_192.168.86.130_20260702_140110.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_13",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_13_192.168.86.130_20260702_140121.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_14",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_14_192.168.86.130_20260702_140132.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_tcp_microbatch_15",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_tcp_microbatch_15_192.168.86.130_20260702_140142.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "nmap_service_fingerprint",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_service_fingerprint_192.168.86.130_20260702_140147.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "udp_discovery",
+      "host": "192.168.86.130",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_udp_targeted_192.168.86.130_20260702_140257.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "smb_protocol_security",
+      "host": "192.168.86.130",
+      "port": 445,
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\nmap_smb_protocol_security_192.168.86.130_445_20260702_140302.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "winrm_wsman_probe",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\winrm_wsman_probe_192.168.86.130_5985_20260702_140306.txt",
+      "parser": "text",
+      "parsed": true
+    },
+    {
+      "tool": "html_form_parser",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\web_form_hints_192.168.86.130_5985_20260702_140308.html",
+      "parser": "html",
+      "parsed": false
+    },
+    {
+      "tool": "rdp_negotiation",
+      "host": "192.168.86.130",
+      "port": 3389,
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\rdp_negotiation_192.168.86.130_3389_20260702_140309.xml",
+      "parser": "nmap_xml",
+      "parsed": true
+    },
+    {
+      "tool": "http_security_context",
+      "host": "192.168.86.130",
+      "port": 5985,
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\http_security_context_192.168.86.130_5985_20260702_140315.txt",
+      "parser": "text",
+      "parsed": true
+    },
+    {
+      "tool": "targeted_web_discovery",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\targeted_web_discovery_d24bdd517691.json",
+      "parser": "json",
+      "parsed": false
+    },
+    {
+      "tool": "api_discovery",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\api_discovery_d24bdd517691.json",
+      "parser": "json",
+      "parsed": false
+    },
+    {
+      "tool": "kubernetes_exposure",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\kubernetes_exposure_d24bdd517691.json",
+      "parser": "json",
+      "parsed": false
+    },
+    {
+      "tool": "container_exposure",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\container_exposure_d24bdd517691.json",
+      "parser": "json",
+      "parsed": false
+    },
+    {
+      "tool": "vpn_validation",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\vpn_validation_d24bdd517691.json",
+      "parser": "json",
+      "parsed": false
+    },
+    {
+      "tool": "redis_info",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\redis_info_d24bdd517691.json",
+      "parser": "json",
+      "parsed": false
+    },
+    {
+      "tool": "elasticsearch_info",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\elasticsearch_info_d24bdd517691.json",
+      "parser": "json",
+      "parsed": false
+    },
+    {
+      "tool": "modern_active_validation",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\modern_active_validation_d24bdd517691.json",
+      "parser": "json",
+      "parsed": true
+    },
+    {
+      "tool": "native_protocol_enrichment",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\native_protocol_enrichment_d24bdd517691.json",
+      "parser": "json",
+      "parsed": false
+    },
+    {
+      "tool": "passive_intelligence",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\passive_intelligence_d24bdd517691.json",
+      "parser": "json",
+      "parsed": true
+    },
+    {
+      "tool": "python_normaliser",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\scans\\normalised_d24bdd517691.json",
+      "parser": "json",
+      "parsed": true
+    },
+    {
+      "tool": "knowledge_graph",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\d24bdd517691_knowledge_graph.json",
+      "parser": "json",
+      "parsed": true
+    },
+    {
+      "tool": "enumeration_intelligence",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\d24bdd517691_enumeration_intelligence.json",
+      "parser": "json",
+      "parsed": true
+    },
+    {
+      "tool": "operational_maturity",
+      "host": "",
+      "port": "",
+      "file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\d24bdd517691_operational_maturity.json",
+      "parser": "json",
+      "parsed": true
+    }
+  ],
+  "caldera_handoff": {
+    "enabled_for_execution": false,
+    "note": "Recon package prepared for teammate exploitation/AI/CALDERA modules. Recon does not execute exploits or obtain access.",
+    "services": [
+      {
+        "host": "192.168.86.130",
+        "port": 135,
+        "protocol": "tcp",
+        "service": "msrpc",
+        "product": "Microsoft Windows RPC",
+        "version": ""
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 139,
+        "protocol": "tcp",
+        "service": "netbios-ssn",
+        "product": "Microsoft Windows netbios-ssn",
+        "version": ""
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 445,
+        "protocol": "tcp",
+        "service": "microsoft-ds",
+        "product": "Microsoft Windows 7 - 10 microsoft-ds",
+        "version": ""
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 3389,
+        "protocol": "tcp",
+        "service": "ms-wbt-server",
+        "product": "Microsoft Terminal Services",
+        "version": ""
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 5985,
+        "protocol": "tcp",
+        "service": "http",
+        "product": "Microsoft HTTPAPI httpd",
+        "version": "2.0"
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 137,
+        "protocol": "udp",
+        "service": "netbios-ns",
+        "product": "",
+        "version": ""
+      }
+    ],
+    "cve_matches": [],
+    "exploit_validation_candidates": [
+      {
+        "host": "192.168.86.130",
+        "port": 139,
+        "protocol": "tcp",
+        "service": "smb",
+        "candidate_type": "authentication_surface_candidate",
+        "smb_signing_required": null,
+        "smb_dialect_hints": [],
+        "safe_recon_checks": [],
+        "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+        "recommended_downstream_module": "credential_validation",
+        "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 445,
+        "protocol": "tcp",
+        "service": "smb",
+        "candidate_type": "authentication_surface_candidate",
+        "smb_signing_required": false,
+        "smb_dialect_hints": [
+          "1",
+          "2"
+        ],
+        "safe_recon_checks": [
+          "smb2-security-mode",
+          "smb-protocols"
+        ],
+        "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+        "recommended_downstream_module": "credential_validation",
+        "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 5985,
+        "protocol": "tcp",
+        "service": "winrm",
+        "candidate_type": "authentication_surface_candidate",
+        "auth_headers": [],
+        "safe_recon_checks": [
+          "wsman_head"
+        ],
+        "evidence": "WinRM management surface exposed; listener/header readiness collected where available. Authentication validation deferred.",
+        "recommended_downstream_module": "credential_validation",
+        "recon_boundary": "Recon probes the WSMan endpoint only; no authentication attempts performed."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 137,
+        "protocol": "udp",
+        "service": "smb",
+        "candidate_type": "authentication_surface_candidate",
+        "smb_signing_required": null,
+        "smb_dialect_hints": [],
+        "safe_recon_checks": [],
+        "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+        "recommended_downstream_module": "credential_validation",
+        "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 5985,
+        "protocol": "tcp",
+        "service": "http",
+        "candidate_type": "web_exploitation_candidate",
+        "framework_or_technology_hints": [],
+        "auth_surfaces": [],
+        "input_surfaces": [],
+        "upload_surfaces": [],
+        "evidence": "Web/application surface exposed; SQLi/command-injection/content discovery validation deferred to downstream module.",
+        "recommended_downstream_module": "web_validation",
+        "recon_boundary": "No SQLi, command injection, vulnerability scanner, or large path discovery executed by recon."
+      }
+    ],
+    "authentication_surface_readiness": [
+      {
+        "host": "192.168.86.130",
+        "port": 139,
+        "protocol": "tcp",
+        "service": "smb",
+        "candidate_type": "authentication_surface_candidate",
+        "smb_signing_required": null,
+        "smb_dialect_hints": [],
+        "safe_recon_checks": [],
+        "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+        "recommended_downstream_module": "credential_validation",
+        "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 445,
+        "protocol": "tcp",
+        "service": "smb",
+        "candidate_type": "authentication_surface_candidate",
+        "smb_signing_required": false,
+        "smb_dialect_hints": [
+          "1",
+          "2"
+        ],
+        "safe_recon_checks": [
+          "smb2-security-mode",
+          "smb-protocols"
+        ],
+        "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+        "recommended_downstream_module": "credential_validation",
+        "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 5985,
+        "protocol": "tcp",
+        "service": "winrm",
+        "candidate_type": "authentication_surface_candidate",
+        "auth_headers": [],
+        "safe_recon_checks": [
+          "wsman_head"
+        ],
+        "evidence": "WinRM management surface exposed; listener/header readiness collected where available. Authentication validation deferred.",
+        "recommended_downstream_module": "credential_validation",
+        "recon_boundary": "Recon probes the WSMan endpoint only; no authentication attempts performed."
+      },
+      {
+        "host": "192.168.86.130",
+        "port": 137,
+        "protocol": "udp",
+        "service": "smb",
+        "candidate_type": "authentication_surface_candidate",
+        "smb_signing_required": null,
+        "smb_dialect_hints": [],
+        "safe_recon_checks": [],
+        "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+        "recommended_downstream_module": "credential_validation",
+        "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+      }
+    ],
+    "web_exploitation_readiness": [
+      {
+        "host": "192.168.86.130",
+        "port": 5985,
+        "protocol": "tcp",
+        "service": "http",
+        "candidate_type": "web_exploitation_candidate",
+        "framework_or_technology_hints": [],
+        "auth_surfaces": [],
+        "input_surfaces": [],
+        "upload_surfaces": [],
+        "evidence": "Web/application surface exposed; SQLi/command-injection/content discovery validation deferred to downstream module.",
+        "recommended_downstream_module": "web_validation",
+        "recon_boundary": "No SQLi, command injection, vulnerability scanner, or large path discovery executed by recon."
+      }
+    ]
+  },
+  "environment_summary": {
+    "items": [],
+    "ttl_values": [],
+    "role_hints": [],
+    "environment_context_indicators": []
+  },
+  "attack_surface_objectives": [
+    {
+      "id": "web_investigation",
+      "label": "Web Surface Investigation",
+      "matched_services": [
+        "http"
+      ],
+      "matched_ports": [],
+      "evidence_needed": [
+        "headers",
+        "titles",
+        "server_banner",
+        "technology_hints",
+        "forms",
+        "parameters",
+        "login_surfaces",
+        "upload_surfaces"
+      ]
+    },
+    {
+      "id": "file_sharing_investigation",
+      "label": "File Sharing Investigation",
+      "matched_services": [
+        "microsoft-ds",
+        "netbios-ns",
+        "netbios-ssn"
+      ],
+      "matched_ports": [
+        137,
+        139,
+        445
+      ],
+      "evidence_needed": [
+        "service_exposure",
+        "protocol_family",
+        "credential_readiness",
+        "evidence_gaps"
+      ]
+    },
+    {
+      "id": "remote_access_investigation",
+      "label": "Remote Access Investigation",
+      "matched_services": [],
+      "matched_ports": [
+        3389,
+        5985
+      ],
+      "evidence_needed": [
+        "service_identity",
+        "auth_surface",
+        "configuration_hints"
+      ]
+    }
+  ],
+  "evidence_gaps": [
+    {
+      "host": "192.168.86.130",
+      "port": 135,
+      "protocol": "tcp",
+      "service": "msrpc",
+      "gaps": [
+        "version_identity"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 139,
+      "protocol": "tcp",
+      "service": "netbios-ssn",
+      "gaps": [
+        "version_identity"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 445,
+      "protocol": "tcp",
+      "service": "microsoft-ds",
+      "gaps": [
+        "version_identity"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 3389,
+      "protocol": "tcp",
+      "service": "ms-wbt-server",
+      "gaps": [
+        "version_identity"
+      ]
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 137,
+      "protocol": "udp",
+      "service": "netbios-ns",
+      "gaps": [
+        "product_identity",
+        "version_identity",
+        "cpe_identity"
+      ]
+    }
+  ],
+  "exploit_validation_candidates": [
+    {
+      "host": "192.168.86.130",
+      "port": 139,
+      "protocol": "tcp",
+      "service": "smb",
+      "candidate_type": "authentication_surface_candidate",
+      "smb_signing_required": null,
+      "smb_dialect_hints": [],
+      "safe_recon_checks": [],
+      "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+      "recommended_downstream_module": "credential_validation",
+      "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 445,
+      "protocol": "tcp",
+      "service": "smb",
+      "candidate_type": "authentication_surface_candidate",
+      "smb_signing_required": false,
+      "smb_dialect_hints": [
+        "1",
+        "2"
+      ],
+      "safe_recon_checks": [
+        "smb2-security-mode",
+        "smb-protocols"
+      ],
+      "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+      "recommended_downstream_module": "credential_validation",
+      "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 5985,
+      "protocol": "tcp",
+      "service": "winrm",
+      "candidate_type": "authentication_surface_candidate",
+      "auth_headers": [],
+      "safe_recon_checks": [
+        "wsman_head"
+      ],
+      "evidence": "WinRM management surface exposed; listener/header readiness collected where available. Authentication validation deferred.",
+      "recommended_downstream_module": "credential_validation",
+      "recon_boundary": "Recon probes the WSMan endpoint only; no authentication attempts performed."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 137,
+      "protocol": "udp",
+      "service": "smb",
+      "candidate_type": "authentication_surface_candidate",
+      "smb_signing_required": null,
+      "smb_dialect_hints": [],
+      "safe_recon_checks": [],
+      "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+      "recommended_downstream_module": "credential_validation",
+      "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 5985,
+      "protocol": "tcp",
+      "service": "http",
+      "candidate_type": "web_exploitation_candidate",
+      "framework_or_technology_hints": [],
+      "auth_surfaces": [],
+      "input_surfaces": [],
+      "upload_surfaces": [],
+      "evidence": "Web/application surface exposed; SQLi/command-injection/content discovery validation deferred to downstream module.",
+      "recommended_downstream_module": "web_validation",
+      "recon_boundary": "No SQLi, command injection, vulnerability scanner, or large path discovery executed by recon."
+    }
+  ],
+  "authentication_surface_readiness": [
+    {
+      "host": "192.168.86.130",
+      "port": 139,
+      "protocol": "tcp",
+      "service": "smb",
+      "candidate_type": "authentication_surface_candidate",
+      "smb_signing_required": null,
+      "smb_dialect_hints": [],
+      "safe_recon_checks": [],
+      "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+      "recommended_downstream_module": "credential_validation",
+      "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 445,
+      "protocol": "tcp",
+      "service": "smb",
+      "candidate_type": "authentication_surface_candidate",
+      "smb_signing_required": false,
+      "smb_dialect_hints": [
+        "1",
+        "2"
+      ],
+      "safe_recon_checks": [
+        "smb2-security-mode",
+        "smb-protocols"
+      ],
+      "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+      "recommended_downstream_module": "credential_validation",
+      "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 5985,
+      "protocol": "tcp",
+      "service": "winrm",
+      "candidate_type": "authentication_surface_candidate",
+      "auth_headers": [],
+      "safe_recon_checks": [
+        "wsman_head"
+      ],
+      "evidence": "WinRM management surface exposed; listener/header readiness collected where available. Authentication validation deferred.",
+      "recommended_downstream_module": "credential_validation",
+      "recon_boundary": "Recon probes the WSMan endpoint only; no authentication attempts performed."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 137,
+      "protocol": "udp",
+      "service": "smb",
+      "candidate_type": "authentication_surface_candidate",
+      "smb_signing_required": null,
+      "smb_dialect_hints": [],
+      "safe_recon_checks": [],
+      "evidence": "SMB/NetBIOS surface exposed; dialect/signing readiness collected where safe. Share/user enumeration deferred.",
+      "recommended_downstream_module": "credential_validation",
+      "recon_boundary": "Recon checks SMB protocol/signing only; no share, user, RID, password, or permission enumeration performed."
+    }
+  ],
+  "web_exploitation_readiness": [
+    {
+      "host": "192.168.86.130",
+      "port": 5985,
+      "protocol": "tcp",
+      "service": "http",
+      "candidate_type": "web_exploitation_candidate",
+      "framework_or_technology_hints": [],
+      "auth_surfaces": [],
+      "input_surfaces": [],
+      "upload_surfaces": [],
+      "evidence": "Web/application surface exposed; SQLi/command-injection/content discovery validation deferred to downstream module.",
+      "recommended_downstream_module": "web_validation",
+      "recon_boundary": "No SQLi, command injection, vulnerability scanner, or large path discovery executed by recon."
+    }
+  ],
+  "suggested_follow_up_objectives": [
+    {
+      "objective": "Full TCP coverage",
+      "reason": "Full 65k TCP sweep was deferred; Full Recon uses micro-batched high-value coverage plus targeted expansion instead.",
+      "trigger": "port_coverage_gap",
+      "noise": "high",
+      "execution": "not_auto_executed"
+    },
+    {
+      "objective": "Deep SMB enumeration",
+      "reason": "Broad SMB enumeration and permission mapping were deferred; use only after approval.",
+      "trigger": "smb_surface_observed",
+      "noise": "medium-high",
+      "execution": "not_auto_executed"
+    },
+    {
+      "objective": "SMB/WinRM authentication surface validation",
+      "reason": "SMB exposure was observed. Credential validation and WinRM checks are deferred to downstream validation modules.",
+      "trigger": "smb_or_windows_surface_observed",
+      "noise": "high",
+      "execution": "not_auto_executed"
+    }
+  ],
+  "escalation_paused": false,
+  "pentester_summary": [
+    "DNS relationship engine retained 1 forward/reverse/authority relationship(s).",
+    "The target presented 6 observed service endpoints across TCP/UDP evidence collection."
+  ]
+}

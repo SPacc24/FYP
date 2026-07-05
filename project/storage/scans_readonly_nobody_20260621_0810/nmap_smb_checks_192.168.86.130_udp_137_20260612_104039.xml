@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Fri Jun 12 10:40:39 2026 as: /usr/lib/nmap/nmap -sV -sU -&#45;script smb-enum-shares,smb-enum-users,smb-os-discovery,smb-protocols,smb-security-mode -p 137 -oX storage/scans/nmap_smb_checks_192.168.86.130_udp_137_20260612_104039.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -sV -sU -&#45;script smb-enum-shares,smb-enum-users,smb-os-discovery,smb-protocols,smb-security-mode -p 137 -oX storage/scans/nmap_smb_checks_192.168.86.130_udp_137_20260612_104039.xml 192.168.86.130" start="1781275239" startstr="Fri Jun 12 10:40:39 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="udp" protocol="udp" numservices="1" services="137"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1781275243" endtime="1781275243"><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+<ports><port protocol="udp" portid="137"><state state="open" reason="udp-response" reason_ttl="128"/><service name="netbios-ns" product="Microsoft Windows netbios-ns" extrainfo="workgroup: FYP_67" hostname="CLIENT01" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+</ports>
+<times srtt="2815" rttvar="3810" to="100000"/>
+</host>
+<runstats><finished time="1781275243" timestr="Fri Jun 12 10:40:43 2026" summary="Nmap done at Fri Jun 12 10:40:43 2026; 1 IP address (1 host up) scanned in 4.16 seconds" elapsed="4.16" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

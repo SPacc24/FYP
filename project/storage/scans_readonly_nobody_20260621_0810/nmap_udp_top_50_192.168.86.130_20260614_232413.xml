@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Sun Jun 14 23:24:13 2026 as: /usr/lib/nmap/nmap -sU -&#45;top-ports 50 -sV -&#45;version-intensity 0 -T4 -oX storage/scans/nmap_udp_top_50_192.168.86.130_20260614_232413.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -sU -&#45;top-ports 50 -sV -&#45;version-intensity 0 -T4 -oX storage/scans/nmap_udp_top_50_192.168.86.130_20260614_232413.xml 192.168.86.130" start="1781493853" startstr="Sun Jun 14 23:24:13 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="udp" protocol="udp" numservices="50" services="7,53,67-69,80,111,123,135-139,161-162,445,500,514,518,520,593,626,631,996-999,1025-1027,1433-1434,1645-1646,1701,1812,1900,2048-2049,2222,3283,3456,4500,5060,5353,20031,32768,49152-49154"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<runstats><finished time="1781493855" timestr="Sun Jun 14 23:24:15 2026" summary="Nmap done at Sun Jun 14 23:24:15 2026; 1 IP address (0 hosts up) scanned in 1.90 seconds" elapsed="1.90" exit="success"/><hosts up="0" down="1" total="1"/>
+</runstats>
+</nmaprun>

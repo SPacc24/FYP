@@ -1,0 +1,227 @@
+{
+  "enumeration_cache": {
+    "scan_id": "5f9dabe98cdb",
+    "target": "192.168.86.130",
+    "created_at": "2026-07-02T05:51:04.178973+00:00",
+    "policy": "Reuse stable metadata only when target, network-path context and service signature remain consistent.",
+    "reusable_collectors": [
+      {
+        "collector": "http_security_context",
+        "ttl_seconds": 21600,
+        "reuse_boundary": "metadata only; do not infer service absence from cached data"
+      },
+      {
+        "collector": "service_inventory",
+        "ttl_seconds": 21600,
+        "reuse_boundary": "metadata only; do not infer service absence from cached data"
+      }
+    ],
+    "service_signatures": [
+      {
+        "key": "192.168.86.130:135/tcp",
+        "signature": "msrpc | Microsoft Windows RPC",
+        "host": "192.168.86.130",
+        "port": 135,
+        "protocol": "tcp",
+        "service": "msrpc",
+        "product": "Microsoft Windows RPC",
+        "version": ""
+      },
+      {
+        "key": "192.168.86.130:139/tcp",
+        "signature": "netbios-ssn | Microsoft Windows netbios-ssn",
+        "host": "192.168.86.130",
+        "port": 139,
+        "protocol": "tcp",
+        "service": "netbios-ssn",
+        "product": "Microsoft Windows netbios-ssn",
+        "version": ""
+      },
+      {
+        "key": "192.168.86.130:445/tcp",
+        "signature": "microsoft-ds | Microsoft Windows 7 - 10 microsoft-ds",
+        "host": "192.168.86.130",
+        "port": 445,
+        "protocol": "tcp",
+        "service": "microsoft-ds",
+        "product": "Microsoft Windows 7 - 10 microsoft-ds",
+        "version": ""
+      },
+      {
+        "key": "192.168.86.130:3389/tcp",
+        "signature": "ms-wbt-server | Microsoft Terminal Services",
+        "host": "192.168.86.130",
+        "port": 3389,
+        "protocol": "tcp",
+        "service": "ms-wbt-server",
+        "product": "Microsoft Terminal Services",
+        "version": ""
+      },
+      {
+        "key": "192.168.86.130:5985/tcp",
+        "signature": "http | Microsoft HTTPAPI httpd | 2.0",
+        "host": "192.168.86.130",
+        "port": 5985,
+        "protocol": "tcp",
+        "service": "http",
+        "product": "Microsoft HTTPAPI httpd",
+        "version": "2.0"
+      },
+      {
+        "key": "192.168.86.130:137/udp",
+        "signature": "netbios-ns",
+        "host": "192.168.86.130",
+        "port": 137,
+        "protocol": "udp",
+        "service": "netbios-ns",
+        "product": "",
+        "version": ""
+      }
+    ],
+    "passive_summary_count": 1,
+    "summary": "6 service signature(s) and 2 reusable metadata collector type(s) recorded.",
+    "cache_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\cache\\5f9dabe98cdb_enumeration_cache.json"
+  },
+  "differential_recon": {
+    "baseline_found": true,
+    "baseline_file": "C:\\Users\\mi\\Documents\\FYP\\project\\storage\\results\\31627b2b25ad_handoff.json",
+    "baseline_scan_id": "31627b2b25ad",
+    "summary": "Compared against previous run 31627b2b25ad: 0 new, 0 removed, 0 changed service item(s).",
+    "new_services": [],
+    "removed_services": [],
+    "changed_services": [],
+    "interpretation_boundary": "Differences reflect observed recon evidence between runs only; scheduled rules, filtering and scan position can change visibility."
+  },
+  "service_confidence_breakdown": [
+    {
+      "host": "192.168.86.130",
+      "port": 135,
+      "protocol": "tcp",
+      "service": "msrpc",
+      "confidence": "Supported",
+      "evidence_sources": [
+        "Banner or version evidence",
+        "Cross-service role inference",
+        "Passive or DNS/TLS evidence",
+        "Service inventory",
+        "Validator evidence"
+      ],
+      "role_context": [
+        "Likely Remote Administration Surface"
+      ],
+      "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 139,
+      "protocol": "tcp",
+      "service": "netbios-ssn",
+      "confidence": "Supported",
+      "evidence_sources": [
+        "Banner or version evidence",
+        "Cross-service role inference",
+        "Passive or DNS/TLS evidence",
+        "Service inventory",
+        "Validator evidence"
+      ],
+      "role_context": [
+        "Likely Remote Administration Surface"
+      ],
+      "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 445,
+      "protocol": "tcp",
+      "service": "microsoft-ds",
+      "confidence": "Supported",
+      "evidence_sources": [
+        "Banner or version evidence",
+        "Cross-service role inference",
+        "Passive or DNS/TLS evidence",
+        "Service inventory",
+        "Validator evidence"
+      ],
+      "role_context": [
+        "Likely Remote Administration Surface"
+      ],
+      "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 3389,
+      "protocol": "tcp",
+      "service": "ms-wbt-server",
+      "confidence": "Supported",
+      "evidence_sources": [
+        "Banner or version evidence",
+        "Cross-service role inference",
+        "Passive or DNS/TLS evidence",
+        "Service inventory",
+        "Validator evidence"
+      ],
+      "role_context": [
+        "Likely Remote Administration Surface"
+      ],
+      "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 5985,
+      "protocol": "tcp",
+      "service": "http",
+      "confidence": "Supported",
+      "evidence_sources": [
+        "Banner or version evidence",
+        "Cross-service role inference",
+        "Passive or DNS/TLS evidence",
+        "Service inventory",
+        "Validator evidence"
+      ],
+      "role_context": [
+        "Likely Remote Administration Surface"
+      ],
+      "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+    },
+    {
+      "host": "192.168.86.130",
+      "port": 137,
+      "protocol": "udp",
+      "service": "netbios-ns",
+      "confidence": "Supported",
+      "evidence_sources": [
+        "Banner or version evidence",
+        "Cross-service role inference",
+        "Passive or DNS/TLS evidence",
+        "Service inventory",
+        "Validator evidence"
+      ],
+      "role_context": [
+        "Likely Remote Administration Surface"
+      ],
+      "boundary": "Confidence describes evidence support for identification only; it is not severity or priority."
+    }
+  ],
+  "operational_metrics": {
+    "scan_id": "5f9dabe98cdb",
+    "started_at": "2026-07-02T13:46:49",
+    "completed_at": "2026-07-02T05:51:04.206594+00:00",
+    "service_records": 6,
+    "evidence_files": 0,
+    "validators_with_evidence": 4,
+    "validator_names": [
+      "http_security_context",
+      "information_gathering_summary",
+      "rdp_negotiation",
+      "summary"
+    ],
+    "summary": "6 service record(s), 0 evidence file reference(s), and 4 validator group(s) retained.",
+    "boundary": "Operational metrics describe collection volume and duration context only; they do not guide exploitation or downstream action selection."
+  },
+  "summary": [
+    "6 service signature(s) and 2 reusable metadata collector type(s) recorded.",
+    "Compared against previous run 31627b2b25ad: 0 new, 0 removed, 0 changed service item(s).",
+    "6 service record(s), 0 evidence file reference(s), and 4 validator group(s) retained.",
+    "6 service confidence row(s) retained."
+  ]
+}

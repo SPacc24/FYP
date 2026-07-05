@@ -1,0 +1,6 @@
+HTTP/1.1 405 
+Allow: POST
+Server: Microsoft-HTTPAPI/2.0
+Date: Thu, 02 Jul 2026 05:50:50 GMT
+Connection: close
+

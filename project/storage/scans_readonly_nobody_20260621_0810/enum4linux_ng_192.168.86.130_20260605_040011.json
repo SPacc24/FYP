@@ -1,0 +1,101 @@
+{
+    "target": {
+        "host": "192.168.86.130"
+    },
+    "credentials": {
+        "auth_method": "null",
+        "user": "",
+        "password": "",
+        "domain": "",
+        "ticket_file": "",
+        "nthash": "",
+        "random_user": "oiodpwbl"
+    },
+    "listeners": {
+        "LDAP": {
+            "port": 389,
+            "accessible": false
+        },
+        "LDAPS": {
+            "port": 636,
+            "accessible": false
+        },
+        "SMB": {
+            "port": 445,
+            "accessible": true
+        },
+        "SMB over NetBIOS": {
+            "port": 139,
+            "accessible": true
+        }
+    },
+    "domain": "FYP_67",
+    "nmblookup": [
+        "CLIENT01        <00> -         B <ACTIVE>  Workstation Service",
+        "FYP_67          <00> - <GROUP> B <ACTIVE>  Domain/Workgroup Name",
+        "CLIENT01        <20> -         B <ACTIVE>  File Server Service",
+        "FYP_67          <1e> - <GROUP> B <ACTIVE>  Browser Service Elections",
+        "FYP_67          <1d> -         B <ACTIVE>  Master Browser",
+        "..__MSBROWSE__. <01> - <GROUP> B <ACTIVE>  Master Browser",
+        "MAC Address = 00-0C-29-A1-D7-1B"
+    ],
+    "smb_dialects": {
+        "Supported dialects": {
+            "SMB 1.0": true,
+            "SMB 2.0.2": true,
+            "SMB 2.1": true,
+            "SMB 3.0": true,
+            "SMB 3.1.1": true
+        },
+        "Preferred dialect": "SMB 3.0",
+        "SMB1 only": false,
+        "SMB signing required": false
+    },
+    "smb_domain_info": {
+        "NetBIOS computer name": "CLIENT01",
+        "NetBIOS domain name": "FYP_67",
+        "DNS domain": "fyp.server2012",
+        "FQDN": "client01.fyp.server2012",
+        "Derived membership": "domain member",
+        "Derived domain": "FYP_67"
+    },
+    "sessions": {
+        "sessions_possible": false,
+        "null": false,
+        "password": false,
+        "Kerberos": false,
+        "NTLM": false,
+        "guest": false
+    },
+    "os_info": {
+        "OS": "Windows 10 Enterprise 10240",
+        "OS version": "10.0",
+        "OS release": "1507",
+        "OS build": "10240",
+        "Native OS": "Windows 10 Enterprise 10240",
+        "Native LAN manager": "Windows 10 Enterprise 6.3",
+        "Platform id": null,
+        "Server type": null,
+        "Server type string": null
+    },
+    "errors": {
+        "listeners": {
+            "enum_listeners": [
+                "Could not connect to LDAP on 389/tcp: connection refused",
+                "Could not connect to LDAPS on 636/tcp: connection refused"
+            ]
+        },
+        "sessions": {
+            "enum_sessions": [
+                "Could not establish null session: STATUS_ACCESS_DENIED",
+                "Could not establish guest session: STATUS_NO_LOGON_SERVERS",
+                "Sessions failed, neither null nor user sessions were possible"
+            ]
+        },
+        "os_info": {
+            "enum_os_info": [
+                "Skipping 'srvinfo' run, not possible with provided credentials"
+            ]
+        }
+    }
+}

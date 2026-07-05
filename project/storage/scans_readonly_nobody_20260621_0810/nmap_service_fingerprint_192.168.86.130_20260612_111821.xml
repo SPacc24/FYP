@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.99 scan initiated Fri Jun 12 11:18:21 2026 as: /usr/lib/nmap/nmap -sV -&#45;version-light -O -&#45;osscan-guess -p 135,139,445,3389,5357,7680,47001,49408,49409,49411,49412,49413,49414,49415 -oX storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_111821.xml 192.168.86.130 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -sV -&#45;version-light -O -&#45;osscan-guess -p 135,139,445,3389,5357,7680,47001,49408,49409,49411,49412,49413,49414,49415 -oX storage/scans/nmap_service_fingerprint_192.168.86.130_20260612_111821.xml 192.168.86.130" start="1781277501" startstr="Fri Jun 12 11:18:21 2026" version="7.99" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="14" services="135,139,445,3389,5357,7680,47001,49408-49409,49411-49415"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1781277504" endtime="1781277531"><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="192.168.86.130" addrtype="ipv4"/>
+<address addr="00:0C:29:A1:D7:1B" addrtype="mac" vendor="VMware"/>
+<hostnames>
+</hostnames>
+<ports><port protocol="tcp" portid="135"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="msrpc" product="Microsoft Windows RPC" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="139"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="netbios-ssn" product="Microsoft Windows netbios-ssn" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="445"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="microsoft-ds" product="Microsoft Windows 7 - 10 microsoft-ds" extrainfo="workgroup: FYP_67" hostname="CLIENT01" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="3389"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="ms-wbt-server" product="Microsoft Terminal Services" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="5357"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="http" product="Microsoft HTTPAPI httpd" version="2.0" extrainfo="SSDP/UPnP" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="7680"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="pando-pub" method="table" conf="3"/></port>
+<port protocol="tcp" portid="47001"><state state="open" reason="syn-ack" reason_ttl="128"/><service name="http" product="Microsoft HTTPAPI httpd" version="2.0" extrainfo="SSDP/UPnP" ostype="Windows" method="probed" conf="10"><cpe>cpe:/o:microsoft:windows</cpe></service></port>
+<port protocol="tcp" portid="49408"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49409"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49411"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49412"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49413"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49414"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+<port protocol="tcp" portid="49415"><state state="open" reason="syn-ack" reason_ttl="128"/></port>
+</ports>
+<os><portused state="open" proto="tcp" portid="135"/>
+<portused state="closed" proto="udp" portid="41183"/>
+<osmatch name="Microsoft Windows 10 1507 - 1607" accuracy="100" line="75448">
+<osclass type="general purpose" vendor="Microsoft" osfamily="Windows" osgen="10" accuracy="100"><cpe>cpe:/o:microsoft:windows_10</cpe></osclass>
+</osmatch>
+</os>
+<uptime seconds="621450" lastboot="Fri Jun  5 06:41:21 2026"/>
+<distance value="1"/>
+<tcpsequence index="262" difficulty="Good luck!" values="5540DCB7,C8E545E9,B716572A,E9591F2C,8DDAD081,197F8716"/>
+<ipidsequence class="Incremental" values="1E83,1E84,1E85,1E86,1E87,1E88"/>
+<tcptssequence class="1000HZ" values="250A95B5,250A9619,250A967D,250A96E1,250A9747,250A97AA"/>
+<times srtt="1168" rttvar="301" to="100000"/>
+</host>
+<runstats><finished time="1781277531" timestr="Fri Jun 12 11:18:51 2026" summary="Nmap done at Fri Jun 12 11:18:51 2026; 1 IP address (1 host up) scanned in 30.73 seconds" elapsed="30.73" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>
