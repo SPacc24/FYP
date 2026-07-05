@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     port = int(os.getenv("PORT", "5000"))
 
-    # Use APP_HOST=0.0.0.0 if you want to access it from host browser / lab VMs.
+    # Bind to all interfaces by default so the dashboard is reachable from other demo laptops.
     host = os.getenv("APP_HOST", "0.0.0.0")
 
     app.run(host=host, port=port, debug=getattr(Config, "DEBUG", False))
