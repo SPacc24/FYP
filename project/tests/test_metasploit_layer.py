@@ -1,5 +1,5 @@
 from exploitation.metasploit_policy import authorize_metasploit_action, build_metasploit_actions
-from exploitation.metasploit_client import MetasploitRpcClient
+from exploitation.metasploit_client import MetasploitRpcClient, MetasploitRpcError
 from exploitation.metasploit_service import MetasploitService
 from config import Config
 
@@ -116,6 +116,50 @@ def test_client_reauthenticates_once_when_cached_token_expires(monkeypatch):
         ["auth.login", "msf", "pass"],
         ["core.version", "fresh-token"],
     ]
+
+
+def test_client_decodes_http_401_login_failure(monkeypatch):
+    import exploitation.metasploit_client as client_module
+
+    class FakeMessagePack:
+        def packb(self, value, use_bin_type=True):
+            return value
+
+        def unpackb(self, value, raw=False):
+            return value
+
+    class FakeResponse:
+        status_code = 401
+        content = {
+            "error": True,
+            "error_message": b"Login Failed",
+            "error_code": 401,
+        }
+
+        def raise_for_status(self):
+            raise AssertionError("HTTP status should not hide the RPC login error")
+
+    def fake_post(url, **kwargs):
+        return FakeResponse()
+
+    client = MetasploitRpcClient(
+        "https://127.0.0.1:55552",
+        "msf",
+        "wrong-pass",
+        enabled=True,
+    )
+    monkeypatch.setattr(client, "_msgpack", lambda: FakeMessagePack())
+    monkeypatch.setattr(client_module.requests, "post", fake_post)
+
+    try:
+        client.login()
+    except MetasploitRpcError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("Expected MetasploitRpcError")
+
+    assert "Metasploit RPC login failed" in message
+    assert "METASPLOIT_RPC_PASS" in message
 
 
 def test_policy_rejects_arbitrary_or_unscoped_action():
