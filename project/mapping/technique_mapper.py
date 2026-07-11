@@ -327,7 +327,7 @@ def map_results_to_vulnerabilities(parsed_results: dict[str, Any]) -> dict[str, 
 
 
 def select_attack_mode(mapping_result, mode, selected_ids=None):
-    mode = mode.lower()
+    mode = str(mode or "").lower()
     selected_ids = selected_ids or []
 
     recommended_techniques = mapping_result.get("recommended_techniques", [])

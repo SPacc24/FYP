@@ -23,6 +23,8 @@ class Config:
     METASPLOIT_RPC_PASS = os.getenv('METASPLOIT_RPC_PASS', '')
     METASPLOIT_RPC_VERIFY_SSL = os.getenv('METASPLOIT_RPC_VERIFY_SSL', '0') == '1'
     METASPLOIT_RPC_TIMEOUT = int(os.getenv('METASPLOIT_RPC_TIMEOUT', '20'))
+    METASPLOIT_RESULT_TIMEOUT = float(os.getenv('METASPLOIT_RESULT_TIMEOUT', '15'))
+    METASPLOIT_POLL_INTERVAL = float(os.getenv('METASPLOIT_POLL_INTERVAL', '1'))
 
     AGENT_GROUP = os.getenv('AGENT_GROUP', 'red')
     KALI_IP = os.getenv('KALI_IP', '127.0.0.1')

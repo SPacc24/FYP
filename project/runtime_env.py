@@ -47,6 +47,8 @@ DEFAULT_VALUES: tuple[tuple[str, str], ...] = (
     ("METASPLOIT_RPC_USER", "msf"),
     ("METASPLOIT_RPC_VERIFY_SSL", "0"),
     ("METASPLOIT_RPC_TIMEOUT", "20"),
+    ("METASPLOIT_RESULT_TIMEOUT", "15"),
+    ("METASPLOIT_POLL_INTERVAL", "1"),
     ("PROOF_OF_ACCESS_ENABLED", "false"),
     ("PROOF_OF_ACCESS_TTL", "300"),
 )

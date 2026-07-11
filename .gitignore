@@ -3,12 +3,6 @@ __pycache__/
 *.py[cod]
 *.pyo
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-
-# Virtual environments
 .venv/
 venv/
 env/
@@ -19,6 +13,7 @@ storage/results/*
 storage/scans/*
 project/storage/scans/*
 project/storage/results/*
+project/storage/scans_readonly*/
 !project/storage/scans/.gitkeep
 !project/storage/results/.gitkeep
 project/storage/mitre_cve/*
@@ -31,15 +26,11 @@ project/*.log
 
 # Local configuration
 .env
-.env.local
-*.secret
 
 # OS/editor noise
 .DS_Store
 Thumbs.db
 .vscode/
-*.swp
-*.swo
 
 # Generated project artifacts
 project/storage/reports/
@@ -48,3 +39,8 @@ storage/reports/
 project/storage/logs/*.json
 project/storage/scans/*.xml
 storage/scans/*.xml
+
+# Large/local files
+format.png
+project.zip
+vm/

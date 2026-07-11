@@ -72,8 +72,6 @@ def safe_json_loads(value) -> dict:
         "technique_explanations": [],
         "next_steps": DEFAULT_AI_NEXT_STEPS,
     }
-
-
 def normalise_technique_explanations(
     plan: dict,
     selected_ids: list[str],

@@ -383,7 +383,7 @@ async function loadMetasploitStatus() {
     const data = await res.json();
 
     if (!data.enabled) {
-      summary.textContent = data.message || "Metasploit RPC integration is disabled.";
+      summary.textContent = data.message || data.error || "Metasploit RPC integration is disabled.";
       return;
     }
 
@@ -524,7 +524,7 @@ async function runMetasploitAction(button) {
 
     if (summary) summary.textContent = data.summary || "Metasploit action submitted.";
     appendMetasploitRun(data);
-    button.textContent = "Done";
+    button.textContent = data.execution_state === "completed" ? "Done" : "Submitted";
   }
   catch (err) {
     if (summary) summary.textContent = "Metasploit action failed.";

@@ -134,9 +134,10 @@
   }
   document.querySelectorAll('input[name="profile"]').forEach(r => r.addEventListener('change', e => applyProfile(e.target.value)));
   document.querySelectorAll('.tool-toggle input').forEach(cb => cb.addEventListener('change', () => {
-    document.querySelector('input[name="profile"][value="custom"]')?.checked = true;
+    const customRadio = document.querySelector('input[name="profile"][value="custom"]');
+    if (customRadio) customRadio.checked = true;
     applyProfile('custom');
-  }));
+}));
   document.getElementById('selectAll')?.addEventListener('click', () => {document.querySelector('input[value="custom"]').checked=true;applyProfile('custom');document.querySelectorAll('.tool-toggle input').forEach(cb=>cb.checked=true);});
   document.getElementById('selectFull')?.addEventListener('click', () => {document.querySelector('input[name="profile"][value="full"]').checked=true;applyProfile('full');});
 
