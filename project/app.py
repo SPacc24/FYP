@@ -38,7 +38,7 @@ from routes.pentest_routes import register_routes as register_pentest_routes
 from routes.proof_routes import register_routes as register_proof_routes
 from routes.results_routes import register_routes as register_results_routes
 from routes.scan_routes import register_routes as register_scan_routes
-
+from routes.pivot_routes import register_routes as register_pivot_routes
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -97,7 +97,7 @@ def create_app() -> Flask:
     register_caldera_routes(app)
     register_results_routes(app)
     register_pentest_routes(app)
-
+    register_pivot_routes(app)
     return app
 
 

@@ -56,6 +56,9 @@ DEFAULT_VALUES: tuple[tuple[str, str], ...] = (
     ("WEB_VALIDATION_MAX_RESPONSE_BYTES", "65536"),
     ("WEB_VALIDATION_MAX_REDIRECTS", "2"),
     ("LAB_WEB_OS", "windows"),
+    ("PIVOT_CHISEL_BINARY", "/usr/bin/chisel"),
+    ("PIVOT_DEFAULT_SOCKS_PORT", "1080"),
+    ("PIVOT_DEFAULT_CHISEL_PORT", "8080"),
 )
 
 

@@ -13,6 +13,7 @@ from exploitation.validator import ExploitabilityValidator
 from proof_of_access import ProofTicketManager
 from storage.db import Database
 from exploitation.web_validator import WebValidationService
+from exploitation.web_exploiter import WebExploiter
 
 log = logging.getLogger(__name__)
 
@@ -71,4 +72,10 @@ web_validation_service = WebValidationService(
     max_response_bytes=Config.WEB_VALIDATION_MAX_RESPONSE_BYTES,
     max_redirects=Config.WEB_VALIDATION_MAX_REDIRECTS,
     operating_system=Config.LAB_WEB_OS,
+)
+
+# Initialize web exploiter (actual reverse shell exploitation)
+web_exploiter = WebExploiter(
+    lhost=Config.KALI_IP,
+    lport=4444,
 )
