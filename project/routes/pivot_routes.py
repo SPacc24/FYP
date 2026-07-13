@@ -155,7 +155,7 @@ def pivot_scan():
         "recommendations": self._generate_recommendations(targets),
     })
 
-def _generate_recommendations(targets: List[Dict]) -> List[str]:
+def _generate_recommendations(targets):
     """Generate human-readable attack recommendations."""
     recs = []
     has_windows = any(t.get("type") == "windows_smb" for t in targets)

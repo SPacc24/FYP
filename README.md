@@ -1,22 +1,20 @@
 # AutoPenTest
 
-AutoPenTest is a Flask-based Final Year Project dashboard for authorised lab assessment, reconnaissance evidence collection, MITRE ATT&CK planning, lab-safe validation, CALDERA handoff, and remediation-focused reporting.
-
-This project is intended only for owned or explicitly authorised cyber range and lab environments.
+AutoPenTest is a Flask-based dashboard for authorised lab assessment, reconnaissance evidence collection, MITRE ATT&CK planning, lab-safe validation, CALDERA handoff, and remediation-focused reporting. It is intended for owned or explicitly authorised cyber range and lab environments only.
 
 ## Current Features
 
-- Web dashboard for scan setup, progress tracking, results review, ATT&CK technique selection, CALDERA execution, validation evidence, AI chat, and report export.
-- Async reconnaissance pipeline for Nmap, Gobuster, SMB, SSH, SNMP, LDAP, TLS, RDP, Hydra, and supporting tools where available.
+- A web dashboard for scan setup, progress tracking, results review, ATT&CK technique selection, CALDERA execution, validation evidence, AI chat, and report export.
+- An asynchronous reconnaissance pipeline for Nmap, Gobuster, SMB, SSH, SNMP, LDAP, TLS, RDP, Hydra, and supporting tools where available.
 - Evidence normalisation for hosts, services, command logs, tool coverage, candidate references, and handoff JSON.
-- Official CVE List matching using a local CVEProject/cvelistV5 mirror, with strict product/version evidence checks.
-- Service-centric Attack Surface Workbench with confirmed CVEs, candidate CVE references, evidence gaps, and service-check output.
+- Official CVE List matching using a local CVEProject/cvelistV5 mirror, with strict product and version evidence checks.
+- A service-centric Attack Surface Workbench with confirmed CVEs, candidate CVE references, evidence gaps, and service-check output.
 - MITRE ATT&CK mapping and optional Ollama-assisted technique planning with deterministic fallback.
 - CALDERA integration for agent readiness checks, Sandcat deploy-command display, ability coverage checks, custom adversary creation, operation polling, and result parsing.
 - Lab-safe exploitability validation for non-destructive checks such as TCP reachability, HTTP default-content checks, and FTP anonymous-login validation.
 - Optional controlled proof-of-access tickets for authorised lab demonstrations.
 - Risk scoring, remediation guidance, HTML/PDF/text reporting, and MySQL persistence helpers.
-- Pytest coverage for planner behavior, CALDERA integration, validation helpers, report quality, scan profiles, and frontend quality checks.
+- Pytest coverage for planner behaviour, CALDERA integration, validation helpers, report quality, scan profiles, and frontend quality checks.
 
 Recon and validation boundaries:
 
@@ -30,7 +28,7 @@ JSON/PDF/text handoff generation
 CALDERA post-access emulation when explicitly enabled
 ```
 
-The recon module does not exploit targets or make execution decisions by itself. CALDERA execution requires explicit configuration and an authorised trusted agent.
+The reconnaissance module does not exploit targets or make execution decisions by itself. CALDERA execution requires explicit configuration and an authorised trusted agent.
 
 ## Project Layout
 
@@ -53,7 +51,7 @@ project/
 
 ## Quick Start
 
-Run commands from the repository root unless noted.
+Run the commands below from the repository root unless otherwise noted.
 
 ```bash
 cd project
@@ -64,8 +62,7 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-`python app.py` creates or refreshes `project/.env` on startup. From the
-repository root, you can use the launcher instead:
+`python app.py` creates or refreshes `project/.env` on startup. From the repository root, you can also use the launcher:
 
 ```bash
 bash start.sh
@@ -96,15 +93,13 @@ http://127.0.0.1:5000
 
 ## Environment
 
-`project/.env` is created automatically by `python app.py`, `bash start.sh`,
-`.\start_windows.ps1`, or:
+`project/.env` is created automatically by `python app.py`, `bash start.sh`, `./start_windows.ps1`, or:
 
 ```bash
 python project/scripts/bootstrap_env.py
 ```
 
-The bootstrapper fills generated local secrets and safe defaults while
-preserving existing non-placeholder values. The generated file uses this shape:
+The bootstrapper generates local secrets and safe defaults while preserving existing non-placeholder values. The generated file uses this shape:
 
 ```env
 SECRET_KEY=<generated-secret-key>
@@ -153,23 +148,19 @@ PROOF_OF_ACCESS_SECRET=<generated-proof-secret>
 PROOF_OF_ACCESS_TTL=300
 ```
 
-To print the current generated operator/RPC values in a trusted terminal:
+To print the current generated operator and RPC values in a trusted terminal:
 
 ```bash
 python project/scripts/bootstrap_env.py --show-secrets
 ```
 
-Keep `APP_HOST=127.0.0.1` for local-only use. If you need to open the Kali
-dashboard from the Windows host browser, set `APP_HOST=0.0.0.0` and configure
-`OPERATOR_TOKEN` first. The bootstrapper generates `OPERATOR_TOKEN`; copy it
-from `project/.env` or print it with `--show-secrets`.
+Keep `APP_HOST=127.0.0.1` for local-only use. If you need to open the Kali dashboard from the Windows host browser, set `APP_HOST=0.0.0.0` and configure `OPERATOR_TOKEN` first. The bootstrapper generates `OPERATOR_TOKEN`; copy it from `project/.env` or print it with `--show-secrets`.
 
 MySQL is optional for the GUI to load, but database persistence requires a reachable MySQL server and matching credentials.
 
 ## Kali Runbook
 
-Kali is the preferred runtime when using Nmap, Metasploit, and the wider
-enumeration toolchain.
+Kali is the preferred runtime when using Nmap, Metasploit, and the wider enumeration toolchain.
 
 Install once from the repository root:
 
@@ -178,8 +169,7 @@ chmod +x install.sh
 ./install.sh
 ```
 
-The installer creates `project/.venv`, installs Python packages, prepares
-storage folders, and creates `project/.env` with generated local secrets.
+The installer creates `project/.venv`, installs Python packages, prepares storage folders, and creates `project/.env` with generated local secrets.
 
 Start or restart the dashboard:
 
@@ -187,9 +177,7 @@ Start or restart the dashboard:
 bash start.sh
 ```
 
-For access from the Windows host browser, keep `OPERATOR_TOKEN` configured and
-start the dashboard with `APP_HOST=0.0.0.0 bash start.sh`, then unlock the
-browser session on the landing page.
+For access from the Windows host browser, keep `OPERATOR_TOKEN` configured and start the dashboard with `APP_HOST=0.0.0.0 bash start.sh`, then unlock the browser session on the landing page.
 
 Start Ollama in another terminal:
 
@@ -197,7 +185,7 @@ Start Ollama in another terminal:
 ollama serve
 ```
 
-Pull/check the configured model:
+Pull or check the configured model:
 
 ```bash
 ollama pull llama3.2:1b
@@ -211,15 +199,13 @@ Optional Metasploit RPC setup:
 python project/scripts/bootstrap_env.py --show-secrets
 ```
 
-Set `ENABLE_METASPLOIT=1` in `project/.env`, then start RPC with the exact
-generated `METASPLOIT_RPC_PASS`:
+Set `ENABLE_METASPLOIT=1` in `project/.env`, then start RPC with the exact generated `METASPLOIT_RPC_PASS`:
 
 ```bash
 msfrpcd -U msf -P <METASPLOIT_RPC_PASS> -a 127.0.0.1 -p 55552
 ```
 
-Leave `ENABLE_METASPLOIT_EXPLOITS=0` unless a supervised lab run explicitly
-requires exploit-class modules. Restart the Flask app after editing `.env`.
+Leave `ENABLE_METASPLOIT_EXPLOITS=0` unless a supervised lab run explicitly requires exploit-class modules. Restart the Flask app after editing `.env`.
 
 Optional CALDERA setup:
 
@@ -265,19 +251,17 @@ python scripts/audit_cve_source.py
 
 ## Dashboard Flow
 
-1. Enter an authorised target and choose a scan profile/tool set.
+1. Enter an authorised target and choose a scan profile or tool set.
 2. Wait for the scan progress page to complete, then open the results dashboard.
 3. Review service evidence, confirmed CVEs, candidate references, evidence gaps, ATT&CK recommendations, and AI planning notes.
 4. Optionally run lab-safe validation to collect non-destructive exposure evidence.
-5. Refresh CALDERA agent status and deploy/confirm Sandcat only inside the authorised lab.
+5. Refresh CALDERA agent status and deploy or confirm Sandcat only inside the authorised lab.
 6. Select supported techniques and run CALDERA when execution is explicitly enabled and authorised.
 7. Generate the report, review the technical appendix, and export JSON/PDF/text handoff artefacts.
 
 ## Metasploit Integration
 
-Ollama and the browser do not choose arbitrary Metasploit modules. Ollama can
-generate attack-path reasoning, but AutoPenTest maps scan evidence to a server
-side allowlist before any RPC action is available.
+Ollama and the browser do not choose arbitrary Metasploit modules. Ollama can generate attack-path reasoning, but AutoPenTest maps scan evidence to a server-side allowlist before any RPC action is available.
 
 Default allowlist:
 
@@ -289,19 +273,14 @@ Default allowlist:
 - `auxiliary/scanner/ssh/ssh_version`
 - `auxiliary/scanner/mysql/mysql_version`
 
-Actions are offered only when the matching service and port were observed in
-the active scan. To add exploit-class modules later, update
-`project/exploitation/metasploit_allowlist.py`, start with `mode="check"` and
-`requires_approval=True`, test inside the isolated lab, then enable
-`ENABLE_METASPLOIT_EXPLOITS=1` only for a supervised run. Do not add routes or
-UI fields that accept arbitrary module names.
+Actions are offered only when the matching service and port were observed in the active scan. To add exploit-class modules later, update `project/exploitation/metasploit_allowlist.py`, start with `mode="check"` and `requires_approval=True`, test inside the isolated lab, then enable `ENABLE_METASPLOIT_EXPLOITS=1` only for a supervised run. Do not add routes or UI fields that accept arbitrary module names.
 
 Useful Metasploit troubleshooting:
 
 - `Metasploit RPC integration is disabled`: set `ENABLE_METASPLOIT=1` and restart Flask.
 - `Metasploit RPC authentication failed`: confirm `METASPLOIT_RPC_USER` and `METASPLOIT_RPC_PASS` match the running `msfrpcd` or `msgrpc` instance.
 - TLS errors: keep `METASPLOIT_RPC_VERIFY_SSL=0` for the local self-signed lab RPC service, or configure a trusted certificate.
-- No actions loaded: confirm the scan completed and found open services matching the allowlist.
+- No actions loaded: confirm that the scan completed and found open services matching the allowlist.
 
 ## Cleanup
 
@@ -322,7 +301,7 @@ Default cleanup removes transient logs, scan evidence files, generated report fi
 
 ## Testing
 
-From repository root:
+From the repository root:
 
 ```bash
 cd project
@@ -332,7 +311,7 @@ python3 scripts/audit_no_scoring.py
 python3 scripts/audit_cve_source.py
 ```
 
-Some tests mock CALDERA and Ollama behavior. Tests that depend on a real CALDERA server, agent, MySQL instance, Kali tooling, or network-reachable lab target need matching local configuration.
+Some tests mock CALDERA and Ollama behaviour. Tests that depend on a real CALDERA server, agent, MySQL instance, Kali tooling, or network-reachable lab target need matching local configuration.
 
 ## Safety Notes
 
