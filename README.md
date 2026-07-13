@@ -1,57 +1,119 @@
 # AutoPenTest
 
-AutoPenTest is a Flask-based dashboard for authorised lab assessment, reconnaissance evidence collection, MITRE ATT&CK planning, lab-safe validation, CALDERA handoff, and remediation-focused reporting. It is intended for owned or explicitly authorised cyber range and lab environments only.
+AutoPenTest is a Flask-based assessment dashboard for authorised cyber ranges and lab environments. It orchestrates evidence-first reconnaissance, normalises service findings, correlates version evidence with the official CVE List, maps findings to MITRE ATT&CK, and produces reviewable reports and handoff artefacts. Optional integrations add local Ollama guidance, allowlisted Metasploit validation, CALDERA emulation, proof-of-access recording, and an experimental Chisel/proxychains pivot workflow.
 
-## Current Features
+> **Authorised use only.** Run this project only against systems you own or have explicit written permission to test. The default engagement policy rejects public targets, but it is a demo policy—not a substitute for signed rules of engagement.
 
-- A web dashboard for scan setup, progress tracking, results review, ATT&CK technique selection, CALDERA execution, validation evidence, AI chat, and report export.
-- An asynchronous reconnaissance pipeline for Nmap, Gobuster, SMB, SSH, SNMP, LDAP, TLS, RDP, Hydra, and supporting tools where available.
-- Evidence normalisation for hosts, services, command logs, tool coverage, candidate references, and handoff JSON.
-- Official CVE List matching using a local CVEProject/cvelistV5 mirror, with strict product and version evidence checks.
-- A service-centric Attack Surface Workbench with confirmed CVEs, candidate CVE references, evidence gaps, and service-check output.
-- MITRE ATT&CK mapping and optional Ollama-assisted technique planning with deterministic fallback.
-- CALDERA integration for agent readiness checks, Sandcat deploy-command display, ability coverage checks, custom adversary creation, operation polling, and result parsing.
-- Lab-safe exploitability validation for non-destructive checks such as TCP reachability, HTTP default-content checks, and FTP anonymous-login validation.
-- Optional controlled proof-of-access tickets for authorised lab demonstrations.
-- Risk scoring, remediation guidance, HTML/PDF/text reporting, and MySQL persistence helpers.
-- Pytest coverage for planner behaviour, CALDERA integration, validation helpers, report quality, scan profiles, and frontend quality checks.
+## What the project does
 
-Recon and validation boundaries:
+- Runs asynchronous, policy-gated reconnaissance with **Full Recon** and **Custom Recon** modes.
+- Accepts a single IP, multiple IPs, CIDR blocks, and short or explicit IP ranges, up to the configured scope limit.
+- Collects passive DNS/TLS context, TCP and targeted UDP exposure, service fingerprints, and protocol-specific readiness evidence.
+- Uses Nmap and optional native tools for web, SSH, SMB, LDAP, DNS, SNMP, RPC/NFS, RDP, WinRM, database, container, Kubernetes, VPN, and TLS observations.
+- Builds a service-centric attack-surface workbench with raw evidence links, evidence gaps, security observations, and tool-coverage status.
+- Correlates observed product/version/CPE evidence with a local mirror of [CVEProject/cvelistV5](https://github.com/CVEProject/cvelistV5). Weak matches remain candidate references rather than confirmed findings.
+- Maps findings to MITRE ATT&CK and generates a deterministic technique plan, optionally enriched by a local Ollama model.
+- Performs allowlisted, non-destructive exposure validation and optional evidence-derived Metasploit auxiliary scans.
+- Integrates with CALDERA for agent readiness, ability coverage, adversary creation, operation monitoring, result parsing, risk context, and proof-of-access tickets.
+- Exports persisted scan JSON, CALDERA handoff JSON, HTML, PDF, plain-text reports, evidence manifests, and technical appendices.
+- Provides an experimental pivot UI for Chisel SOCKS setup and proxychains-based internal scanning.
+
+## Safety and maturity boundaries
+
+The main reconnaissance pipeline is designed to collect evidence without selecting or launching exploits. Optional active features have separate controls:
+
+| Capability | Default | Boundary |
+| --- | --- | --- |
+| Reconnaissance | Available | Targets must pass `engagement_policy.json`; public targets are denied by default. |
+| Ollama planning/chat | Optional | Local-model output is constrained to observed context and safe guidance; deterministic fallbacks remain available. |
+| Lab validation | On demand | Uses allowlisted reachability and service-exposure checks. Credential checks require configured lab credentials. |
+| Web validation | Disabled | Requires a complete private-lab fingerprint, an evidence-derived action ID, and explicit operator approval. |
+| Metasploit RPC | Disabled | Browser and LLM input cannot supply arbitrary module names; actions are generated from scan evidence and a server-side allowlist. |
+| CALDERA execution | Disabled | Requires a configured CALDERA key, a trusted agent, supported techniques, and `ENABLE_CALDERA_EXECUTION=1`. |
+| Proof of access | Disabled | Issues short-lived, signed, one-use tickets only after qualifying completed CALDERA links. |
+| Pivot workflow | Experimental | Starts Chisel, changes proxychains configuration, scans through a tunnel, and generates lateral-movement commands. Use only in an isolated range and review the implementation before enabling access. |
+
+The Flask server uses an operator-session gate and CSRF validation when `OPERATOR_TOKEN` is configured. It is a development server; do not expose it directly to an untrusted network or treat it as a production multi-user service.
+
+## Architecture
 
 ```text
-footprinting
-enumeration
-evidence normalisation
-official CVE List strict matching
-service-level exposure checks
-JSON/PDF/text handoff generation
-CALDERA post-access emulation when explicitly enabled
+Browser dashboard
+      |
+      v
+Flask routes + operator/CSRF gate
+      |
+      +--> Recon pipeline --> native tools --> normalised evidence
+      |                              |              |
+      |                              v              v
+      |                         raw artefacts   CVE correlation
+      |                                             |
+      +--> ATT&CK mapper <---------------------------+
+      |       |
+      |       +--> deterministic/Ollama plan
+      |       +--> CALDERA handoff and execution
+      |
+      +--> lab validation / allowlisted Metasploit
+      +--> reports, evidence manifests, JSON persistence
+      +--> experimental pivot workflow
 ```
 
-The reconnaissance module does not exploit targets or make execution decisions by itself. CALDERA execution requires explicit configuration and an authorised trusted agent.
-
-## Project Layout
+Important directories:
 
 ```text
 project/
-  app.py                 Flask routes and dashboard endpoints
-  runtime_env.py         .env bootstrap and generated local secrets
-  ai/                    Ollama client, AI planner, safety filters
-  caldera/               CALDERA API client, coverage checker, operation manager
-  exploitation/          Lab-safe validation and Metasploit policy helpers
-  mapping/               Vulnerability-to-ATT&CK mapping helpers
-  reports/               Report summary and export generation
-  scanners/              Recon pipeline, parsers, tooling, CVE matching
-  scripts/               Tool checks and CVE index maintenance
-  storage/               Runtime scan state and database helpers
-  templates/             Dashboard HTML
-  static/                CSS and browser JavaScript
-  tests/                 Pytest coverage
+  app.py                 Application factory and development entry point
+  config.py              Environment-backed configuration
+  runtime_env.py         Safe .env bootstrap and secret generation
+  routes/                HTTP routes grouped by feature
+  scanners/              Recon orchestration, parsing, profiles, CVE matching
+  enumeration/           Intelligence and operational-maturity summaries
+  mapping/               Evidence-to-ATT&CK mapping
+  ai/                    Ollama client, safety layer, technique planning
+  pentest_ai/             Evidence-based attack-path advice
+  exploitation/          Validation, Metasploit policy/RPC, web validation
+  caldera/               API client, coverage, operations, risk/remediation
+  proof_of_access/        Signed ticket issuance and marker clients
+  pivot/                  Experimental Chisel/proxychains workflow
+  reports/                Plain-text report generation
+  storage/                Runtime scan state, evidence, results, optional DB
+  policies/               Scope, collector, objective, and review controls
+  templates/              Jinja dashboard and report pages
+  static/                 Browser JavaScript and CSS
+  scripts/                Environment, tooling, and CVE maintenance commands
+  tests/                  Backend and integration-oriented tests
+tests/                    Repository-level UI/report/recon quality tests
 ```
 
-## Quick Start
+## Requirements
 
-Run the commands below from the repository root unless otherwise noted.
+- Python 3.10 or newer
+- Git
+- Nmap for meaningful live discovery
+- Kali Linux is recommended for the complete external toolchain
+- A browser with cookies enabled
+
+The Kali installer also installs or attempts to install tools such as `arp-scan`, `gobuster`, `enum4linux-ng`, `smbclient`, `smbmap`, `snmp`, LDAP utilities, `sslscan`, `mtr`, `traceroute`, Hydra, `ssh-audit`, and ProjectDiscovery `httpx`. Other collectors such as `tshark`, `p0f`, and `nuclei` are optional and are reported as unavailable when absent.
+
+Ollama, CALDERA, Metasploit RPC, MySQL, Chisel, and proxychains are optional and are needed only for their corresponding features.
+
+## Installation
+
+### Kali Linux (recommended)
+
+From the repository root:
+
+```bash
+chmod +x install.sh start.sh
+./install.sh
+bash start.sh
+```
+
+`install.sh` installs the Kali packages, creates `project/.venv`, installs Python dependencies, prepares storage, creates `project/.env`, and attempts to sync the official CVE List mirror.
+
+### Portable Python setup
+
+This is sufficient for the UI, tests, reports, and whichever external tools are available on the host:
 
 ```bash
 cd project
@@ -59,181 +121,147 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
+python scripts/bootstrap_env.py
+python scripts/check_tooling.py
 python app.py
 ```
 
-`python app.py` creates or refreshes `project/.env` on startup. From the repository root, you can also use the launcher:
-
-```bash
-bash start.sh
-```
-
-On Windows PowerShell:
+On Windows PowerShell, run from the repository root:
 
 ```powershell
-cd project
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install -r requirements.txt
-python app.py
-```
-
-Or from the repository root:
-
-```powershell
+powershell -ExecutionPolicy Bypass -File .\install_windows.ps1
 .\start_windows.ps1
 ```
 
-Open:
+Native Windows can run the dashboard, but full recon coverage depends on installed binaries. WSL or Kali is recommended for Linux-oriented tools.
 
-```text
-http://127.0.0.1:5000
-```
-
-## Environment
-
-`project/.env` is created automatically by `python app.py`, `bash start.sh`, `./start_windows.ps1`, or:
-
-```bash
-python project/scripts/bootstrap_env.py
-```
-
-The bootstrapper generates local secrets and safe defaults while preserving existing non-placeholder values. The generated file uses this shape:
-
-```env
-SECRET_KEY=<generated-secret-key>
-DEBUG=false
-OPERATOR_TOKEN=<generated-operator-token>
-APP_HOST=127.0.0.1
-
-CALDERA_URL=http://127.0.0.1:8888
-CALDERA_API_KEY=your-caldera-api-key
-ENABLE_CALDERA_EXECUTION=0
-AGENT_GROUP=red
-KALI_IP=192.168.x.x
-OPERATION_TIMEOUT=180
-
-OLLAMA_URL=http://localhost:11434/api/generate
-OLLAMA_MODEL=llama3.2:1b
-OLLAMA_TIMEOUT=180
-
-ENABLE_METASPLOIT=0
-ENABLE_METASPLOIT_EXPLOITS=0
-METASPLOIT_RPC_URL=https://127.0.0.1:55552
-METASPLOIT_RPC_USER=msf
-METASPLOIT_RPC_PASS=<generated-rpc-password>
-METASPLOIT_RPC_VERIFY_SSL=0
-METASPLOIT_RPC_TIMEOUT=20
-METASPLOIT_RESULT_TIMEOUT=15
-METASPLOIT_POLL_INTERVAL=1
-
-MYSQL_HOST=127.0.0.1
-MYSQL_USER=autopentest
-MYSQL_PASS=your-password
-MYSQL_DB=autopentest
-
-ENABLE_CONTEXT_FOOTPRINTING=0
-ENABLE_ARP_SCAN=0
-ENABLE_HTTPX=0
-ENABLE_DEEP_WEB_DISCOVERY=0
-ENABLE_SMBMAP=0
-ENABLE_HYDRA=0
-GOBUSTER_WORDLIST=/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
-HYDRA_CREDENTIAL_FILE=
-MITRE_CVE_REPO=https://github.com/CVEProject/cvelistV5.git
-
-PROOF_OF_ACCESS_ENABLED=false
-PROOF_OF_ACCESS_SECRET=<generated-proof-secret>
-PROOF_OF_ACCESS_TTL=300
-```
-
-To print the current generated operator and RPC values in a trusted terminal:
+Open `http://127.0.0.1:5000`. If the landing page asks for an operator token, retrieve it in a trusted terminal:
 
 ```bash
 python project/scripts/bootstrap_env.py --show-secrets
 ```
 
-Keep `APP_HOST=127.0.0.1` for local-only use. If you need to open the Kali dashboard from the Windows host browser, set `APP_HOST=0.0.0.0` and configure `OPERATOR_TOKEN` first. The bootstrapper generates `OPERATOR_TOKEN`; copy it from `project/.env` or print it with `--show-secrets`.
+## Configuration
 
-MySQL is optional for the GUI to load, but database persistence requires a reachable MySQL server and matching credentials.
+`project/.env` is loaded by `project/config.py`. Direct startup and the launch scripts create or refresh it through `runtime_env.py`; existing non-placeholder values are preserved. On Unix, the generated file is restricted to mode `0600` when possible.
 
-## Kali Runbook
+Never commit `.env` or paste values produced by `--show-secrets` into logs, screenshots, or reports.
 
-Kali is the preferred runtime when using Nmap, Metasploit, and the wider enumeration toolchain.
+### Core settings
 
-Install once from the repository root:
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SECRET_KEY` | generated | Flask session signing key. |
+| `OPERATOR_TOKEN` | generated | Unlocks a browser operator session and enables CSRF enforcement. |
+| `APP_HOST` | `127.0.0.1` | Flask bind address. |
+| `PORT` | `5000` | Flask port. |
+| `DEBUG` | `false` | Flask debug mode; must remain false for non-loopback binding. |
+| `MAX_EXPANDED_TARGETS` | `256` | Application-level limit after CIDR/range expansion. |
+| `ENGAGEMENT_POLICY_FILE` | bundled policy | Optional path to a replacement scope/RoE policy. |
+| `AUTOPENTEST_RESULTS_DIR` | `project/storage/results` | Optional persisted-result directory override. |
+| `AUTOPENTEST_SCANS_DIR` | `project/storage/scans` | Optional raw-evidence directory override. |
+| `AUTOPENTEST_PASSIVE_INTERFACE` | unset | Approved interface for listen-only `tshark`/`p0f` collection. |
 
-```bash
-chmod +x install.sh
-./install.sh
+If `APP_HOST` is non-loopback, startup refuses unsafe combinations: `SECRET_KEY` must be at least 32 characters, an operator token must be configured, and debug mode must be off. `ALLOW_INSECURE_OPERATOR_ACCESS=1` exists for controlled testing but is not recommended.
+
+### Optional integrations
+
+| Area | Variables |
+| --- | --- |
+| Ollama | `OLLAMA_URL`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT` |
+| CALDERA | `CALDERA_URL`, `CALDERA_API_KEY`, `ENABLE_CALDERA_EXECUTION`, `AGENT_GROUP`, `KALI_IP`, `OPERATION_TIMEOUT` |
+| Metasploit | `ENABLE_METASPLOIT`, `ENABLE_METASPLOIT_EXPLOITS`, `METASPLOIT_RPC_URL`, `METASPLOIT_RPC_USER`, `METASPLOIT_RPC_PASS`, `METASPLOIT_RPC_VERIFY_SSL`, `METASPLOIT_RPC_TIMEOUT`, `METASPLOIT_RESULT_TIMEOUT`, `METASPLOIT_POLL_INTERVAL` |
+| Web validation | `ENABLE_WEB_VALIDATION`, `WEB_VALIDATION_TIMEOUT`, `WEB_VALIDATION_MAX_RESPONSE_BYTES`, `WEB_VALIDATION_MAX_REDIRECTS`, `LAB_WEB_OS` |
+| Proof of access | `PROOF_OF_ACCESS_ENABLED`, `PROOF_OF_ACCESS_SECRET`, `PROOF_OF_ACCESS_TTL` |
+| MySQL | `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASS`, `MYSQL_DB` |
+| Recon toggles | `ENABLE_CONTEXT_FOOTPRINTING`, `ENABLE_ARP_SCAN`, `ENABLE_HTTPX`, `ENABLE_DEEP_WEB_DISCOVERY`, `ENABLE_SMBMAP`, `ENABLE_HYDRA`, `GOBUSTER_WORDLIST`, `HYDRA_CREDENTIAL_FILE`, `MITRE_CVE_REPO` |
+| Lab credentials | `LAB_USER`, `LAB_PASS`, or service-specific `LAB_<SERVICE>_USER` and `LAB_<SERVICE>_PASS` |
+| Pivot declarations | `PIVOT_CHISEL_BINARY`, `PIVOT_DEFAULT_SOCKS_PORT`, `PIVOT_DEFAULT_CHISEL_PORT` (declared in configuration; the experimental engine currently uses its own hard-coded binary and route defaults) |
+
+Restart the Flask process after changing `.env` because most services are initialised at import time.
+
+## Scope policy and targets
+
+Before active collection, the pipeline expands and validates targets against `project/policies/engagement_policy.json`. Supported input examples are:
+
+```text
+192.168.56.10
+192.168.56.10,192.168.56.20
+192.168.56.10-30
+192.168.56.10-192.168.56.30
+192.168.56.0/28
 ```
 
-The installer creates `project/.venv`, installs Python packages, prepares storage folders, and creates `project/.env` with generated local secrets.
+The main dashboard pipeline expects IP address input. The bundled demo policy allows private, loopback, and link-local lab addresses, denies public targets, and caps a scan at 256 expanded hosts. For a real assessment, copy the policy, populate explicit `allowed_networks`, engagement dates, approval records, and data-handling requirements, then set `ENGAGEMENT_POLICY_FILE` to that file.
 
-Start or restart the dashboard:
+The policy limit and `MAX_EXPANDED_TARGETS` both apply; the lower effective limit wins.
 
-```bash
-bash start.sh
-```
+## Typical workflow
 
-For access from the Windows host browser, keep `OPERATOR_TOKEN` configured and start the dashboard with `APP_HOST=0.0.0.0 bash start.sh`, then unlock the browser session on the landing page.
+1. Confirm written authorisation and configure the engagement policy.
+2. Start the app, unlock the browser session, and choose **Full Recon** or exact **Custom Recon** collectors.
+3. Enter authorised IP targets and select `auto`, `hybrid`, or `manual` ATT&CK technique mode.
+4. Follow asynchronous task and command progress in the dashboard.
+5. Review service evidence, CVE classifications, candidate references, evidence gaps, ATT&CK mapping, and the technical appendix.
+6. Optionally request attack-path advice or run explicitly approved lab validation.
+7. If configured, check CALDERA coverage, select a trusted agent, and run supported techniques.
+8. Export the handoff JSON, evidence manifest, PDF, or text report.
 
-Start Ollama in another terminal:
+Scan state is held in memory while running and persisted as JSON under `project/storage/results/` when the pipeline completes. Raw command evidence is stored under `project/storage/scans/`. If those directories are unwritable, the store falls back to `/tmp/autopentest/` on Unix-like systems.
+
+## Optional integrations
+
+### Ollama
+
+Start Ollama separately and install the configured model:
 
 ```bash
 ollama serve
-```
-
-Pull or check the configured model:
-
-```bash
 ollama pull llama3.2:1b
-ollama list
 curl http://127.0.0.1:11434/api/tags
 ```
 
-Optional Metasploit RPC setup:
+The planner validates model-selected technique IDs against the evidence-derived allowlist and falls back to deterministic planning when Ollama is unavailable or returns invalid output.
+
+### CALDERA
+
+Configure `CALDERA_URL` and `CALDERA_API_KEY`, start CALDERA, and keep `ENABLE_CALDERA_EXECUTION=0` until agent identity, ability coverage, and authorisation have been reviewed. The dashboard can display Sandcat deployment commands, manage the selected agent, create an adversary from supported techniques, poll the operation, and persist parsed results.
+
+Execution is rejected unless `ENABLE_CALDERA_EXECUTION=1`. See `project/docs/cyber_range_demo_flow.md` for the intended demonstration order.
+
+### Metasploit RPC
+
+The current allowlist contains auxiliary scanners for FTP anonymous access, HTTP/HTTPS titles, SMB version, RDP, WinRM authentication methods, SSH version, and MySQL version. A proposal is created only when the active scan contains a matching open service.
 
 ```bash
 python project/scripts/bootstrap_env.py --show-secrets
 ```
 
-Set `ENABLE_METASPLOIT=1` in `project/.env`, then start RPC with the exact generated `METASPLOIT_RPC_PASS`:
+Set `ENABLE_METASPLOIT=1`, then start the RPC service with the exact generated password:
 
 ```bash
-msfrpcd -U msf -P <METASPLOIT_RPC_PASS> -a 127.0.0.1 -p 55552
+msfrpcd -U msf -P '<METASPLOIT_RPC_PASS>' -a 127.0.0.1 -p 55552
 ```
 
-Leave `ENABLE_METASPLOIT_EXPLOITS=0` unless a supervised lab run explicitly requires exploit-class modules. Restart the Flask app after editing `.env`.
+Keep `ENABLE_METASPLOIT_EXPLOITS=0`. The shipped policies contain auxiliary modules only; adding an exploit policy requires deliberate code review, approval gating, and isolated-lab testing.
 
-Optional CALDERA setup:
+### MySQL
 
-```bash
-cd /path/to/caldera
-source .venv/bin/activate 2>/dev/null || true
-python3 server.py --insecure
-```
+MySQL is not required for the primary JSON-backed dashboard flow. When reachable, the app initialises an `autopentest` schema and can save scans, vulnerabilities, CALDERA operations, and technique results through explicit save paths. Connection failures are logged and do not prevent the UI from starting.
 
-Update an existing Kali checkout:
+### Proof of access
 
-```bash
-cd ~/FYP
-git pull origin main
-python project/scripts/bootstrap_env.py
-```
+Enable this only for an authorised demonstration. A qualifying completed CALDERA link can produce a signed ticket which the supplied PowerShell or shell client redeems and records as a harmless local JSON marker. See `project/docs/proof_of_access.md` for the full trust and deployment flow.
 
-Reinstall Python requirements only when `project/requirements.txt` changes:
+### Experimental pivot workflow
 
-```bash
-cd ~/FYP/project
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-```
+The `/pivot` routes can start a Chisel reverse-SOCKS server, modify `/etc/proxychains4.conf`, scan an internal range through `proxychains`, and generate operator-run lateral-movement commands. This path assumes a compromised lab host and currently contains range-specific demonstration defaults. It may require elevated filesystem permissions and additional binaries (`chisel`, `proxychains`, Nmap, and technique-specific tools).
 
-## CVE Data
+Treat this subsystem as experimental research code. Do not expose the dashboard remotely, do not use supplied example credentials, and do not run generated commands without reviewing target scope and impact.
 
-Sync or rebuild the official CVE List mirror:
+## CVE data maintenance
+
+The application matches against a local official CVE List mirror and generated index:
 
 ```bash
 cd project
@@ -241,82 +269,77 @@ source .venv/bin/activate
 python scripts/sync_mitre_cve_database.py
 python scripts/rebuild_mitre_cve_index.py
 python scripts/mitre_cve_status.py
-```
-
-If CVE data looks stale or CVSS metadata is missing:
-
-```bash
 python scripts/audit_cve_source.py
 ```
 
-## Dashboard Flow
+The mirror and index are runtime data under `project/storage/mitre_cve/` and are intentionally excluded from normal Git tracking. CVSS metadata may be incomplete in source records; the UI distinguishes unavailable scoring from confirmed evidence rather than inventing a score.
 
-1. Enter an authorised target and choose a scan profile or tool set.
-2. Wait for the scan progress page to complete, then open the results dashboard.
-3. Review service evidence, confirmed CVEs, candidate references, evidence gaps, ATT&CK recommendations, and AI planning notes.
-4. Optionally run lab-safe validation to collect non-destructive exposure evidence.
-5. Refresh CALDERA agent status and deploy or confirm Sandcat only inside the authorised lab.
-6. Select supported techniques and run CALDERA when execution is explicitly enabled and authorised.
-7. Generate the report, review the technical appendix, and export JSON/PDF/text handoff artefacts.
+## API overview
 
-## Metasploit Integration
+The browser UI is the supported interface. Key route groups are:
 
-Ollama and the browser do not choose arbitrary Metasploit modules. Ollama can generate attack-path reasoning, but AutoPenTest maps scan evidence to a server-side allowlist before any RPC action is available.
+- `/scan`, `/scan/status/<id>`, `/scan/results/<id>` — scan lifecycle.
+- `/results`, `/technical-appendix`, `/generate_report`, `/report/*`, `/download/*` — review and export.
+- `/ai/chat`, `/ai/status`, `/pentest/advice` — local-model and attack-path guidance.
+- `/exploitation/run`, `/pentest/metasploit/*`, `/pentest/web-validation/*` — controlled validation.
+- `/caldera/*`, `/api/caldera/check-coverage` — agent, coverage, and operation workflow.
+- `/proof-of-access/redeem` — signed proof-ticket redemption.
+- `/pivot/*` — experimental tunnel, internal scan, command generation, and cleanup.
 
-Default allowlist:
+With an operator token configured, non-public routes require an unlocked session. State-changing requests must also include the session CSRF token; use the dashboard JavaScript as the reference client.
 
-- `auxiliary/scanner/ftp/anonymous`
-- `auxiliary/scanner/http/title`
-- `auxiliary/scanner/smb/smb_version`
-- `auxiliary/scanner/rdp/rdp_scanner`
-- `auxiliary/scanner/winrm/winrm_auth_methods`
-- `auxiliary/scanner/ssh/ssh_version`
-- `auxiliary/scanner/mysql/mysql_version`
+## Testing and checks
 
-Actions are offered only when the matching service and port were observed in the active scan. To add exploit-class modules later, update `project/exploitation/metasploit_allowlist.py`, start with `mode="check"` and `requires_approval=True`, test inside the isolated lab, then enable `ENABLE_METASPLOIT_EXPLOITS=1` only for a supervised run. Do not add routes or UI fields that accept arbitrary module names.
+Install the test runner if it is not already available:
 
-Useful Metasploit troubleshooting:
+```bash
+cd project
+python -m pip install pytest
+python -m pytest tests -q
+python -m py_compile app.py config.py runtime_env.py routes/*.py scanners/*.py storage/*.py
+```
 
-- `Metasploit RPC integration is disabled`: set `ENABLE_METASPLOIT=1` and restart Flask.
-- `Metasploit RPC authentication failed`: confirm `METASPLOIT_RPC_USER` and `METASPLOIT_RPC_PASS` match the running `msfrpcd` or `msgrpc` instance.
-- TLS errors: keep `METASPLOIT_RPC_VERIFY_SSL=0` for the local self-signed lab RPC service, or configure a trusted certificate.
-- No actions loaded: confirm that the scan completed and found open services matching the allowlist.
+Run repository-level quality tests from the repository root with the project on `PYTHONPATH`:
+
+```bash
+PYTHONPATH=project python -m pytest tests -q
+```
+
+Two additional audit scripts report recon-boundary wording and CVE-index provenance:
+
+```bash
+cd project
+python scripts/audit_no_scoring.py
+python scripts/audit_cve_source.py
+```
+
+These are policy audits rather than test-suite prerequisites. They intentionally return a failure when disallowed UI wording is present or a sampled index contains an unexpected source; the CVE audit also reports when the local index has not yet been built.
+
+Most tests mock network services. Tests explicitly aimed at live CALDERA, MySQL, external binaries, or lab targets require those dependencies and suitable local configuration.
 
 ## Cleanup
 
-Preview cleanup:
+Preview the default cleanup:
 
 ```bash
 cd project
-python3 utils/cleanup.py --dry-run
+python utils/cleanup.py --dry-run
 ```
 
-Run default cleanup:
+Then run it without `--dry-run` to remove logs, generated reports, raw scan evidence, and Python caches. Saved result JSON, the CVE mirror/index, and `.env` are preserved unless `--include-results` or `--include-cve-data` is supplied.
 
-```bash
-python3 utils/cleanup.py
-```
+## Troubleshooting
 
-Default cleanup removes transient logs, scan evidence files, generated report files, and Python caches. It preserves saved result JSON, handoff packages, the local CVE mirror/index, and `.env`.
-
-## Testing
-
-From the repository root:
-
-```bash
-cd project
-python3 -m pytest tests -q
-python3 -m py_compile app.py config.py storage/*.py scanners/*.py scripts/*.py utils/cleanup.py
-python3 scripts/audit_no_scoring.py
-python3 scripts/audit_cve_source.py
-```
-
-Some tests mock CALDERA and Ollama behaviour. Tests that depend on a real CALDERA server, agent, MySQL instance, Kali tooling, or network-reachable lab target need matching local configuration.
-
-## Safety Notes
-
-AutoPenTest is designed as a decision-support and authorised emulation tool. The AI chat safety layer refuses exploit commands, payloads, credential theft steps, bypass instructions, and intrusion walkthroughs. CALDERA execution and proof-of-access features should only be used against systems where you have explicit permission to test.
+- **Live scan coverage is limited:** run `python project/scripts/check_tooling.py`; missing optional tools are recorded as unavailable rather than crashing the pipeline.
+- **A target is refused:** inspect the active engagement policy, target type, engagement window, approval records, and both target limits.
+- **Remote browser cannot connect:** bind with `APP_HOST=0.0.0.0` only on a trusted lab network. Startup requires a strong secret, operator token, and debug disabled.
+- **Operator requests return 403:** unlock the browser with the generated token; API POSTs also need the current CSRF token.
+- **Ollama is unavailable:** verify the URL and model with `/api/tags`; deterministic planning still works.
+- **CALDERA cannot execute:** confirm the API key, trusted online agent, technique coverage, and `ENABLE_CALDERA_EXECUTION=1`.
+- **Metasploit has no proposed actions:** enable RPC, complete a scan, and confirm a matching open service exists in the server-side allowlist.
+- **PDF export fails:** install the native Pango/Cairo dependencies used by WeasyPrint; a ReportLab fallback is included.
+- **MySQL logs connection errors:** configure a reachable server or ignore them when using only JSON-backed scan persistence.
 
 ## License
 
-No license has been specified yet.
+No licence file is currently included. Unless the repository owner states otherwise, no permission to copy, modify, or redistribute the code is granted.
