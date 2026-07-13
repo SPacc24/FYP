@@ -51,6 +51,11 @@ DEFAULT_VALUES: tuple[tuple[str, str], ...] = (
     ("METASPLOIT_POLL_INTERVAL", "1"),
     ("PROOF_OF_ACCESS_ENABLED", "false"),
     ("PROOF_OF_ACCESS_TTL", "300"),
+    ("ENABLE_WEB_VALIDATION", "0"),
+    ("WEB_VALIDATION_TIMEOUT", "5"),
+    ("WEB_VALIDATION_MAX_RESPONSE_BYTES", "65536"),
+    ("WEB_VALIDATION_MAX_REDIRECTS", "2"),
+    ("LAB_WEB_OS", "windows"),
 )
 
 

@@ -55,3 +55,15 @@ class Config:
     NMAP_DEFAULT_PORTS = os.getenv('NMAP_DEFAULT_PORTS', '1-1024')
     NMAP_DEFAULT_INTENSITY = os.getenv('NMAP_DEFAULT_INTENSITY', '3')
     NMAP_DEFAULT_PROFILE = os.getenv('NMAP_DEFAULT_PROFILE', 'basic')
+
+    ENABLE_WEB_VALIDATION = os.getenv('ENABLE_WEB_VALIDATION', '0') == '1'
+    WEB_VALIDATION_TIMEOUT = int(os.getenv('WEB_VALIDATION_TIMEOUT', '5'))
+    WEB_VALIDATION_MAX_RESPONSE_BYTES = int(
+        os.getenv('WEB_VALIDATION_MAX_RESPONSE_BYTES', '65536')
+    )
+    WEB_VALIDATION_MAX_REDIRECTS = int(
+        os.getenv('WEB_VALIDATION_MAX_REDIRECTS', '2')
+    )
+    LAB_WEB_OS = os.getenv('LAB_WEB_OS', 'windows')
+
+

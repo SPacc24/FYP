@@ -141,6 +141,49 @@ def _summarize_validation(validation: dict[str, Any]) -> list[str]:
             lines.append(f"  Evidence: {finding.get('evidence', '')}")
             lines.append(f"  Next step: {finding.get('next_step', '')}")
 
+    web = validation.get("web_validation") or {}
+    if web:
+        lines.append("\nControlled web validation:")
+        lines.append(
+            "Summary: "
+            f"{web.get('confirmed', 0)} confirmed, "
+            f"{web.get('not_confirmed', 0)} not confirmed, "
+            f"{web.get('blocked', 0)} blocked, "
+            f"{web.get('failed', 0)} failed."
+        )
+
+        for run in web.get("runs", [])[-10:]:
+            lines.append(
+                f"- {run.get('status', 'unknown').upper()} "
+                f"{run.get('target', 'Unknown')}:{run.get('port', 'N/A')} "
+                f"{run.get('method', 'POST')} {run.get('endpoint', '/diagnostics')} "
+                f"[{run.get('technique_id', 'T1190')}]"
+            )
+            lines.append(
+                f"  Parameter: {run.get('parameter', 'host')}; "
+                f"OS policy: {run.get('operating_system', 'unknown')}"
+            )
+            lines.append(
+                f"  Approval: {run.get('explicit_approval', False)}; "
+                f"Non-destructive: {run.get('non_destructive', False)}; "
+                f"Session created: {run.get('session_created', False)}; "
+                f"Persistence used: {run.get('persistence_used', False)}"
+            )
+            lines.append(f"  Result: {run.get('summary', 'N/A')}")
+            if run.get("confirmation_marker"):
+                lines.append(
+                    f"  Confirmation marker: {run.get('confirmation_marker')}"
+                )
+            if run.get("evidence"):
+                lines.append(
+                    "  Evidence: " + "; ".join(
+                        str(item) for item in run.get("evidence", [])
+                    )
+                )
+            lines.append(
+                f"  Remediation: {run.get('remediation', 'Review command handling and remove shell execution.')}"
+            )
+
     advice = validation.get("attack_advice") or {}
     if advice.get("attack_paths"):
         lines.append("\nOllama attack-path advice:")
@@ -169,7 +212,6 @@ def _summarize_validation(validation: dict[str, Any]) -> list[str]:
             lines.append(f"  Policy: {action.get('policy_key', 'N/A')} ({action.get('risk', 'unknown')} risk)")
             lines.append(f"  Result: {run.get('summary', 'N/A')}")
     return lines
-
 
 def _summarize_risk(risk: dict[str, Any]) -> list[str]:
     if not risk:

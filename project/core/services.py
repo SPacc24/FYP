@@ -12,6 +12,7 @@ from exploitation.metasploit_service import MetasploitService
 from exploitation.validator import ExploitabilityValidator
 from proof_of_access import ProofTicketManager
 from storage.db import Database
+from exploitation.web_validator import WebValidationService
 
 log = logging.getLogger(__name__)
 
@@ -63,3 +64,11 @@ def init_services():
         db.init_schema()
     except Exception:
         log.exception("Database schema initialization skipped or failed")
+
+web_validation_service = WebValidationService(
+    enabled=Config.ENABLE_WEB_VALIDATION,
+    timeout=Config.WEB_VALIDATION_TIMEOUT,
+    max_response_bytes=Config.WEB_VALIDATION_MAX_RESPONSE_BYTES,
+    max_redirects=Config.WEB_VALIDATION_MAX_REDIRECTS,
+    operating_system=Config.LAB_WEB_OS,
+)

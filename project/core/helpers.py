@@ -104,14 +104,22 @@ def _safe_risk_calculate(vulns, op_results):
 
 
 def _load_current_scan_results():
+    """
+    Prefer the persisted normalised scan package because it contains
+    web_inventory and the other post-Nmap evidence. Fall back to the raw Nmap
+    XML only when no stored result package is available.
+    """
+    scan_id = session.get("scan_id")
+    data = scan_store.load(scan_id) if scan_id else None
+    results = (data or {}).get("results") or {}
+
+    if results:
+        return _stored_results_to_parsed_results(results, data or {})
+
     output_file = session.get("scan_output_file", "")
     if not output_file:
-        scan_id = session.get("scan_id")
-        data = scan_store.load(scan_id) if scan_id else None
-        results = (data or {}).get("results") or {}
-        if results:
-            return _stored_results_to_parsed_results(results, data or {})
         return None
+
     try:
         return parse_nmap_xml(output_file)
     except Exception:
