@@ -4,6 +4,8 @@ AutoPenTest is a Flask-based assessment dashboard for authorised cyber ranges an
 
 > **Authorised use only.** Run this project only against systems you own or have explicit written permission to test. The default engagement policy rejects public targets, but it is a demo policy—not a substitute for signed rules of engagement.
 
+For the step-by-step operating procedure, see the **[Operator Runbook](project/docs/operator_runbook.md)**.
+
 ## What the project does
 
 - Runs asynchronous, policy-gated reconnaissance with **Full Recon** and **Custom Recon** modes.
