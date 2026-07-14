@@ -183,7 +183,7 @@ from exploitation.web_exploiter import WebExploiter
 kali_ip = os.environ["KALI_IP"]
 ubuntu_ip = os.environ["UBUNTU_IP"]
 
-base_url = f"http://{ubuntu_ip}:80/"
+base_url = f"http://{ubuntu_ip}:80/diagnostics.php"
 
 try:
     with urllib.request.urlopen(base_url, timeout=5) as response:
@@ -196,11 +196,11 @@ except Exception as exc:
     print(f"  ❌ Initial HTTP request failed: {exc}")
     raise SystemExit(0)
 
-print(f"  HTTP root status: {status}")
+print(f"  Diagnostics endpoint status: {status}")
 
-if b"Apache2 Ubuntu Default Page" in body:
-    print("  ⏸ Exploitation blocked: Ubuntu is serving the Apache default page.")
-    print("  Deploy the intended authorised lab web application or endpoint first.")
+if b"AutoPentest Lab Diagnostics" not in body:
+    print("  ⏸ Validation blocked: the expected diagnostics page was not found.")
+    print("  Install lab_target/diagnostics.php on the Ubuntu target first.")
     raise SystemExit(0)
 
 we = WebExploiter(
