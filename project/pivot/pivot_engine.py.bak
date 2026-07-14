@@ -126,42 +126,48 @@ class PivotEngine:
 
     # ── Proxychains ──────────────────────────────────────────
 
-    def configure_proxychains(
-        self,
-        socks_port: int = 1080,
-        config_path: str | None = None,
-        ) -> bool:
-        """Create a project-local ProxyChains configuration."""
-        try:
-            if config_path:
-                conf_path = Path(config_path).expanduser().resolve()
-            else:
-                project_root = Path(__file__).resolve().parent.parent
-                conf_path = project_root / "proxychains4.conf"
-
+    def configure_proxychains(self, socks_port: int = 1080) -> bool:
+        """Write proxychains config to use our SOCKS proxy."""
+        conf_path = Path(PROXYCHAINS_CONF)
+        if not conf_path.exists():
+            log.warning(f"{PROXYCHAINS_CONF} not found, creating it")
             conf_path.parent.mkdir(parents=True, exist_ok=True)
 
-            content = f"""strict_chain
-            proxy_dns
-            tcp_read_time_out 15000
-            tcp_connect_time_out 8000
+        content = conf_path.read_text()
+        # Find [ProxyList] and set the line
+        lines = content.split("\n")
+        new_lines = []
+        proxy_set = False
+        in_proxy_list = False
 
-            [ProxyList]
-            socks5 127.0.0.1 {int(socks_port)}
-            """
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("[ProxyList]"):
+                in_proxy_list = True
+                new_lines.append(line)
+                continue
+            if in_proxy_list:
+                if stripped.startswith("["):
+                    in_proxy_list = False
+                    new_lines.append(line)
+                elif stripped.startswith("socks"):
+                    if not proxy_set:
+                        new_lines.append(f"socks5 127.0.0.1 {socks_port}")
+                        proxy_set = True
+                    continue
+                elif not stripped:
+                    new_lines.append(line)
+                else:
+                    new_lines.append(line)
+            else:
+                new_lines.append(line)
 
-            conf_path.write_text(content, encoding="utf-8")
-            self.proxychains_config_path = str(conf_path)
+        if not proxy_set:
+            new_lines.append(f"[ProxyList]\nsocks5 127.0.0.1 {socks_port}\n")
 
-            log.info(
-                "ProxyChains configured using local file: %s",
-                conf_path,
-            )
-            return True
-
-        except (OSError, ValueError) as exc:
-            log.error("ProxyChains configuration failed: %s", exc)
-            return False
+        conf_path.write_text("\n".join(new_lines))
+        log.info(f"✅ Proxychains configured: socks5 127.0.0.1 {socks_port}")
+        return True
 
     # ── Internal Scanning ───────────────────────────────────
 
@@ -175,27 +181,14 @@ class PivotEngine:
             log.warning("Pivot not active — internal scan may fail")
 
         results = []
-        config_path = getattr(
-            self,
-            "proxychains_config_path",
-            str(Path(__file__).resolve().parent.parent / "proxychains4.conf"),
-        )
         cmd = [
-            "proxychains4",
-            "-q",
-            "-f",
-            config_path,
-            "nmap",
-            "-sT",
-            "-Pn",
-            "-n",
-            "--open",
-            "-p",
-            ports,
-            "--max-retries",
-            "1",
-            "--min-rate",
-            "50",
+            "proxychains", "-q",
+            "nmap", "-sT", "-Pn", "-n", "--open",
+            "-p", ports,
+            "--max-retries", "1",
+            "--min-rate", "50",
+            "--max-rtt-timeout", "2000ms",
+            "-oX", "-",
             target_range,
         ]
 

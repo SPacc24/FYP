@@ -1,3 +1,4 @@
+from typing import List, Dict
 """
 Pivot Routes — Flask blueprint for the pivot assessment UI.
 Powers the existing pivot_assessment.html template.
