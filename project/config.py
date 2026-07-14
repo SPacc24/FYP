@@ -30,6 +30,17 @@ class Config:
     KALI_IP = os.getenv('KALI_IP', '127.0.0.1')
     OPERATION_TIMEOUT = int(os.getenv('OPERATION_TIMEOUT', '180'))
 
+    WEB_CALLBACK_BIND_HOST = os.getenv(
+        'WEB_CALLBACK_BIND_HOST',
+        '0.0.0.0',
+    )
+    WEB_CALLBACK_ADVERTISE_HOST = (
+        os.getenv('WEB_CALLBACK_ADVERTISE_HOST') or KALI_IP
+    )
+    WEB_CALLBACK_PORT = int(os.getenv('WEB_CALLBACK_PORT', '4444'))
+    WEB_CALLBACK_TIMEOUT = float(os.getenv('WEB_CALLBACK_TIMEOUT', '15'))
+    WEB_CALLBACK_MAX_BYTES = int(os.getenv('WEB_CALLBACK_MAX_BYTES', '8192'))
+
     PROOF_OF_ACCESS_ENABLED = os.getenv(
         'PROOF_OF_ACCESS_ENABLED',
         'false',

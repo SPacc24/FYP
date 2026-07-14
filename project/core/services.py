@@ -74,8 +74,12 @@ web_validation_service = WebValidationService(
     operating_system=Config.LAB_WEB_OS,
 )
 
-# Initialize web exploiter (actual reverse shell exploitation)
 web_exploiter = WebExploiter(
-    lhost=Config.KALI_IP,
-    lport=4444,
+    lhost=Config.WEB_CALLBACK_ADVERTISE_HOST,
+    lport=Config.WEB_CALLBACK_PORT,
+    bind_host=Config.WEB_CALLBACK_BIND_HOST,
+    callback_host=Config.WEB_CALLBACK_ADVERTISE_HOST,
+    callback_port=Config.WEB_CALLBACK_PORT,
+    callback_timeout=Config.WEB_CALLBACK_TIMEOUT,
+    callback_max_bytes=Config.WEB_CALLBACK_MAX_BYTES,
 )
