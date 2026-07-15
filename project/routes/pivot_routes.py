@@ -147,14 +147,41 @@ def pivot_scan():
             "type": target_type,
         })
 
-    return jsonify({
+    pivot_scan_results = {
         "ok": True,
         "phase": "internal_scan",
         "target_range": target_range,
         "hosts_found": len(results),
         "targets": targets,
-        "recommendations": self._generate_recommendations(targets),
+        "recommendations": _generate_recommendations(targets),
+    }
+    flask_session["internal_targets"] = [target["ip"] for target in targets]
+    flask_session["pivot_scan_results"] = pivot_scan_results
+
+    return jsonify(pivot_scan_results)
+
+
+@pivot_bp.route("/target/select", methods=["POST"])
+def pivot_target_select():
+    """Select one of the targets discovered by the latest pivot scan."""
+    data = request.get_json(silent=True) or {}
+    target_ip = str(data.get("target_ip", "")).strip()
+    internal_targets = flask_session.get("internal_targets", [])
+    if not isinstance(internal_targets, list):
+        internal_targets = []
+
+    if not target_ip or target_ip not in internal_targets:
+        return jsonify({
+            "ok": False,
+            "error": "target_ip must be present in internal_targets",
+        }), 400
+
+    flask_session["target_ip"] = target_ip
+    return jsonify({
+        "ok": True,
+        "target_ip": target_ip,
     })
+
 
 def _generate_recommendations(targets):
     """Generate human-readable attack recommendations."""
