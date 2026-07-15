@@ -1,0 +1,528 @@
+{
+  "description": "Two-mode Full/Custom authorised reconnaissance. Full Recon maximises evidence coverage with passive-first collection, micro-batched discovery, and high-value validation. It does not modify the cyber range, brute force, exploit, hide attribution, or score findings.",
+  "tcp_discovery_stages": [
+    100
+  ],
+  "stop_conditions": {
+    "high_density_after_top20": 999,
+    "windows_like_min_ports_to_stop": [
+      135,
+      139,
+      445
+    ],
+    "sufficient_services_after_top50": 999,
+    "max_automatic_stages_for_windows_like": 1,
+    "top100_is_follow_up": false,
+    "stop_on_high_density_in_full": false
+  },
+  "ttl_hints": {
+    "network_device_min": 200,
+    "windows_family_min": 100,
+    "linux_unix_min": 40
+  },
+  "critical_banner_ports": [
+    21,
+    22,
+    23,
+    25,
+    53,
+    80,
+    110,
+    111,
+    135,
+    139,
+    143,
+    389,
+    443,
+    445,
+    465,
+    587,
+    636,
+    993,
+    995,
+    1433,
+    1521,
+    2049,
+    2375,
+    2376,
+    3268,
+    3269,
+    3306,
+    3389,
+    5000,
+    5432,
+    5900,
+    5985,
+    5986,
+    6379,
+    6443,
+    8009,
+    8080,
+    8081,
+    8180,
+    8443,
+    9000,
+    9200,
+    9443
+  ],
+  "automatic_collectors_disabled": [
+    "full_tcp_sweep",
+    "broad_udp",
+    "directory_discovery",
+    "credential_validation",
+    "broad_smb_enumeration",
+    "smb_permission_mapping",
+    "vulnerability_scanning",
+    "sql_injection_validation",
+    "smtp_open_relay_validation",
+    "database_empty_password_validation",
+    "nfs_deep_listing",
+    "dns_context",
+    "ldapsearch_rootdse",
+    "snmp_targeted_oids",
+    "rpcinfo_native",
+    "showmount_native",
+    "ssh_audit_native",
+    "http_security_context"
+  ],
+  "cve_policy": {
+    "classification_basis": "condition_type_only",
+    "context_dependent_as_candidate": true,
+    "allow_hardcoded_cve_ids": false
+  },
+  "scan_postures": {
+    "infrastructure_observed": {
+      "tcp_ports": [
+        22,
+        80,
+        443
+      ],
+      "nmap_timing": [
+        "-T1",
+        "--max-rate",
+        "10",
+        "--scan-delay",
+        "500ms"
+      ],
+      "max_stages": 1,
+      "allow_service_objectives": false
+    },
+    "windows_like_observed": {
+      "tcp_discovery_stages": [
+        100
+      ],
+      "nmap_timing": [
+        "-T2",
+        "--max-retries",
+        "1"
+      ],
+      "max_stages": 1,
+      "allow_service_objectives": false
+    },
+    "default": {
+      "tcp_discovery_stages": [
+        100
+      ],
+      "nmap_timing": [
+        "-T2",
+        "--max-retries",
+        "1"
+      ],
+      "max_stages": 1,
+      "allow_service_objectives": true
+    }
+  },
+  "acl_detection": {
+    "filtered_ratio_threshold": 0.6,
+    "min_sampled_ports": 10
+  },
+  "httpx_options": {
+    "rate_limit_per_second": 1,
+    "threads": 1,
+    "timeout_seconds": 5
+  },
+  "default_enabled_tools": [
+    "passive_dns",
+    "passive_tls",
+    "passive_fingerprinting",
+    "certificate_transparency",
+    "passive_os_fingerprinting",
+    "passive_packet_inventory",
+    "environment_characterisation",
+    "tcp_discovery",
+    "udp_discovery",
+    "service_fingerprint",
+    "httpx",
+    "html_form_parser",
+    "targeted_web_discovery",
+    "api_discovery",
+    "nuclei_safe",
+    "ssh_auth_methods",
+    "ftp_anonymous_status",
+    "telnet_readiness",
+    "smb_protocol_security",
+    "ldap_rootdse",
+    "kerberos_info",
+    "winrm_wsman_probe",
+    "rdp_negotiation",
+    "vnc_info",
+    "snmp_readiness",
+    "mssql_info",
+    "redis_info",
+    "elasticsearch_info",
+    "tomcat_ajp_readiness",
+    "tls_cipher_validation",
+    "kubernetes_exposure",
+    "container_exposure",
+    "vpn_validation",
+    "dns_context",
+    "ldapsearch_rootdse",
+    "snmp_targeted_oids",
+    "rpcinfo_native",
+    "showmount_native",
+    "http_security_context",
+    "postgres_readiness_native",
+    "native_protocol_enrichment"
+  ],
+  "operator_enabled_collectors": [],
+  "active_command_guardrails": {
+    "enabled": true,
+    "min_delay_seconds": 0.75,
+    "max_jitter_seconds": 1.25,
+    "max_active_commands_per_host_default": 8,
+    "pause_on_environment_context_or_acl_indicator": false
+  },
+  "service_fingerprint_timing": [
+    "-T1",
+    "--max-retries",
+    "1",
+    "--scan-delay",
+    "300ms",
+    "--max-rate",
+    "15"
+  ],
+  "nmap_script_timing": [
+    "-T1",
+    "--max-retries",
+    "1",
+    "--scan-delay",
+    "500ms",
+    "--max-rate",
+    "10"
+  ],
+  "http_probe_guardrails": {
+    "single_page_only": true,
+    "max_redirects": 1,
+    "curl_timeout_seconds": 4,
+    "head_before_get": true
+  },
+  "environment_context_model": {
+    "nmap_syn_top_ports": [
+      "firewall denied/allowed connection bursts",
+      "IDS scan heuristics",
+      "NetFlow fan-out"
+    ],
+    "nmap_banner_intensity0": [
+      "service banner grabs",
+      "unusual protocol negotiation"
+    ],
+    "nmap_nse_scripts": [
+      "script-specific protocol requests",
+      "Windows/RPC/SMB security logs when applicable"
+    ],
+    "httpx_technology_probe": [
+      "web access logs",
+      "WAF request metadata"
+    ],
+    "html_form_parser": [
+      "web access logs for one GET/HEAD request"
+    ],
+    "credential_validation": [
+      "authentication failures; disabled from recon"
+    ],
+    "passive_dns": [
+      "DNS resolver queries",
+      "internal recursive resolver logs when applicable"
+    ],
+    "passive_tls": [
+      "single TLS handshake metadata",
+      "firewall connection log for TLS endpoint when endpoint is contacted"
+    ],
+    "certificate_transparency": [
+      "public CT service query logs; target infrastructure is not contacted"
+    ],
+    "ldap_rootdse": [
+      "LDAP bind/rootDSE query logs",
+      "domain controller network logs"
+    ],
+    "kerberos_info": [
+      "Kerberos service contact",
+      "KDC/network logs"
+    ],
+    "tls_cipher_validation": [
+      "multiple TLS handshakes",
+      "firewall TLS connection logs"
+    ],
+    "rdp_negotiation": [
+      "RDP negotiation event visibility",
+      "firewall connection logs"
+    ],
+    "targeted_web_discovery": [
+      "web access logs for a small known-path set",
+      "WAF metadata"
+    ],
+    "api_discovery": [
+      "web access logs for documentation/schema paths",
+      "WAF metadata"
+    ],
+    "kubernetes_exposure": [
+      "Kubernetes API/server access logs if exposed",
+      "firewall logs"
+    ],
+    "container_exposure": [
+      "Docker/registry API access logs if exposed",
+      "firewall logs"
+    ],
+    "vpn_validation": [
+      "VPN portal web logs",
+      "firewall TLS connection logs"
+    ],
+    "nuclei_safe": [
+      "web access logs from safe template requests",
+      "WAF metadata"
+    ],
+    "passive_packet_inventory": [
+      "No target probes generated; may be visible only as local packet capture process on scanner host."
+    ],
+    "passive_os_fingerprinting": [
+      "No target probes generated; passive OS hints from ambient traffic only."
+    ],
+    "native_protocol_enrichment": [
+      "single bounded protocol metadata connection per observed service",
+      "application logs may record one connection/banner interaction"
+    ],
+    "postgres_readiness_native": [
+      "single PostgreSQL readiness connection",
+      "database listener log if configured"
+    ]
+  },
+  "active_validation_guardrails": {
+    "description": "Modern active validation is evidence-only and budgeted. It must not perform exploitation, credential use, brute force, payload injection, or post-exploitation.",
+    "require_observed_service_before_validation": true,
+    "approval_gated_collectors": [
+      "ldap_rootdse",
+      "kerberos_info",
+      "rdp_negotiation",
+      "nuclei_safe"
+    ],
+    "native_http_collectors": [
+      "targeted_web_discovery",
+      "api_discovery",
+      "kubernetes_exposure",
+      "container_exposure",
+      "vpn_validation"
+    ]
+  },
+  "targeted_expansion_ports": [],
+  "udp_target_ports": [
+    53,
+    137,
+    161
+  ],
+  "full_recon_enabled_tools": [
+    "passive_dns",
+    "passive_tls",
+    "passive_fingerprinting",
+    "certificate_transparency",
+    "passive_os_fingerprinting",
+    "passive_packet_inventory",
+    "environment_characterisation",
+    "tcp_discovery",
+    "udp_discovery",
+    "service_fingerprint",
+    "httpx",
+    "html_form_parser",
+    "targeted_web_discovery",
+    "api_discovery",
+    "nuclei_safe",
+    "ssh_auth_methods",
+    "ftp_anonymous_status",
+    "telnet_readiness",
+    "smb_protocol_security",
+    "ldap_rootdse",
+    "kerberos_info",
+    "winrm_wsman_probe",
+    "rdp_negotiation",
+    "vnc_info",
+    "snmp_readiness",
+    "mssql_info",
+    "redis_info",
+    "elasticsearch_info",
+    "tomcat_ajp_readiness",
+    "tls_cipher_validation",
+    "kubernetes_exposure",
+    "container_exposure",
+    "vpn_validation",
+    "dns_context",
+    "ldapsearch_rootdse",
+    "snmp_targeted_oids",
+    "rpcinfo_native",
+    "showmount_native",
+    "http_security_context",
+    "tls_intelligence",
+    "federation_detection",
+    "dns_relationships",
+    "certificate_correlation",
+    "context_fingerprints",
+    "noise_evaluation",
+    "postgres_readiness_native",
+    "native_protocol_enrichment"
+  ],
+  "tcp_discovery_strategy": "micro_batched_top100_plus_targeted_high_value",
+  "tcp_micro_batching": {
+    "enabled": true,
+    "description": "Inference-first Full Recon uses passive/context evidence first and preserves TCP coverage through very small -Pn micro-batches rather than broad bursts.",
+    "batch_size_target": 5,
+    "sleep_between_batches_seconds_min": 4.0,
+    "sleep_between_batches_seconds_max": 8.0,
+    "use_pn": true,
+    "nmap_options": [
+      "-Pn",
+      "-sS",
+      "--open",
+      "-T2",
+      "--max-retries",
+      "1",
+      "--max-rate",
+      "2"
+    ]
+  },
+  "tcp_micro_batches": [
+    [
+      21,
+      22,
+      23,
+      25,
+      53
+    ],
+    [
+      80,
+      88,
+      110,
+      111,
+      135
+    ],
+    [
+      137,
+      139,
+      143,
+      389,
+      443
+    ],
+    [
+      445,
+      465,
+      587,
+      636,
+      993
+    ],
+    [
+      995,
+      1433,
+      1521,
+      2049,
+      2375
+    ],
+    [
+      2376,
+      3268,
+      3269,
+      3306,
+      3389
+    ],
+    [
+      5000,
+      5432,
+      5900,
+      5985,
+      5986
+    ],
+    [
+      6379,
+      6443,
+      8009,
+      8080,
+      8081
+    ],
+    [
+      8180,
+      8443,
+      9000,
+      9200,
+      9443
+    ],
+    [
+      113,
+      119,
+      179,
+      199,
+      427
+    ],
+    [
+      548,
+      554,
+      1025,
+      1026,
+      1027
+    ],
+    [
+      1028,
+      1029,
+      1720,
+      1723,
+      2000
+    ],
+    [
+      2121,
+      3128,
+      4444,
+      5060,
+      5061
+    ],
+    [
+      5222,
+      5901,
+      6000,
+      6667,
+      7001
+    ],
+    [
+      7070,
+      8000,
+      8888,
+      9100,
+      10000
+    ]
+  ],
+  "full_fingerprint_all_observed_ports": true,
+  "passive_local_inventory": {
+    "enabled": true,
+    "interface_env": "AUTOPENTEST_PASSIVE_INTERFACE",
+    "duration_seconds": 30,
+    "tshark_filter": "arp or mdns or dhcp or llmnr",
+    "p0f_enabled": true,
+    "p0f_duration_seconds": 30,
+    "note": "Interface must be explicitly approved by Rules of Engagement or supplied by environment variable. Collector is listen-only."
+  },
+  "active_reachability_probe": false,
+  "skip_active_host_discovery_for_single_target": true,
+  "single_target_availability_strategy": "assume_live_after_scope_validation",
+  "targeted_expansion_strategy": "handled_by_micro_batches_no_second_burst",
+  "recon_architecture": "inference_first_then_targeted_validation",
+  "enumeration_memory": {
+    "enabled": true,
+    "description": "Future scans should reuse unchanged metadata evidence within TTL to reduce repeat probing without reducing first-run coverage."
+  },
+  "tcp_micro_batch_profile_file": "policies/tcp_port_profiles.json",
+  "tcp_micro_batch_profile": "full"
+}

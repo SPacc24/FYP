@@ -1,0 +1,3 @@
+run python -m pytest tests/test_caldera_imports.py for test_caldera_imports
+
+Should say "2 passed"
