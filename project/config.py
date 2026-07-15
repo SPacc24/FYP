@@ -81,4 +81,28 @@ class Config:
     )
     LAB_WEB_OS = os.getenv('LAB_WEB_OS', 'windows')
 
+    ENABLE_WEB_EXPLOITATION = (
+    os.getenv("ENABLE_WEB_EXPLOITATION", "0") == "1"
+    )
+
+    LAB_WEB_EXPLOIT_ENDPOINT = os.getenv(
+        "LAB_WEB_EXPLOIT_ENDPOINT",
+        "",
+    )
+
+    LAB_WEB_EXPLOIT_PARAMETER = os.getenv(
+        "LAB_WEB_EXPLOIT_PARAMETER",
+        "host",
+    )
+
+    LAB_WEB_EXPLOIT_METHOD = os.getenv(
+        "LAB_WEB_EXPLOIT_METHOD",
+        "POST",
+    ).upper()
+
+    LAB_WEB_EXPLOIT_PLATFORM = os.getenv(
+        "LAB_WEB_EXPLOIT_PLATFORM",
+        "linux",
+    ).lower()
+
 
