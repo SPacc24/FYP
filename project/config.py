@@ -30,6 +30,17 @@ class Config:
     KALI_IP = os.getenv('KALI_IP', '127.0.0.1')
     OPERATION_TIMEOUT = int(os.getenv('OPERATION_TIMEOUT', '180'))
 
+    WEB_CALLBACK_BIND_HOST = os.getenv(
+        'WEB_CALLBACK_BIND_HOST',
+        '0.0.0.0',
+    )
+    WEB_CALLBACK_ADVERTISE_HOST = (
+        os.getenv('WEB_CALLBACK_ADVERTISE_HOST') or KALI_IP
+    )
+    WEB_CALLBACK_PORT = int(os.getenv('WEB_CALLBACK_PORT', '4444'))
+    WEB_CALLBACK_TIMEOUT = float(os.getenv('WEB_CALLBACK_TIMEOUT', '15'))
+    WEB_CALLBACK_MAX_BYTES = int(os.getenv('WEB_CALLBACK_MAX_BYTES', '8192'))
+
     PROOF_OF_ACCESS_ENABLED = os.getenv(
         'PROOF_OF_ACCESS_ENABLED',
         'false',
@@ -70,4 +81,27 @@ class Config:
     )
     LAB_WEB_OS = os.getenv('LAB_WEB_OS', 'windows')
 
+    ENABLE_WEB_EXPLOITATION = (
+    os.getenv("ENABLE_WEB_EXPLOITATION", "0") == "1"
+    )
+
+    LAB_WEB_EXPLOIT_ENDPOINT = os.getenv(
+        "LAB_WEB_EXPLOIT_ENDPOINT",
+        "",
+    )
+
+    LAB_WEB_EXPLOIT_PARAMETER = os.getenv(
+        "LAB_WEB_EXPLOIT_PARAMETER",
+        "host",
+    )
+
+    LAB_WEB_EXPLOIT_METHOD = os.getenv(
+        "LAB_WEB_EXPLOIT_METHOD",
+        "POST",
+    ).upper()
+
+    LAB_WEB_EXPLOIT_PLATFORM = os.getenv(
+        "LAB_WEB_EXPLOIT_PLATFORM",
+        "linux",
+    ).lower()
 

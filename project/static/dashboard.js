@@ -62,6 +62,98 @@ function renderProofOfAccessInfo(proof) {
   `;
 }
 
+function formatListValue(items) {
+  if (!items || !items.length) return "-";
+  return items.map(item => escapeHtml(item)).join(", ");
+}
+
+function renderStatusRows(rows) {
+  return `
+    <dl class="small">
+      ${rows.map(([label, value]) => `
+        <dt><strong>${escapeHtml(label)}</strong></dt>
+        <dd>${value}</dd>
+      `).join("")}
+    </dl>
+  `;
+}
+
+function getPrimaryAgent(data) {
+  return data.online_agents?.[0]
+    || data.trusted_online_agents?.[0]
+    || data.agents?.[0]
+    || {};
+}
+
+function getAgentIps(agent) {
+  return agent.ip_addresses
+    || agent.host_ip_addrs
+    || (agent.ip ? String(agent.ip).split(",").map(item => item.trim()).filter(Boolean) : []);
+}
+
+function renderCalderaStatus(data) {
+  const context = getDashboardContext();
+  const agent = getPrimaryAgent(data);
+  const ready = data.agent_ready === true;
+  const statusText = ready ? "Ready" : "Not Ready";
+  const rejectionReason = ready ? "-" : (data.rejection_reason || data.message || "No matching trusted online agent.");
+
+  return `
+    <p><strong>${statusText}</strong></p>
+    ${renderStatusRows([
+      ["Selected target", escapeHtml(data.target || context.target || "Unknown")],
+      ["Target source", escapeHtml(data.target_source || "Unknown")],
+      ["Original external target", escapeHtml(data.external_target || "Unknown")],
+      ["Agent host", escapeHtml(agent.host || agent.hostname || "-")],
+      ["IP addresses", formatListValue(getAgentIps(agent))],
+      ["Lifecycle", escapeHtml(agent.lifecycle || agent.status || (agent.alive ? "Online" : "Unknown"))],
+      ["Trust state", escapeHtml(agent.trusted === true ? "Trusted" : agent.trusted === false ? "Untrusted" : "Unknown")],
+      ["Group", escapeHtml(agent.group || "-")],
+      ["Target-match type", escapeHtml(data.target_match_type || (data.target_match_confirmed ? "ip" : "none"))],
+      ["Rejection reason", escapeHtml(rejectionReason)],
+      ["Selected PAW", escapeHtml(data.selected_agent_paw || "-")]
+    ])}
+  `;
+}
+
+function renderOperationSummary(data) {
+  if (data.ok === false || data.success === false) {
+    return `
+      <p><strong>Operation failed.</strong></p>
+      <p class="small">${escapeHtml(data.message || data.error || "No error message returned.")}</p>
+      ${data.coverage ? `<p class="small"><strong>Coverage Info:</strong> ${escapeHtml(data.coverage.unsupported)} technique(s) not supported.</p>` : ""}
+    `;
+  }
+
+  const title = data.state === "unsupported"
+    ? "No CALDERA operation created."
+    : "Operation completed.";
+  const message = data.state === "unsupported"
+    ? `<p class="small">${escapeHtml(data.message || "Unsupported techniques require external validation.")}</p>`
+    : "";
+
+  return `
+    <p><strong>${title}</strong></p>
+    ${message}
+    ${renderStatusRows([
+      ["Target", escapeHtml(data.target || "Unknown")],
+      ["Target source", escapeHtml(data.target_source || "Unknown")],
+      ["Original external target", escapeHtml(data.external_target || "Unknown")],
+      ["Operation ID", escapeHtml(data.operation_id || "-")],
+      ["Operation name", escapeHtml(data.operation_name || "-")],
+      ["State", escapeHtml(data.state || "-")],
+      ["Agent host", escapeHtml(data.agent_host || "-")],
+      ["Agent PAW", escapeHtml(data.agent_paw || "-")],
+      ["Total techniques", escapeHtml(data.total ?? "-")],
+      ["Successful", escapeHtml(data.success_count ?? "-")],
+      ["Failed", escapeHtml(data.fail_count ?? "-")],
+      ["Discarded", escapeHtml(data.discarded_count ?? "-")],
+      ["Unsupported", escapeHtml(data.unsupported_count ?? "-")]
+    ])}
+    ${renderProofOfAccessInfo(data.proof_of_access)}
+  `;
+}
+
 function getEndpoint(name, fallback) {
   return window.DASHBOARD_ENDPOINTS?.[name] || fallback;
 }
@@ -154,6 +246,11 @@ async function loadCalderaStatus() {
   const agentStatusSummary = document.getElementById("agentStatusSummary");
   const deployTargetText = document.getElementById("deployTargetText");
   const deployOsText = document.getElementById("deployOsText");
+  const deployTargetSourceText = document.getElementById("deployTargetSourceText");
+  const deployExternalTargetText = document.getElementById("deployExternalTargetText");
+  const targetMatchTypeText = document.getElementById("targetMatchTypeText");
+  const agentRejectionReasonText = document.getElementById("agentRejectionReasonText");
+  const selectedPawText = document.getElementById("selectedPawText");
 
   if (!box) return;
 
@@ -166,17 +263,20 @@ async function loadCalderaStatus() {
     const trustedName = data.online_agents?.[0]?.host || data.online_agents?.[0]?.hostname || data.online_agents?.[0]?.paw || "-";
     if (deployTargetText) deployTargetText.textContent = data.target || getDashboardContext().target || "Unknown";
     if (deployOsText) deployOsText.textContent = data.target_os || "Unknown";
-    document.getElementById("trustedAgentName").textContent = data.agent_ready ? trustedName : "-";
+    if (deployTargetSourceText) deployTargetSourceText.textContent = data.target_source || "Unknown";
+    if (deployExternalTargetText) deployExternalTargetText.textContent = data.external_target || "Unknown";
+    if (targetMatchTypeText) targetMatchTypeText.textContent = data.target_match_type || (data.target_match_confirmed ? "ip" : "none");
+    if (agentRejectionReasonText) agentRejectionReasonText.textContent = data.agent_ready === true ? "-" : (data.rejection_reason || data.message || "-");
+    if (selectedPawText) selectedPawText.textContent = data.selected_agent_paw || "-";
+    document.getElementById("trustedAgentName").textContent = data.agent_ready === true ? trustedName : "-";
     if (agentStatusSummary) {
       const onlineCount = agents.filter(agent => agent.alive).length;
       agentStatusSummary.textContent = `${onlineCount} online agent(s) observed. Target checked: ${data.target || getDashboardContext().target || "Unknown"}.`;
     }
 
-    if (data.agent_ready) {
-      box.innerHTML =
-        data.target_match_confirmed === false
-          ? `<p><strong>Ready</strong> - ${data.online_agents?.length || 1} trusted agent(s) online. Confirm the selected agent is the intended target before running.</p>`
-          : `<p><strong>Ready</strong> - trusted agent matched.</p>`;
+    box.innerHTML = renderCalderaStatus(data);
+
+    if (data.agent_ready === true) {
       if (deployBox) deployBox.style.display = "none";
     }
 
@@ -570,6 +670,16 @@ async function runCaldera() {
     return;
   }
 
+  const approved = window.confirm(
+    "Approve this CALDERA operation for the selected authorised lab target?"
+  );
+
+  if (!approved) {
+    operationBox.innerHTML =
+      "<p class='muted'>Operation cancelled by operator.</p>";
+    return;
+  }
+
   operationBox.innerHTML =
     "<p class='muted'>Starting Caldera operation...</p>";
 
@@ -580,7 +690,8 @@ async function runCaldera() {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        selected_techniques: selected
+        selected_techniques: selected,
+        approved: true
       })
     });
 
@@ -602,11 +713,7 @@ async function runCaldera() {
     }
 
     if (data.ok || data.success) {
-      operationBox.innerHTML =
-        data.state === "unsupported"
-          ? `<p><strong>No CALDERA operation created.</strong></p><p class="small">${escapeHtml(data.message || "Unsupported techniques require external validation.")}</p>`
-          : `<p><strong>Operation completed.</strong></p>`;
-      operationBox.innerHTML += renderProofOfAccessInfo(data.proof_of_access);
+      operationBox.innerHTML = renderOperationSummary(data);
 
       const tbody = document.getElementById("techniqueResultsBody");
       const executionSummary = document.getElementById("executionSummary");
@@ -676,14 +783,7 @@ async function runCaldera() {
     }
 
     else {
-      operationBox.innerHTML =
-        `<p><strong>Operation failed.</strong></p>
-         <p class="small">${escapeHtml(data.message || data.error || "No error message returned.")}</p>`;
-
-      if (data.coverage) {
-        operationBox.innerHTML +=
-          `<p class="small"><strong>Coverage Info:</strong> ${data.coverage.unsupported} technique(s) not supported.</p>`;
-      }
+      operationBox.innerHTML = renderOperationSummary(data);
     }
   }
 
@@ -702,8 +802,7 @@ async function refreshOperationStatus() {
     const res = await fetch(getEndpoint("operationStatus", "/caldera/operation/status"));
     const data = await res.json();
 
-    operationBox.innerHTML =
-      `<pre class="small mono">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+    operationBox.innerHTML = renderOperationSummary(data);
   }
 
   catch (e) {

@@ -41,6 +41,9 @@ def register_routes(app):
 
         status["target"] = target_context["target"]
         status["target_os"] = target_context["os"]
+        status["target_source"] = target_context["source"]
+        status["external_target"] = target_context["external_target"]
+        status["selected_agent_paw"] = session.get("selected_agent_paw")
 
         if not status.get("agent_ready"):
             status["deploy_command"] = operation_manager.get_deploy_command(
@@ -106,20 +109,44 @@ def register_routes(app):
 
     @app.route("/caldera/agent/select", methods=["POST"])
     def caldera_agent_select():
-        data = request.get_json(silent=True) or {}
-        paw = data.get("paw")
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict) or set(data) != {"paw"}:
+            return jsonify({
+                "ok": False,
+                "error": "Only paw is accepted.",
+            }), 400
+
+        paw = str(data.get("paw") or "").strip()
 
         if not paw:
             return jsonify({
                 "ok": False,
-                "error": "Missing paw"
+                "error": "A nonempty paw is required.",
+            }), 400
+
+        target_context = _current_target_context()
+
+        available, result = operation_manager.check_agent(
+            group=getattr(Config, "AGENT_GROUP", "red"),
+            target=target_context["target"],
+            selected_paw=paw,
+        )
+
+        if not available:
+            return jsonify({
+                "ok": False,
+                "error": result,
             }), 400
 
         session["selected_agent_paw"] = paw
+        _save_active_scan_fields(selected_agent_paw=paw)
 
         return jsonify({
             "ok": True,
-            "selected_agent_paw": paw
+            "selected_agent_paw": paw,
+            "agent": result,
+            "target": target_context["target"],
         })
 
     @app.route("/caldera/operation/status", methods=["GET"])
@@ -201,7 +228,35 @@ def register_routes(app):
     @app.route("/caldera/run", methods=["POST"])
     def caldera_run():
         try:
-            data = request.get_json(silent=True) or {}
+            if Config.ENABLE_CALDERA_EXECUTION is not True:
+                return jsonify({
+                    "ok": False,
+                    "error": "CALDERA execution is disabled.",
+                }), 403
+
+            data = request.get_json(silent=True)
+
+            if not isinstance(data, dict):
+                return jsonify({
+                    "ok": False,
+                    "error": "A JSON request body is required.",
+                }), 400
+
+            allowed_fields = {"selected_techniques", "approved"}
+
+            if set(data) != allowed_fields:
+                return jsonify({
+                    "ok": False,
+                    "error": (
+                        "Only selected_techniques and approved are accepted."
+                    ),
+                }), 400
+
+            if data.get("approved") is not True:
+                return jsonify({
+                    "ok": False,
+                    "error": "Explicit operator approval is required.",
+                }), 400
 
             selected_techniques = _normalise_selected_techniques(
                 data.get("selected_techniques", [])
@@ -256,12 +311,13 @@ def register_routes(app):
                 )
 
             if not supported_techniques:
+                target_context = _current_target_context()
                 unsupported_results = operation_manager.build_unsupported_results(
                     selected_techniques,
                     {
                         "vulnerabilities": mapping_results.get("vulnerabilities", []),
                         "scan_context": {
-                            "os": session.get("target_os", "Unknown")
+                            "os": target_context["os"]
                         },
                     },
                 )
@@ -290,6 +346,9 @@ def register_routes(app):
                         "coverage_details": coverage,
                     },
                 }
+                result["target"] = target_context["target"]
+                result["target_source"] = target_context["source"]
+                result["external_target"] = target_context["external_target"]
 
                 result["validation_results"] = _active_validation_results()
                 proof_tickets = proof_ticket_manager.issue_for_operation(result)
@@ -322,11 +381,13 @@ def register_routes(app):
                     ),
                 })
 
+            target_context = _current_target_context()
+
             result = operation_manager.run_operation(
                 technique_ids=supported_techniques,
-                group=data.get("group", getattr(Config, "AGENT_GROUP", "red")),
+                group=getattr(Config, "AGENT_GROUP", "red"),
                 timeout=getattr(Config, "OPERATION_TIMEOUT", 180),
-                target=session.get("target_ip"),
+                target=target_context["target"],
                 selected_paw=session.get("selected_agent_paw"),
                 unsupported_techniques=[
                     technique_id
@@ -336,7 +397,7 @@ def register_routes(app):
                 unsupported_context={
                     "vulnerabilities": _active_mapping_results().get("vulnerabilities", []),
                     "scan_context": {
-                        "os": session.get("target_os", "Unknown")
+                        "os": target_context["os"]
                     },
                 },
             )
@@ -349,6 +410,10 @@ def register_routes(app):
 
             if not result.get("success", True):
                 return jsonify(result), 500
+
+            result["target"] = target_context["target"]
+            result["target_source"] = target_context["source"]
+            result["external_target"] = target_context["external_target"]
 
             mapping_results = _active_mapping_results()
 

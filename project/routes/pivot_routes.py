@@ -9,10 +9,14 @@ import logging
 import time
 from flask import Blueprint, jsonify, request, session as flask_session, render_template
 from config import Config
-from core.helpers import _active_validation_results
+from core.helpers import (
+    _active_scan_record,
+    _active_validation_results,
+    _save_active_scan_fields,
+)
 from pivot.pivot_engine import PivotEngine
-from mapping.technique_mapper import map_vulnerabilities
-from ai.technique_planner import generate_ai_technique_plan
+import ipaddress
+from datetime import datetime, timezone
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +24,6 @@ pivot_bp = Blueprint("pivot", __name__, url_prefix="/pivot")
 
 # Global pivot engine instance
 _pivot_engine: PivotEngine = None
-
 
 def init_pivot_engine():
     """Initialize the pivot engine with Kali IP from config."""
@@ -109,239 +112,172 @@ def pivot_status():
 
 # ── Phase 2: Internal Network Scan ─────────────────────────
 
-
-def _pivot_results_to_parsed_results(
-    results: List[Dict],
-) -> dict:
-    """Convert pivot scan results into normal mapper input."""
-
-    hosts = []
-    service_inventory = []
-
-    for discovered_host in results or []:
-        if not isinstance(discovered_host, dict):
-            continue
-
-        ip_address = str(
-            discovered_host.get("ip") or ""
-        ).strip()
-
-        if not ip_address:
-            continue
-
-        port_findings = []
-
-        for raw_port in (
-            discovered_host.get("open_ports", []) or []
-        ):
-            if not isinstance(raw_port, dict):
-                continue
-
-            try:
-                port_number = int(
-                    raw_port.get("port")
-                )
-            except (TypeError, ValueError):
-                continue
-
-            service_name = str(
-                raw_port.get("service") or "unknown"
-            ).strip().lower()
-
-            finding = {
-                "port": port_number,
-                "protocol": "tcp",
-                "state": "open",
-                "service": service_name,
-                "product": str(
-                    raw_port.get("product") or ""
-                ).strip(),
-                "version": str(
-                    raw_port.get("version") or ""
-                ).strip(),
-            }
-
-            port_findings.append(finding)
-
-            service_inventory.append(
-                {
-                    "host": ip_address,
-                    **finding,
-                }
-            )
-
-        hosts.append(
-            {
-                "address": {
-                    "primary": ip_address,
-                },
-                "hostname": "",
-                "os": {
-                    "name": str(
-                        discovered_host.get("os")
-                        or "Unknown"
-                    ),
-                },
-                "port_findings": port_findings,
-                "discovered_via": "pivot",
-            }
-        )
-
-    return {
-        "target_ip": (
-            hosts[0]["address"]["primary"]
-            if hosts
-            else ""
-        ),
-        "hosts": hosts,
-        "service_inventory": service_inventory,
-        "source": "pivot",
-    }
-
-
 @pivot_bp.route("/scan", methods=["POST"])
 def pivot_scan():
-    """Scan an internal network range through the pivot."""
-
+    """
+    Scan an internal network range through the pivot.
+    Common targets: 10.10.10.0/24 (ADMIN), 10.10.20.0/24 (USERS).
+    """
     data = request.get_json(silent=True) or {}
-
-    target_range = data.get(
-        "range",
-        "10.10.20.0/24",
-    )
-    ports = data.get(
-        "ports",
-        "21,22,80,445,3389,5985,5986",
-    )
+    target_range = data.get("range", "10.10.20.0/24")
+    ports = data.get("ports", "21,22,80,445,3389,5985,5986")
     timeout = int(data.get("timeout", 60))
 
     engine = get_pivot_engine()
 
     if not engine.is_running:
-        return jsonify(
-            {
-                "ok": False,
-                "error": (
-                    "Pivot is not active. "
-                    "Run /pivot/setup first."
-                ),
-            }
-        ), 400
+        return jsonify({
+            "ok": False,
+            "error": "Pivot is not active. Run /pivot/setup first.",
+        }), 400
 
-    results = engine.scan_network(
-        target_range,
-        ports=ports,
-        timeout=timeout,
-    )
+    results = engine.scan_network(target_range, ports=ports, timeout=timeout)
 
+    # Identify interesting targets
     targets = []
-
     for host in results:
-        service_names = [
-            str(port.get("service") or "").lower()
-            for port in host.get("open_ports", [])
-            if isinstance(port, dict)
-        ]
-
+        service_names = [p["service"] for p in host.get("open_ports", [])]
         target_type = "unknown"
-
-        if any(
-            service in service_names
-            for service in (
-                "microsoft-ds",
-                "smb",
-            )
-        ):
+        if any(s in service_names for s in ["microsoft-ds", "smb"]):
             target_type = "windows_smb"
-
         elif "ssh" in service_names:
             target_type = "linux_ssh"
-
-        elif (
-            "rdp" in service_names
-            or "ms-wbt-server" in service_names
-        ):
+        elif "rdp" in service_names or "ms-wbt-server" in service_names:
             target_type = "windows_rdp"
 
-        targets.append(
-            {
-                "ip": host.get("ip", ""),
-                "os": host.get("os", ""),
-                "open_ports": host.get(
-                    "open_ports",
-                    [],
-                ),
-                "type": target_type,
-            }
-        )
+        targets.append({
+            "ip": host["ip"],
+            "os": host.get("os", ""),
+            "open_ports": host["open_ports"],
+            "type": target_type,
+        })
 
-    parsed_pivot_results = (
-        _pivot_results_to_parsed_results(results)
+    pivot_scan_results = {
+        "ok": True,
+        "phase": "internal_scan",
+        "target_range": target_range,
+        "hosts_found": len(results),
+        "targets": targets,
+        "recommendations": _generate_recommendations(targets),
+    }
+
+    internal_targets = []
+
+    for target in targets:
+        try:
+            address = ipaddress.ip_address(target.get("ip", ""))
+        except ValueError:
+            continue
+
+        if (
+            address.version != 4
+            or not address.is_private
+            or address.is_loopback
+        ):
+            continue
+
+        internal_targets.append({
+            **target,
+            "ip": str(address),
+            "discovered_at": datetime.now(timezone.utc).isoformat(),
+            "source": "pivot_scan",
+        })
+
+    pivot_scan_results["targets"] = internal_targets
+    pivot_scan_results["hosts_found"] = len(internal_targets)
+
+    flask_session["internal_targets"] = internal_targets
+    flask_session["pivot_scan_results"] = pivot_scan_results
+
+    _save_active_scan_fields(
+        internal_targets=internal_targets,
+        pivot_scan_results=pivot_scan_results,
     )
+
+    return jsonify(pivot_scan_results)
+
+
+@pivot_bp.route("/target/select", methods=["POST"])
+def pivot_target_select():
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict) or set(data) != {"target_ip"}:
+        return jsonify({
+            "ok": False,
+            "error": "Only target_ip is accepted.",
+        }), 400
 
     try:
-        mitre_mapping = map_vulnerabilities(
-            parsed_pivot_results
+        address = ipaddress.ip_address(
+            str(data.get("target_ip") or "").strip()
         )
+    except ValueError:
+        return jsonify({
+            "ok": False,
+            "error": "target_ip must be a valid IPv4 address.",
+        }), 400
 
-        if mitre_mapping.get(
-            "recommended_techniques"
-        ):
-            ai_plan = generate_ai_technique_plan(
-                mitre_mapping,
-                preferred_mode="hybrid",
-            )
-        else:
-            ai_plan = {
-                "recommended_mode": "hybrid",
-                "selected_technique_ids": [],
-                "reasoning": (
-                    "No mapped techniques were produced "
-                    "for the pivot-discovered hosts."
-                ),
-                "technique_explanations": [],
-                "next_steps": [],
-            }
+    if (
+        address.version != 4
+        or not address.is_private
+        or address.is_loopback
+    ):
+        return jsonify({
+            "ok": False,
+            "error": "target_ip must be a private non-loopback IPv4 address.",
+        }), 400
 
-    except Exception as exc:
-        log.exception(
-            "Could not process pivot-discovered hosts"
-        )
-
-        mitre_mapping = {
-            "vulnerabilities": [],
-            "recommended_techniques": [],
-            "error": str(exc),
-        }
-
-        ai_plan = {
-            "selected_technique_ids": [],
-            "reasoning": (
-                "Pivot results could not be processed "
-                "by the AI planner."
-            ),
-            "technique_explanations": [],
-            "next_steps": [],
-            "error": str(exc),
-        }
-
-    return jsonify(
-        {
-            "ok": True,
-            "phase": "internal_scan",
-            "target_range": target_range,
-            "hosts_found": len(results),
-            "targets": targets,
-            "parsed_pivot_results": (
-                parsed_pivot_results
-            ),
-            "mitre_mapping": mitre_mapping,
-            "ai_plan": ai_plan,
-            "recommendations": (
-                _generate_recommendations(targets)
-            ),
-        }
+    active_scan = _active_scan_record()
+    internal_targets = (
+        active_scan.get("internal_targets")
+        or flask_session.get("internal_targets")
+        or []
     )
+
+    selected = next(
+        (
+            target
+            for target in internal_targets
+            if isinstance(target, dict)
+            and target.get("ip") == str(address)
+        ),
+        None,
+    )
+
+    if selected is None:
+        return jsonify({
+            "ok": False,
+            "error": "The target was not discovered by the current pivot scan.",
+        }), 400
+
+    external_target = (
+        active_scan.get("external_target")
+        or active_scan.get("target")
+        or flask_session.get("external_target_ip")
+        or flask_session.get("target_ip")
+    )
+
+    selected_internal_target = {
+        **selected,
+        "selected_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    flask_session["external_target_ip"] = external_target
+    flask_session["selected_internal_target"] = selected_internal_target
+    flask_session.pop("selected_agent_paw", None)
+
+    _save_active_scan_fields(
+        external_target=external_target,
+        selected_internal_target=selected_internal_target,
+        selected_agent_paw=None,
+    )
+
+    return jsonify({
+        "ok": True,
+        "selected_internal_target": selected_internal_target,
+        "external_target": external_target,
+        "selected_agent_paw": None,
+    })
 
 
 def _generate_recommendations(targets):

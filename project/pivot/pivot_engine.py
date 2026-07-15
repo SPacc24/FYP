@@ -196,7 +196,8 @@ class PivotEngine:
             "1",
             "--min-rate",
             "50",
-            "-oX", "-",
+            "-oX",
+            "-",
             target_range,
         ]
 
