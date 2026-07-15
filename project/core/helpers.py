@@ -366,18 +366,46 @@ def _ensure_scan_analysis(data: dict) -> dict:
 
 
 def _current_target_context():
+    active_scan = _active_scan_record()
     parsed_results = _load_current_scan_results() or {}
-    target = (
-        session.get("target_ip")
+
+    selected = (
+        active_scan.get("selected_internal_target")
+        or session.get("selected_internal_target")
+    )
+
+    external_target = (
+        active_scan.get("external_target")
+        or active_scan.get("target")
+        or session.get("external_target_ip")
+        or session.get("target_ip")
         or parsed_results.get("target_ip")
-        or (parsed_results.get("hosts", [{}])[0].get("address", {}).get("primary") if parsed_results.get("hosts") else None)
         or "Unknown"
     )
-    os_name = parsed_results.get("os") or session.get("target_os") or "Windows"
+
+    if isinstance(selected, dict) and selected.get("ip"):
+        target = selected["ip"]
+        os_name = selected.get("os") or "Unknown"
+        source = "pivot_scan"
+    else:
+        target = external_target
+        os_name = (
+            parsed_results.get("os")
+            or session.get("target_os")
+            or "Unknown"
+        )
+        source = "external_scan"
+
     return {
         "target": target,
         "os": os_name,
-        "platform": "windows" if "win" in str(os_name).lower() else "linux",
+        "platform": (
+            "windows"
+            if "win" in str(os_name).lower()
+            else "linux"
+        ),
+        "source": source,
+        "external_target": external_target,
     }
 
 

@@ -25,7 +25,6 @@ pivot_bp = Blueprint("pivot", __name__, url_prefix="/pivot")
 # Global pivot engine instance
 _pivot_engine: PivotEngine = None
 
-
 def init_pivot_engine():
     """Initialize the pivot engine with Kali IP from config."""
     global _pivot_engine

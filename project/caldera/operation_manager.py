@@ -94,6 +94,13 @@ class OperationManager:
             return True
         return False
 
+    def _agent_ip_matches_target(self, agent, target):
+        if not target or target == 'Unknown':
+            return False
+        target_norm = str(target).lower().strip()
+        agent_ips = {ip.lower() for ip in self._normalise_agent_ips(agent)}
+        return target_norm in agent_ips
+
     def _agent_sort_key(self, agent):
         raw = str(agent.get('last_seen') or '')
         try:
@@ -129,6 +136,8 @@ class OperationManager:
                     "online_agents": matching_agents,
                     "trusted_online_agents": agents,
                     "target": target or "",
+                    "target_match_type": "not_checked",
+                    "rejection_reason": "" if ready else message,
                     "message": message
                 }
 
@@ -153,28 +162,29 @@ class OperationManager:
             if ip_matched:
                 matching_agents = sorted(ip_matched, key=self._agent_sort_key, reverse=True)
                 ready = True
+                target_match_type = "ip"
+                rejection_reason = ""
                 message = "Ready - Trusted CALDERA agent available (IP match)"
             elif host_matched:
                 matching_agents = sorted(host_matched, key=self._agent_sort_key, reverse=True)
                 ready = False
+                target_match_type = "hostname"
                 message = "Caldera reachable - trusted agents exist, matched by hostname but not by IP"
+                rejection_reason = message
             elif os_matched:
                 matching_agents = sorted(os_matched, key=self._agent_sort_key, reverse=True)
                 ready = False
+                target_match_type = "platform"
                 message = "Caldera reachable - trusted agents exist, matched by platform/OS"
+                rejection_reason = message
             else:
-                # CALDERA does not always report target IPs consistently across
-                # Sandcat/platform versions. When trusted agents exist but no IP
-                # matches the scan target, keep the app usable and clearly mark
-                # that the match is not confirmed.
                 matching_agents = sorted(agents, key=self._agent_sort_key, reverse=True)
-                ready = len(matching_agents) > 0
+                ready = False
+                target_match_type = "none"
                 message = (
-                    "Trusted CALDERA agent available, but it did not expose an IP "
-                    "matching the scanned target. Confirm the agent host before running."
-                    if ready
-                    else "Caldera reachable - trusted agents exist, but none match the scanned target"
+                    "Caldera reachable - trusted agents exist, but none match the scanned target"
                 )
+                rejection_reason = message
 
             return {
                 "ok": True,
@@ -184,6 +194,8 @@ class OperationManager:
                 "online_agents": matching_agents,
                 "trusted_online_agents": agents,
                 "target_match_confirmed": bool(ip_matched),
+                "target_match_type": target_match_type,
+                "rejection_reason": rejection_reason,
                 "target": target or "",
                 "message": message
             }
@@ -199,27 +211,44 @@ class OperationManager:
             }
         
     def check_agent(self, group='red', target=None, selected_paw=None):
-        agents = self.client.get_online_agents()
+        if hasattr(self.client, "get_agents_normalized"):
+            all_agents = self.client.get_agents_normalized()
+        else:
+            all_agents = self.client.get_online_agents()
+
+        agents = [
+            agent for agent in all_agents
+            if agent.get("trusted") and agent.get("alive") and agent.get("paw")
+        ]
         group_agents = [a for a in agents if a.get('group') == group] if group else agents
         if selected_paw:
             selected = [a for a in group_agents if a.get('paw') == selected_paw]
             if selected:
-                return True, selected[0]
-        original_group_agents = list(group_agents)
+                agent = selected[0]
+                if target and not self._agent_ip_matches_target(agent, target):
+                    return False, (
+                        f"Selected agent '{selected_paw}' does not match target "
+                        f"'{target}'."
+                    )
+                return True, agent
+            return False, f"Selected agent '{selected_paw}' is not available in group '{group}'."
+
         if target:
-            group_agents = [a for a in group_agents if self._agent_matches_target(a, target)]
-            if not group_agents and original_group_agents:
-                # Some CALDERA builds omit host_ip_addrs or report NAT/interface
-                # addresses that do not equal the scanned IP. Falling back to the
-                # newest trusted group agent prevents a false "not working" state;
-                # the UI/runbook still tells the user to verify the host manually.
-                group_agents = original_group_agents
+            group_agents = [
+                a for a in group_agents
+                if self._agent_ip_matches_target(a, target)
+            ]
         if not group_agents:
             target_note = f" for target '{target}'" if target else ""
             return False, f"No trusted online agents found in group '{group}'{target_note}. Deploy Sandcat on the target machine first."
         group_agents = sorted(group_agents, key=self._agent_sort_key, reverse=True)
         trusted = [a for a in group_agents if a.get('paw')]
         active = trusted if trusted else group_agents
+        if target and len(active) > 1:
+            return False, (
+                f"Multiple trusted online agents match target '{target}'. "
+                "Select an agent PAW before running."
+            )
         agent = active[0]
         log.info('Agent found: %s | paw: %s', agent.get('host', 'unknown'), agent.get('paw'))
         return True, agent
