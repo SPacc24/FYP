@@ -203,14 +203,14 @@ except Exception as exc:
 print("  Exploiter result:")
 print(json.dumps(result, indent=2, default=str))
 
-if not isinstance(result, dict):
-    print("  ❌ WebExploiter returned an unexpected result type")
-    raise SystemExit(0)
+verified = result.get("marker_verified") is True
+error = result.get("error") or ""
 
-created = bool(result.get("session_created"))
-error = result.get("error", "")
-
-print(f'  Shell: {"✅" if created else "❌"} {error}')
+print(
+    f'  Verified callback: '
+    f'{"✅" if verified else "❌"} '
+    f'{error}'
+)
 PY
 
 echo
