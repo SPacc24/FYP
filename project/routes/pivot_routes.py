@@ -9,8 +9,14 @@ import logging
 import time
 from flask import Blueprint, jsonify, request, session as flask_session, render_template
 from config import Config
-from core.helpers import _active_validation_results
+from core.helpers import (
+    _active_scan_record,
+    _active_validation_results,
+    _save_active_scan_fields,
+)
 from pivot.pivot_engine import PivotEngine
+import ipaddress
+from datetime import datetime, timezone
 
 log = logging.getLogger(__name__)
 
@@ -155,31 +161,123 @@ def pivot_scan():
         "targets": targets,
         "recommendations": _generate_recommendations(targets),
     }
-    flask_session["internal_targets"] = [target["ip"] for target in targets]
+
+    internal_targets = []
+
+    for target in targets:
+        try:
+            address = ipaddress.ip_address(target.get("ip", ""))
+        except ValueError:
+            continue
+
+        if (
+            address.version != 4
+            or not address.is_private
+            or address.is_loopback
+        ):
+            continue
+
+        internal_targets.append({
+            **target,
+            "ip": str(address),
+            "discovered_at": datetime.now(timezone.utc).isoformat(),
+            "source": "pivot_scan",
+        })
+
+    pivot_scan_results["targets"] = internal_targets
+    pivot_scan_results["hosts_found"] = len(internal_targets)
+
+    flask_session["internal_targets"] = internal_targets
     flask_session["pivot_scan_results"] = pivot_scan_results
+
+    _save_active_scan_fields(
+        internal_targets=internal_targets,
+        pivot_scan_results=pivot_scan_results,
+    )
 
     return jsonify(pivot_scan_results)
 
 
 @pivot_bp.route("/target/select", methods=["POST"])
 def pivot_target_select():
-    """Select one of the targets discovered by the latest pivot scan."""
-    data = request.get_json(silent=True) or {}
-    target_ip = str(data.get("target_ip", "")).strip()
-    internal_targets = flask_session.get("internal_targets", [])
-    if not isinstance(internal_targets, list):
-        internal_targets = []
+    data = request.get_json(silent=True)
 
-    if not target_ip or target_ip not in internal_targets:
+    if not isinstance(data, dict) or set(data) != {"target_ip"}:
         return jsonify({
             "ok": False,
-            "error": "target_ip must be present in internal_targets",
+            "error": "Only target_ip is accepted.",
         }), 400
 
-    flask_session["target_ip"] = target_ip
+    try:
+        address = ipaddress.ip_address(
+            str(data.get("target_ip") or "").strip()
+        )
+    except ValueError:
+        return jsonify({
+            "ok": False,
+            "error": "target_ip must be a valid IPv4 address.",
+        }), 400
+
+    if (
+        address.version != 4
+        or not address.is_private
+        or address.is_loopback
+    ):
+        return jsonify({
+            "ok": False,
+            "error": "target_ip must be a private non-loopback IPv4 address.",
+        }), 400
+
+    active_scan = _active_scan_record()
+    internal_targets = (
+        active_scan.get("internal_targets")
+        or flask_session.get("internal_targets")
+        or []
+    )
+
+    selected = next(
+        (
+            target
+            for target in internal_targets
+            if isinstance(target, dict)
+            and target.get("ip") == str(address)
+        ),
+        None,
+    )
+
+    if selected is None:
+        return jsonify({
+            "ok": False,
+            "error": "The target was not discovered by the current pivot scan.",
+        }), 400
+
+    external_target = (
+        active_scan.get("external_target")
+        or active_scan.get("target")
+        or flask_session.get("external_target_ip")
+        or flask_session.get("target_ip")
+    )
+
+    selected_internal_target = {
+        **selected,
+        "selected_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    flask_session["external_target_ip"] = external_target
+    flask_session["selected_internal_target"] = selected_internal_target
+    flask_session.pop("selected_agent_paw", None)
+
+    _save_active_scan_fields(
+        external_target=external_target,
+        selected_internal_target=selected_internal_target,
+        selected_agent_paw=None,
+    )
+
     return jsonify({
         "ok": True,
-        "target_ip": target_ip,
+        "selected_internal_target": selected_internal_target,
+        "external_target": external_target,
+        "selected_agent_paw": None,
     })
 
 
