@@ -47,8 +47,18 @@ DEFAULT_VALUES: tuple[tuple[str, str], ...] = (
     ("METASPLOIT_RPC_USER", "msf"),
     ("METASPLOIT_RPC_VERIFY_SSL", "0"),
     ("METASPLOIT_RPC_TIMEOUT", "20"),
+    ("METASPLOIT_RESULT_TIMEOUT", "15"),
+    ("METASPLOIT_POLL_INTERVAL", "1"),
     ("PROOF_OF_ACCESS_ENABLED", "false"),
     ("PROOF_OF_ACCESS_TTL", "300"),
+    ("ENABLE_WEB_VALIDATION", "0"),
+    ("WEB_VALIDATION_TIMEOUT", "5"),
+    ("WEB_VALIDATION_MAX_RESPONSE_BYTES", "65536"),
+    ("WEB_VALIDATION_MAX_REDIRECTS", "2"),
+    ("LAB_WEB_OS", "windows"),
+    ("PIVOT_CHISEL_BINARY", "/usr/bin/chisel"),
+    ("PIVOT_DEFAULT_SOCKS_PORT", "1080"),
+    ("PIVOT_DEFAULT_CHISEL_PORT", "8080"),
 )
 
 

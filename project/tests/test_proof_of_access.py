@@ -137,6 +137,7 @@ def test_ticket_issue_tolerates_missing_agent_ip_list():
 
 def test_flask_redemption_endpoint_enforces_one_time_use(monkeypatch):
     import app as app_module
+    import routes.proof_routes as proof_routes
 
     manager = ProofTicketManager(
         secret="test-secret-that-is-at-least-32-bytes",
@@ -146,7 +147,7 @@ def test_flask_redemption_endpoint_enforces_one_time_use(monkeypatch):
     result = operation_result()
     result["agent_ip_addrs"] = ["127.0.0.1"]
     ticket = manager.issue_for_operation(result)[0]["ticket"]
-    monkeypatch.setattr(app_module, "proof_ticket_manager", manager)
+    monkeypatch.setattr(proof_routes, "proof_ticket_manager", manager)
 
     app_module.app.config["TESTING"] = True
     client = app_module.app.test_client()

@@ -23,10 +23,23 @@ class Config:
     METASPLOIT_RPC_PASS = os.getenv('METASPLOIT_RPC_PASS', '')
     METASPLOIT_RPC_VERIFY_SSL = os.getenv('METASPLOIT_RPC_VERIFY_SSL', '0') == '1'
     METASPLOIT_RPC_TIMEOUT = int(os.getenv('METASPLOIT_RPC_TIMEOUT', '20'))
+    METASPLOIT_RESULT_TIMEOUT = float(os.getenv('METASPLOIT_RESULT_TIMEOUT', '15'))
+    METASPLOIT_POLL_INTERVAL = float(os.getenv('METASPLOIT_POLL_INTERVAL', '1'))
 
     AGENT_GROUP = os.getenv('AGENT_GROUP', 'red')
     KALI_IP = os.getenv('KALI_IP', '127.0.0.1')
     OPERATION_TIMEOUT = int(os.getenv('OPERATION_TIMEOUT', '180'))
+
+    WEB_CALLBACK_BIND_HOST = os.getenv(
+        'WEB_CALLBACK_BIND_HOST',
+        '0.0.0.0',
+    )
+    WEB_CALLBACK_ADVERTISE_HOST = (
+        os.getenv('WEB_CALLBACK_ADVERTISE_HOST') or KALI_IP
+    )
+    WEB_CALLBACK_PORT = int(os.getenv('WEB_CALLBACK_PORT', '4444'))
+    WEB_CALLBACK_TIMEOUT = float(os.getenv('WEB_CALLBACK_TIMEOUT', '15'))
+    WEB_CALLBACK_MAX_BYTES = int(os.getenv('WEB_CALLBACK_MAX_BYTES', '8192'))
 
     PROOF_OF_ACCESS_ENABLED = os.getenv(
         'PROOF_OF_ACCESS_ENABLED',
@@ -50,6 +63,45 @@ class Config:
     HYDRA_CREDENTIAL_FILE = os.getenv('HYDRA_CREDENTIAL_FILE', '')
     MITRE_CVE_REPO = os.getenv('MITRE_CVE_REPO', 'https://github.com/CVEProject/cvelistV5.git')
 
+    PIVOT_CHISEL_BINARY = os.getenv('PIVOT_CHISEL_BINARY', '/usr/bin/chisel')
+    PIVOT_DEFAULT_SOCKS_PORT = int(os.getenv('PIVOT_DEFAULT_SOCKS_PORT', '1080'))
+    PIVOT_DEFAULT_CHISEL_PORT = int(os.getenv('PIVOT_DEFAULT_CHISEL_PORT', '8080'))
+
     NMAP_DEFAULT_PORTS = os.getenv('NMAP_DEFAULT_PORTS', '1-1024')
     NMAP_DEFAULT_INTENSITY = os.getenv('NMAP_DEFAULT_INTENSITY', '3')
     NMAP_DEFAULT_PROFILE = os.getenv('NMAP_DEFAULT_PROFILE', 'basic')
+
+    ENABLE_WEB_VALIDATION = os.getenv('ENABLE_WEB_VALIDATION', '0') == '1'
+    WEB_VALIDATION_TIMEOUT = int(os.getenv('WEB_VALIDATION_TIMEOUT', '5'))
+    WEB_VALIDATION_MAX_RESPONSE_BYTES = int(
+        os.getenv('WEB_VALIDATION_MAX_RESPONSE_BYTES', '65536')
+    )
+    WEB_VALIDATION_MAX_REDIRECTS = int(
+        os.getenv('WEB_VALIDATION_MAX_REDIRECTS', '2')
+    )
+    LAB_WEB_OS = os.getenv('LAB_WEB_OS', 'windows')
+
+    ENABLE_WEB_EXPLOITATION = (
+    os.getenv("ENABLE_WEB_EXPLOITATION", "0") == "1"
+    )
+
+    LAB_WEB_EXPLOIT_ENDPOINT = os.getenv(
+        "LAB_WEB_EXPLOIT_ENDPOINT",
+        "",
+    )
+
+    LAB_WEB_EXPLOIT_PARAMETER = os.getenv(
+        "LAB_WEB_EXPLOIT_PARAMETER",
+        "host",
+    )
+
+    LAB_WEB_EXPLOIT_METHOD = os.getenv(
+        "LAB_WEB_EXPLOIT_METHOD",
+        "POST",
+    ).upper()
+
+    LAB_WEB_EXPLOIT_PLATFORM = os.getenv(
+        "LAB_WEB_EXPLOIT_PLATFORM",
+        "linux",
+    ).lower()
+
