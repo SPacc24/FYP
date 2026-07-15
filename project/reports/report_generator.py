@@ -141,49 +141,6 @@ def _summarize_validation(validation: dict[str, Any]) -> list[str]:
             lines.append(f"  Evidence: {finding.get('evidence', '')}")
             lines.append(f"  Next step: {finding.get('next_step', '')}")
 
-    web = validation.get("web_validation") or {}
-    if web:
-        lines.append("\nControlled web validation:")
-        lines.append(
-            "Summary: "
-            f"{web.get('confirmed', 0)} confirmed, "
-            f"{web.get('not_confirmed', 0)} not confirmed, "
-            f"{web.get('blocked', 0)} blocked, "
-            f"{web.get('failed', 0)} failed."
-        )
-
-        for run in web.get("runs", [])[-10:]:
-            lines.append(
-                f"- {run.get('status', 'unknown').upper()} "
-                f"{run.get('target', 'Unknown')}:{run.get('port', 'N/A')} "
-                f"{run.get('method', 'POST')} {run.get('endpoint', '/diagnostics')} "
-                f"[{run.get('technique_id', 'T1190')}]"
-            )
-            lines.append(
-                f"  Parameter: {run.get('parameter', 'host')}; "
-                f"OS policy: {run.get('operating_system', 'unknown')}"
-            )
-            lines.append(
-                f"  Approval: {run.get('explicit_approval', False)}; "
-                f"Non-destructive: {run.get('non_destructive', False)}; "
-                f"Session created: {run.get('session_created', False)}; "
-                f"Persistence used: {run.get('persistence_used', False)}"
-            )
-            lines.append(f"  Result: {run.get('summary', 'N/A')}")
-            if run.get("confirmation_marker"):
-                lines.append(
-                    f"  Confirmation marker: {run.get('confirmation_marker')}"
-                )
-            if run.get("evidence"):
-                lines.append(
-                    "  Evidence: " + "; ".join(
-                        str(item) for item in run.get("evidence", [])
-                    )
-                )
-            lines.append(
-                f"  Remediation: {run.get('remediation', 'Review command handling and remove shell execution.')}"
-            )
-
     advice = validation.get("attack_advice") or {}
     if advice.get("attack_paths"):
         lines.append("\nOllama attack-path advice:")
@@ -211,6 +168,129 @@ def _summarize_validation(validation: dict[str, Any]) -> list[str]:
             )
             lines.append(f"  Policy: {action.get('policy_key', 'N/A')} ({action.get('risk', 'unknown')} risk)")
             lines.append(f"  Result: {run.get('summary', 'N/A')}")
+    return lines
+
+
+def _summarize_pivot(pivot: dict[str, Any]) -> list[str]:
+    if not pivot:
+        return ["No pivot assessment has been performed."]
+
+    lines = [
+        f"Status: {_safe_text(pivot.get('status'))}",
+        f"Summary: {_safe_text(pivot.get('summary'))}",
+        f"Generated at: {_safe_text(pivot.get('generated_at'))}",
+        f"Entry host: {_safe_text(pivot.get('entry_host'))}",
+        f"CALDERA operation successful: {pivot.get('operation_success', False)}",
+        f"Pivot possible: {pivot.get('pivot_possible', False)}",
+        f"Post-pivot candidates: {pivot.get('candidate_count', 0)}",
+        f"Pivot risk component: {pivot.get('risk_component', 0.0)}",
+    ]
+
+    # Future tunnel fields—displayed automatically when the backend provides them.
+    tunnel_status = pivot.get("tunnel_status")
+    if tunnel_status:
+        lines.extend([
+            "",
+            "Tunnel details:",
+            f"- Status: {_safe_text(tunnel_status)}",
+            f"- Established at: {_safe_text(pivot.get('tunnel_started_at'))}",
+            f"- Closed at: {_safe_text(pivot.get('tunnel_closed_at'))}",
+        ])
+
+    ai_plan = pivot.get("ai_plan") or {}
+    if ai_plan:
+        lines.append("\nPivot AI findings:")
+        lines.append(
+            f"- Summary: "
+            f"{_safe_text(ai_plan.get('summary') or ai_plan.get('selection_reason'))}"
+        )
+        lines.append(
+            f"- Selected techniques: "
+            f"{_safe_text(ai_plan.get('selected_technique_ids', []))}"
+        )
+
+    pivot_mapping = pivot.get("mapping") or {}
+    mitre_techniques = (
+        pivot_mapping.get("recommended_techniques", []) or []
+    )
+
+    if mitre_techniques:
+        lines.append("\nPivot MITRE ATT&CK findings:")
+
+        for technique in mitre_techniques:
+            lines.append(
+                f"- {technique.get('id') or technique.get('technique_id', 'N/A')} "
+                f"{technique.get('name') or technique.get('technique_name', '')} "
+                f"[{technique.get('tactic', 'unknown')}]"
+            )
+
+            if technique.get("reason"):
+                lines.append(
+                    f"  Evidence: {technique.get('reason')}"
+                )
+
+    targets = pivot.get("reachable_targets", []) or []
+    if targets:
+        lines.append("\nDiscovered post-pivot targets:")
+
+        for target in targets:
+            host = target.get("host", "Unknown")
+            hostname = target.get("hostname") or "N/A"
+
+            lines.append(
+                f"- {host} ({hostname}) | "
+                f"OS: {target.get('os', 'Unknown')} | "
+                f"Segment: {target.get('segment', 'unknown')} | "
+                f"Relation: {target.get('segment_relation', 'unknown')} | "
+                f"Live agent: {target.get('has_live_agent', False)}"
+            )
+
+            services = target.get("services", []) or []
+            if services:
+                lines.append("  Services:")
+
+                for service in services:
+                    lines.append(
+                        f"  - {service.get('port', 'N/A')}/"
+                        f"{service.get('protocol', 'tcp')} "
+                        f"{service.get('state', 'unknown')} "
+                        f"{service.get('service', 'unknown')} "
+                        f"{service.get('product', '')} "
+                        f"{service.get('version', '')}".strip()
+                    )
+
+            reasons = target.get("reasons", []) or []
+            if reasons:
+                lines.append("  Evidence:")
+
+                for reason in reasons:
+                    lines.append(f"  - {reason}")
+
+    paths = pivot.get("paths", []) or []
+    if paths:
+        lines.append("\nAttack path / network topology:")
+
+        for path in paths:
+            relation = str(
+                path.get("relation", "unknown")
+            ).replace("_", " ")
+
+            lines.append(
+                f"- {path.get('from', 'Unknown')} "
+                f"-> {path.get('to', 'Unknown')} "
+                f"[{relation}]"
+            )
+
+            if path.get("reason"):
+                lines.append(f"  Evidence: {path.get('reason')}")
+
+    limitations = pivot.get("limitations", []) or []
+    if limitations:
+        lines.append("\nLimitations:")
+
+        for limitation in limitations:
+            lines.append(f"- {limitation}")
+
     return lines
 
 def _summarize_risk(risk: dict[str, Any]) -> list[str]:
@@ -260,6 +340,7 @@ def build_report_summary(
     risk: dict[str, Any],
     remediations: list[dict[str, Any]],
     validation: dict[str, Any] | None = None,
+    pivot: dict[str, Any] | None = None,
 ) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [f"AutoPenTest Report", f"Generated: {now}", ""]
@@ -270,6 +351,12 @@ def build_report_summary(
     lines.append(_section("Attack Plan", _summarize_attack_plan(mapping)))
     lines.append(_section("Lab Exploitability Validation", _summarize_validation(validation or {})))
     lines.append(_section("Operation Results", _summarize_operation(operation)))
+    lines.append(
+    _section(
+        "Lateral Movement / Pivot Assessment",
+        _summarize_pivot(pivot or {}),
+        )
+    )
     lines.append(_section("Risk Summary", _summarize_risk(risk)))
     lines.append(_section("Remediation Guidance", _summarize_remediations(remediations)))
 
@@ -283,8 +370,9 @@ def generate_text_report(
     risk: dict[str, Any],
     remediations: list[dict[str, Any]],
     validation: dict[str, Any] | None = None,
+    pivot: dict[str, Any] | None = None,
 ) -> str:
-    report_text = build_report_summary(scan, mapping, operation, risk, remediations, validation)
+    report_text = build_report_summary(scan, mapping, operation, risk, remediations, validation, pivot)
     path = REPORT_DIR / f"autopentest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     path.write_text(report_text, encoding="utf-8")
     return str(path)
@@ -298,6 +386,7 @@ def generate_pdf_report(
     operation=None,
     risk=None,
     remediations=None,
+    pivot=None,
 ) -> str:
     if scan is None:
         scan = {}
@@ -305,6 +394,8 @@ def generate_pdf_report(
         mapping = {}
     if validation is None:
         validation = {}
+    if pivot is None:
+        pivot = {}
     if operation is None:
         operation = {}
     if risk is None:
@@ -312,4 +403,4 @@ def generate_pdf_report(
     if remediations is None:
         remediations = []
 
-    return generate_text_report(scan, mapping, operation, risk, remediations, validation)
+    return generate_text_report(scan, mapping, operation, risk, remediations, validation, pivot)

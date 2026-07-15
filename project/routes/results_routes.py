@@ -17,9 +17,7 @@ from scanners.nmap_parser import parse_nmap_xml
 from storage import scan_store
 
 from core.helpers import (
-    _active_attack_advice,
     _active_mapping_results,
-    _active_metasploit_results,
     _build_active_report_context,
     _build_detected_cve_rows,
     _ensure_scan_analysis,
@@ -59,10 +57,6 @@ def register_routes(app):
                     selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
                     attack_plan=data.get("attack_plan"),
                     validation_results=data.get("validation_results"),
-                    attack_advice=data.get("attack_advice") or _active_attack_advice(),
-                    metasploit_results=(
-                        data.get("metasploit_results") or _active_metasploit_results()
-                    ),
                     operation_results=data.get("operation_results"),
                     risk=data.get("risk"),
                     remediations=data.get("remediations") or [],
@@ -120,8 +114,6 @@ def register_routes(app):
             selected_mode=session.get("technique_mode", "hybrid"),
             attack_plan=session.get("attack_plan"),
             validation_results=session.get("validation_results"),
-            attack_advice=_active_attack_advice(),
-            metasploit_results=_active_metasploit_results(),
             operation_results=session.get("operation_results"),
             risk=risk,
             remediations=session.get("remediations", []),
@@ -169,6 +161,7 @@ def register_routes(app):
         return jsonify({
             "ok": True,
             "report": context["report"],
+            "pivot": context["pivot"],
             "report_url": url_for("report_view"),
             "download_url": url_for("export_report"),
         })
@@ -234,6 +227,7 @@ def register_routes(app):
             risk=context["risk"],
             remediations=context["remediations"],
             validation=context["validation"],
+            pivot=context["pivot"],
         )
 
         return send_file(
