@@ -66,17 +66,55 @@ def _fetch(url: str, method: str = 'GET', timeout: float = 4, max_bytes: int = 3
         with urllib.request.urlopen(request, timeout=timeout, context=ctx) as response:  # nosec - authorised recon to in-scope host
             body = response.read(max_bytes).decode('utf-8', errors='replace')
             headers = {k.lower(): v for k, v in response.headers.items()}
-            return {'url': url, 'method': method, 'status': response.status, 'headers': headers, 'body_sample': body[:max_bytes], 'success': True}
+            status = int(response.status or 0)
+            return {
+                'url': url,
+                'method': method,
+                'status': status,
+                'headers': headers,
+                'body_sample': body[:max_bytes],
+                'transport_success': True,
+                'success': 200 <= status < 400,
+                'evidence_observed': False,
+                'evidence_state': 'response_received',
+            }
     except urllib.error.HTTPError as exc:
         body = exc.read(max_bytes).decode('utf-8', errors='replace') if exc.fp else ''
-        return {'url': url, 'method': method, 'status': exc.code, 'headers': {k.lower(): v for k, v in exc.headers.items()}, 'body_sample': body[:max_bytes], 'success': exc.code < 500}
+        return {
+            'url': url,
+            'method': method,
+            'status': exc.code,
+            'headers': {k.lower(): v for k, v in exc.headers.items()},
+            'body_sample': body[:max_bytes],
+            'transport_success': True,
+            'success': False,
+            'evidence_observed': False,
+            'evidence_state': 'http_error_response',
+        }
     except Exception as exc:
-        return {'url': url, 'method': method, 'error': str(exc)[:180], 'success': False}
+        return {
+            'url': url,
+            'method': method,
+            'error': str(exc)[:180],
+            'transport_success': False,
+            'success': False,
+            'evidence_observed': False,
+            'evidence_state': 'transport_error',
+        }
 
 
 def _interesting_response(row: dict[str, Any], markers: list[str]) -> bool:
+    status = int(row.get('status') or 0)
+    if status == 404 or status >= 500 or not row.get('transport_success'):
+        return False
     blob = '\n'.join([str(row.get('status') or ''), str(row.get('headers') or ''), str(row.get('body_sample') or '')]).lower()
-    return any(marker.lower() in blob for marker in markers) or int(row.get('status') or 0) in {200, 301, 302, 401, 403}
+    return any(marker.lower() in blob for marker in markers) or status in {200, 301, 302, 401, 403}
+
+
+def _mark_evidence(row: dict[str, Any]) -> dict[str, Any]:
+    row['evidence_observed'] = True
+    row['evidence_state'] = 'observed'
+    return row
 
 
 def collect_api_discovery(web_services: list[dict[str, Any]], policy: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -90,6 +128,7 @@ def collect_api_discovery(web_services: list[dict[str, Any]], policy: dict[str, 
             url = base + str(path)
             row = _fetch(url, timeout=timeout)
             if _interesting_response(row, markers):
+                _mark_evidence(row)
                 row.update({'host': svc.get('host'), 'port': svc.get('port'), 'category': 'api_discovery', 'collection_method': 'single_request_documentation_probe', 'recon_boundary': 'Documentation/schema discovery only; no attack payloads or authentication attempts.'})
                 rows.append(row)
     return rows
@@ -105,6 +144,7 @@ def collect_targeted_web_discovery(web_services: list[dict[str, Any]], policy: d
         for path in policy.get('targeted_web_paths') or []:
             row = _fetch(base + str(path), timeout=timeout)
             if _interesting_response(row, markers):
+                _mark_evidence(row)
                 row.update({'host': svc.get('host'), 'port': svc.get('port'), 'category': 'targeted_web_discovery', 'collection_method': 'policy_limited_known_path_probe', 'recon_boundary': 'Small policy-defined known-path checks only; no brute-force wordlist discovery.'})
                 rows.append(row)
     return rows
@@ -120,6 +160,7 @@ def collect_kubernetes_exposure(services: list[dict[str, Any]], policy: dict[str
         for path in policy.get('kubernetes_paths') or []:
             row = _fetch(base + str(path), timeout=timeout)
             if _interesting_response(row, ['kubernetes', 'apiVersion', 'Unauthorized', 'forbidden']):
+                _mark_evidence(row)
                 row.update({'host': svc.get('host'), 'port': svc.get('port'), 'category': 'kubernetes_exposure', 'collection_method': 'unauthenticated_metadata_probe', 'recon_boundary': 'Unauthenticated metadata endpoint check only; no token use or workload access.'})
                 rows.append(row)
     return rows
@@ -135,6 +176,7 @@ def collect_container_exposure(services: list[dict[str, Any]], policy: dict[str,
         for path in policy.get('container_paths') or []:
             row = _fetch(base + str(path), timeout=timeout)
             if _interesting_response(row, ['docker', 'podman', 'registry', 'ApiVersion']):
+                _mark_evidence(row)
                 row.update({'host': svc.get('host'), 'port': svc.get('port'), 'category': 'container_exposure', 'collection_method': 'unauthenticated_metadata_probe', 'recon_boundary': 'Metadata/version endpoint check only; no container or image operations.'})
                 rows.append(row)
     return rows
@@ -152,6 +194,7 @@ def collect_vpn_validation(web_services: list[dict[str, Any]], passive_findings:
         for path in policy.get('vpn_paths') or []:
             row = _fetch(base + str(path), timeout=timeout)
             if _interesting_response(row, ['global-protect', 'fortinet', 'anyconnect', 'citrix', 'pulse', 'openvpn', 'vpn']):
+                _mark_evidence(row)
                 row.update({'host': svc.get('host'), 'port': svc.get('port'), 'category': 'vpn_validation', 'collection_method': 'portal_marker_probe', 'recon_boundary': 'Portal marker validation only; no credentials or session establishment.'})
                 rows.append(row)
     return rows
@@ -308,11 +351,13 @@ def collect_federation_detection(web_services: list[dict[str, Any]], policy: dic
         root = _fetch(base + '/', method='HEAD', timeout=timeout)
         auth_blob = '\n'.join([str(root.get('headers') or {}), str(root.get('status') or '')]).lower()
         if any(marker in auth_blob for marker in ['www-authenticate','negotiate','saml','oauth','oidc','bearer']):
+            _mark_evidence(root)
             root.update({'host': svc.get('host'), 'port': svc.get('port'), 'category': 'federation_detection', 'collection_method': 'header_only_auth_surface_probe', 'recon_boundary': 'Authentication surface metadata only; no credentials or session establishment.'})
             rows.append(root)
         for path in paths:
             row = _fetch(base + str(path), timeout=timeout, max_bytes=16384)
             if _interesting_response(row, markers):
+                _mark_evidence(row)
                 row.update({'host': svc.get('host'), 'port': svc.get('port'), 'category': 'federation_detection', 'collection_method': 'well_known_federation_metadata_probe', 'recon_boundary': 'Federation metadata discovery only; no login attempts.'})
                 rows.append(row)
     return rows
