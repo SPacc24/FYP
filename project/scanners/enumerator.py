@@ -7,7 +7,10 @@ from storage import scan_store
 from config import Config
 from .targets import expand_target_input, is_private_ip
 from .tooling import which, outfile, run_cmd as _run_cmd
-from .parsers import parse_nmap_xml, parse_httpx_jsonl
+from .parsers import detect_tool_error, parse_httpx_jsonl, parse_nmap_xml
+from .fingerprint_validator import validate_service_fingerprint
+from .acl_mapper import detect_firewall_acl
+from .ssh_crypto_intel import collect_ssh_cryptography
 from .mitre_cve import OFFICIAL_CVE_SOURCE, search_with_held as mitre_search_with_held, status as mitre_status
 from .scan_profiles import normalise_scan_options, is_tool_enabled
 from .objectives import infer_objectives, evidence_gaps_for_service
@@ -242,6 +245,13 @@ def run_cmd(cmd: list[str], output_file: Path | None = None, timeout: int = 300,
     purpose = _describe_command(cmd)
     _active_command_delay()
     result = _run_cmd(cmd, output_file=output_file, timeout=timeout, tool_writes_file=tool_writes_file)
+    diagnosis = detect_tool_error(
+        _coerce_text(result.get('stderr')),
+        _coerce_text(result.get('stdout')),
+        exe,
+    )
+    if diagnosis:
+        result['tool_diagnosis'] = diagnosis
 
     if sid:
         output, truncated = _captured_command_output(result, output_file)
@@ -260,6 +270,9 @@ def run_cmd(cmd: list[str], output_file: Path | None = None, timeout: int = 300,
         if not result.get('success'):
             err = (result.get('error') or result.get('stderr') or 'command did not complete successfully')[:220]
             scan_store.log(sid, f'Command did not complete successfully: {err}', 'WARN')
+        elif diagnosis:
+            level = 'INFO' if diagnosis.startswith('No open ports discovered') else 'WARN'
+            scan_store.log(sid, f'{exe} diagnostic: {diagnosis}', level)
     return result
 
 def _publish_partial(scan_id: str, **kwargs: Any) -> None:
@@ -571,7 +584,13 @@ def _default_capture_interface() -> str:
     return ''
 
 
-def _collect_passive_local_inventory(scan_id: str, coverage: list[dict[str, Any]], raw: list[dict[str, Any]], enabled_fn) -> dict[str, Any]:
+def _collect_passive_local_inventory(
+    scan_id: str,
+    coverage: list[dict[str, Any]],
+    raw: list[dict[str, Any]],
+    enabled_fn,
+    authorised_targets: list[str],
+) -> dict[str, Any]:
     """Listen-only local inventory. No target packets are generated."""
     result = {'tshark': {}, 'p0f': {}, 'summary': []}
     policy = _load_recon_policy().get('passive_local_inventory') or {}
@@ -593,10 +612,24 @@ def _collect_passive_local_inventory(scan_id: str, coverage: list[dict[str, Any]
             p = outfile('passive_packet_inventory', iface, 'txt')
             duration = str(int(policy.get('duration_seconds') or 120))
             filt = str(policy.get('tshark_filter') or 'arp or mdns or dhcp or llmnr')
+            target_filters: list[str] = []
+            target_set = set(authorised_targets)
+            for target in authorised_targets:
+                address = ipaddress.ip_address(target)
+                if address.version == 4:
+                    target_filters.extend([
+                        f'ip.addr == {address}',
+                        f'arp.src.proto_ipv4 == {address}',
+                        f'arp.dst.proto_ipv4 == {address}',
+                    ])
+                else:
+                    target_filters.append(f'ipv6.addr == {address}')
+            if target_filters:
+                filt = f'({filt}) and ({" or ".join(target_filters)})'
             cmd = [tshark_bin, '-i', iface, '-a', f'duration:{duration}', '-Y', filt]
             r = run_cmd(cmd, p, int(duration)+30)
             output, _ = _captured_command_output(r, Path(p))
-            ips = sorted(set(re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', output)))[:200]
+            ips = sorted({ip for ip in re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', output) if ip in target_set})[:200]
             result['tshark'] = {'interface': iface, 'duration_seconds': int(duration), 'filter': filt, 'observed_ips': ips, 'output_file': str(p)}
             if ips:
                 result['summary'].append(f'Passive local packet inventory observed {len(ips)} IP address hint(s) on {iface}.')
@@ -604,7 +637,15 @@ def _collect_passive_local_inventory(scan_id: str, coverage: list[dict[str, Any]
             _add_raw(raw, 'passive_packet_inventory', '', '', str(p), 'text', bool(output.strip()))
         else:
             coverage.append(_coverage('passive_packet_inventory', scan_store.STATUS_EMPTY, 'Suggested follow-up', 'tshark not available for listen-only packet inventory.', ''))
-    if enabled_fn('passive_os_fingerprinting'):
+    if enabled_fn('passive_os_fingerprinting') and not bool(policy.get('allow_ambient_p0f', False)):
+        coverage.append(_coverage(
+            'passive_os_fingerprinting',
+            scan_store.STATUS_EMPTY,
+            'Policy scope protection',
+            'Ambient p0f capture skipped because it cannot be restricted to the authorised target set.',
+            '',
+        ))
+    elif enabled_fn('passive_os_fingerprinting'):
         p0f_bin = which('p0f')
         if p0f_bin:
             p = outfile('passive_os_fingerprinting', iface, 'txt')
@@ -1238,25 +1279,19 @@ def _apply_native_protocol_enrichment(services: list[dict[str, Any]], rows: list
                 svc['version'] = parsed['version']
             details = svc.setdefault('protocol_metadata', {})
             details[row.get('tool') or 'native_protocol'] = parsed
+            fingerprint_evidence = svc.setdefault('native_fingerprint_evidence', [])
+            fingerprint_evidence.append({
+                'tool': 'native_protocol',
+                'collector': row.get('tool') or 'native_protocol',
+                'product': parsed.get('product') or '',
+                'version': parsed.get('version') or '',
+                'confidence': 'exact' if parsed.get('version') else 'partial',
+                'raw_evidence': row.get('raw') or '',
+                'error': row.get('error') or '',
+            })
             src = svc.setdefault('evidence_sources', [])
             if row.get('tool') and row.get('tool') not in src:
                 src.append(row.get('tool'))
-    # Tomcat/AJP correlation: if 8180 identifies Tomcat, allow 8009 AJP on same host to inherit application identity.
-    tomcat_by_host = {}
-    for svc in services or []:
-        if 'tomcat' in str(svc.get('product') or '').lower():
-            tomcat_by_host[str(svc.get('host') or '')] = (svc.get('product'), svc.get('version'))
-    for svc in services or []:
-        try:
-            port = int(svc.get('port') or 0)
-        except Exception:
-            port = 0
-        if port == 8009 or 'ajp' in str(svc.get('service') or '').lower():
-            product, version = tomcat_by_host.get(str(svc.get('host') or ''), ('', ''))
-            if product:
-                svc['product'] = product
-            if version and not svc.get('version'):
-                svc['version'] = version
     return services
 
 
@@ -1496,6 +1531,258 @@ def _normalise_service_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         out.append(r)
     return sorted(out, key=lambda x:(str(x.get('host')), str(x.get('protocol')), int(x.get('port') or 0)))
 
+
+def _endpoint_values(item: dict[str, Any]) -> tuple[str, int]:
+    host = str(item.get('host') or item.get('target') or '').strip()
+    try:
+        port = int(item.get('port') or 0)
+    except (TypeError, ValueError):
+        port = 0
+    url = str(item.get('url') or '')
+    if url and (not host or not port):
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            host = host or str(parsed.hostname or '')
+            port = port or int(parsed.port or (443 if parsed.scheme == 'https' else 80))
+        except (TypeError, ValueError):
+            pass
+    return host.strip('[]').lower(), port
+
+
+def _same_endpoint(item: dict[str, Any], host: str, port: int) -> bool:
+    item_host, item_port = _endpoint_values(item)
+    return item_host == str(host).strip('[]').lower() and item_port == int(port)
+
+
+def _http_evidence_for_service(
+    host: str,
+    port: int,
+    web_items: list[dict[str, Any]],
+    service_checks: list[dict[str, Any]],
+) -> str:
+    evidence: list[str] = []
+    for item in (web_items or []) + (service_checks or []):
+        if not isinstance(item, dict) or not _same_endpoint(item, host, port):
+            continue
+        webserver = str(item.get('webserver') or '').strip()
+        if webserver:
+            evidence.append(f'Server: {webserver}')
+        title = str(item.get('title') or '').strip()
+        if title:
+            evidence.append(f'Title: {title}')
+        technology = item.get('tech') or item.get('technologies') or []
+        if isinstance(technology, (list, tuple, set)):
+            evidence.extend(f'Technology: {value}' for value in technology if value)
+        elif technology:
+            evidence.append(f'Technology: {technology}')
+        for cpe_item in item.get('cpe') or []:
+            if isinstance(cpe_item, dict):
+                product = str(cpe_item.get('product') or '').strip()
+                vendor = str(cpe_item.get('vendor') or '').strip()
+                if product:
+                    evidence.append(f'CPE product: {vendor} {product}'.strip())
+            elif cpe_item:
+                evidence.append(f'CPE: {cpe_item}')
+        headers = item.get('headers')
+        if isinstance(headers, dict):
+            for key, value in headers.items():
+                if str(key).lower() == 'server' and value:
+                    evidence.append(f'Server: {value}')
+        parsed = item.get('parsed')
+        if isinstance(parsed, dict):
+            fields = parsed.get('fields')
+            if isinstance(fields, dict):
+                for key, value in fields.items():
+                    if str(key).lower() in {'server', 'server_header'} and value:
+                        evidence.append(f'Server: {value}')
+        if str(item.get('tool') or '') == 'http_security_context' and item.get('output_file'):
+            captured = _read_text(item.get('output_file'))
+            for server in re.findall(r'(?im)^\s*server\s*:\s*([^\r\n]+)', captured):
+                evidence.append(f'Server: {server.strip()}')
+    return '\n'.join(dict.fromkeys(value for value in evidence if value))
+
+
+def _http_cpes_for_service(
+    host: str,
+    port: int,
+    web_items: list[dict[str, Any]],
+) -> list[str]:
+    values: list[str] = []
+    for item in web_items or []:
+        if not isinstance(item, dict) or not _same_endpoint(item, host, port):
+            continue
+        for cpe_item in item.get('cpe') or []:
+            if isinstance(cpe_item, dict):
+                value = str(cpe_item.get('cpe') or '').strip()
+            else:
+                value = str(cpe_item or '').strip()
+            if value and value not in values:
+                values.append(value)
+    return values
+
+
+def _cpe_identity_tokens(value: str) -> set[str]:
+    text = str(value or '').strip().lower()
+    if not text.startswith('cpe:'):
+        return set()
+    parts = text.split(':')
+    if len(parts) >= 6 and parts[1] == '2.3':
+        fields = parts[3:5]
+    elif len(parts) >= 5 and parts[1].startswith('/'):
+        fields = parts[2:4]
+    else:
+        return set()
+    return {
+        token
+        for field in fields
+        for token in re.findall(r'[a-z0-9]+', field)
+        if len(token) >= 3
+    }
+
+
+def _relevant_http_cpes(product: str, values: list[str]) -> list[str]:
+    product_tokens = {token for token in re.findall(r'[a-z0-9]+', str(product or '').lower()) if len(token) >= 3}
+    if not product_tokens:
+        return []
+    return [value for value in values if product_tokens & _cpe_identity_tokens(value)]
+
+
+def _smb_evidence_for_service(
+    host: str,
+    port: int,
+    smb_items: list[dict[str, Any]],
+) -> str:
+    if port not in {139, 445}:
+        return ''
+    evidence: list[str] = []
+    for item in smb_items or []:
+        if str(item.get('host') or '').lower() != str(host).lower():
+            continue
+        if item.get('lines'):
+            evidence.extend(str(line) for line in item.get('lines') or [])
+        for row in item.get('rows') or []:
+            for script in row.get('scripts') or []:
+                evidence.append(str(script.get('output') or ''))
+        if item.get('output_file'):
+            evidence.append(_read_text(item.get('output_file')))
+    text = '\n'.join(value for value in evidence if value)
+    match = re.search(
+        r'(?im)^.*\b(?:Samba(?:\s+smbd)?(?:[/\s_-]+[0-9][A-Za-z0-9._+~-]*)?|Windows\s+Server(?:[/\s_-]+[0-9]{4})?).*$',
+        text,
+    )
+    return match.group(0).strip() if match else ''
+
+
+def _ssh_banner_for_service(
+    host: str,
+    port: int,
+    ssh_profiles: list[dict[str, Any]],
+    service_checks: list[dict[str, Any]],
+) -> str:
+    for item in ssh_profiles or []:
+        if not _same_endpoint(item, host, port):
+            continue
+        software = str(item.get('server_software') or '').strip()
+        protocol = str(item.get('protocol_version') or '2.0').strip()
+        if software:
+            return f'SSH-{protocol}-{software}'
+    for item in service_checks or []:
+        if str(item.get('tool') or '') != 'ssh_audit_native' or not _same_endpoint(item, host, port):
+            continue
+        parsed = item.get('parsed') or {}
+        fields = parsed.get('fields') if isinstance(parsed, dict) else {}
+        if isinstance(fields, dict):
+            banner = str(fields.get('banner') or fields.get('software') or '').strip()
+            if banner:
+                return banner
+    return ''
+
+
+def _tls_evidence_for_service(
+    host: str,
+    port: int,
+    tls_rows: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    return next(
+        (
+            dict(item)
+            for item in tls_rows or []
+            if isinstance(item, dict) and _same_endpoint(item, host, port) and not item.get('error')
+        ),
+        None,
+    )
+
+
+def _confidence_badge(score: float) -> str:
+    if score >= 0.9:
+        return f'High ({score:.2f})'
+    if score >= 0.7:
+        return f'Validated ({score:.2f})'
+    if score >= 0.5:
+        return f'Uncorroborated ({score:.2f})'
+    return f'Low ({score:.2f})'
+
+
+def _apply_service_fingerprints(
+    services: list[dict[str, Any]],
+    web_items: list[dict[str, Any]],
+    smb_items: list[dict[str, Any]],
+    ssh_profiles: list[dict[str, Any]],
+    tls_rows: list[dict[str, Any]],
+    service_checks: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Attach cross-tool consensus without discarding any raw service row."""
+    fingerprints: list[dict[str, Any]] = []
+    output: list[dict[str, Any]] = []
+    for original in services or []:
+        row = dict(original)
+        host = str(row.get('host') or '')
+        try:
+            port = int(row.get('port') or 0)
+        except (TypeError, ValueError):
+            output.append(row)
+            continue
+        if not host or not 1 <= port <= 65535:
+            output.append(row)
+            continue
+        fingerprint = validate_service_fingerprint(
+            host,
+            port,
+            row,
+            http_response=_http_evidence_for_service(host, port, web_items, service_checks) or None,
+            ssh_banner=_ssh_banner_for_service(host, port, ssh_profiles, service_checks) or None,
+            smb_version=_smb_evidence_for_service(host, port, smb_items) or None,
+            tls_cert=_tls_evidence_for_service(host, port, tls_rows),
+            additional_evidence=list(row.get('native_fingerprint_evidence') or []),
+        )
+        fingerprint_dict = fingerprint.to_dict()
+        fingerprints.append(fingerprint_dict)
+        row['service_fingerprint'] = fingerprint_dict
+        row['consensus_product'] = fingerprint.primary_product
+        row['consensus_version'] = fingerprint.primary_version
+        row['confidence_score'] = fingerprint.confidence_score
+        row['confidence_badge'] = _confidence_badge(fingerprint.confidence_score)
+        row['contradictions'] = list(fingerprint.contradictions)
+        row['recommended_for_cve'] = fingerprint.recommended_for_cve
+        if fingerprint.recommended_for_cve:
+            if fingerprint.primary_product:
+                row['product'] = fingerprint.primary_product
+            if fingerprint.primary_version:
+                row['version'] = fingerprint.primary_version
+            captured_cpes = _http_cpes_for_service(host, port, web_items)
+            relevant_cpes = _relevant_http_cpes(fingerprint.primary_product, captured_cpes)
+            if relevant_cpes:
+                existing_cpes = list(row.get('cpe') or [])
+                row['cpe'] = list(dict.fromkeys(existing_cpes + relevant_cpes))
+        sources = list(row.get('evidence_sources') or [])
+        for item in fingerprint.evidence_sources:
+            if item.tool not in sources:
+                sources.append(item.tool)
+        row['evidence_sources'] = sources
+        output.append(row)
+    return output, fingerprints
+
 STRICT_CVE_MATCH = 'Validated MITRE Reference'
 RELEVANT_VERSION_INFORMATION = 'Relevant Version / Exposure Information'
 EVIDENCE_INCOMPLETE = 'Evidence Incomplete'
@@ -1601,6 +1888,8 @@ def _build_cve_row(service: dict[str, Any], match: dict[str, Any], classificatio
         'remediation_direction': _remediation_direction(str(service.get('product','')), str(match.get('cve_id',''))),
         'finding_type': _cve_finding_type(str(service.get('product','')), str(match.get('cve_id','')), str(match.get('description',''))),
         'evidence_sources': service.get('evidence_sources',[]), 'references': match.get('references',[]),
+        'fingerprint_confidence': service.get('confidence_score', 0.0),
+        'fingerprint_evidence': (service.get('service_fingerprint') or {}).get('evidence_sources', []),
     }
 
 
@@ -1647,7 +1936,10 @@ def _is_service(s: dict[str, Any], *, ports: set[int] | None = None, terms: set[
 # Service-level active collectors were intentionally removed from recon.
 # Downstream validation modules own deeper protocol, credential, and exploit checks.
 
-def _match_cves(services: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _match_cves(
+    services: list[dict[str, Any]],
+    diagnostics: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     strict_matches: list[dict[str, Any]] = []
     relevant_information: list[dict[str, Any]] = []
     strict_index: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
@@ -1655,7 +1947,25 @@ def _match_cves(services: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], l
 
     for s in services:
         cpe_text = ' '.join(s.get('cpe') or [])
-        matches, held_refs = mitre_search_with_held(str(s.get('product','')), str(s.get('version','')), str(s.get('service','')), cpe_text)
+        matches, held_refs = mitre_search_with_held(
+            str(s.get('product','')),
+            str(s.get('version','')),
+            str(s.get('service','')),
+            cpe_text,
+            confidence_score=s.get('confidence_score', 0.0),
+            recommended_for_cve=bool(s.get('recommended_for_cve', False)),
+        )
+        if diagnostics is not None:
+            for held in held_refs:
+                diagnostics.append({
+                    'host': s.get('host'),
+                    'port': s.get('port'),
+                    'protocol': s.get('protocol'),
+                    'service': s.get('service'),
+                    'product': s.get('product'),
+                    'version': s.get('version'),
+                    **dict(held),
+                })
         for m in matches:
             if m.get('source') != OFFICIAL_CVE_SOURCE:
                 continue
@@ -1676,9 +1986,107 @@ def _match_cves(services: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], l
                 else:
                     relevant_index[key] = row
                     relevant_information.append(row)
-        # held_refs intentionally not rendered as CVEs. They are weak/non-official references.
-
     return strict_matches, relevant_information
+
+
+def _canonicalise_downstream_mapping(
+    mapping_result: dict[str, Any],
+    confirmed: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Remove downstream CVE guesses and inject scanner-owned canonical links.
+
+    This integration guard lets teammate mapping logic continue to provide
+    technique context while ensuring every emitted CVE originates from the
+    official scanner index and captured service evidence.
+    """
+    removed_ids: set[str] = set()
+    cve_pattern = re.compile(r'\bCVE-\d{4}-\d{4,}\b', re.I)
+
+    def scrub(value: Any) -> Any:
+        if isinstance(value, list):
+            return [scrub(item) for item in value]
+        if isinstance(value, dict):
+            local_cve_removed = False
+            for key in list(value):
+                if key in {'cve_ids', 'cve_matches'}:
+                    local_cve_removed = local_cve_removed or bool(value.get(key))
+                    for item in value.get(key) or []:
+                        if isinstance(item, str):
+                            removed_ids.update(cve_pattern.findall(item.upper()))
+                        elif isinstance(item, dict):
+                            removed_ids.update(cve_pattern.findall(str(item.get('cve_id') or '').upper()))
+                    value[key] = []
+                else:
+                    value[key] = scrub(value[key])
+            if local_cve_removed:
+                value['_legacy_cve_removed'] = True
+            return value
+        if isinstance(value, str):
+            removed_ids.update(cve_pattern.findall(value.upper()))
+            return re.sub(r'\s+', ' ', cve_pattern.sub('', value)).strip(' -:;,()')
+        return value
+
+    scrub(mapping_result)
+    canonical_by_endpoint: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for classification, rows in (('confirmed', confirmed), ('candidate', candidates)):
+        for row in rows:
+            key = (str(row.get('host') or ''), str(row.get('port') or ''))
+            canonical_by_endpoint.setdefault(key, []).append({
+                'cve_id': row.get('cve_id'),
+                'classification': classification,
+                'severity': row.get('cvss_severity') or row.get('severity') or '',
+                'cvss_score': row.get('cvss_score'),
+                'match_basis': row.get('match_basis') or row.get('classification_reason') or '',
+                'references': row.get('references') or [],
+                'source': row.get('source') or OFFICIAL_CVE_SOURCE,
+            })
+
+    severity_order = {'INFO': 0, 'LOW': 1, 'MEDIUM': 2, 'HIGH': 3, 'CRITICAL': 4}
+    vulnerabilities = mapping_result.get('vulnerabilities') or []
+    for finding in vulnerabilities:
+        key = (str(finding.get('host') or ''), str(finding.get('port') or ''))
+        canonical = canonical_by_endpoint.get(key, [])
+        finding['cve_matches'] = canonical
+        finding['cve_ids'] = [row['cve_id'] for row in canonical if row.get('cve_id')]
+        finding['cve_source'] = OFFICIAL_CVE_SOURCE if canonical else ''
+        finding['cve_contract_version'] = 'scanner-canonical-v1'
+        if canonical:
+            severities = [str(row.get('severity') or '').upper() for row in canonical]
+            best = max(severities, key=lambda value: severity_order.get(value, -1), default='')
+            if best:
+                finding['severity'] = best.title()
+        elif finding.pop('_legacy_cve_removed', False):
+            # Do not retain a CVE-inflated risk label after its unsupported link
+            # was removed. Exposure scoring remains a separate teammate concern.
+            finding['severity'] = 'Info'
+            finding['priority_score'] = 0
+
+    mapping_result['top_risks'] = sorted(
+        vulnerabilities,
+        key=lambda row: (severity_order.get(str(row.get('severity') or '').upper(), -1), int(row.get('priority_score') or 0)),
+        reverse=True,
+    )[:5]
+    mapping_result['severity_counts'] = {
+        label: sum(1 for row in vulnerabilities if str(row.get('severity') or 'Info').lower() == label.lower())
+        for label in ('Critical', 'High', 'Medium', 'Low', 'Info')
+    }
+    mapping_result['cve_source_of_truth'] = 'scanner_official_index'
+    mapping_result['cve_contract_version'] = 'scanner-canonical-v1'
+    mapping_result['legacy_cve_links_removed'] = len(removed_ids)
+    mapping_result['score_semantics'] = 'exposure_priority_not_cvss'
+
+    def remove_internal_markers(value: Any) -> None:
+        if isinstance(value, dict):
+            value.pop('_legacy_cve_removed', None)
+            for item in value.values():
+                remove_internal_markers(item)
+        elif isinstance(value, list):
+            for item in value:
+                remove_internal_markers(item)
+
+    remove_internal_markers(mapping_result)
+    return mapping_result
 
 
 
@@ -1823,7 +2231,20 @@ def _build_service_summary(services: list[dict[str, Any]], cve_matches: list[dic
             status = 'Service identified'
         else:
             status = 'Service observed; identity incomplete'
-        rows.append({'host': s.get('host'), 'port': s.get('port'), 'protocol': s.get('protocol'), 'service': s.get('service'), 'product': s.get('product'), 'version': s.get('version'), 'status': status, 'evidence_gaps': ', '.join(s.get('missing_information') or [])})
+        rows.append({
+            'host': s.get('host'),
+            'port': s.get('port'),
+            'protocol': s.get('protocol'),
+            'service': s.get('service'),
+            'product': s.get('product'),
+            'version': s.get('version'),
+            'status': status,
+            'evidence_gaps': ', '.join(s.get('missing_information') or []),
+            'confidence_score': s.get('confidence_score', 0.0),
+            'confidence_badge': s.get('confidence_badge') or _confidence_badge(float(s.get('confidence_score') or 0.0)),
+            'contradictions': list(s.get('contradictions') or []),
+            'recommended_for_cve': bool(s.get('recommended_for_cve', False)),
+        })
     return rows
 
 
@@ -1940,6 +2361,7 @@ def _build_service_workbench(services: list[dict[str, Any]], cve_matches: list[d
             'web_evidence': [],
             'web_paths': [],
             'smb_shares': [],
+            'fingerprints': [],
             'state': 'Identified Service',
         })
         # Prefer stronger identity evidence when merged service cards start with
@@ -1951,6 +2373,8 @@ def _build_service_workbench(services: list[dict[str, Any]], cve_matches: list[d
         port_ref = f"{s.get('port')}/{s.get('protocol')}"
         if port_ref not in card['ports']:
             card['ports'].append(port_ref)
+        if s.get('service_fingerprint'):
+            card['fingerprints'].append(s.get('service_fingerprint'))
         for gap in s.get('missing_information') or []:
             label = _gap_label(gap)
             if label and label not in card['evidence_gaps']:
@@ -1996,6 +2420,15 @@ def _build_service_workbench(services: list[dict[str, Any]], cve_matches: list[d
         card['candidate_references'] = _dedupe_dicts(card['candidate_references'], ('host', 'service', 'product', 'version'))
         card['confirmed_cves'] = _dedupe_dicts(card['confirmed_cves'], ('cve_id', 'product', 'version'))
         card['web_paths'] = _dedupe_dicts(card['web_paths'], ('path', 'status_code'))
+        card['fingerprints'] = _dedupe_dicts(card['fingerprints'], ('target', 'port'))
+        confidence_values = [float(item.get('confidence_score') or 0.0) for item in card['fingerprints']]
+        card['confidence_score'] = max(confidence_values, default=0.0)
+        card['confidence_badge'] = _confidence_badge(card['confidence_score'])
+        card['contradictions'] = list(dict.fromkeys(
+            contradiction
+            for item in card['fingerprints']
+            for contradiction in (item.get('contradictions') or [])
+        ))
         # Recompute merged-card identity gaps from the final merged identity instead of
         # inheriting weaker UDP/unknown gaps after TCP/banner evidence improved the card.
         final_gaps = []
@@ -2223,11 +2656,6 @@ def _credential_combo_file() -> str:
 
 def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] | None = None) -> None:
     _token = _CURRENT_SCAN_ID.set(scan_id)
-    # Debug logging at pipeline start
-    try:
-        logger.info(f"[run_pipeline] starting scan_id={scan_id} target={target_input} options={scan_options}")
-    except Exception:
-        pass
     try:
         scan_store.log(scan_id, f"Pipeline started for target={target_input}")
     except Exception:
@@ -2237,7 +2665,89 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
     def enabled(tool_id: str) -> bool:
         return is_tool_enabled(scan_options, tool_id)
     scan_store.init_tasks(scan_id, TASKS)
-    coverage=[]; raw=[]; observations=[]; web=[]; smb=[]; services=[]; udp_services=[]; service_level_checks=[]; environment_intelligence=[]; environment_context_indicators=[]; selected_objectives=[]; evidence_gaps=[]; cve_prefetch_thread=None; cve_prefetch={}; scope_validation={}; enterprise_review_policy={}; passive_intelligence={}; modern_active_validation={}
+    if scan_options.get('policy_status') != 'loaded':
+        message = f"Recon policy is {scan_options.get('policy_status')}; scan stopped before target interaction."
+        scan_store.log(scan_id, message, 'ERROR')
+        scan_store.update(scan_id, status=scan_store.STATUS_FAILED, error=message, completed_at=scan_store.now())
+        scan_store.persist(scan_id)
+        return
+    if scan_options.get('policy_conflicts'):
+        scan_store.log(
+            scan_id,
+            'Policy conflicts resolved with explicit disablement taking precedence: '
+            + ', '.join(scan_options.get('policy_conflicts') or []),
+            'WARN',
+        )
+        scan_store.audit_event(scan_id, 'system', 'policy_conflicts_resolved', {
+            'resolution': scan_options.get('policy_resolution'),
+            'disabled_tools': scan_options.get('policy_conflicts') or [],
+            'policy_sha256': scan_options.get('effective_policy_sha256'),
+        })
+    coverage=[]; raw=[]; observations=[]; web=[]; smb=[]; services=[]; udp_services=[]; service_level_checks=[]; environment_intelligence=[]; environment_context_indicators=[]; selected_objectives=[]; evidence_gaps=[]; scope_validation={}; enterprise_review_policy={}; passive_intelligence={}; modern_active_validation={}
+    parser_warnings: list[dict[str, Any]] = []
+    parser_warning_keys: set[tuple[str, str, str]] = set()
+    discovery_evidence: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    firewall_posture_by_host: dict[str, dict[str, Any]] = {}
+    requested_tcp_ports_by_host: dict[str, set[int]] = {}
+    requested_udp_ports_by_host: dict[str, set[int]] = {}
+    requested_top_port_counts_by_host: dict[str, list[int]] = {}
+
+    def retain_parser_warnings(tool: str, path: str | Path, warnings: list[str], host: str = '', port: int | str = '') -> None:
+        for warning in warnings or []:
+            key = (tool, str(path), str(warning))
+            if key in parser_warning_keys:
+                continue
+            parser_warning_keys.add(key)
+            item = {'tool': tool, 'host': host, 'port': port, 'output_file': str(path), 'warning': str(warning)}
+            parser_warnings.append(item)
+            scan_store.log(scan_id, f'{tool} parser warning: {warning}', 'WARN')
+
+    def parse_nmap_capture(
+        path: str | Path,
+        tool: str,
+        host: str = '',
+        port: int | str = '',
+        protocol_hint: str = 'tcp',
+        expect_ports: bool = True,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        parsed, warnings = parse_nmap_xml(path, protocol_hint=protocol_hint)
+        if not expect_ports:
+            warnings = [warning for warning in warnings if not warning.startswith('No ports found in output')]
+        retain_parser_warnings(tool, path, warnings, host, port)
+        return list(parsed.get('services') or []), parsed
+
+    def parse_httpx_capture(path: str | Path, host: str, port: int) -> list[dict[str, Any]]:
+        rows, warnings = parse_httpx_jsonl(path)
+        retain_parser_warnings('httpx', path, warnings, host, port)
+        return rows
+
+    def append_discovery_evidence(host: str, parsed: dict[str, Any], protocol_hint: str) -> None:
+        target_data = discovery_evidence.setdefault(host, {'ports': [], 'extraports': []})
+        for row in parsed.get('ports') or []:
+            item = dict(row)
+            item['host'] = item.get('host') or host
+            item['protocol'] = item.get('protocol') or protocol_hint
+            target_data['ports'].append(item)
+        for row in parsed.get('extraports') or []:
+            item = dict(row)
+            item['host'] = item.get('host') or host
+            item['protocol'] = item.get('protocol') or protocol_hint
+            target_data['extraports'].append(item)
+        pattern = detect_firewall_acl(target_data, host)
+        if pattern is None:
+            return
+        current = firewall_posture_by_host.get(host)
+        candidate = {'target': host, **pattern.to_dict()}
+        if current is None or float(candidate.get('confidence') or 0.0) >= float(current.get('confidence') or 0.0):
+            firewall_posture_by_host[host] = candidate
+            scan_store.log(scan_id, f"Firewall posture for {host}: {pattern.description} Recommendation: {pattern.recommendation}", 'INFO')
+
+    def acl_pause_requested(host: str) -> bool:
+        guardrails = _policy_required(_load_recon_policy(), 'active_command_guardrails')
+        return bool(
+            firewall_posture_by_host.get(host)
+            and guardrails.get('pause_on_environment_context_or_acl_indicator', False)
+        )
     try:
         # 1
         task='Target Preparation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
@@ -2253,7 +2763,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         _publish_partial(scan_id, scope_validation=scope_validation)
 
         # Stage 0A: listen-only passive local inventory before any active validation.
-        passive_local_inventory = _collect_passive_local_inventory(scan_id, coverage, raw, enabled)
+        passive_local_inventory = _collect_passive_local_inventory(scan_id, coverage, raw, enabled, targets)
         if passive_local_inventory.get('summary'):
             environment_intelligence.append({'type': 'passive_local_inventory', 'summary': passive_local_inventory.get('summary'), 'source': 'tshark_p0f_listen_only'})
 
@@ -2291,16 +2801,12 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             nmap=which('nmap')
             if nmap:
                 p=outfile('nmap_host_discovery',target_input,'xml'); r=run_cmd([nmap,'-sn','-oX',str(p)] + targets,p,600,True)
-                # parse live hosts from XML
-                try:
-                    import xml.etree.ElementTree as ET
-                    root=ET.parse(p).getroot(); live=[]
-                    for h in root.findall('host'):
-                        st=h.find('status')
-                        if st is not None and st.get('state')=='up':
-                            addr=h.find("address[@addrtype='ipv4']") or h.find('address')
-                            if addr is not None: live.append(addr.get('addr'))
-                except Exception: live=[]
+                _rows, host_discovery = parse_nmap_capture(p, 'nmap_host_discovery', expect_ports=False)
+                live = [
+                    str(item.get('address'))
+                    for item in host_discovery.get('hosts') or []
+                    if item.get('status') == 'up' and item.get('address')
+                ]
                 coverage.append(_coverage('nmap_host_discovery', _status_from_result(r, bool(live)), 'live host discovery', f'{len(live)} live host(s) found', str(p), r)); _add_raw(raw,'nmap_host_discovery','','',str(p),'nmap_xml',bool(live))
         if not live and len(targets)==1: live=targets
         _finish(scan_id, task, scan_store.STATUS_SUCCESS if live else scan_store.STATUS_EMPTY, f'{len(live)} live host(s) selected for enumeration')
@@ -2322,10 +2828,12 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 if layer.get('scan_posture') == 'infrastructure_observed' or posture.get('scan_posture') == 'infrastructure_observed':
                     # Infrastructure links/firewalls/routers: do not top-port sweep. Probe only management ports at near-zero rate.
                     infra_ports = [str(p) for p in _policy_required(posture, 'tcp_ports')]
+                    requested_tcp_ports_by_host.setdefault(host, set()).update(int(port) for port in infra_ports)
                     p = outfile('nmap_tcp_infrastructure_fingerprint', host, 'xml')
                     cmd = [nmap, '-sS', '-p', ','.join(infra_ports), '--open'] + list(_policy_required(posture, 'nmap_timing')) + ['-oX', str(p), host]
                     r = run_cmd(cmd, p, 600, True)
-                    rows = parse_nmap_xml(str(p))
+                    rows, parsed_discovery = parse_nmap_capture(p, 'nmap_tcp_infrastructure_fingerprint', host)
+                    append_discovery_evidence(host, parsed_discovery, 'tcp')
                     ports = sorted({int(x['port']) for x in rows if x.get('port')})
                     coverage.append(_coverage('nmap_tcp_infrastructure_fingerprint', _status_from_result(r, bool(ports)), 'Infrastructure-safe TCP fingerprint', f'{len(ports)} management/service port(s) observed; application-layer collectors suppressed for {layer.get("role")}.', str(p), r))
                     _add_raw(raw, 'nmap_tcp_infrastructure_fingerprint', host, '', str(p), 'nmap_xml', True)
@@ -2342,10 +2850,12 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                             clean_batch = sorted({int(x) for x in batch_ports if str(x).isdigit() or isinstance(x, int)})
                             if not clean_batch:
                                 continue
+                            requested_tcp_ports_by_host.setdefault(host, set()).update(clean_batch)
                             p = outfile(f'nmap_tcp_microbatch_{batch_index}', host, 'xml')
                             cmd = [nmap] + timing + ['-p', ','.join(map(str, clean_batch)), '-oX', str(p), host]
                             r = run_cmd(cmd, p, 600, True)
-                            rows = parse_nmap_xml(str(p))
+                            rows, parsed_discovery = parse_nmap_capture(p, f'nmap_tcp_microbatch_{batch_index}', host)
+                            append_discovery_evidence(host, parsed_discovery, 'tcp')
                             batch_open = sorted({int(x['port']) for x in rows if x.get('port')})
                             all_seen.update(batch_open)
                             xml_text = Path(p).read_text(encoding='utf-8', errors='ignore') if Path(p).exists() else ''
@@ -2363,20 +2873,25 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                             _add_raw(raw, f'nmap_tcp_microbatch_{batch_index}', host, '', str(p), 'nmap_xml', True)
                             if stage_indicators:
                                 host_environment_context = stage_indicators
+                            if acl_pause_requested(host):
+                                coverage.append(_coverage('acl_adaptive_pause', scan_store.STATUS_EMPTY, 'Policy stop condition', f'Additional discovery batches paused for {host} after corroborated ACL behaviour.', ''))
+                                break
                             min_sleep = float(micro_cfg.get('sleep_between_batches_seconds_min') or 0)
                             max_sleep = float(micro_cfg.get('sleep_between_batches_seconds_max') or min_sleep)
                             if batch_index < len(batches) and max_sleep > 0:
                                 time.sleep(random.uniform(min_sleep, max_sleep))
                         ports = sorted(all_seen)
-                        coverage.append(_coverage('nmap_tcp_top100', scan_store.STATUS_SUCCESS if ports else scan_store.STATUS_EMPTY, 'TCP Service Discovery Summary', f'{len(ports)} open TCP port(s) observed through micro-batched Full Recon discovery.', '', {'success': True, 'cmd': 'micro-batched top/high-value TCP discovery'}))
+                        coverage.append(_coverage('nmap_tcp_policy_selected', scan_store.STATUS_SUCCESS if ports else scan_store.STATUS_EMPTY, 'TCP Service Discovery Summary', f'{len(ports)} open TCP port(s) observed through policy-selected micro-batches.', '', {'success': True, 'cmd': 'policy-selected micro-batched TCP discovery'}))
                     else:
                         stages = _policy_required(posture, 'tcp_discovery_stages')
                         max_stages = int(_policy_required(posture, 'max_stages'))
                         for stage_index, topn in enumerate(stages[:max_stages], start=1):
+                            requested_top_port_counts_by_host.setdefault(host, []).append(int(topn))
                             p = outfile(f'nmap_tcp_top{topn}', host, 'xml')
                             timing = list(_policy_required(posture, 'nmap_timing'))
                             r = run_cmd([nmap,'-sS','--top-ports',str(topn),'--open'] + timing + ['-oX',str(p),host], p, 600, True)
-                            rows = parse_nmap_xml(str(p))
+                            rows, parsed_discovery = parse_nmap_capture(p, f'nmap_tcp_top{topn}', host)
+                            append_discovery_evidence(host, parsed_discovery, 'tcp')
                             ports = sorted({int(x['port']) for x in rows if x.get('port')})
                             coverage.append(_coverage(f'nmap_tcp_top{topn}', _status_from_result(r, bool(ports)), f'TCP discovery - top {topn}', f'{len(ports)} open TCP port(s) observed.', str(p), r))
                             _add_raw(raw, f'nmap_tcp_top{topn}', host, '', str(p), 'nmap_xml', True)
@@ -2392,28 +2907,38 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 # miss enterprise/legacy ports that senior reviewers expect.
                 expansion_ports = [int(x) for x in (_load_recon_policy().get('targeted_expansion_ports') or [])]
                 missing_expansion = sorted(set(expansion_ports) - set(expanded_ports))
-                if missing_expansion and enabled('tcp_discovery'):
+                if missing_expansion and enabled('tcp_discovery') and not acl_pause_requested(host):
+                    requested_tcp_ports_by_host.setdefault(host, set()).update(missing_expansion)
                     p_exp = outfile('nmap_tcp_targeted_expansion', host, 'xml')
                     timing_exp = list(_policy_required(_load_recon_policy().get('scan_postures', {}).get('default', {}), 'nmap_timing')) if isinstance(_load_recon_policy().get('scan_postures', {}).get('default', {}), dict) else ['-T2','--max-retries','1']
                     r_exp = run_cmd([nmap, '-sS', '-p', ','.join(map(str, missing_expansion)), '--open'] + timing_exp + ['-oX', str(p_exp), host], p_exp, 600, True)
-                    rows_exp = parse_nmap_xml(str(p_exp))
+                    rows_exp, parsed_discovery = parse_nmap_capture(p_exp, 'nmap_tcp_targeted_expansion', host)
+                    append_discovery_evidence(host, parsed_discovery, 'tcp')
                     ports_exp = sorted({int(x['port']) for x in rows_exp if x.get('port')})
                     if ports_exp:
                         expanded_ports = sorted(set(expanded_ports) | set(ports_exp))
                     coverage.append(_coverage('nmap_tcp_targeted_expansion', _status_from_result(r_exp, bool(ports_exp)), 'Targeted high-value TCP expansion', f'{len(ports_exp)} additional high-value TCP port(s) observed; no full 65k sweep performed.', str(p_exp), r_exp))
                     _add_raw(raw, 'nmap_tcp_targeted_expansion', host, '', str(p_exp), 'nmap_xml', True)
-                coverage.append(_coverage('full_tcp_sweep', scan_store.STATUS_EMPTY, 'Suggested follow-up', 'Full 65k TCP sweep remains deferred; Full Recon uses top-100 plus targeted high-value expansion instead.', ''))
+                coverage.append(_coverage('full_tcp_sweep', scan_store.STATUS_EMPTY, 'Suggested follow-up', 'Full 65k TCP sweep remains deferred; Full Recon uses policy-selected micro-batches plus targeted high-value expansion instead.', ''))
                 open_map[host]=expanded_ports
         elif not enabled('tcp_discovery'):
             scan_store.log(scan_id, 'Full TCP discovery was not selected for this scan.', 'INFO')
         _finish(scan_id, task, scan_store.STATUS_SUCCESS if any(open_map.values()) else scan_store.STATUS_EMPTY, f'{sum(len(v) for v in open_map.values())} TCP port(s) observed')
-        _publish_partial(scan_id, tcp_ports_observed=sum(len(v) for v in open_map.values()))
+        _publish_partial(
+            scan_id,
+            tcp_ports_observed=sum(len(v) for v in open_map.values()),
+            firewall_posture=list(firewall_posture_by_host.values()),
+            parser_warnings=parser_warnings,
+        )
 
         # 5 service fingerprint
         task='Service Identity Collection'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         if enabled('service_fingerprint'):
             for host, ports in open_map.items():
                 if not ports: continue
+                if acl_pause_requested(host):
+                    coverage.append(_coverage('nmap_service_fingerprint', scan_store.STATUS_EMPTY, 'Policy stop condition', f'Service fingerprint follow-up paused for {host} after corroborated ACL behaviour.', ''))
+                    continue
                 host_environment_context_present = any(str(d.get('host')) == str(host) for d in environment_context_indicators)
                 banner_ports = _critical_banner_ports(ports, environment_context_observed=host_environment_context_present)
                 if not banner_ports:
@@ -2421,7 +2946,8 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                     continue
                 p=outfile('nmap_service_fingerprint',host,'xml'); port_arg=','.join(map(str,banner_ports))
                 r=run_cmd([nmap,'-sV','--version-intensity','0','--script','banner','-p',port_arg] + list(_policy_required(_load_recon_policy(), 'service_fingerprint_timing')) + ['-oX',str(p),host],p,900,True)
-                rows=parse_nmap_xml(str(p)); services.extend(rows)
+                rows, _parsed_fingerprint = parse_nmap_capture(p, 'nmap_service_fingerprint', host)
+                services.extend(rows)
                 skipped = sorted(set(ports) - set(banner_ports))
                 note = f'{len(rows)} service row(s); critical-first banner set used'
                 if skipped:
@@ -2431,20 +2957,23 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                     coverage.append(_coverage('deferred_banner_ports', scan_store.STATUS_EMPTY, 'Service validation note', f'Non-banner service-specific validators will handle applicable ports: {", ".join(map(str, skipped[:20]))}', ''))
         _finish(scan_id, task, scan_store.STATUS_SUCCESS if services else scan_store.STATUS_EMPTY, f'{len(services)} service record(s) extracted')
         _publish_partial(scan_id, service_inventory=services)
-        if services:
-            cve_prefetch_thread, cve_prefetch = _start_cve_prefetch(scan_id, _normalise_service_rows([dict(x) for x in services]))
 
         # 6 targeted UDP discovery for Full Recon. This is not broad UDP; it is
         # limited to policy-defined infrastructure/service ports.
         task='Low-Impact Service Discovery'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         if enabled('udp_discovery') and nmap:
             for host in live:
+                if acl_pause_requested(host):
+                    coverage.append(_coverage('udp_discovery', scan_store.STATUS_EMPTY, 'Policy stop condition', f'UDP follow-up paused for {host} after corroborated ACL behaviour.', ''))
+                    continue
                 udp_ports = [int(x) for x in (_load_recon_policy().get('udp_target_ports') or [])]
                 if not udp_ports:
                     continue
+                requested_udp_ports_by_host.setdefault(host, set()).update(udp_ports)
                 p_udp = outfile('nmap_udp_targeted', host, 'xml')
                 r_udp = run_cmd([nmap, '-sU', '-p', ','.join(map(str, udp_ports)), '--open', '-T2', '--max-retries', '1', '-oX', str(p_udp), host], p_udp, 900, True)
-                rows_udp = parse_nmap_xml(str(p_udp))
+                rows_udp, parsed_udp = parse_nmap_capture(p_udp, 'udp_discovery', host, protocol_hint='udp')
+                append_discovery_evidence(host, parsed_udp, 'udp')
                 udp_services.extend(rows_udp)
                 coverage.append(_coverage('udp_discovery', _status_from_result(r_udp, bool(rows_udp)), 'Targeted UDP discovery', f'{len(rows_udp)} UDP service row(s) observed from policy-defined high-value UDP ports.', str(p_udp), r_udp))
                 _add_raw(raw, 'udp_discovery', host, '', str(p_udp), 'nmap_xml', bool(rows_udp))
@@ -2452,6 +2981,12 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         else:
             coverage.append(_coverage('udp_discovery', scan_store.STATUS_EMPTY, 'Suggested follow-up', 'Targeted UDP discovery disabled by profile/policy or nmap unavailable.', ''))
             _finish(scan_id, task, scan_store.STATUS_EMPTY, 'UDP discovery deferred')
+
+        _publish_partial(
+            scan_id,
+            firewall_posture=list(firewall_posture_by_host.values()),
+            parser_warnings=parser_warnings,
+        )
 
         all_services=services + udp_services
         selected_objectives = infer_objectives(all_services)
@@ -2466,8 +3001,6 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         }
         _publish_partial(scan_id, service_inventory=all_services, preliminary_report=preliminary_report, attack_surface_objectives=selected_objectives, environment_summary=preliminary_report['environment_summary'], network_topology_summary=preliminary_report.get('network_topology_summary'))
         _finish(scan_id, 'Preliminary Attack Surface Report', scan_store.STATUS_SUCCESS, f'{len(selected_objectives)} attack-surface objective(s) selected from observed services')
-        if all_services and (not cve_prefetch_thread):
-            cve_prefetch_thread, cve_prefetch = _start_cve_prefetch(scan_id, _normalise_service_rows([dict(x) for x in all_services]))
         http_ports=[]; smb_ports=[]
         for s in all_services:
             svc=str(s.get('service','')).lower(); port=int(s.get('port') or 0)
@@ -2498,7 +3031,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                         httpx_cmd = [httpx_bin, '-json', '-title', '-tech-detect', '-status-code', '-server', '-follow-redirects']
                         httpx_cmd += ['-rl', str(_policy_required(httpx_opts, 'rate_limit_per_second')), '-t', str(_policy_required(httpx_opts, 'threads')), '-timeout', str(_policy_required(httpx_opts, 'timeout_seconds')), '-u', url]
                         r = run_cmd(httpx_cmd, p, 180)
-                        parsed_httpx = parse_httpx_jsonl(str(p))
+                        parsed_httpx = parse_httpx_capture(p, host, port)
                         web.extend(parsed_httpx)
                         coverage.append(_coverage('httpx', _status_from_result(r, bool(parsed_httpx)), 'HTTP probe technology title status', url, str(p), r))
                         _add_raw(raw, 'httpx', host, port, str(p), 'jsonl', True)
@@ -2516,7 +3049,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         # performing brute force, share/user enumeration, SQLi, command injection, or exploitation.
         task='Application Fingerprinting'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         service_level_checks = []
-        ssh_items=[]; ldap_items=[]; tls_items=[]; rdp_items=[]; credential_validation_items=[]; snmp=[]
+        ssh_items=[]; ssh_crypto_profiles=[]; ldap_items=[]; tls_items=[]; rdp_items=[]; credential_validation_items=[]; snmp=[]
 
         def _service_is_infra(row: dict[str, Any]) -> bool:
             return _is_infrastructure_target(str(row.get('host')), environment_intelligence, open_map.get(str(row.get('host')), []))
@@ -2533,7 +3066,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 scripts = ','.join(_collector_scripts('ssh_auth_methods'))
                 p = outfile('nmap_ssh_auth_methods', f'{host}_{port}', 'xml')
                 r = run_cmd([nmap, '--script', scripts, '-p', str(port)] + list(_policy_required(_load_recon_policy(), 'nmap_script_timing')) + ['-oX', str(p), host], p, 180, True)
-                rows = parse_nmap_xml(str(p))
+                rows, _parsed_ssh = parse_nmap_capture(p, 'ssh_auth_methods', host, port)
                 service_level_checks.append({'tool':'ssh_auth_methods','host':host,'port':port,'output_file':str(p),'rows':rows})
                 ssh_items.append({'tool':'ssh_auth_methods','host':host,'port':port,'output_file':str(p),'rows':rows})
                 coverage.append(_coverage('ssh_auth_methods', _status_from_result(r, bool(rows)), 'SSH advertised authentication-method evidence', f'{host}:{port}/tcp; no login attempt performed.', str(p), r))
@@ -2551,7 +3084,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 scripts = ','.join(_collector_scripts('ftp_anonymous_status'))
                 p = outfile('nmap_ftp_readiness', f'{host}_{port}', 'xml')
                 r = run_cmd([nmap, '--script', scripts, '-p', str(port)] + list(_policy_required(_load_recon_policy(), 'nmap_script_timing')) + ['-oX', str(p), host], p, 180, True)
-                rows = parse_nmap_xml(str(p))
+                rows, _parsed_ftp = parse_nmap_capture(p, 'ftp_anonymous_status', host, port)
                 service_level_checks.append({'tool':'ftp_anonymous_status','host':host,'port':port,'output_file':str(p),'rows':rows})
                 credential_validation_items.append({'tool':'ftp_anonymous_status','host':host,'port':port,'output_file':str(p),'rows':rows})
                 coverage.append(_coverage('ftp_anonymous_status', _status_from_result(r, bool(rows)), 'FTP anonymous/system readiness evidence', f'{host}:{port}/tcp; no brute force performed.', str(p), r))
@@ -2569,7 +3102,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 scripts = ','.join(_collector_scripts('smb_protocol_security'))
                 p = outfile('nmap_smb_protocol_security', f'{host}_{port}', 'xml')
                 r = run_cmd([nmap, '--script', scripts, '-p', str(port)] + list(_policy_required(_load_recon_policy(), 'nmap_script_timing')) + ['-oX', str(p), host], p, 240, True)
-                rows = parse_nmap_xml(str(p))
+                rows, _parsed_smb = parse_nmap_capture(p, 'smb_protocol_security', host, port)
                 item = {'tool':'smb_protocol_security','host':host,'port':port,'output_file':str(p),'rows':rows}
                 smb.append(item)
                 service_level_checks.append(item)
@@ -2632,7 +3165,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         # These collectors stay inside recon: no brute force, no exploitation, no authenticated access.
         task='Modern Active Validation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         passive_intelligence = {'dns': [], 'reverse_dns': [], 'tls': [], 'certificate_transparency': [], 'findings': {}, 'relationships': [], 'dns_relationships': [], 'certificate_correlation': [], 'summary': [], 'policy': {}}
-        modern_active_validation = {'ldap_rootdse': [], 'kerberos_info': [], 'tls_cipher_validation': [], 'rdp_negotiation': [], 'api_discovery': [], 'targeted_web_discovery': [], 'kubernetes_exposure': [], 'container_exposure': [], 'vpn_validation': [], 'nuclei_safe': [], 'telnet_readiness': [], 'snmp_readiness': [], 'mssql_info': [], 'vnc_info': [], 'tomcat_ajp_readiness': [], 'redis_info': [], 'elasticsearch_info': [], 'ldapsearch_rootdse': [], 'snmp_targeted_oids': [], 'dns_context': [], 'http_security_context': [], 'rpcinfo_native': [], 'showmount_native': [], 'ssh_audit_native': [], 'federation_detection': [], 'tls_intelligence': [], 'noise_evaluation': {}, 'information_gathering_summary': [], 'summary': [], 'policy': {}, 'budget': {}}
+        modern_active_validation = {'ldap_rootdse': [], 'kerberos_info': [], 'tls_cipher_validation': [], 'rdp_negotiation': [], 'api_discovery': [], 'targeted_web_discovery': [], 'kubernetes_exposure': [], 'container_exposure': [], 'vpn_validation': [], 'nuclei_safe': [], 'telnet_readiness': [], 'snmp_readiness': [], 'mssql_info': [], 'vnc_info': [], 'tomcat_ajp_readiness': [], 'redis_info': [], 'elasticsearch_info': [], 'ldapsearch_rootdse': [], 'snmp_targeted_oids': [], 'dns_context': [], 'http_security_context': [], 'rpcinfo_native': [], 'showmount_native': [], 'ssh_audit_native': [], 'ssh_crypto_profiles': [], 'federation_detection': [], 'tls_intelligence': [], 'noise_evaluation': {}, 'information_gathering_summary': [], 'summary': [], 'policy': {}, 'budget': {}}
         try:
             active_policy = load_active_policy()
             modern_active_validation['policy'] = {'nuclei_enabled_by_default': bool((active_policy.get('nuclei') or {}).get('enabled_by_default')), 'detection_budget_enabled': bool((active_policy.get('detection_budget') or {}).get('enabled', True))}
@@ -2661,7 +3194,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                         continue
                     p = outfile(tool_id, f'{host}_{port}', 'xml')
                     r = run_cmd([nmap_bin, '--script', ','.join(scripts), '-p', str(port)] + timing + ['-oX', str(p), host], p, int(active_policy.get('timeouts', {}).get('nmap_seconds', 180)), True)
-                    rows = parse_nmap_xml(str(p))
+                    rows, _parsed_validation = parse_nmap_capture(p, tool_id, host, port)
                     item = {'tool': tool_id, 'host': host, 'port': port, 'scripts': scripts, 'rows': rows, 'output_file': str(p), 'recon_boundary': 'Evidence-only protocol validation; no credential use or exploitation.'}
                     modern_active_validation.setdefault(tool_id, []).append(item)
                     service_level_checks.append(item)
@@ -2726,14 +3259,47 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                     coverage.append(_coverage(tool_id, _status_from_result(r, bool(output_text.strip())), label, f'{host}:{port}/tcp; targeted information-gathering evidence only.', str(out), r))
                     _add_raw(raw, tool_id, host, port, str(out), 'text', bool(output_text.strip()))
 
-            ssh_surfaces, _ = policy_surfaces('ssh_crypto_audit')
+            ssh_surfaces = [
+                service
+                for service in all_services
+                if int(service.get('port') or 0) == 22
+                or str(service.get('service') or '').lower() == 'ssh'
+                or 'openssh' in str(service.get('product') or '').lower()
+            ]
+            native_sets = []
             # Prefer native protocol tools over Nmap NSE where they provide the same evidence with less noise.
             dns_surfaces = [s for s in all_services if int(s.get('port') or 0) == 53]
             snmp_surfaces, _ = policy_surfaces('snmp_readiness')
             rpc_surfaces = [s for s in all_services if int(s.get('port') or 0) == 111]
             nfs_surfaces = [s for s in all_services if int(s.get('port') or 0) == 2049]
             if enabled('ssh_audit_native'):
-                run_external_validation('ssh_audit_native', ssh_surfaces, lambda h,p: ['ssh-audit', h], 'Optional SSH cryptographic posture audit', 90)
+                timeout = max(1, int(active_policy.get('timeouts', {}).get('http_seconds', 4)))
+                for service in ssh_surfaces:
+                    host = str(service.get('host') or '')
+                    port = int(service.get('port') or 22)
+                    if acl_pause_requested(host) or _is_infrastructure_target(host, environment_intelligence, open_map.get(host, [])):
+                        coverage.append(_coverage('ssh_audit_native', scan_store.STATUS_EMPTY, 'Policy stop condition', f'SSH cryptographic negotiation deferred for infrastructure/ACL-sensitive target {host}.', ''))
+                        continue
+                    profile = collect_ssh_cryptography(host, port, timeout)
+                    if profile is None:
+                        coverage.append(_coverage('ssh_audit_native', scan_store.STATUS_EMPTY, 'SSH cryptographic posture', f'No SSH KEXINIT evidence returned from {host}:{port}; no retries issued.', ''))
+                        continue
+                    profile_data = profile.to_dict()
+                    ssh_crypto_profiles.append(profile_data)
+                    modern_active_validation['ssh_crypto_profiles'].append(profile_data)
+                    item = {
+                        'tool': 'ssh_audit_native',
+                        'host': host,
+                        'port': port,
+                        'profile': profile_data,
+                        'recon_boundary': 'One SSH identification/KEXINIT exchange; no key exchange completion, login, credentials, or authentication.',
+                    }
+                    modern_active_validation['ssh_audit_native'].append(item)
+                    service_level_checks.append(item)
+                    ssh_items.append(item)
+                native_sets.append(('ssh_audit_native', modern_active_validation['ssh_audit_native'], 'SSH protocol identification and KEXINIT algorithm evidence; no authentication.'))
+            else:
+                coverage.append(_coverage('ssh_audit_native', scan_store.STATUS_EMPTY, 'Suggested follow-up', 'SSH cryptographic collection disabled by scan profile/policy.', ''))
             run_external_validation('dns_context', dns_surfaces[:1], lambda h,p: ['dig', '+nocmd', '+noall', '+answer', '@' + h, 'version.bind', 'CHAOS', 'TXT'], 'DNS context collection using version.bind', 30)
             run_external_validation('snmp_targeted_oids', snmp_surfaces, lambda h,p: ['snmpget', '-v2c', '-c', 'public', h, '1.3.6.1.2.1.1.1.0', '1.3.6.1.2.1.1.5.0', '1.3.6.1.2.1.1.6.0', '1.3.6.1.2.1.1.4.0'], 'SNMP targeted system identity OID evidence', 45)
             run_external_validation('rpcinfo_native', rpc_surfaces[:1], lambda h,p: ['rpcinfo', '-p', h], 'Native RPC program mapping evidence', 45)
@@ -2744,7 +3310,6 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
 
             web_services = [s for s in all_services if int(s.get('port') or 0) in {80,443,8080,8081,8180,8443,9000,9443} or 'http' in str(s.get('service','')).lower()]
             run_external_validation('http_security_context', web_services, lambda h,p: ['curl', '-k', '-I', '-sS', '--max-time', '5', service_url({'host': h, 'port': p})], 'HTTP security-header/authentication/cookie context evidence', 30)
-            native_sets = []
             if enabled('federation_detection'):
                 modern_active_validation['federation_detection'] = collect_federation_detection(web_services, active_policy)
                 native_sets.append(('federation_detection', modern_active_validation['federation_detection'], 'Federation/OIDC/SAML metadata and authentication-surface markers only.'))
@@ -2786,7 +3351,9 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                     for path in cfg.get('paths') or ['/']:
                         row = _fetch(base + str(path), timeout=float(active_policy.get('timeouts', {}).get('http_seconds', 4)))
                         blob = str(row).lower()
-                        if int(row.get('status') or 0) in {200, 401, 403} or any(str(m).lower() in blob for m in (cfg.get('markers') or [])):
+                        if int(row.get('status') or 0) in {200, 401, 403} or (int(row.get('status') or 0) not in {404} and any(str(m).lower() in blob for m in (cfg.get('markers') or []))):
+                            row['evidence_observed'] = True
+                            row['evidence_state'] = 'observed'
                             row.update({'host': svc.get('host'), 'port': svc.get('port'), 'category': native_tool, 'collection_method':'metadata_endpoint_probe', 'recon_boundary':'Metadata exposure check only; no writes, queries, authentication, or exploitation.'})
                             rows_native.append(row)
                 modern_active_validation[native_tool] = rows_native
@@ -2914,26 +3481,65 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         task='Evidence Consolidation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         all_services=_merge_smb_version_evidence(all_services, smb)
         all_services=_normalise_service_rows(all_services)
+        tls_fingerprint_rows = list((modern_active_validation or {}).get('tls_intelligence') or []) + list((passive_intelligence or {}).get('tls') or [])
+        all_services, service_fingerprints = _apply_service_fingerprints(
+            all_services,
+            web,
+            smb,
+            ssh_crypto_profiles,
+            tls_fingerprint_rows,
+            service_level_checks,
+        )
+        cve_skipped_services = [
+            {
+                'host': service.get('host'),
+                'port': service.get('port'),
+                'protocol': service.get('protocol'),
+                'service': service.get('service'),
+                'product': service.get('product'),
+                'version': service.get('version'),
+                'confidence_score': service.get('confidence_score', 0.0),
+                'contradictions': service.get('contradictions') or [],
+                'reason': 'Fingerprint confidence below 0.70 or contradictory evidence; CVE matching skipped.',
+            }
+            for service in all_services
+            if not service.get('recommended_for_cve')
+        ]
         security_observations=_build_security_observations(all_services, smb, web)
         evidence_gaps=[{'host':s.get('host'),'port':s.get('port'),'protocol':s.get('protocol'),'service':s.get('service'),'gaps':evidence_gaps_for_service(s)} for s in all_services if evidence_gaps_for_service(s)]
-        normalised={'hosts':live,'services':all_services,'environment_intelligence':environment_intelligence,'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'web':web,'smb':smb,'snmp':snmp,'ssh':ssh_items,'ldap':ldap_items,'tls':tls_items,'rdp':rdp_items,'credential_validation':credential_validation_items,'service_level_checks':service_level_checks,'security_observations':security_observations,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation}
+        fingerprints_path = scan_store.scan_path(f'service_fingerprints_{scan_id}.json')
+        fingerprints_path.write_text(json.dumps(service_fingerprints, indent=2, default=str), encoding='utf-8')
+        _add_raw(raw, 'service_fingerprint_consensus', '', '', str(fingerprints_path), 'json', True)
+        normalised={'hosts':live,'services':all_services,'service_fingerprints':service_fingerprints,'cve_skipped_services':cve_skipped_services,'firewall_posture':list(firewall_posture_by_host.values()),'parser_warnings':parser_warnings,'environment_intelligence':environment_intelligence,'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'web':web,'smb':smb,'snmp':snmp,'ssh':ssh_items,'ssh_crypto_profiles':ssh_crypto_profiles,'ldap':ldap_items,'tls':tls_items,'rdp':rdp_items,'credential_validation':credential_validation_items,'service_level_checks':service_level_checks,'security_observations':security_observations,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation}
         p=scan_store.scan_path(f'normalised_{scan_id}.json'); p.write_text(json.dumps(normalised, indent=2, default=str), encoding='utf-8')
         # Normalised evidence is already written as formatted JSON. Internal formatting helpers are not shown as user-facing recon tools.
         _add_raw(raw,'python_normaliser','','',str(p),'json',True)
+        _publish_partial(scan_id, service_inventory=all_services, service_fingerprints=service_fingerprints, cve_skipped_services=cve_skipped_services, firewall_posture=list(firewall_posture_by_host.values()), parser_warnings=parser_warnings, ssh_crypto_profiles=ssh_crypto_profiles)
         _finish(scan_id, task, scan_store.STATUS_SUCCESS, f'{len(all_services)} service record(s) normalised; {len(evidence_gaps)} evidence gap item(s) retained')
         _finish(scan_id, 'Evidence Gap Review', scan_store.STATUS_SUCCESS if evidence_gaps else scan_store.STATUS_EMPTY, f'{len(evidence_gaps)} evidence gap item(s) identified')
 
         # 17 MITRE matching
         task='CVE Review'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
-        mitre=mitre_status(); cve_matches, relevant_cve_information = _match_cves(all_services) if mitre.get('available') else ([], [])
-        _finish(scan_id, task, scan_store.STATUS_SUCCESS if cve_matches else scan_store.STATUS_EMPTY, f'{len(cve_matches)} validated MITRE reference item(s) linked; {len(relevant_cve_information)} additional relevant record(s) retained.')
-        _publish_partial(scan_id, cve_matches=cve_matches, relevant_cve_information=relevant_cve_information, possible_cve_references=relevant_cve_information, mitre_source=mitre)
+        mitre = mitre_status()
+        cve_matcher_diagnostics: list[dict[str, Any]] = []
+        if mitre.get('available'):
+            cve_matches, relevant_cve_information = _match_cves(all_services, cve_matcher_diagnostics)
+        else:
+            cve_matches, relevant_cve_information = [], []
+            cve_matcher_diagnostics.append({
+                'reason': 'cve_index_unavailable',
+                'matcher_status': 'unavailable',
+                'index_file': mitre.get('index_file'),
+                'rebuild_command': mitre.get('rebuild_command'),
+            })
+        _finish(scan_id, task, scan_store.STATUS_SUCCESS if cve_matches else scan_store.STATUS_EMPTY, f'{len(cve_matches)} validated MITRE reference item(s) linked; {len(relevant_cve_information)} additional relevant record(s) retained; {len(cve_skipped_services)} service(s) skipped by the fingerprint confidence gate.')
+        _publish_partial(scan_id, cve_matches=cve_matches, relevant_cve_information=relevant_cve_information, possible_cve_references=relevant_cve_information, cve_skipped_services=cve_skipped_services, cve_matcher_diagnostics=cve_matcher_diagnostics, mitre_source=mitre)
 
         # 18 Caldera Handoff
         task='Handoff Preparation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         exploit_validation_candidates=_build_exploit_validation_candidates(all_services, cve_matches, security_observations, web_summary if 'web_summary' in locals() else {}, smb_summary if 'smb_summary' in locals() else {})
         # Detailed readiness is finalised during report preparation after web/SMB summaries are built.
-        caldera_handoff={'enabled_for_execution': False, 'note':'Recon package prepared for teammate exploitation/AI/CALDERA modules. Recon does not execute exploits or obtain access.', 'services': [{'host':s['host'],'port':s['port'],'protocol':s['protocol'],'service':s['service'],'product':s.get('product',''),'version':s.get('version','')} for s in all_services], 'cve_matches': cve_matches, 'exploit_validation_candidates': exploit_validation_candidates}
+        caldera_handoff={'enabled_for_execution': False, 'note':'Recon package prepared for teammate exploitation/AI/CALDERA modules. Recon does not execute exploits or obtain access.', 'services': [{'host':s['host'],'port':s['port'],'protocol':s['protocol'],'service':s['service'],'product':s.get('product',''),'version':s.get('version',''),'confidence_score':s.get('confidence_score',0.0),'recommended_for_cve':bool(s.get('recommended_for_cve',False))} for s in all_services], 'cve_matches': cve_matches, 'exploit_validation_candidates': exploit_validation_candidates}
         _finish(scan_id, task, scan_store.STATUS_SUCCESS, 'Caldera handoff context prepared')
 
         # 19 Report
@@ -2987,7 +3593,50 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         evidence_manifest = build_evidence_manifest(scan_id, raw)
         enterprise_readiness = build_enterprise_readiness_summary(scope_validation, decision_register, evidence_manifest, enterprise_review_policy)
         scan_store.audit_event(scan_id, 'system', 'enterprise_readiness_compiled', {'decision_register_count': len(decision_register), 'evidence_manifest': evidence_manifest.get('manifest_file')})
-        package={'scan_id':scan_id,'target_input':target_input,'scan_options':scan_options,'hosts':live,'scope_validation':scope_validation,'enterprise_readiness':enterprise_readiness,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation,'enumeration_intelligence':enumeration_intelligence,'operational_maturity':operational_maturity,'decision_register':decision_register,'evidence_manifest':evidence_manifest,'mitre_source':mitre,'tool_coverage':public_coverage,'service_inventory':all_services,'service_summary':service_summary,'service_workbench':service_workbench,'attack_surface_sections':attack_surface_sections,'cve_matches':cve_matches,'relevant_cve_information':relevant_cve_information,'candidate_cve_groups':candidate_cve_groups,'possible_cve_references':relevant_cve_information,'service_level_checks':service_level_checks,'security_relevant_observations':security_observations,'key_exposure_indicators':key_exposure_indicators,'tcp_service_count':len([x for x in all_services if x.get('protocol')=='tcp']),'udp_service_count':len([x for x in all_services if x.get('protocol')=='udp']),'web_inventory':web,'web_summary':web_summary,'smb_inventory':smb,'smb_summary':smb_summary,'raw_evidence_index':raw,'caldera_handoff':caldera_handoff,'environment_summary':_build_environment_summary(environment_intelligence, environment_context_indicators),'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'exploit_validation_candidates':exploit_validation_candidates,'authentication_surface_readiness':authentication_surface_readiness,'web_exploitation_readiness':web_exploitation_readiness,'suggested_follow_up_objectives':follow_up_objectives,'escalation_paused':False}
+        scan_coverage = {
+            'label': 'Policy-selected port coverage',
+            'full_tcp_sweep_performed': False,
+            'tcp': {
+                host: {
+                    'explicit_ports_requested': sorted(requested_tcp_ports_by_host.get(host, set())),
+                    'explicit_port_count': len(requested_tcp_ports_by_host.get(host, set())),
+                    'top_port_stages_requested': requested_top_port_counts_by_host.get(host, []),
+                    'open_ports_observed': sorted(open_map.get(host, [])),
+                    'open_port_count': len(open_map.get(host, [])),
+                }
+                for host in live
+            },
+            'udp': {
+                host: {
+                    'ports_requested': sorted(requested_udp_ports_by_host.get(host, set())),
+                    'requested_port_count': len(requested_udp_ports_by_host.get(host, set())),
+                    'open_ports_observed': sorted({
+                        int(row.get('port') or 0)
+                        for row in udp_services
+                        if str(row.get('host') or '') == str(host) and row.get('port')
+                    }),
+                }
+                for host in live
+            },
+            'limitations': ['A full 65,535-port TCP sweep was not performed.'],
+        }
+        canonical_cve_contract = {
+            'version': 'scanner-canonical-v1',
+            'source': OFFICIAL_CVE_SOURCE,
+            'confirmed': cve_matches,
+            'candidates': relevant_cve_information,
+            'diagnostics': cve_matcher_diagnostics,
+            'downstream_rule': 'Consume these records; do not rematch or invent CVE identifiers.',
+        }
+        package={'scan_id':scan_id,'target_input':target_input,'scan_options':scan_options,'scan_coverage':scan_coverage,'hosts':live,'scope_validation':scope_validation,'enterprise_readiness':enterprise_readiness,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation,'enumeration_intelligence':enumeration_intelligence,'operational_maturity':operational_maturity,'decision_register':decision_register,'evidence_manifest':evidence_manifest,'mitre_source':mitre,'tool_coverage':public_coverage,'service_inventory':all_services,'service_summary':service_summary,'service_workbench':service_workbench,'attack_surface_sections':attack_surface_sections,'cve_matches':cve_matches,'relevant_cve_information':relevant_cve_information,'candidate_cve_groups':candidate_cve_groups,'possible_cve_references':relevant_cve_information,'cve_matcher_diagnostics':cve_matcher_diagnostics,'canonical_cve_contract':canonical_cve_contract,'service_level_checks':service_level_checks,'security_relevant_observations':security_observations,'key_exposure_indicators':key_exposure_indicators,'tcp_service_count':len([x for x in all_services if x.get('protocol')=='tcp']),'udp_service_count':len([x for x in all_services if x.get('protocol')=='udp']),'web_inventory':web,'web_summary':web_summary,'smb_inventory':smb,'smb_summary':smb_summary,'raw_evidence_index':raw,'caldera_handoff':caldera_handoff,'environment_summary':_build_environment_summary(environment_intelligence, environment_context_indicators),'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'exploit_validation_candidates':exploit_validation_candidates,'authentication_surface_readiness':authentication_surface_readiness,'web_exploitation_readiness':web_exploitation_readiness,'suggested_follow_up_objectives':follow_up_objectives,'escalation_paused':False}
+        package.update({
+            'service_fingerprints': service_fingerprints,
+            'cve_skipped_services': cve_skipped_services,
+            'parser_warnings': parser_warnings,
+            'firewall_posture': list(firewall_posture_by_host.values()),
+            'ssh_crypto_profiles': ssh_crypto_profiles,
+            'escalation_paused': any(acl_pause_requested(host) for host in live),
+        })
         package['pentester_summary'] = _build_pentester_summary(package)
         analysis_fields = {}
         try:
@@ -3029,6 +3678,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 ],
             }
             mapping_result = map_vulnerabilities(parsed_for_mapping)
+            mapping_result = _canonicalise_downstream_mapping(mapping_result, cve_matches, relevant_cve_information)
             mode = str(scan_options.get('technique_mode') or 'hybrid').lower()
             ai_plan = generate_ai_technique_plan(mapping_result, preferred_mode=mode)
             selected_ids = ai_plan.get('selected_technique_ids') or []

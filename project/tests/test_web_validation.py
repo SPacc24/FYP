@@ -34,10 +34,10 @@ def scan_fixture(host="192.168.56.20"):
                 "host": host,
                 "port": 80,
                 "url": f"http://{host}:80/",
-                "links": ["/diagnostics"],
+                "links": ["/diagnostics.php"],
                 "forms": [
                     {
-                        "action": "/diagnostics",
+                        "action": "/diagnostics.php",
                         "method": "POST",
                         "inputs": [{"name": "host", "type": "text"}],
                     }
@@ -53,7 +53,7 @@ def fake_response(text):
         "text": text,
         "response_size": len(text.encode()),
         "truncated": False,
-        "final_path": "/diagnostics",
+        "final_path": "/diagnostics.php",
         "redirects": [],
     }
 
@@ -67,7 +67,7 @@ def test_real_web_inventory_generates_one_action():
     action = result["actions"][0]
     assert action["target"] == "192.168.56.20"
     assert action["port"] == 80
-    assert action["endpoint"] == "/diagnostics"
+    assert action["endpoint"] == "/diagnostics.php"
     assert action["parameter"] == "host"
     assert action["method"] == "POST"
     assert action["safe_default"] is False
@@ -106,7 +106,7 @@ def test_matching_fields_must_be_on_the_same_form():
     results = scan_fixture()
     results["web_inventory"][1]["forms"] = [
         {
-            "action": "/diagnostics",
+            "action": "/diagnostics.php",
             "method": "GET",
             "inputs": [{"name": "host", "type": "text"}],
         },
@@ -205,7 +205,7 @@ def test_unsupported_os_fails_closed():
 def test_cross_host_redirect_is_blocked():
     handler = StrictRedirectHandler("192.168.56.20", 80, 2)
     request = MagicMock()
-    request.full_url = "http://192.168.56.20:80/diagnostics"
+    request.full_url = "http://192.168.56.20:80/diagnostics.php"
 
     with pytest.raises(RedirectPolicyError, match="target IP"):
         handler.redirect_request(
@@ -213,15 +213,15 @@ def test_cross_host_redirect_is_blocked():
             MagicMock(),
             302,
             "Found",
-            {"Location": "http://192.168.56.21:80/diagnostics"},
-            "http://192.168.56.21:80/diagnostics",
+            {"Location": "http://192.168.56.21:80/diagnostics.php"},
+            "http://192.168.56.21:80/diagnostics.php",
         )
 
 
 def test_cross_path_redirect_is_blocked():
     handler = StrictRedirectHandler("192.168.56.20", 80, 2)
     request = MagicMock()
-    request.full_url = "http://192.168.56.20:80/diagnostics"
+    request.full_url = "http://192.168.56.20:80/diagnostics.php"
 
     with pytest.raises(RedirectPolicyError, match="request path"):
         handler.redirect_request(
@@ -232,3 +232,198 @@ def test_cross_path_redirect_is_blocked():
             {"Location": "http://192.168.56.20:80/admin"},
             "http://192.168.56.20:80/admin",
         )
+
+
+
+def test_inline_html_fingerprint_generates_action():
+    host = "192.168.56.20"
+
+    html = """
+    <!doctype html>
+    <html>
+      <head>
+        <title>AutoPentest Lab Diagnostics</title>
+      </head>
+      <body>
+        <form action="/diagnostics.php" method="POST">
+          <input type="text" name="host">
+        </form>
+      </body>
+    </html>
+    """
+
+    results = {
+        "target_ip": host,
+        "service_inventory": [
+            {
+                "host": host,
+                "port": 80,
+                "state": "open",
+                "service": "http",
+            }
+        ],
+        "web_inventory": [
+            {
+                "host": host,
+                "port": 80,
+                "url": (
+                    f"http://{host}:80/"
+                    "diagnostics.php"
+                ),
+                "path": "/diagnostics.php",
+                "text": html,
+            }
+        ],
+    }
+
+    service = WebValidationService(
+        enabled=True,
+        operating_system="linux",
+    )
+
+    result = service.propose_actions(
+        results,
+        allow_follow_up=False,
+    )
+
+    assert result["ok"] is True
+    assert result["count"] == 1
+
+    action = result["actions"][0]
+
+    assert action["expected_page_title"] == (
+        "AutoPentest Lab Diagnostics"
+    )
+    assert action["endpoint"] == "/diagnostics.php"
+    assert action["parameter"] == "host"
+    assert action["method"] == "POST"
+
+
+def test_follow_up_detects_title_and_host_form(monkeypatch):
+    host = "192.168.56.20"
+
+    results = {
+        "target_ip": host,
+        "service_inventory": [
+            {
+                "host": host,
+                "port": 80,
+                "state": "open",
+                "service": "http",
+            }
+        ],
+        "web_inventory": [
+            {
+                "host": host,
+                "port": 80,
+                "url": (
+                    f"http://{host}:80/"
+                    "diagnostics.php"
+                ),
+                "path": "/diagnostics.php",
+            }
+        ],
+    }
+
+    html = """
+    <html>
+      <head>
+        <title>AutoPentest Lab Diagnostics</title>
+      </head>
+      <body>
+        <form action="/diagnostics.php" method="POST">
+          <input name="host" type="text">
+        </form>
+      </body>
+    </html>
+    """
+
+    service = WebValidationService(
+        enabled=True,
+        operating_system="linux",
+    )
+
+    monkeypatch.setattr(
+        service,
+        "_request",
+        lambda *args, **kwargs: fake_response(html),
+    )
+
+    result = service.propose_actions(
+        results,
+        allow_follow_up=True,
+    )
+
+    assert result["ok"] is True
+    assert result["count"] == 1
+    assert result["collection_events"]
+    assert (
+        result["actions"][0]["endpoint"]
+        == "/diagnostics.php"
+    )
+
+
+def test_invalid_page_generates_no_action():
+    results = scan_fixture()
+
+    results["web_inventory"][0]["title"] = (
+        "Page Not Found"
+    )
+    results["web_inventory"][1]["forms"] = []
+
+    service = WebValidationService(
+        enabled=True,
+        operating_system="linux",
+    )
+
+    result = service.propose_actions(
+        results,
+        allow_follow_up=False,
+    )
+
+    assert result["ok"] is True
+    assert result["count"] == 0
+    assert result["actions"] == []
+
+
+def test_default_apache_page_generates_no_action():
+    host = "192.168.56.20"
+
+    results = {
+        "target_ip": host,
+        "service_inventory": [
+            {
+                "host": host,
+                "port": 80,
+                "state": "open",
+                "service": "http",
+            }
+        ],
+        "web_inventory": [
+            {
+                "host": host,
+                "port": 80,
+                "url": f"http://{host}:80/",
+                "path": "/",
+                "title": (
+                    "Apache2 Ubuntu Default Page: "
+                    "It works"
+                ),
+                "forms": [],
+            }
+        ],
+    }
+
+    service = WebValidationService(
+        enabled=True,
+        operating_system="linux",
+    )
+
+    result = service.propose_actions(
+        results,
+        allow_follow_up=False,
+    )
+
+    assert result["ok"] is True
+    assert result["count"] == 0
+    assert result["actions"] == []

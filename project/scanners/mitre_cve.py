@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import copy
 import json
-import os
 import re
 import subprocess
 from functools import lru_cache
@@ -15,6 +14,7 @@ REPO_DIR = BASE / 'cvelistV5'
 INDEX = BASE / 'official_mitre_cve_index.jsonl'
 OFFICIAL_CVE_REPO = 'https://github.com/CVEProject/cvelistV5.git'
 OFFICIAL_CVE_SOURCE = 'Official CVE List via CVEProject/cvelistV5 (MITRE/CVE Program)'
+MIN_FINGERPRINT_CONFIDENCE = 0.7
 
 
 # v32-from-v31 principle: official CVE candidates only; report layer decides strict vs relevant information.
@@ -51,6 +51,7 @@ GENERIC_TOKENS = {
 def status() -> dict[str, Any]:
     records = 0
     cvss_records = 0
+    status_error = ''
     if INDEX.exists():
         try:
             with INDEX.open('r', encoding='utf-8', errors='ignore') as f:
@@ -58,13 +59,16 @@ def status() -> dict[str, Any]:
                     records += 1
                     if 'cvss_score' in line:
                         cvss_records += 1
-        except Exception:
+        except Exception as exc:
             records = 0
             cvss_records = 0
+            status_error = f'{type(exc).__name__}: {exc}'
     stale_cvss = INDEX.exists() and records > 0 and cvss_records == 0
     return {
         'source': OFFICIAL_CVE_SOURCE,
         'available': INDEX.exists() and records > 0,
+        'matcher_status': 'error' if status_error else ('available' if records > 0 else 'unavailable'),
+        'status_error': status_error,
         'records_indexed': records,
         'records_with_cvss_metadata': cvss_records,
         'cvss_metadata_stale': stale_cvss,
@@ -72,7 +76,8 @@ def status() -> dict[str, Any]:
         'rebuild_command': 'python scripts/rebuild_mitre_cve_index.py',
         'index_file': str(INDEX),
         'repo_dir': str(REPO_DIR),
-        'matching_policy': 'v32_from_v31_mitre_only_candidates: official CVE List via CVEProject/cvelistV5 only; candidate records are further classified by the report as strict CVE matches or relevant version/exposure information based on exact version/CPE and context evidence',
+        'matching_policy': 'v32_from_v31_mitre_only_candidates: official CVE List via CVEProject/cvelistV5 only; service fingerprints must be contradiction-free with confidence >= 0.70 before product/version/CPE matching; candidate records are further classified by exact version/CPE and context evidence',
+        'minimum_fingerprint_confidence': MIN_FINGERPRINT_CONFIDENCE,
     }
 
 
@@ -138,7 +143,35 @@ def _identity(product: str, service: str, cpe: str) -> tuple[str | None, dict[st
         for pat in spec['detect']:
             if re.search(pat, text, flags=re.I):
                 return key, spec
-    return None, {}
+
+    # Products outside the reviewed alias registry may still be matched safely
+    # when the scanner observed a concrete product or CPE identity. This is
+    # deliberately exact: it never guesses a product family from a port number.
+    names: set[str] = set()
+    product_name = _norm(product)
+    meaningful = {token for token in _tokens(product_name) if token not in GENERIC_TOKENS and not token.isdigit()}
+    if product_name and meaningful:
+        names.add(product_name)
+    for raw_cpe in re.split(r'[\s,]+', cpe or ''):
+        parts = _cpe_parts(raw_cpe)
+        if not parts:
+            continue
+        _part, vendor, cpe_product, _version = parts
+        cpe_name = _norm(cpe_product)
+        if cpe_name and {token for token in _tokens(cpe_name) if token not in GENERIC_TOKENS and not token.isdigit()}:
+            names.add(cpe_name)
+            if vendor not in {'', '*', '-'}:
+                names.add(_norm(f'{vendor} {cpe_product}'))
+    if not names:
+        return None, {}
+    identity = sorted(names, key=lambda value: (-len(value), value))[0]
+    return identity, {
+        'detect': [],
+        'affected_products': names,
+        'desc_phrases': [],
+        'blocked': set(),
+        'dynamic_exact_identity': True,
+    }
 
 
 def _affected_entries(rec: dict[str, Any]) -> list[dict[str, Any]]:
@@ -304,17 +337,42 @@ def _text_version_match(rec: dict[str, Any], observed_version: str) -> tuple[boo
     return False, '', 'no exact text version/range match'
 
 
+def _cpe_parts(value: str) -> tuple[str, str, str, str] | None:
+    raw = str(value or '').strip().lower()
+    if raw.startswith('cpe:2.3:'):
+        parts = raw.split(':')
+        if len(parts) >= 6:
+            return parts[2], parts[3], parts[4], parts[5]
+    if raw.startswith('cpe:/'):
+        parts = raw.split(':')
+        if len(parts) >= 5:
+            return parts[1].lstrip('/'), parts[2], parts[3], parts[4]
+    return None
+
+
 def _cpe_match(rec: dict[str, Any], observed_cpe: str) -> tuple[bool, str]:
     if not observed_cpe:
         return False, ''
-    observed = {c.strip().lower() for c in re.split(r'[\s,]+', observed_cpe) if c.strip()}
-    rec_cpes = set()
+    observed = [(c.strip().lower(), _cpe_parts(c)) for c in re.split(r'[\s,]+', observed_cpe) if c.strip()]
+    rec_cpes: list[tuple[str, tuple[str, str, str, str] | None]] = []
     for ent in _affected_entries(rec):
         for c in ent.get('cpes') or []:
-            rec_cpes.add(str(c).strip().lower())
-    inter = observed & rec_cpes
-    if inter:
-        return True, sorted(inter)[0]
+            raw = str(c).strip().lower()
+            rec_cpes.append((raw, _cpe_parts(raw)))
+    for observed_raw, observed_parts in observed:
+        if not observed_parts:
+            continue
+        for record_raw, record_parts in rec_cpes:
+            if not record_parts:
+                continue
+            if observed_parts[:3] != record_parts[:3]:
+                continue
+            observed_version = observed_parts[3]
+            record_version = record_parts[3]
+            # CPE evidence is confirmation only when the version is concrete
+            # and equal. Wildcard/range records continue through version logic.
+            if observed_version not in {'', '*', '-'} and observed_version == record_version:
+                return True, f'{observed_raw} == {record_raw}'
     return False, ''
 
 
@@ -327,21 +385,23 @@ def _sort_key(row: dict[str, Any]) -> tuple[int, str]:
 @lru_cache(maxsize=4096)
 def _search_cached(product: str, version: str, service: str, cpe: str = '') -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
     if not INDEX.exists():
-        return tuple(), tuple()
+        return tuple(), ({'reason': 'cve_index_unavailable', 'matcher_status': 'unavailable', 'index_file': str(INDEX)},)
     ident, spec = _identity(product, service, cpe)
     if not ident:
-        return tuple(), tuple()
+        return tuple(), ({'reason': 'unsupported_product_identity', 'matcher_status': 'held'},)
     obs_version = _first_version(version)
     if not obs_version:
-        return tuple(), tuple()
+        return tuple(), ({'reason': 'observed_version_missing', 'matcher_status': 'held'},)
 
     confirmed: list[dict[str, Any]] = []
+    malformed_records = 0
     try:
         with INDEX.open('r', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 try:
                     rec = json.loads(line)
                 except Exception:
+                    malformed_records += 1
                     continue
                 if rec.get('source') != OFFICIAL_CVE_SOURCE:
                     continue
@@ -390,10 +450,16 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '') -> t
                     'product_match_basis': product_basis,
                 }
                 confirmed.append(row)
-    except Exception:
-        return tuple(), tuple()
+    except Exception as exc:
+        return tuple(), ({
+            'reason': 'cve_matcher_error',
+            'matcher_status': 'error',
+            'error_type': type(exc).__name__,
+            'error': str(exc),
+        },)
 
-    # Deduplicate by CVE and cap per service for display sanity. The JSON source still contains the raw CVE ID and references.
+    # Deduplicate by CVE without display caps. A report renderer may paginate,
+    # but the canonical evidence contract must never silently discard matches.
     dedup: list[dict[str, Any]] = []
     seen: set[str] = set()
     for row in sorted(confirmed, key=_sort_key):
@@ -401,17 +467,64 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '') -> t
         if cve_id and cve_id not in seen:
             seen.add(cve_id)
             dedup.append(row)
-        if len(dedup) >= int(os.getenv('MAX_CONFIRMED_CVES_PER_SERVICE', '6')):
-            break
-    return tuple(dedup), tuple()
+    diagnostics: list[dict[str, Any]] = []
+    if malformed_records:
+        diagnostics.append({
+            'reason': 'index_records_skipped',
+            'matcher_status': 'degraded',
+            'record_count': malformed_records,
+        })
+    return tuple(dedup), tuple(diagnostics)
 
 
-def search(product: str, version: str, service: str, cpe: str = '') -> tuple[dict[str, Any], ...]:
-    confirmed, _ = search_with_held(product, version, service, cpe)
+def search(
+    product: str,
+    version: str,
+    service: str,
+    cpe: str = '',
+    *,
+    confidence_score: float | None = None,
+    recommended_for_cve: bool | None = None,
+) -> tuple[dict[str, Any], ...]:
+    confirmed, _ = search_with_held(
+        product,
+        version,
+        service,
+        cpe,
+        confidence_score=confidence_score,
+        recommended_for_cve=recommended_for_cve,
+    )
     return tuple(confirmed)
 
 
-def search_with_held(product: str, version: str, service: str, cpe: str = '') -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
+def search_with_held(
+    product: str,
+    version: str,
+    service: str,
+    cpe: str = '',
+    *,
+    confidence_score: float | None = None,
+    recommended_for_cve: bool | None = None,
+) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
+    """Search official CVE records only after fingerprint confidence passes.
+
+    ``None`` retains compatibility for offline index maintenance callers. The
+    scan pipeline always supplies both values from ``ServiceFingerprint``.
+    """
+    if confidence_score is not None or recommended_for_cve is not None:
+        try:
+            score = float(confidence_score or 0.0)
+        except (TypeError, ValueError):
+            score = 0.0
+        recommended = bool(recommended_for_cve)
+        if score < MIN_FINGERPRINT_CONFIDENCE or not recommended:
+            held = ({
+                'reason': 'fingerprint_confidence_below_cve_threshold',
+                'confidence_score': round(score, 2),
+                'minimum_confidence': MIN_FINGERPRINT_CONFIDENCE,
+                'recommended_for_cve': recommended,
+            },)
+            return tuple(), held
     confirmed, held = _search_cached(product, version, service, cpe)
     return tuple(copy.deepcopy(list(confirmed))), tuple(copy.deepcopy(list(held)))
 
@@ -545,4 +658,5 @@ def build_index() -> dict[str, Any]:
             row.update(metric)
             out.write(json.dumps(row, ensure_ascii=False) + '\n')
             count += 1
+    _search_cached.cache_clear()
     return {'records_indexed': count, 'records_with_cvss_metadata': cvss_count, 'index_file': str(INDEX)}

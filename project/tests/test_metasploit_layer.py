@@ -221,7 +221,7 @@ def test_known_service_is_not_reinterpreted_only_from_its_port_number():
 
     actions = build_metasploit_actions(scan)
 
-    assert {action["policy_key"] for action in actions} == {"msf_http_title"}
+    assert {action["policy_key"] for action in actions} == {"msf_http_title", "msf_http_robots"}
 
 
 class FakeMetasploitClient:
@@ -394,3 +394,70 @@ def test_authenticated_metasploit_routes_use_shared_service(monkeypatch):
         assert executed.get_json()["summary"] == "Safe scanner completed."
     finally:
         app_module.Config.OPERATOR_TOKEN = old_token
+
+
+def test_ms17_010_exploit_proposed_only_with_cve_evidence():
+    """The EternalBlue exploit action appears only when CVE evidence exists."""
+    scan = {
+        "target_ip": "10.10.20.50",
+        "ports": [
+            {"port": 445, "state": "open", "service": "microsoft-ds", "product": "Windows 10"},
+        ],
+    }
+
+    actions = build_metasploit_actions(scan)
+    assert all(action["module_type"] == "auxiliary" for action in actions)
+    assert "msf_smb_ms17_010_exploit:10.10.20.50:445" not in {
+        action["action_id"] for action in actions
+    }
+
+    scan_with_cve = {
+        "target_ip": "10.10.20.50",
+        "ports": [
+            {
+                "port": 445,
+                "state": "open",
+                "service": "microsoft-ds",
+                "product": "Windows 10",
+                "cves": ["CVE-2017-0144"],
+            },
+        ],
+    }
+
+    actions = build_metasploit_actions(scan_with_cve)
+    exploit_action = next(
+        (a for a in actions if a["policy_key"] == "msf_smb_ms17_010_exploit"),
+        None,
+    )
+    assert exploit_action is not None
+    assert exploit_action["module_name"] == "windows/smb/ms17_010_eternalblue"
+    assert exploit_action["module_type"] == "exploit"
+    assert exploit_action["requires_approval"] is True
+    assert exploit_action["allow_session"] is True
+    assert exploit_action["payload"]["name"] == "windows/x64/meterpreter/reverse_tcp"
+
+
+def test_ms17_010_exploit_proposed_with_explicit_exploit_advice():
+    scan = {
+        "target_ip": "10.10.20.50",
+        "ports": [
+            {"port": 445, "state": "open", "service": "microsoft-ds"},
+        ],
+    }
+    advice = {
+        "attack_paths": [
+            {
+                "service": "smb",
+                "port": 445,
+                "recommended_validation": "smb_ms17_010",
+                "recommended_module_type": "exploit",
+                "technique_ids": ["T1203"],
+                "reasoning": "Operator-approved EternalBlue path.",
+            }
+        ]
+    }
+
+    actions = build_metasploit_actions(scan, advice)
+    assert any(
+        a["policy_key"] == "msf_smb_ms17_010_exploit" for a in actions
+    )

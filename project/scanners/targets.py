@@ -7,13 +7,10 @@ _TARGET_SPLIT_RE = re.compile(r'[\s,;]+')
 def _target_tokens(value: str) -> list[str]:
     """Split operator target input into individual tokens.
 
-    Supports the forms used by the web UI and CLI-style input:
-    - single IP: 192.168.86.30
-    - whitespace-separated IPs: 192.168.86.30 192.168.86.127
-    - comma/semicolon-separated IPs
-    - CIDR ranges
-    - short ranges: 192.168.86.30-127
-    - explicit ranges: 192.168.86.30-192.168.86.127
+    Supports a single address, delimited address lists, CIDR ranges, short
+    final-octet ranges, and explicit start/end address ranges. Concrete
+    examples live in the isolated tests so runtime code contains no fixed
+    scan target.
     """
     raw = (value or '').strip()
     if not raw:

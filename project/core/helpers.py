@@ -258,6 +258,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
     mapping_results = active.get("mapping") or _active_mapping_results()
     operation_results = active.get("operation_results") or _active_operation_results()
     validation_results = active.get("validation_results") or _active_validation_results()
+    pivot_results = active.get("pivot_assessment") or session.get("pivot_assessment", {})
     attack_advice = active.get("attack_advice") or _active_attack_advice()
     metasploit_results = active.get("metasploit_results") or _active_metasploit_results()
     if isinstance(validation_results, dict) and attack_advice:
@@ -280,6 +281,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         risk=risk,
         remediations=remediations,
         validation=validation_results,
+        pivot=pivot_results,
     )
 
     return {
@@ -287,6 +289,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         "mapping": mapping_results,
         "operation": operation_results,
         "validation": validation_results,
+        "pivot": pivot_results,
         "attack_advice": attack_advice,
         "metasploit_results": metasploit_results,
         "risk": risk,

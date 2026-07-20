@@ -10,7 +10,7 @@ WIN10_IP="${2:-}"
 
 if [[ -z "$UBUNTU_IP" || -z "$WIN10_IP" ]]; then
     echo "Usage: $0 <ubuntu-ip> <windows-ip>"
-    echo "Example: $0 192.168.30.129 192.168.86.130"
+    echo "Example: $0 192.168.67.129 192.168.67.132"
     exit 1
 fi
 
@@ -88,81 +88,63 @@ wv = WebValidationService(
 # Include several commonly used field names so the output is easier
 # to compare against the application's real scanner format.
 scan_data = {
-    "hosts": [
+    "target_ip": ubuntu_ip,
+    "service_inventory": [
         {
-            "ip": ubuntu_ip,
             "host": ubuntu_ip,
-            "address": {
-                "primary": ubuntu_ip,
-            },
-            "port_findings": [
-                {
-                    "port": 80,
-                    "protocol": "tcp",
-                    "state": "open",
-                    "service": "http",
-                    "service_name": "http",
-                }
-            ],
-            "ports": [
-                {
-                    "port": 80,
-                    "protocol": "tcp",
-                    "state": "open",
-                    "service": "http",
-                }
-            ],
+            "port": 80,
+            "protocol": "tcp",
+            "state": "open",
+            "service": "http",
         }
-    ]
+    ],
+    "web_inventory": [
+        {
+            "host": ubuntu_ip,
+            "port": 80,
+            "url": f"http://{ubuntu_ip}:80/diagnostics.php",
+            "path": "/diagnostics.php",
+        }
+    ],
 }
 
 try:
-    result = wv.propose_actions(scan_data)
+    result = wv.propose_actions(
+        scan_data,
+        allow_follow_up=True,
+    )
 except Exception as exc:
-    print(f"  ❌ Validation exception: {type(exc).name}: {exc}")
+    print(f"  ❌ Validation exception: {type(exc).__name__}: {exc}")
     raise SystemExit(0)
 
 print("  Validator result:")
 print(json.dumps(result, indent=2, default=str))
 
-actions = []
-
-if isinstance(result, dict):
-    actions = result.get("actions") or []
-elif isinstance(result, list):
-    actions = result
+actions = result.get("actions") or []
 
 if not actions:
     print("  ❌ No actions proposed")
-    print("  The test data still does not match the validator's expected schema.")
+    print("  Check the collection_events and diagnostics fingerprint.")
     raise SystemExit(0)
 
 action = actions[0]
 action_id = action.get("action_id") or action.get("id")
 
-if not action_id:
-    print("  ❌ Proposed action has no action_id")
-    print(json.dumps(action, indent=2, default=str))
-    raise SystemExit(0)
-
 try:
     run_result = wv.run_action(
-        action_id,
-        {},
+        action_id=action_id,
+        parsed_results=scan_data,
         approved=True,
     )
 except Exception as exc:
-    print(f"  ❌ Action exception: {type(exc).name}: {exc}")
+    print(f"  ❌ Action exception: {type(exc).__name__}: {exc}")
     raise SystemExit(0)
 
 print("  Action result:")
 print(json.dumps(run_result, indent=2, default=str))
 
-status = run_result.get("status") if isinstance(run_result, dict) else None
-
-print(
-    f'  Confirmed: {"✅" if status == "confirmed" else "❌"}'
-)
+status = run_result.get("status")
+print(f'  Confirmed: {"✅" if status == "confirmed" else "❌"}')
 PY
 
 echo
@@ -221,14 +203,14 @@ except Exception as exc:
 print("  Exploiter result:")
 print(json.dumps(result, indent=2, default=str))
 
-if not isinstance(result, dict):
-    print("  ❌ WebExploiter returned an unexpected result type")
-    raise SystemExit(0)
+verified = result.get("marker_verified") is True
+error = result.get("error") or ""
 
-created = bool(result.get("session_created"))
-error = result.get("error", "")
-
-print(f'  Shell: {"✅" if created else "❌"} {error}')
+print(
+    f'  Verified callback: '
+    f'{"✅" if verified else "❌"} '
+    f'{error}'
+)
 PY
 
 echo

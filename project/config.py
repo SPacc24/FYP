@@ -104,5 +104,3 @@ class Config:
         "LAB_WEB_EXPLOIT_PLATFORM",
         "linux",
     ).lower()
-
-
