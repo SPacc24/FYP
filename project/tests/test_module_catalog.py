@@ -10,6 +10,7 @@ from exploitation.module_catalog import (
     MatchRule,
     ModuleCatalog,
     PortEvidence,
+    extract_port_evidence,
     get_module_catalog,
     normalise_service,
     reload_module_catalog,
@@ -101,6 +102,26 @@ def test_ms17_010_exploit_does_not_match_without_cve():
     keys = {m.key for m in hits}
     assert "msf_smb_ms17_010_exploit" not in keys
     assert "msf_smb_version" in keys
+
+
+def test_deduplicated_cve_observed_ports_map_to_each_service_record():
+    rows = extract_port_evidence({
+        "target_ip": "192.168.56.20",
+        "ports": [
+            {"port": 445, "state": "open", "service": "microsoft-ds"},
+            {"port": 139, "state": "open", "service": "netbios-ssn"},
+        ],
+        "cve_matches": [{
+            "host": "192.168.56.20",
+            "port": "445/tcp, 139/tcp",
+            "observed_ports": ["445/tcp", "139/tcp"],
+            "cve_id": "CVE-2017-0144",
+        }],
+    })
+
+    cves_by_port = {row.port: row.cves for row in rows}
+    assert "CVE-2017-0144" in cves_by_port[445]
+    assert "CVE-2017-0144" in cves_by_port[139]
 
 
 def test_lateral_eternalblue_matches_windows_smb_445():

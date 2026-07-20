@@ -99,14 +99,12 @@ def profile_tool_ids(profile: str | None = None) -> list[str]:
     policy, status, _policy_hash = _load_profile_policy()
     if status != 'loaded':
         return []
-    configured = policy.get('full_recon_enabled_tools') or []
-    if configured:
-        enabled, _conflicts = _resolve_enabled_tools(policy, configured)
-        return enabled
-    enabled, _conflicts = _resolve_enabled_tools(
-        policy,
-        [tool['id'] for tool in TOOL_OPTIONS if tool.get('full')],
+    configured = (
+        policy.get('full_recon_enabled_tools')
+        or policy.get('default_enabled_tools')
+        or [tool['id'] for tool in TOOL_OPTIONS if tool.get('full')]
     )
+    enabled, _conflicts = _resolve_enabled_tools(policy, configured)
     return enabled
 
 
@@ -125,7 +123,12 @@ def normalise_scan_options(profile: str | None = None, enabled_tools: Iterable[s
         # Full can still honour posted toggles when the UI sends them; otherwise default to full policy.
         requested = {str(x) for x in enabled_tools if str(x) in VALID_TOOL_IDS}
     else:
-        requested = set(policy.get('full_recon_enabled_tools') or []) if policy_status == 'loaded' else set()
+        configured = (
+            policy.get('full_recon_enabled_tools')
+            or policy.get('default_enabled_tools')
+            or [tool['id'] for tool in TOOL_OPTIONS if tool.get('full')]
+        ) if policy_status == 'loaded' else []
+        requested = set(configured)
 
     selected_list, conflicts = _resolve_enabled_tools(policy, requested)
     selected = set(selected_list)

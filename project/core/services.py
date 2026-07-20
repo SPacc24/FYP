@@ -39,6 +39,8 @@ metasploit_service = MetasploitService(
     exploit_execution_enabled=Config.ENABLE_METASPLOIT_EXPLOITS,
     result_timeout=Config.METASPLOIT_RESULT_TIMEOUT,
     poll_interval=Config.METASPLOIT_POLL_INTERVAL,
+    session_timeout=Config.METASPLOIT_SESSION_TIMEOUT,
+    session_poll_interval=Config.METASPLOIT_SESSION_POLL_INTERVAL,
 )
 proof_ticket_manager = ProofTicketManager(
     secret=Config.PROOF_OF_ACCESS_SECRET,
