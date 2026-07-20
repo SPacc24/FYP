@@ -513,7 +513,7 @@ def test_exploit_options_include_payload_callback_when_module_options_omit_them(
     action = _exploit_action()
     policy = service.policies_by_key[action["policy_key"]]
     monkeypatch.setattr(Config, "KALI_IP", "192.168.56.10")
-    monkeypatch.setattr(Config, "METASPLOIT_LPORT", 4445)
+    monkeypatch.setattr(Config, "METASPLOIT_LPORT", 5555)
 
     options = service._build_options(action, {"RHOSTS": {}, "RPORT": {}}, policy)
 
@@ -522,7 +522,7 @@ def test_exploit_options_include_payload_callback_when_module_options_omit_them(
         "RPORT": 445,
         "PAYLOAD": "windows/x64/meterpreter/reverse_tcp",
         "LHOST": "192.168.56.10",
-        "LPORT": 4445,
+        "LPORT": 5555,
     }
 
 
@@ -630,10 +630,13 @@ def test_module_result_classification_distinguishes_check_outcomes():
 
 
 def test_cleanup_closes_only_target_verified_sessions_and_stops_job():
-    client = FakeExploitClient([])
+    client = FakeExploitClient([
+        {"8": {"tunnel_peer": "192.168.56.20:49152"}},
+    ])
     service = MetasploitService(client, exploit_execution_enabled=True)
     record = {
         "run_id": "msf_test",
+        "action": {"target": "192.168.56.20"},
         "target_session_ids": ["8"],
         "new_session_ids": ["8", "9"],
         "rpc_result": {"job_id": 7},
@@ -648,3 +651,27 @@ def test_cleanup_closes_only_target_verified_sessions_and_stops_job():
     assert result["record"]["execution_state"] == "session_closed"
     assert result["record"]["session_closed"] is True
     assert result["record"]["snapshot_revert_required"] is True
+
+
+def test_cleanup_does_not_stop_session_that_no_longer_matches_target():
+    client = FakeExploitClient([
+        {"8": {"session_host": "192.168.56.99"}},
+    ])
+    service = MetasploitService(client, exploit_execution_enabled=True)
+    record = {
+        "run_id": "msf_test",
+        "action": {"target": "192.168.56.20"},
+        "target_session_ids": ["8"],
+        "rpc_result": {"job_id": 7},
+    }
+
+    result = service.cleanup_run(record, approved=True)
+
+    assert result["ok"] is False
+    assert client.stopped_sessions == []
+    assert client.stopped_jobs == ["7"]
+    assert result["record"]["closed_session_ids"] == []
+    assert result["record"]["session_closed"] is False
+    assert result["record"]["cleanup_errors"] == [
+        "session 8: no longer belongs to target",
+    ]
