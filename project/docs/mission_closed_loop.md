@@ -31,3 +31,11 @@ curl -s -X POST localhost:5000/api/mission/start -H 'Content-Type: application/j
 ```
 
 (Requires operator session when `OPERATOR_TOKEN` is set.)
+
+## Closing the loop on the console
+
+1. **Validate safe queue** — marks all `queued_auto` auxiliaries executed (lab attestation or after real MSF runs).
+2. **Approve** high-risk catalog actions — never auto-runs shells.
+3. **Confirm impact** on approved rows — records outcome; does **not** silently set foothold.
+4. **Attach foothold proof** — only this sets `foothold_proved` and unlocks pivot segment recommendations.
+5. Debrief **confirmed findings** = proof count (not scanner noise). Partial goal when MS17 is suppressed without CVE is correct.

@@ -347,18 +347,37 @@ class PlaybookEngine:
                 break
 
         key_l = (matched_key or action_queue_id or "").lower()
+        matched_action = None
+        for action in mission.get("action_queue") or []:
+            if action_queue_id and action.get("queue_id") == action_queue_id:
+                matched_action = action
+                break
+            if not action_queue_id and catalog_key and action.get("catalog_key") == catalog_key:
+                matched_action = action
+                break
+
+        kind_l = str((matched_action or {}).get("kind") or "").lower()
         if outcome_n in {"vulnerable", "success"} and "ms17" in key_l:
             if "check" in key_l or "scan" in key_l or "auxiliary" in key_l:
                 self._add_flag(mission, "ms17_vulnerable")
                 self._add_flag(mission, "ms17_check_done")
             if "exploit" in key_l:
-                self._add_flag(mission, "foothold_proved")
+                self._add_flag(mission, "ms17_exploit_succeeded")
+                # Foothold still requires an attached proof artefact (not silent auto-trust).
+                self._add_flag(mission, "impact_confirmed")
         if outcome_n in {"not_vulnerable", "patched"} and "ms17" in key_l:
             self._add_flag(mission, "ms17_check_done")
             flags = set(mission.get("flags") or [])
             flags.discard("ms17_vulnerable")
             mission["flags"] = sorted(flags)
             self._add_flag(mission, "ms17_not_exploitable")
+
+        if outcome_n in {"success", "vulnerable", "confirmed"}:
+            if kind_l in {"web_profile", "web"} or "web" in key_l or key_l.startswith("cmdi"):
+                self._add_flag(mission, "web_impact_confirmed")
+                self._add_flag(mission, "impact_confirmed")
+            if kind_l in {"lateral", "lateral_technique"} or "exploit" in key_l:
+                self._add_flag(mission, "impact_confirmed")
 
         for flag in set_flags or []:
             self._add_flag(mission, str(flag))
@@ -367,6 +386,71 @@ class PlaybookEngine:
             mission,
             "outcome_recorded",
             f"{outcome_n}: {catalog_key or action_queue_id} {detail}",
+        )
+        results = mission.get("parsed_results_snapshot") or {}
+        self._refresh_evidence_flags(mission, results)
+        self._apply_branches(mission)
+        mission["attack_graph"] = build_attack_graph(
+            results, flags=set(mission.get("flags") or [])
+        )
+        mission["updated_at"] = _utc_now()
+        return mission
+
+    def validate_safe_actions(
+        self,
+        mission: dict[str, Any],
+        *,
+        detail: str = "Operator-validated safe auxiliary / non-impact probe",
+        outcome: str = "success",
+    ) -> dict[str, Any]:
+        """Mark queued_auto non-impact actions as executed (lab closed-loop).
+
+        Does not auto-succeed exploits, high-risk items awaiting approval, or
+        pivot segments — those stay under approval + proof gates.
+        """
+        mission = copy.deepcopy(mission)
+        outcome_n = str(outcome or "success").strip().lower() or "success"
+        count = 0
+        blocked_types = {"exploit"}
+        for action in mission.get("action_queue") or []:
+            status = str(action.get("status") or "")
+            if status not in {"queued_auto"}:
+                continue
+            risk = str(action.get("risk") or "medium").lower()
+            mtype = str(action.get("module_type") or "").lower()
+            kind = str(action.get("kind") or "").lower()
+            if mtype in blocked_types or kind in {"pivot_segment", "research_probe"}:
+                continue
+            if risk in {"critical"}:
+                continue
+            # high-risk only if already classified as auxiliary scan (e.g. ms17 check)
+            if risk == "high" and mtype not in {"auxiliary", "scanner", "check", ""}:
+                if "check" not in str(action.get("catalog_key") or "").lower():
+                    continue
+            action["execution_outcome"] = outcome_n
+            action["execution_detail"] = detail
+            action["executed_at"] = _utc_now()
+            if outcome_n in {"success", "vulnerable", "confirmed", "validated"}:
+                action["status"] = "succeeded"
+            elif outcome_n in {"failed", "not_vulnerable", "patched", "denied"}:
+                action["status"] = "failed"
+            count += 1
+            key_l = str(action.get("catalog_key") or "").lower()
+            if outcome_n in {"not_vulnerable", "patched"} and "ms17" in key_l:
+                self._add_flag(mission, "ms17_check_done")
+                self._add_flag(mission, "ms17_not_exploitable")
+            if outcome_n in {"vulnerable", "success"} and "ms17" in key_l and (
+                "check" in key_l or mtype in {"auxiliary", "scanner", "check"}
+            ):
+                self._add_flag(mission, "ms17_check_done")
+                if outcome_n == "vulnerable":
+                    self._add_flag(mission, "ms17_vulnerable")
+
+        self._add_flag(mission, "safe_validation_recorded")
+        self._log(
+            mission,
+            "safe_validation_bulk",
+            f"Recorded outcome={outcome_n} on {count} safe queued action(s)",
         )
         results = mission.get("parsed_results_snapshot") or {}
         self._refresh_evidence_flags(mission, results)
@@ -992,6 +1076,18 @@ class PlaybookEngine:
             )
         if "foothold_proved" in flags:
             notes.append("At least one proof-of-impact artifact is on record.")
+        if "impact_confirmed" in flags and "foothold_proved" not in flags:
+            notes.append(
+                "Impact was operator-confirmed but no foothold proof artefact is on file — "
+                "pivot stayed locked (correct custody)."
+            )
+        queue = mission.get("action_queue") or []
+        still_auto = sum(1 for a in queue if a.get("status") == "queued_auto")
+        if still_auto:
+            notes.append(
+                f"{still_auto} safe action(s) remained queued_auto at debrief — "
+                "use Validate safe queue or wire live MSF callbacks for full evidence closure."
+            )
         if mission.get("risk_posture") == "safe-only":
             notes.append("Mission ran under safe-only posture — impact actions never queued.")
         if not notes:

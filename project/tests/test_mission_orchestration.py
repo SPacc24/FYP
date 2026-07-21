@@ -187,6 +187,54 @@ def test_attack_graph_built_from_evidence(mission_env):
     assert graph["stats"]["services"] >= 2
 
 
+def test_validate_safe_and_impact_outcome_closed_loop(mission_env):
+    from automation.mission_service import get_mission_service
+
+    svc = get_mission_service()
+    mission = svc.start(
+        playbook_id="edge_to_internal_proof",
+        parsed_results=_web_smb_results(),
+    )
+    mid = mission["mission_id"]
+
+    # Safe auxiliaries should leave queued_auto → succeeded without approving exploits
+    before_auto = [a for a in mission["action_queue"] if a["status"] == "queued_auto"]
+    assert before_auto, "expected safe auto-queue from catalog"
+    mission = svc.validate_safe_actions(mid, outcome="success")
+    still_auto = [a for a in mission["action_queue"] if a["status"] == "queued_auto"]
+    succeeded = [a for a in mission["action_queue"] if a["status"] == "succeeded"]
+    assert succeeded, "safe validation should mark auxiliaries succeeded"
+    assert len(still_auto) < len(before_auto)
+    assert "safe_validation_recorded" in set(mission.get("flags") or [])
+
+    # High-risk web impact: approve → record success → proof unlocks pivot
+    pending = [a for a in mission["action_queue"] if a["status"] == "awaiting_approval"]
+    assert pending
+    web = next(
+        (a for a in pending if "web" in str(a.get("kind")) or "cmdi" in str(a.get("catalog_key"))),
+        pending[0],
+    )
+    mission = svc.approve(mid, web["queue_id"], approved=True)
+    mission = svc.record_outcome(
+        mid,
+        action_queue_id=web["queue_id"],
+        outcome="success",
+        detail="lab cmdi confirmed",
+    )
+    flags = set(mission.get("flags") or [])
+    assert "impact_confirmed" in flags or "web_impact_confirmed" in flags
+    assert "foothold_proved" not in flags  # proof still required
+
+    mission = svc.attach_proof(
+        mid,
+        evidence="cmdi whoami output captured on authorised diagnostics host",
+        target="10.10.10.20",
+        catalog_key=web.get("catalog_key") or "",
+    )
+    assert "foothold_proved" in set(mission.get("flags") or [])
+    assert any(a.get("kind") == "pivot_segment" for a in mission["action_queue"])
+
+
 def test_api_mission_start(mission_env, monkeypatch):
     monkeypatch.setenv("ALLOW_INSECURE_OPERATOR_ACCESS", "1")
     monkeypatch.setattr("config.Config.OPERATOR_TOKEN", "")

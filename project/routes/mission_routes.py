@@ -207,6 +207,25 @@ def register_routes(app):
             return jsonify({"ok": False, "error": str(exc)}), 400
         return jsonify({"ok": True, "mission": mission})
 
+    @app.route("/api/mission/<mission_id>/validate-safe", methods=["POST"])
+    def api_mission_validate_safe(mission_id: str):
+        """Bulk-record outcomes for queued_auto safe/auxiliary actions (lab closed loop)."""
+        body = _body()
+        try:
+            mission = svc().validate_safe_actions(
+                mission_id,
+                detail=str(
+                    body.get("detail")
+                    or "Operator-validated safe auxiliary / non-impact probe"
+                ),
+                outcome=str(body.get("outcome") or "success").strip() or "success",
+            )
+        except KeyError:
+            return jsonify({"ok": False, "error": "Mission not found"}), 404
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": True, "mission": mission})
+
     @app.route("/api/mission/<mission_id>/proof", methods=["POST"])
     def api_mission_proof(mission_id: str):
         body = _body()

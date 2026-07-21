@@ -140,9 +140,11 @@
           <div class="toolbar">
             <button class="btn" id="btnContinue">Continue stage</button>
             <button class="btn" id="btnAdvance">Re-evaluate</button>
+            <button class="btn primary" id="btnValidateSafe" title="Mark all low-risk queued_auto auxiliaries as validated">Validate safe queue</button>
             <button class="btn warn" id="btnProof">Attach foothold proof</button>
             <button class="btn danger" id="btnAbort">Abort</button>
           </div>
+          <div id="coach" class="empty" style="display:none;margin:.5rem 0 1rem;border-left:3px solid var(--warn);padding:.6rem .8rem;background:rgba(240,180,41,.08)"></div>
           <div id="headerBlock"></div>
           <div class="stages" id="stages"></div>
           <div class="metric" id="metrics"></div>
@@ -245,6 +247,65 @@
     return String(s ?? '').replace(/[&<>"']/g, ch => map[ch]);
   }
 
+  function actionButtons(a) {
+    const id = esc(a.queue_id);
+    const st = a.status;
+    if (st === 'awaiting_approval') {
+      return `<div class="row-actions">
+        <button class="btn primary btn-approve" data-id="${id}">Approve</button>
+        <button class="btn danger btn-skip" data-id="${id}">Skip</button>
+      </div>`;
+    }
+    if (st === 'queued_auto') {
+      return `<div class="row-actions">
+        <button class="btn primary btn-ok" data-id="${id}" data-out="success">Validated</button>
+        <button class="btn ghost btn-ok" data-id="${id}" data-out="not_vulnerable">No-hit</button>
+      </div>`;
+    }
+    if (st === 'approved') {
+      return `<div class="row-actions">
+        <button class="btn primary btn-ok" data-id="${id}" data-out="success" data-impact="1">Confirm impact</button>
+        <button class="btn danger btn-ok" data-id="${id}" data-out="failed">Failed</button>
+      </div>`;
+    }
+    if (st === 'succeeded' && !(mission.proofs||[]).length) {
+      const impact = /web|cmdi|exploit|lateral|ms17_010(?!.*check)/i.test(String(a.catalog_key||'')+' '+String(a.kind||''));
+      if (impact || a.risk === 'high' || a.risk === 'critical') {
+        return `<div class="row-actions">
+          <button class="btn warn btn-proof-row" data-id="${id}" data-key="${esc(a.catalog_key||'')}" data-target="${esc(a.target||'')}">Attach proof</button>
+        </div>`;
+      }
+    }
+    return a.execution_outcome ? `<span class="note">${esc(a.execution_outcome)}</span>` : '';
+  }
+
+  function coachText(m) {
+    const flags = new Set(m.flags || []);
+    const queue = m.action_queue || [];
+    const pending = queue.filter(a => a.status === 'awaiting_approval');
+    const autoLeft = queue.filter(a => a.status === 'queued_auto');
+    const approved = queue.filter(a => a.status === 'approved');
+    if (m.status === 'blocked_unlock' || (m.current_stage_id === 'pivot_expand' && !flags.has('foothold_proved'))) {
+      return 'Pivot locked — attach foothold proof after a successful impact path. Skipping pivot yields a partial debrief (correct when no shell was proved).';
+    }
+    if (pending.length) {
+      return pending.length + ' high-risk action(s) await approval. Safe queue can still be validated in parallel.';
+    }
+    if (approved.length) {
+      return approved.length + ' approved action(s) need an outcome: Confirm impact (then attach proof) or mark Failed.';
+    }
+    if (autoLeft.length) {
+      return autoLeft.length + ' safe action(s) still queued_auto — click Validate safe queue or per-row Validated after auxiliaries run.';
+    }
+    if (flags.has('impact_confirmed') && !flags.has('foothold_proved')) {
+      return 'Impact confirmed — attach operator-attested proof to set foothold_proved and unlock pivot segments.';
+    }
+    if (flags.has('branch_ms17_suppressed') || flags.has('ms17_not_exploitable')) {
+      return 'MS17/EternalBlue suppressed without CVE evidence — alternate lateral planned. This is a professional non-exploit outcome.';
+    }
+    return '';
+  }
+
   function renderMission(m) {
     mission = m;
     activeId = m.mission_id;
@@ -256,17 +317,27 @@
         · stage <strong>${esc(m.current_stage_id)}</strong> · posture <strong>${esc(m.risk_posture)}</strong></div>
       <p class="note" style="margin-top:.4rem">${esc(m.goal)}</p>`;
 
+    const coach = coachText(m);
+    const coachEl = document.getElementById('coach');
+    if (coachEl) {
+      if (coach) { coachEl.style.display = 'block'; coachEl.textContent = coach; }
+      else { coachEl.style.display = 'none'; coachEl.textContent = ''; }
+    }
+
     document.getElementById('stages').innerHTML = (m.stages||[]).map(s =>
       `<span class="stage ${esc(s.status)}">${esc(s.title)}</span>`
     ).join('');
 
     const graph = m.attack_graph || {};
     const stats = graph.stats || {};
+    const q = m.action_queue || [];
+    const succ = q.filter(a => a.status === 'succeeded').length;
     document.getElementById('metrics').innerHTML = `
       <div class="m"><b>${stats.hosts||0}</b><span>Hosts</span></div>
       <div class="m"><b>${stats.services||0}</b><span>Services</span></div>
       <div class="m"><b>${stats.catalog_matches||0}</b><span>Catalog matches</span></div>
       <div class="m"><b>${(m.pending_approvals||[]).length}</b><span>Awaiting approval</span></div>
+      <div class="m"><b>${succ}</b><span>Succeeded</span></div>
       <div class="m"><b>${(m.proofs||[]).length}</b><span>Proofs</span></div>`;
 
     const queue = m.action_queue || [];
@@ -279,16 +350,16 @@
           <td><strong>${esc(a.title)}</strong><div class="note">${esc(a.catalog_key||a.kind)} · ${esc(a.module_type||'')}</div></td>
           <td>${esc(a.target)}${a.port?':'+a.port:''}</td>
           <td>${esc(a.risk)}</td>
-          <td>${esc(a.status)}</td>
-          <td>${a.status==='awaiting_approval' ? `
-            <div class="row-actions">
-              <button class="btn primary btn-approve" data-id="${esc(a.queue_id)}">Approve</button>
-              <button class="btn danger btn-skip" data-id="${esc(a.queue_id)}">Skip</button>
-            </div>` : ''}</td>
+          <td><span class="pill ${esc(a.status)}">${esc(a.status)}</span></td>
+          <td>${actionButtons(a)}</td>
         </tr>`).join('')}
         </tbody></table>`;
       document.querySelectorAll('.btn-approve').forEach(b => b.onclick = () => approve(b.dataset.id, true));
       document.querySelectorAll('.btn-skip').forEach(b => b.onclick = () => approve(b.dataset.id, false));
+      document.querySelectorAll('.btn-ok').forEach(b => b.onclick = () => recordOutcome(b.dataset.id, b.dataset.out, b.dataset.impact === '1'));
+      document.querySelectorAll('.btn-proof-row').forEach(b => b.onclick = () => attachProof({
+        catalog_key: b.dataset.key, target: b.dataset.target || document.getElementById('demoTarget').value
+      }));
     }
 
     const branches = m.branch_events || [];
@@ -366,11 +437,56 @@
     await refreshList();
   }
 
+  async function recordOutcome(id, outcome, offerProof) {
+    const data = await api(`/api/mission/${activeId}/outcome`, {
+      method:'POST',
+      body:{
+        action_queue_id: id,
+        outcome,
+        detail: outcome === 'success'
+          ? 'Operator recorded successful execution against authorised lab target'
+          : 'Operator recorded non-vulnerable / failed outcome'
+      }
+    });
+    renderMission(data.mission);
+    await refreshList();
+    if (offerProof && outcome === 'success') {
+      const go = confirm('Impact recorded. Attach foothold proof now to unlock pivot expand?');
+      if (go) await attachProof({});
+    }
+  }
+
+  async function attachProof(opts) {
+    opts = opts || {};
+    const evidence = prompt(
+      'Proof evidence (required):',
+      'Interactive shell / reverse callback / cmdi RCE validated on authorised host'
+    );
+    if (!evidence) return;
+    const data = await api(`/api/mission/${activeId}/proof`, {
+      method:'POST',
+      body:{
+        evidence,
+        proof_type:'operator_attested',
+        target: opts.target || document.getElementById('demoTarget').value,
+        catalog_key: opts.catalog_key || '',
+        action_id: opts.action_id || ''
+      }
+    });
+    renderMission(data.mission);
+    await refreshList();
+  }
+
   document.getElementById('btnStart').onclick = () => startMission().catch(e => alert(e.message));
   document.getElementById('btnRefresh').onclick = () => {
     refreshList().then(() => activeId && loadMission(activeId)).catch(e => alert(e.message));
   };
   document.getElementById('btnContinue').onclick = () => {
+    const m = mission;
+    const flags = new Set((m && m.flags) || []);
+    if (m && m.current_stage_id === 'pivot_expand' && !flags.has('foothold_proved')) {
+      if (!confirm('Pivot is locked without foothold proof. Continue anyway to debrief as partial?')) return;
+    }
     api(`/api/mission/${activeId}/continue`, {method:'POST', body:{}}).then(d => {
       renderMission(d.mission); return refreshList();
     }).catch(e => alert(e.message));
@@ -380,21 +496,21 @@
       renderMission(d.mission); return refreshList();
     }).catch(e => alert(e.message));
   };
+  document.getElementById('btnValidateSafe').onclick = () => {
+    if (!activeId) return alert('Select a mission first');
+    api(`/api/mission/${activeId}/validate-safe`, {
+      method:'POST',
+      body:{ outcome:'success', detail:'Lab operator validated safe auxiliaries' }
+    }).then(d => { renderMission(d.mission); return refreshList(); })
+      .catch(e => alert(e.message));
+  };
   document.getElementById('btnAbort').onclick = () => {
     if (!confirm('Abort this mission?')) return;
     api(`/api/mission/${activeId}/abort`, {method:'POST', body:{reason:'operator abort'}}).then(d => {
       renderMission(d.mission); return refreshList();
     }).catch(e => alert(e.message));
   };
-  document.getElementById('btnProof').onclick = () => {
-    const evidence = prompt('Proof evidence (required):', 'Interactive shell / reverse callback validated on authorised host');
-    if (!evidence) return;
-    api(`/api/mission/${activeId}/proof`, {
-      method:'POST',
-      body:{ evidence, proof_type:'operator_attested', target: document.getElementById('demoTarget').value }
-    }).then(d => { renderMission(d.mission); return refreshList(); })
-      .catch(e => alert(e.message));
-  };
+  document.getElementById('btnProof').onclick = () => attachProof({}).catch(e => alert(e.message));
 
   document.querySelectorAll('#missionsList .mission-card').forEach(el => {
     el.addEventListener('click', () => loadMission(el.dataset.id).catch(e => alert(e.message)));

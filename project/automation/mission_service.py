@@ -220,6 +220,23 @@ class MissionService:
             )
             return self._persist(updated)
 
+    def validate_safe_actions(
+        self,
+        mission_id: str,
+        *,
+        detail: str = "Operator-validated safe auxiliary / non-impact probe",
+        outcome: str = "success",
+    ) -> dict[str, Any]:
+        with self._lock:
+            mission = self.get(mission_id)
+            if not mission:
+                raise KeyError(mission_id)
+            engine = PlaybookEngine(playbook_id=mission.get("playbook_id"))
+            updated = engine.validate_safe_actions(
+                mission, detail=detail, outcome=outcome
+            )
+            return self._persist(updated)
+
     def attach_proof(
         self,
         mission_id: str,
