@@ -228,6 +228,7 @@ def register_routes(app):
             remediations=context["remediations"],
             validation=context["validation"],
             pivot=context["pivot"],
+            missions=context.get("missions", []),
         )
 
         return send_file(

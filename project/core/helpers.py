@@ -12,6 +12,7 @@ from reports.report_generator import build_report_summary
 from scanners.nmap_parser import parse_nmap_xml
 from storage import scan_store
 
+from automation.mission_service import get_mission_service
 from core.services import caldera_client, risk_scorer
 
 log = logging.getLogger(__name__)
@@ -274,6 +275,12 @@ def _build_active_report_context(data: dict | None = None) -> dict:
     risk = active.get("risk") or session.get("risk_score", {})
     remediations = active.get("remediations") or session.get("remediations", [])
 
+    try:
+        missions = get_mission_service().list_missions(limit=10)
+    except Exception:
+        log.warning("Could not load missions for report context", exc_info=True)
+        missions = []
+
     report = build_report_summary(
         scan=scan,
         mapping=mapping_results,
@@ -282,6 +289,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         remediations=remediations,
         validation=validation_results,
         pivot=pivot_results,
+        missions=missions,
     )
 
     return {
@@ -295,6 +303,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         "risk": risk,
         "remediations": remediations,
         "report": report,
+        "missions": missions,
     }
 
 
