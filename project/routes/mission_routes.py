@@ -19,35 +19,63 @@ def _body() -> dict[str, Any]:
 
 
 def _load_scan_results(scan_id: str) -> dict[str, Any] | None:
+    """Load scan results and transform into parsed_results with hosts/ports/target_ip.
+
+    The raw scan record stores results under a ``results`` sub-dict with keys like
+    ``service_inventory``, ``cve_matches``, ``target_input``.  The mission engine
+    expects ``hosts``, ``ports``, ``target_ip`` — so we run the results through
+    ``_stored_results_to_parsed_results`` so that the mission engine sees real
+    host/port data instead of an empty dict.
+    """
     if not scan_id:
         return None
+
+    record = None
     try:
         from storage import scan_store
 
-        record = None
-        if hasattr(scan_store, "get_scan"):
-            record = scan_store.get_scan(scan_id)
-        elif hasattr(scan_store, "get"):
+        if hasattr(scan_store, "get"):
             record = scan_store.get(scan_id)
-        if isinstance(record, dict):
-            return record.get("results") or record.get("parsed_results") or record
+        elif hasattr(scan_store, "load"):
+            record = scan_store.load(scan_id)
     except Exception:
         pass
-    # Disk fallback under storage/results
-    try:
-        from pathlib import Path
 
-        root = Path(__file__).resolve().parents[1] / "storage" / "results"
-        for pattern in (f"{scan_id}*.json", f"*{scan_id}*.json"):
-            for path in root.glob(pattern):
-                try:
-                    data = json.loads(path.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError):
-                    continue
-                if isinstance(data, dict):
-                    return data.get("results") or data
-    except Exception:
-        pass
+    # Disk fallback under storage/results
+    if not isinstance(record, dict):
+        try:
+            from pathlib import Path
+
+            root = Path(__file__).resolve().parents[1] / "storage" / "results"
+            for pattern in (f"{scan_id}.json", f"{scan_id}*.json", f"*{scan_id}*.json"):
+                for path in root.glob(pattern):
+                    try:
+                        record = json.loads(path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError):
+                        continue
+                    if isinstance(record, dict):
+                        break
+                if isinstance(record, dict):
+                    break
+        except Exception:
+            pass
+
+    if not isinstance(record, dict):
+        return None
+
+    # Extract raw results sub-dict and transform into engine-ready shape
+    raw_results = record.get("results") or record.get("parsed_results")
+    if isinstance(raw_results, dict):
+        try:
+            from core.helpers import _stored_results_to_parsed_results
+            return _stored_results_to_parsed_results(raw_results, record)
+        except Exception:
+            pass
+
+    # Last resort: return the whole record (it might already have hosts/ports)
+    if "hosts" in record or "ports" in record:
+        return record
+
     return None
 
 

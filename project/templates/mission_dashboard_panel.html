@@ -288,14 +288,20 @@
         const resp = await fetch(endpoints.missionList || '/api/mission/list?limit=50');
         const data = await resp.json();
         if (data.ok && data.missions) {
-          const existing = data.missions.find(m => m.scan_id === sid && (m.status === 'running' || m.status === 'awaiting_approval' || m.status === 'awaiting_operator'));
+          // Prefer active missions; fall back to most recent completed/failed
+          let existing = data.missions.find(m => m.scan_id === sid && (m.status === 'running' || m.status === 'awaiting_approval' || m.status === 'awaiting_operator'));
+          if (!existing) {
+            existing = data.missions.filter(m => m.scan_id === sid).sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''))[0];
+          }
           if (existing) {
-            // Load full mission
             const fullResp = await fetch(`${endpoints.missionGet || '/api/mission'}/${existing.mission_id}`);
             const fullData = await fullResp.json();
             if (fullData.ok && fullData.mission) {
               renderMission(fullData.mission);
-              pollTimer = setInterval(refreshMission, 8000);
+              // Only poll if still running
+              if (fullData.mission.status === 'running' || fullData.mission.status === 'awaiting_approval' || fullData.mission.status === 'awaiting_operator') {
+                pollTimer = setInterval(refreshMission, 8000);
+              }
             }
           }
         }
