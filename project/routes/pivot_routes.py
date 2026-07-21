@@ -279,7 +279,6 @@ def pivot_target_select():
         "selected_agent_paw": None,
     })
 
-
 def _generate_recommendations(targets):
     """Generate recommendations from the evidence-driven lateral technique catalog."""
     try:

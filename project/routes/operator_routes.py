@@ -72,6 +72,8 @@ def register_routes(app):
                 "/pentest/",
                 "/proof-of-access/",
                 "/scan/status/",
+                "/api/mission",
+                "/mission/",
             )
         )
         if wants_json:

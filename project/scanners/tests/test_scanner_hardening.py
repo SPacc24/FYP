@@ -331,6 +331,13 @@ class ScannerHardeningTests(unittest.TestCase):
         self.assertEqual(custom["policy_resolution"], "explicit_disabled_wins")
         self.assertRegex(custom["effective_policy_sha256"], r"^[0-9a-f]{64}$")
 
+    def test_full_recon_without_checkbox_data_has_core_collectors(self):
+        options = normalise_scan_options("full")
+        self.assertTrue(options["enabled_tools"])
+        self.assertIn("tcp_discovery", options["enabled_tools"])
+        self.assertIn("service_fingerprint", options["enabled_tools"])
+        self.assertEqual(options["policy_conflicts"], [])
+
     def test_http_error_response_is_not_success_or_retained_evidence(self):
         error = urllib.error.HTTPError(
             "http://example.invalid/missing",

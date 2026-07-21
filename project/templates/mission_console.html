@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mission Console · AutoPenTest</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <style>
+    :root {
+      --bg:#0b1220; --panel:#121a2b; --panel2:#182338; --line:#243149;
+      --text:#e8eef9; --muted:#93a0b8; --accent:#3dd6c6; --warn:#f0b429;
+      --danger:#f07178; --ok:#7fd99a; --info:#6cb6ff;
+    }
+    body.mission-body { margin:0; background:radial-gradient(1200px 600px at 10% -10%, #16304f 0%, var(--bg) 55%); color:var(--text); font-family: ui-sans-serif, system-ui, sans-serif; }
+    .mission-wrap { max-width:1400px; margin:0 auto; padding:1.25rem 1.5rem 3rem; }
+    .mission-hero { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin:1rem 0 1.25rem; }
+    .mission-hero h1 { margin:0 0 .35rem; font-size:1.6rem; letter-spacing:.02em; }
+    .mission-hero p { margin:0; color:var(--muted); max-width:58ch; line-height:1.45; }
+    .usp { font-size:.92rem; border-left:3px solid var(--accent); padding-left:.75rem; color:#c9d7ef; }
+    .grid { display:grid; grid-template-columns: 320px 1fr; gap:1rem; }
+    @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+    .panel { background:linear-gradient(180deg, var(--panel), var(--panel2)); border:1px solid var(--line); border-radius:14px; padding:1rem; box-shadow:0 10px 30px rgba(0,0,0,.25); }
+    .panel h2 { margin:0 0 .75rem; font-size:1rem; text-transform:uppercase; letter-spacing:.08em; color:#b7c6e0; }
+    .btn { appearance:none; border:1px solid var(--line); background:#1c2940; color:var(--text); border-radius:10px; padding:.55rem .85rem; cursor:pointer; font-weight:600; }
+    .btn:hover { border-color:#3a4f75; }
+    .btn.primary { background:linear-gradient(180deg,#2bb8aa,#1f8f84); border-color:#2bb8aa; color:#041412; }
+    .btn.danger { background:#3a1d24; border-color:#7a303b; color:#ffc7cc; }
+    .btn.warn { background:#3a3018; border-color:#7a6526; color:#ffe6a1; }
+    .btn.ghost { background:transparent; }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    label { display:block; font-size:.8rem; color:var(--muted); margin:.55rem 0 .25rem; }
+    select, input, textarea { width:100%; box-sizing:border-box; background:#0d1524; border:1px solid var(--line); color:var(--text); border-radius:10px; padding:.55rem .7rem; }
+    textarea { min-height:72px; resize:vertical; }
+    .missions-list { display:flex; flex-direction:column; gap:.5rem; max-height:420px; overflow:auto; }
+    .mission-card { text-align:left; border:1px solid var(--line); background:#0f1728; border-radius:12px; padding:.7rem .8rem; cursor:pointer; }
+    .mission-card.active { border-color:var(--accent); box-shadow:0 0 0 1px rgba(61,214,198,.35); }
+    .mission-card .id { font-family:ui-monospace, monospace; font-size:.75rem; color:var(--muted); }
+    .pill { display:inline-flex; align-items:center; gap:.3rem; border-radius:999px; padding:.15rem .55rem; font-size:.72rem; font-weight:700; letter-spacing:.03em; text-transform:uppercase; }
+    .pill.running,.pill.awaiting_approval,.pill.awaiting_operator,.pill.blocked_unlock { background:#243556; color:#cfe0ff; }
+    .pill.completed { background:#1d3a2a; color:#a7efbc; }
+    .pill.aborted,.pill.failed { background:#3a1d24; color:#ffb4ba; }
+    .stages { display:flex; flex-wrap:wrap; gap:.4rem; margin:.75rem 0 1rem; }
+    .stage { border:1px solid var(--line); border-radius:999px; padding:.28rem .65rem; font-size:.78rem; color:var(--muted); }
+    .stage.active { border-color:var(--accent); color:var(--accent); }
+    .stage.completed { border-color:#3d7a55; color:var(--ok); }
+    .stage.skipped { opacity:.6; text-decoration:line-through; }
+    .cols { display:grid; grid-template-columns: 1.1fr .9fr; gap:1rem; }
+    @media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } }
+    table { width:100%; border-collapse:collapse; font-size:.86rem; }
+    th, td { border-bottom:1px solid var(--line); padding:.45rem .35rem; text-align:left; vertical-align:top; }
+    th { color:var(--muted); font-weight:600; font-size:.75rem; text-transform:uppercase; letter-spacing:.05em; }
+    .flags { display:flex; flex-wrap:wrap; gap:.35rem; }
+    .flag { background:#1a2740; border:1px solid #314666; border-radius:8px; padding:.2rem .45rem; font-size:.75rem; font-family:ui-monospace,monospace; }
+    .log { max-height:220px; overflow:auto; font-family:ui-monospace,monospace; font-size:.75rem; color:#b7c6e0; background:#0a1220; border-radius:10px; padding:.6rem; border:1px solid var(--line); }
+    .log div { padding:.15rem 0; border-bottom:1px dashed #1d2a40; }
+    .graph { min-height:180px; background:#0a1220; border:1px solid var(--line); border-radius:12px; padding:.75rem; }
+    .node { display:inline-block; margin:.25rem; padding:.35rem .55rem; border-radius:8px; border:1px solid #334b72; background:#142038; font-size:.78rem; }
+    .node.host { border-color:#3dd6c6; }
+    .node.service { border-color:#6cb6ff; }
+    .node.module { border-color:#f0b429; }
+    .node.web_profile { border-color:#f07178; }
+    .empty { color:var(--muted); font-size:.9rem; padding:.5rem 0; }
+    .row-actions { display:flex; flex-wrap:wrap; gap:.35rem; margin-top:.35rem; }
+    .metric { display:flex; gap:1rem; flex-wrap:wrap; margin:.5rem 0 1rem; }
+    .metric .m { background:#0f1728; border:1px solid var(--line); border-radius:12px; padding:.55rem .8rem; min-width:110px; }
+    .metric .m b { display:block; font-size:1.15rem; }
+    .metric .m span { color:var(--muted); font-size:.75rem; }
+    .hidden { display:none !important; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:.75rem; }
+    .note { color:var(--muted); font-size:.82rem; line-height:1.4; }
+  </style>
+</head>
+<body class="mission-body">
+  {% include "navbar.html" %}
+  <div class="mission-wrap">
+    <div class="mission-hero">
+      <div>
+        <h1>Mission Console</h1>
+        <p class="usp">Evidence drives a closed loop of safe actions. Policy + humans unlock impact. When a path dies, the system branches — it does not end the engagement.</p>
+      </div>
+      <div class="toolbar">
+        <a class="btn ghost" href="{{ url_for('index') }}">← Dashboard</a>
+        <button class="btn" id="btnRefresh">Refresh</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <aside class="panel">
+        <h2>Start mission</h2>
+        <label for="playbook">Playbook</label>
+        <select id="playbook">
+          {% for pb in playbooks %}
+          <option value="{{ pb.id }}" {% if pb.default %}selected{% endif %}>{{ pb.title }}</option>
+          {% endfor %}
+        </select>
+        <label for="risk">Risk posture</label>
+        <select id="risk">
+          <option value="validate">validate (safe auto + gated impact)</option>
+          <option value="safe-only">safe-only (no impact queue)</option>
+        </select>
+        <label for="scanId">Scan ID (optional)</label>
+        <input id="scanId" placeholder="from completed scan" />
+        <label for="demoTarget">Demo evidence target IP</label>
+        <input id="demoTarget" value="10.10.10.20" />
+        <label for="demoProfile">Demo surface profile</label>
+        <select id="demoProfile">
+          <option value="web_smb_patched">Web + SMB (MS17 absent — branch)</option>
+          <option value="web_only">Web only (impact unlock)</option>
+          <option value="smb_ms17">SMB + MS17 CVE evidence</option>
+          <option value="unknown">Unknown service (research queue)</option>
+        </select>
+        <label for="notes">Notes</label>
+        <textarea id="notes" placeholder="Authorisation / engagement notes"></textarea>
+        <div class="toolbar" style="margin-top:.8rem">
+          <button class="btn primary" id="btnStart">Start closed-loop mission</button>
+        </div>
+        <p class="note">No module paths are hardcoded in Python. Catalog + playbook JSON decide actions. High-risk items always wait for approval.</p>
+
+        <h2 style="margin-top:1.25rem">Missions</h2>
+        <div class="missions-list" id="missionsList">
+          {% for m in missions %}
+          <div class="mission-card {% if active_mission_id and m.mission_id == active_mission_id %}active{% endif %}" data-id="{{ m.mission_id }}">
+            <div class="id">{{ m.mission_id }}</div>
+            <div><strong>{{ m.playbook_title or m.playbook_id }}</strong></div>
+            <div><span class="pill {{ m.status }}">{{ m.status }}</span>
+              <span class="note"> · {{ m.pending_approvals or 0 }} pending</span></div>
+          </div>
+          {% else %}
+          <div class="empty">No missions yet. Start one above.</div>
+          {% endfor %}
+        </div>
+      </aside>
+
+      <main class="panel" id="detailPanel">
+        <div id="emptyDetail" class="{% if active_mission %}hidden{% endif %}">
+          <h2>No mission selected</h2>
+          <p class="empty">Start a mission or pick one from the list to inspect the attack graph, branch events, approvals, and debrief.</p>
+        </div>
+        <div id="detail" class="{% if not active_mission %}hidden{% endif %}">
+          <div class="toolbar">
+            <button class="btn" id="btnContinue">Continue stage</button>
+            <button class="btn" id="btnAdvance">Re-evaluate</button>
+            <button class="btn warn" id="btnProof">Attach foothold proof</button>
+            <button class="btn danger" id="btnAbort">Abort</button>
+          </div>
+          <div id="headerBlock"></div>
+          <div class="stages" id="stages"></div>
+          <div class="metric" id="metrics"></div>
+          <div class="cols">
+            <div>
+              <h2>Action queue</h2>
+              <div id="queue"></div>
+              <h2 style="margin-top:1rem">Branch events</h2>
+              <div id="branches"></div>
+              <h2 style="margin-top:1rem">Research queue</h2>
+              <div id="research"></div>
+            </div>
+            <div>
+              <h2>Attack graph</h2>
+              <div class="graph" id="graph"></div>
+              <h2 style="margin-top:1rem">Flags</h2>
+              <div class="flags" id="flags"></div>
+              <h2 style="margin-top:1rem">Proofs</h2>
+              <div id="proofs"></div>
+              <h2 style="margin-top:1rem">Event log</h2>
+              <div class="log" id="log"></div>
+              <h2 style="margin-top:1rem">Debrief</h2>
+              <div id="debrief"></div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+  const csrf = {{ (operator_csrf_token or '')|tojson }};
+  let activeId = {{ (active_mission_id or '')|tojson }} || null;
+  let mission = {{ (active_mission or none)|tojson }};
+
+  function headers() {
+    const h = {'Content-Type': 'application/json'};
+    if (csrf) h['X-CSRF-Token'] = csrf;
+    return h;
+  }
+
+  async function api(path, opts={}) {
+    const res = await fetch(path, {
+      method: opts.method || 'GET',
+      headers: headers(),
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      credentials: 'same-origin',
+    });
+    const data = await res.json().catch(() => ({ok:false,error:'Invalid JSON'}));
+    if (!res.ok || data.ok === false) throw new Error(data.error || res.statusText);
+    return data;
+  }
+
+  function demoEvidence() {
+    const target = document.getElementById('demoTarget').value.trim() || '10.10.10.20';
+    const profile = document.getElementById('demoProfile').value;
+    if (profile === 'web_only') {
+      return { target, hosts:[{ip:target, ports:[
+        {port:80, state:'open', service:'http', product:'Apache'},
+      ]}]};
+    }
+    if (profile === 'smb_ms17') {
+      return { target, hosts:[{ip:target, ports:[
+        {port:445, state:'open', service:'microsoft-ds', product:'Windows'},
+      ]}], vulnerabilities:[{host:target, port:445, cve:'CVE-2017-0144'}]};
+    }
+    if (profile === 'unknown') {
+      return { target, hosts:[{ip:target, ports:[
+        {port:31337, state:'open', service:'unknown', product:'CustomApp'},
+      ]}]};
+    }
+    // web + smb patched (no MS17 cve)
+    return { target, hosts:[{ip:target, ports:[
+      {port:80, state:'open', service:'http', product:'Apache'},
+      {port:445, state:'open', service:'microsoft-ds', product:'Windows'},
+      {port:22, state:'open', service:'ssh'},
+    ]}]};
+  }
+
+  function renderList(missions) {
+    const box = document.getElementById('missionsList');
+    if (!missions.length) {
+      box.innerHTML = '<div class="empty">No missions yet.</div>';
+      return;
+    }
+    box.innerHTML = missions.map(m => `
+      <div class="mission-card ${m.mission_id===activeId?'active':''}" data-id="${m.mission_id}">
+        <div class="id">${m.mission_id}</div>
+        <div><strong>${m.playbook_title || m.playbook_id}</strong></div>
+        <div><span class="pill ${m.status}">${m.status}</span>
+          <span class="note"> · ${m.pending_approvals||0} pending · proofs ${m.proof_count||0}</span></div>
+      </div>`).join('');
+    box.querySelectorAll('.mission-card').forEach(el => {
+      el.addEventListener('click', () => loadMission(el.dataset.id));
+    });
+  }
+
+  function esc(s) {
+    const map = {'&': '&' + 'amp;', '<': '&' + 'lt;', '>': '&' + 'gt;', '"': '&' + 'quot;', "'": '&#39;'};
+    return String(s ?? '').replace(/[&<>"']/g, ch => map[ch]);
+  }
+
+  function renderMission(m) {
+    mission = m;
+    activeId = m.mission_id;
+    document.getElementById('emptyDetail').classList.add('hidden');
+    document.getElementById('detail').classList.remove('hidden');
+    document.getElementById('headerBlock').innerHTML = `
+      <h2 style="margin:0">${esc(m.playbook_title)}</h2>
+      <div class="note">${esc(m.mission_id)} · <span class="pill ${esc(m.status)}">${esc(m.status)}</span>
+        · stage <strong>${esc(m.current_stage_id)}</strong> · posture <strong>${esc(m.risk_posture)}</strong></div>
+      <p class="note" style="margin-top:.4rem">${esc(m.goal)}</p>`;
+
+    document.getElementById('stages').innerHTML = (m.stages||[]).map(s =>
+      `<span class="stage ${esc(s.status)}">${esc(s.title)}</span>`
+    ).join('');
+
+    const graph = m.attack_graph || {};
+    const stats = graph.stats || {};
+    document.getElementById('metrics').innerHTML = `
+      <div class="m"><b>${stats.hosts||0}</b><span>Hosts</span></div>
+      <div class="m"><b>${stats.services||0}</b><span>Services</span></div>
+      <div class="m"><b>${stats.catalog_matches||0}</b><span>Catalog matches</span></div>
+      <div class="m"><b>${(m.pending_approvals||[]).length}</b><span>Awaiting approval</span></div>
+      <div class="m"><b>${(m.proofs||[]).length}</b><span>Proofs</span></div>`;
+
+    const queue = m.action_queue || [];
+    if (!queue.length) {
+      document.getElementById('queue').innerHTML = '<div class="empty">Queue empty.</div>';
+    } else {
+      document.getElementById('queue').innerHTML = `<table><thead><tr>
+        <th>Action</th><th>Target</th><th>Risk</th><th>Status</th><th></th></tr></thead><tbody>
+        ${queue.map(a => `<tr>
+          <td><strong>${esc(a.title)}</strong><div class="note">${esc(a.catalog_key||a.kind)} · ${esc(a.module_type||'')}</div></td>
+          <td>${esc(a.target)}${a.port?':'+a.port:''}</td>
+          <td>${esc(a.risk)}</td>
+          <td>${esc(a.status)}</td>
+          <td>${a.status==='awaiting_approval' ? `
+            <div class="row-actions">
+              <button class="btn primary btn-approve" data-id="${esc(a.queue_id)}">Approve</button>
+              <button class="btn danger btn-skip" data-id="${esc(a.queue_id)}">Skip</button>
+            </div>` : ''}</td>
+        </tr>`).join('')}
+        </tbody></table>`;
+      document.querySelectorAll('.btn-approve').forEach(b => b.onclick = () => approve(b.dataset.id, true));
+      document.querySelectorAll('.btn-skip').forEach(b => b.onclick = () => approve(b.dataset.id, false));
+    }
+
+    const branches = m.branch_events || [];
+    document.getElementById('branches').innerHTML = branches.length
+      ? branches.map(b => `<div class="note" style="margin:.35rem 0"><strong>${esc(b.branch_id)}</strong> — ${esc(b.message)}</div>`).join('')
+      : '<div class="empty">No branches fired yet.</div>';
+
+    const research = m.research_queue || [];
+    document.getElementById('research').innerHTML = research.length
+      ? `<table><thead><tr><th>Surface</th><th>Hints</th><th>Reason</th></tr></thead><tbody>
+        ${research.map(r => `<tr><td>${esc(r.target)}:${esc(r.port)}/${esc(r.service)}</td>
+        <td>${esc((r.recommended_class_hints||[]).join(', '))}</td>
+        <td class="note">${esc(r.reason)}</td></tr>`).join('')}
+        </tbody></table>`
+      : '<div class="empty">No unknown surfaces.</div>';
+
+    const nodes = graph.nodes || [];
+    document.getElementById('graph').innerHTML = nodes.length
+      ? nodes.filter(n => n.kind !== 'zone').map(n =>
+          `<span class="node ${esc(n.kind)}" title="${esc(n.status)}">${esc(n.label)}</span>`
+        ).join('')
+      : '<div class="empty">Graph empty — ingest scan evidence.</div>';
+
+    document.getElementById('flags').innerHTML = (m.flags||[]).length
+      ? (m.flags||[]).map(f => `<span class="flag">${esc(f)}</span>`).join('')
+      : '<span class="empty">No evidence flags.</span>';
+
+    document.getElementById('proofs').innerHTML = (m.proofs||[]).length
+      ? (m.proofs||[]).map(p => `<div class="note"><strong>${esc(p.proof_id)}</strong> ${esc(p.evidence)}</div>`).join('')
+      : '<div class="empty">No proofs yet — attach after validated impact.</div>';
+
+    document.getElementById('log').innerHTML = (m.event_log||[]).slice().reverse().slice(0,80)
+      .map(e => `<div>[${esc((e.at||'').slice(11,19))}] <strong>${esc(e.kind)}</strong> ${esc(e.message)}</div>`).join('')
+      || '<div>No events.</div>';
+
+    const d = m.debrief;
+    document.getElementById('debrief').innerHTML = d ? `
+      <div class="note"><strong>Goal status:</strong> ${esc(d.goal_status)}</div>
+      <div class="note"><strong>Confirmed findings:</strong> ${esc(d.confirmed_findings_count)}</div>
+      <ul>${(d.professional_notes||[]).map(n => `<li class="note">${esc(n)}</li>`).join('')}</ul>
+      ${(d.blue_team_timeline||[]).length ? `<h3 style="font-size:.9rem">Blue-team timeline</h3>
+        <ul>${d.blue_team_timeline.map(t => `<li class="note"><strong>${esc(t.severity)}</strong> ${esc(t.alert)} → ${esc(t.response)}</li>`).join('')}</ul>` : ''}
+    ` : '<div class="empty">Debrief compiles at mission end.</div>';
+  }
+
+  async function refreshList() {
+    const data = await api('/api/mission/list');
+    renderList(data.missions || []);
+  }
+
+  async function loadMission(id) {
+    const data = await api('/api/mission/' + id);
+    renderMission(data.mission);
+    await refreshList();
+  }
+
+  async function startMission() {
+    const body = {
+      playbook_id: document.getElementById('playbook').value,
+      risk_posture: document.getElementById('risk').value,
+      scan_id: document.getElementById('scanId').value.trim(),
+      notes: document.getElementById('notes').value,
+      parsed_results: demoEvidence(),
+    };
+    const data = await api('/api/mission/start', {method:'POST', body});
+    renderMission(data.mission);
+    await refreshList();
+  }
+
+  async function approve(id, approved) {
+    const data = await api(`/api/mission/${activeId}/approve`, {
+      method:'POST', body:{ action_queue_id:id, approved }
+    });
+    renderMission(data.mission);
+    await refreshList();
+  }
+
+  document.getElementById('btnStart').onclick = () => startMission().catch(e => alert(e.message));
+  document.getElementById('btnRefresh').onclick = () => {
+    refreshList().then(() => activeId && loadMission(activeId)).catch(e => alert(e.message));
+  };
+  document.getElementById('btnContinue').onclick = () => {
+    api(`/api/mission/${activeId}/continue`, {method:'POST', body:{}}).then(d => {
+      renderMission(d.mission); return refreshList();
+    }).catch(e => alert(e.message));
+  };
+  document.getElementById('btnAdvance').onclick = () => {
+    api(`/api/mission/${activeId}/advance`, {method:'POST', body:{}}).then(d => {
+      renderMission(d.mission); return refreshList();
+    }).catch(e => alert(e.message));
+  };
+  document.getElementById('btnAbort').onclick = () => {
+    if (!confirm('Abort this mission?')) return;
+    api(`/api/mission/${activeId}/abort`, {method:'POST', body:{reason:'operator abort'}}).then(d => {
+      renderMission(d.mission); return refreshList();
+    }).catch(e => alert(e.message));
+  };
+  document.getElementById('btnProof').onclick = () => {
+    const evidence = prompt('Proof evidence (required):', 'Interactive shell / reverse callback validated on authorised host');
+    if (!evidence) return;
+    api(`/api/mission/${activeId}/proof`, {
+      method:'POST',
+      body:{ evidence, proof_type:'operator_attested', target: document.getElementById('demoTarget').value }
+    }).then(d => { renderMission(d.mission); return refreshList(); })
+      .catch(e => alert(e.message));
+  };
+
+  document.querySelectorAll('#missionsList .mission-card').forEach(el => {
+    el.addEventListener('click', () => loadMission(el.dataset.id).catch(e => alert(e.message)));
+  });
+
+  if (mission) renderMission(mission);
+  </script>
+</body>
+</html>

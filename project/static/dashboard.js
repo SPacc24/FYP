@@ -204,6 +204,10 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("loadMetasploitActionsBtn")
     ?.addEventListener("click", loadMetasploitActions);
 
+  document.querySelectorAll("[data-msf-cleanup]").forEach(button => {
+    button.addEventListener("click", () => cleanupMetasploitRun(button));
+  });
+
   document.getElementById("copyDeployCommandBtn")
     ?.addEventListener("click", copyDeployCommand);
 
@@ -624,7 +628,7 @@ async function runMetasploitAction(button) {
 
     if (summary) summary.textContent = data.summary || "Metasploit action submitted.";
     appendMetasploitRun(data);
-    button.textContent = data.execution_state === "completed" ? "Done" : "Submitted";
+    button.textContent = metasploitRunLabel(data);
   }
   catch (err) {
     if (summary) summary.textContent = "Metasploit action failed.";
@@ -638,12 +642,16 @@ function appendMetasploitRun(run) {
   if (!tbody) return;
 
   const action = run.action || {};
+  const cleanupButton = run.session_created && !run.session_closed && run.run_id
+    ? `<button class="button secondary" type="button" data-msf-cleanup="${escapeHtml(run.run_id)}">Close session</button>`
+    : "-";
   const row = `
     <tr>
       <td class="mono small">${escapeHtml(run.timestamp || "-")}</td>
       <td class="mono small">${escapeHtml(action.module_type || "-")}/${escapeHtml(action.module_name || "-")}</td>
       <td class="mono">${escapeHtml(action.target || "-")}:${escapeHtml(action.port || "-")}</td>
-      <td class="small">${escapeHtml(run.summary || "Metasploit action completed.")}</td>
+      <td class="small"><strong>${escapeHtml(metasploitRunLabel(run))}</strong><br>${escapeHtml(run.summary || "Metasploit action completed.")}</td>
+      <td>${cleanupButton}</td>
     </tr>
   `;
 
@@ -652,6 +660,50 @@ function appendMetasploitRun(run) {
     tbody.innerHTML = row;
   } else {
     tbody.insertAdjacentHTML("beforeend", row);
+  }
+  const cleanup = tbody.querySelector(`[data-msf-cleanup="${CSS.escape(run.run_id || "")}"]`);
+  if (cleanup) cleanup.addEventListener("click", () => cleanupMetasploitRun(cleanup));
+}
+
+function metasploitRunLabel(run) {
+  if (run.execution_state === "session_closed" || run.session_closed) return "Session closed";
+  if (run.session_created) return "Session opened";
+  if (run.action && run.action.module_type === "exploit" && run.module_completed) {
+    return "Exploit completed — no session";
+  }
+  if (run.execution_state === "errored") return "Execution failed";
+  if (run.validation_outcome === "vulnerable") return "Vulnerable";
+  if (run.validation_outcome === "not_vulnerable") return "Not vulnerable";
+  if (run.module_completed) return "Check completed";
+  return run.execution_state === "submitted" ? "Submitted" : "Running";
+}
+
+async function cleanupMetasploitRun(button) {
+  const runId = button.dataset.msfCleanup;
+  const summary = document.getElementById("metasploitStatusSummary");
+  if (!runId || !window.confirm("Close this target-verified RPC session and stop its remaining job?")) return;
+
+  button.disabled = true;
+  button.textContent = "Closing";
+  try {
+    const res = await fetch(`/pentest/metasploit/run/${encodeURIComponent(runId)}/cleanup`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({approved: true})
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      button.disabled = false;
+      button.textContent = "Retry cleanup";
+      if (summary) summary.textContent = data.error || "Session cleanup failed.";
+      return;
+    }
+    button.textContent = "Session closed";
+    if (summary) summary.textContent = data.record?.summary || "RPC session closed. Revert the target snapshot when ready.";
+  } catch (err) {
+    button.disabled = false;
+    button.textContent = "Retry cleanup";
+    if (summary) summary.textContent = "Session cleanup failed.";
   }
 }
 
