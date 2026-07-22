@@ -16,6 +16,56 @@ from core.services import caldera_client, risk_scorer
 
 log = logging.getLogger(__name__)
 
+
+def _technique_id_from_mapping_item(item) -> str:
+    if not isinstance(item, dict):
+        return ""
+    return str(item.get("id") or item.get("technique_id") or "").strip()
+
+
+def _mapped_technique_ids(mapping_results: dict) -> set[str]:
+    if not isinstance(mapping_results, dict):
+        return set()
+    return {
+        technique_id
+        for technique_id in (
+            _technique_id_from_mapping_item(item)
+            for item in mapping_results.get("recommended_techniques", [])
+        )
+        if technique_id
+    }
+
+
+def _normalise_selected_techniques(value) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    selected = []
+    for item in value:
+        technique_id = str(item or "").strip()
+        if technique_id and technique_id not in selected:
+            selected.append(technique_id)
+    return selected
+
+
+def _allowed_technique_ids_for_mode(
+    mode: str,
+    mapping_results: dict,
+    ai_plan: dict,
+) -> set[str]:
+    mapped_ids = _mapped_technique_ids(mapping_results)
+    if mode == "auto":
+        ai_selected_ids = {
+            str(technique_id).strip()
+            for technique_id in ai_plan.get("selected_technique_ids", [])
+            if str(technique_id or "").strip()
+        }
+        return ai_selected_ids & mapped_ids
+    return mapped_ids
+
+
+def _as_list(value) -> list:
+    return value if isinstance(value, list) else []
+
 def _scan_summary(scan_result, parsed_results):
     return {
         "target_ip": session.get("target_ip", ""),
@@ -54,14 +104,22 @@ def _safe_risk_calculate(vulns, op_results):
 
 
 def _load_current_scan_results():
+    """
+    Prefer the persisted normalised scan package because it contains
+    web_inventory and the other post-Nmap evidence. Fall back to the raw Nmap
+    XML only when no stored result package is available.
+    """
+    scan_id = session.get("scan_id")
+    data = scan_store.load(scan_id) if scan_id else None
+    results = (data or {}).get("results") or {}
+
+    if results:
+        return _stored_results_to_parsed_results(results, data or {})
+
     output_file = session.get("scan_output_file", "")
     if not output_file:
-        scan_id = session.get("scan_id")
-        data = scan_store.load(scan_id) if scan_id else None
-        results = (data or {}).get("results") or {}
-        if results:
-            return _stored_results_to_parsed_results(results, data or {})
         return None
+
     try:
         return parse_nmap_xml(output_file)
     except Exception:
@@ -151,6 +209,18 @@ def _active_validation_results() -> dict:
     return validation if isinstance(validation, dict) else {}
 
 
+def _active_attack_advice() -> dict:
+    data = _active_scan_record()
+    advice = data.get("attack_advice") or session.get("attack_advice") or {}
+    return advice if isinstance(advice, dict) else {}
+
+
+def _active_metasploit_results() -> dict:
+    data = _active_scan_record()
+    results = data.get("metasploit_results") or session.get("metasploit_results") or {}
+    return results if isinstance(results, dict) else {}
+
+
 def _active_operation_results() -> dict:
     data = _active_scan_record()
     operation = data.get("operation_results") or session.get("operation_results") or {}
@@ -188,6 +258,19 @@ def _build_active_report_context(data: dict | None = None) -> dict:
     mapping_results = active.get("mapping") or _active_mapping_results()
     operation_results = active.get("operation_results") or _active_operation_results()
     validation_results = active.get("validation_results") or _active_validation_results()
+    pivot_results = active.get("pivot_assessment") or session.get("pivot_assessment", {})
+    attack_advice = active.get("attack_advice") or _active_attack_advice()
+    metasploit_results = active.get("metasploit_results") or _active_metasploit_results()
+    if isinstance(validation_results, dict) and attack_advice:
+        validation_results = {
+            **validation_results,
+            "attack_advice": attack_advice,
+        }
+    if isinstance(validation_results, dict) and metasploit_results:
+        validation_results = {
+            **validation_results,
+            "metasploit_results": metasploit_results,
+        }
     risk = active.get("risk") or session.get("risk_score", {})
     remediations = active.get("remediations") or session.get("remediations", [])
 
@@ -198,6 +281,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         risk=risk,
         remediations=remediations,
         validation=validation_results,
+        pivot=pivot_results,
     )
 
     return {
@@ -205,6 +289,9 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         "mapping": mapping_results,
         "operation": operation_results,
         "validation": validation_results,
+        "pivot": pivot_results,
+        "attack_advice": attack_advice,
+        "metasploit_results": metasploit_results,
         "risk": risk,
         "remediations": remediations,
         "report": report,
@@ -282,18 +369,46 @@ def _ensure_scan_analysis(data: dict) -> dict:
 
 
 def _current_target_context():
+    active_scan = _active_scan_record()
     parsed_results = _load_current_scan_results() or {}
-    target = (
-        session.get("target_ip")
+
+    selected = (
+        active_scan.get("selected_internal_target")
+        or session.get("selected_internal_target")
+    )
+
+    external_target = (
+        active_scan.get("external_target")
+        or active_scan.get("target")
+        or session.get("external_target_ip")
+        or session.get("target_ip")
         or parsed_results.get("target_ip")
-        or (parsed_results.get("hosts", [{}])[0].get("address", {}).get("primary") if parsed_results.get("hosts") else None)
         or "Unknown"
     )
-    os_name = parsed_results.get("os") or session.get("target_os") or "Windows"
+
+    if isinstance(selected, dict) and selected.get("ip"):
+        target = selected["ip"]
+        os_name = selected.get("os") or "Unknown"
+        source = "pivot_scan"
+    else:
+        target = external_target
+        os_name = (
+            parsed_results.get("os")
+            or session.get("target_os")
+            or "Unknown"
+        )
+        source = "external_scan"
+
     return {
         "target": target,
         "os": os_name,
-        "platform": "windows" if "win" in str(os_name).lower() else "linux",
+        "platform": (
+            "windows"
+            if "win" in str(os_name).lower()
+            else "linux"
+        ),
+        "source": source,
+        "external_target": external_target,
     }
 
 

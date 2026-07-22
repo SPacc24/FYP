@@ -32,13 +32,13 @@
         calderaAgentDelete: "{{ url_for('caldera_agent_delete') }}",
         calderaAgentsRemoveStale: "{{ url_for('caldera_agents_remove_stale') }}",
         calderaAgentSelect: "{{ url_for('caldera_agent_select') }}",
-
-        pentestAdvice: "/pentest/advice",
-        metasploitStatus: "/pentest/metasploit/status",
-        metasploitPropose: "/pentest/metasploit/propose",
-        metasploitRun: "/pentest/metasploit/run",
-
+        pentestAdvice: "{{ url_for('pentest_advice') }}",
         exploitationRun: "{{ url_for('exploitation_run') }}",
+        metasploitStatus: "{{ url_for('metasploit_status') }}",
+        metasploitPropose: "{{ url_for('metasploit_propose') }}",
+        metasploitRun: "{{ url_for('metasploit_run') }}",
+        webValidationPropose: "{{ url_for('web_validation_propose') }}",
+        webValidationRun: "{{ url_for('web_validation_run') }}",
         calderaRun: "{{ url_for('caldera_run') }}",
         operationStatus: "{{ url_for('operation_status') }}",
         generateReport: "{{ url_for('generate_report') }}",
@@ -128,6 +128,7 @@
   </footer>
 
   <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+  <script src="{{ url_for('static', filename='web_validation.js') }}"></script>
   <script src="{{ url_for('static', filename='technique_selection.js') }}"></script>
   <script src="{{ url_for('static', filename='ai_chat.js') }}"></script>
 

@@ -43,8 +43,15 @@ def register_routes(app):
                 error_message="No target provided"
             ), 400
 
-        profile = (request.form.get("scan_profile") or "fast").strip().lower()
-        enabled_tools = request.form.getlist("tools")
+        profile = (
+            request.form.get("profile")
+            or request.form.get("scan_profile")
+            or "full"
+        ).strip().lower()
+        enabled_tools = (
+            request.form.getlist("enabled_tools")
+            or request.form.getlist("tools")
+        )
         technique_mode = request.form.get("technique_mode")
 
         if technique_mode not in {"auto", "hybrid", "manual"}:
@@ -52,7 +59,7 @@ def register_routes(app):
 
         scan_options = normalise_scan_options(
             profile,
-            enabled_tools if enabled_tools else None
+            enabled_tools if profile == "custom" or enabled_tools else None
         )
         scan_options["technique_mode"] = technique_mode
 
@@ -77,7 +84,17 @@ def register_routes(app):
             f"Scan requested: target={target} profile={profile} technique_mode={technique_mode}"
         )
 
+        # Starting a new assessment should clear old scan state without
+        # logging out the operator. The hardening change originally erased
+        # these values, causing the progress poll and later Metasploit calls
+        # to fail immediately after a scan was submitted.
+        security_session = {
+            key: session[key]
+            for key in ("operator_authenticated", "_csrf_token")
+            if key in session
+        }
         session.clear()
+        session.update(security_session)
         session["scan_id"] = scan_id
         session["target_ip"] = target
         session["technique_mode"] = technique_mode

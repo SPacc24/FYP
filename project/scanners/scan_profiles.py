@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Iterable, Any
+import hashlib
 import json
 from pathlib import Path
 
@@ -21,7 +22,7 @@ TOOL_OPTIONS = [
     {'id':'passive_os_fingerprinting','label':'Passive OS fingerprinting','category':'Passive','purpose':'Listen-only p0f OS hints from ambient traffic when an interface is approved; no target probes generated.','full':True},
 
     {'id':'environment_characterisation','label':'Environment characterisation','category':'Stage 0','purpose':'Basic reachability and observed behaviour before heavier enumeration.','full':True},
-    {'id':'tcp_discovery','label':'Full TCP discovery strategy','category':'Stage 1','purpose':'Top-100 TCP discovery with high-value targeted expansion for enterprise and legacy services.','full':True},
+    {'id':'tcp_discovery','label':'Policy-selected TCP discovery strategy','category':'Stage 1','purpose':'Policy-selected TCP micro-batches with targeted high-value expansion for enterprise and legacy services.','full':True},
     {'id':'udp_discovery','label':'Targeted UDP discovery','category':'Stage 1','purpose':'Top/service-driven UDP discovery for DNS, SNMP, NTP, NetBIOS and NFS/RPC-related surfaces.','full':True},
     {'id':'service_fingerprint','label':'All observed service identity','category':'Stage 1','purpose':'Banner-first product/version/CPE collection for every observed and high-value service.','full':True},
     {'id':'httpx','label':'HTTP technology hints','category':'Objective','purpose':'Low-impact HTTP status/title/technology hints where ProjectDiscovery httpx is available.','full':True},
@@ -63,15 +64,31 @@ VALID_TOOL_IDS = {tool['id'] for tool in TOOL_OPTIONS}
 PROFILE_LABELS = {'full':'Full Recon','custom':'Custom Recon'}
 
 
-def _load_profile_policy() -> dict[str, Any]:
+def _load_profile_policy() -> tuple[dict[str, Any], str, str]:
     candidates = [Path('project/policies/recon_policy.json'), Path('policies/recon_policy.json')]
     path = next((x for x in candidates if x.exists()), None)
     if path is None:
-        return {}
+        return {}, 'missing', ''
     try:
-        return json.loads(path.read_text(encoding='utf-8'))
+        raw = path.read_bytes()
+        data = json.loads(raw.decode('utf-8'))
+        return data, 'loaded', hashlib.sha256(raw).hexdigest()
     except Exception:
-        return {}
+        return {}, 'invalid', ''
+
+
+def _resolve_enabled_tools(policy: dict[str, Any], requested: Iterable[str]) -> tuple[list[str], list[str]]:
+    requested_set = {str(value) for value in requested if str(value) in VALID_TOOL_IDS}
+    explicitly_disabled = {
+        str(value)
+        for value in policy.get('automatic_collectors_disabled') or []
+        if str(value) in VALID_TOOL_IDS
+    }
+    # Explicit policy disablement always wins. The conflict list is retained so
+    # the operator can repair the source policy instead of receiving a silent,
+    # ambiguous tool selection.
+    conflicts = sorted(requested_set & explicitly_disabled)
+    return sorted(requested_set - explicitly_disabled), conflicts
 
 
 def profile_tool_ids(profile: str | None = None) -> list[str]:
@@ -79,11 +96,16 @@ def profile_tool_ids(profile: str | None = None) -> list[str]:
     profile_key = (profile or 'full').lower()
     if profile_key == 'custom':
         return []
-    policy = _load_profile_policy()
-    configured = policy.get('full_recon_enabled_tools') or []
-    if configured:
-        return [str(x) for x in configured if str(x) in VALID_TOOL_IDS]
-    return [tool['id'] for tool in TOOL_OPTIONS if tool.get('full')]
+    policy, status, _policy_hash = _load_profile_policy()
+    if status != 'loaded':
+        return []
+    configured = (
+        policy.get('full_recon_enabled_tools')
+        or policy.get('default_enabled_tools')
+        or [tool['id'] for tool in TOOL_OPTIONS if tool.get('full')]
+    )
+    enabled, _conflicts = _resolve_enabled_tools(policy, configured)
+    return enabled
 
 
 def normalise_scan_options(profile: str | None = None, enabled_tools: Iterable[str] | None = None) -> dict[str, Any]:
@@ -94,13 +116,22 @@ def normalise_scan_options(profile: str | None = None, enabled_tools: Iterable[s
     if profile_key not in PROFILE_LABELS:
         profile_key = 'full'
 
+    policy, policy_status, policy_hash = _load_profile_policy()
     if profile_key == 'custom':
-        selected = {str(x) for x in (enabled_tools or []) if str(x) in VALID_TOOL_IDS}
+        requested = {str(x) for x in (enabled_tools or []) if str(x) in VALID_TOOL_IDS}
     elif enabled_tools is not None:
         # Full can still honour posted toggles when the UI sends them; otherwise default to full policy.
-        selected = {str(x) for x in enabled_tools if str(x) in VALID_TOOL_IDS}
+        requested = {str(x) for x in enabled_tools if str(x) in VALID_TOOL_IDS}
     else:
-        selected = set(profile_tool_ids('full'))
+        configured = (
+            policy.get('full_recon_enabled_tools')
+            or policy.get('default_enabled_tools')
+            or [tool['id'] for tool in TOOL_OPTIONS if tool.get('full')]
+        ) if policy_status == 'loaded' else []
+        requested = set(configured)
+
+    selected_list, conflicts = _resolve_enabled_tools(policy, requested)
+    selected = set(selected_list)
 
     disabled = VALID_TOOL_IDS - selected
     return {
@@ -111,6 +142,10 @@ def normalise_scan_options(profile: str | None = None, enabled_tools: Iterable[s
         'enabled_tool_labels': [tool['label'] for tool in TOOL_OPTIONS if tool['id'] in selected],
         'disabled_tool_labels': [tool['label'] for tool in TOOL_OPTIONS if tool['id'] in disabled],
         'objective_driven': True,
+        'policy_status': policy_status,
+        'effective_policy_sha256': policy_hash,
+        'policy_conflicts': conflicts,
+        'policy_resolution': 'explicit_disabled_wins',
     }
 
 

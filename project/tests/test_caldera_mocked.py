@@ -20,6 +20,7 @@ def test_readiness_with_online_agent(tmp_path):
                 "platform": "windows",
                 "group": "red",
                 "trusted": True,
+                "alive": True,
                 "last_seen": "2026-04-28T10:00:00"
             }
         ],
@@ -57,6 +58,57 @@ def test_readiness_with_no_agent(tmp_path):
     assert result["caldera_reachable"] is True
     assert result["agent_ready"] is False
 
+
+def test_agent_normalisation_rejects_unknown_liveness_and_invalid_ips():
+    client = CalderaClient(base_url="http://caldera.test", api_key="TESTKEY")
+
+    agent = client._normalise_agent({
+        "paw": " abc123 ",
+        "host": "victim-win10",
+        "trusted": True,
+        "host_ip_addrs": ["10.0.0.5", "999.999.999.999", "10.0.0.5", "not-an-ip"],
+    })
+
+    assert agent["paw"] == "abc123"
+    assert agent["lifecycle"] == "unknown"
+    assert agent["alive"] is False
+    assert agent["status"] == "Unknown"
+    assert agent["ip_addresses"] == ["10.0.0.5"]
+    assert agent["host_ip_addrs"] == ["10.0.0.5"]
+    assert agent["ip"] == "10.0.0.5"
+
+
+def test_readiness_requires_target_ip_match_for_targeted_status(tmp_path):
+    class FakeClient:
+        def get_agents_normalized(self):
+            return [
+                {
+                    "paw": "abc123",
+                    "host": "victim-win10",
+                    "ip_addresses": ["10.0.0.9"],
+                    "host_ip_addrs": ["10.0.0.9"],
+                    "platform": "windows",
+                    "group": "red",
+                    "trusted": True,
+                    "alive": True,
+                    }
+                ]
+
+        def get_online_agents(self):
+            return self.get_agents_normalized()
+
+    manager = OperationManager(FakeClient(), log_dir=tmp_path)
+    result = manager.check_readiness(target="10.0.0.5")
+
+    assert result["ok"] is True
+    assert result["agent_ready"] is False
+    assert result["target_match_type"] == "none"
+    assert result["rejection_reason"] == (
+        "Caldera reachable - trusted agents exist, but none match the scanned target"
+    )
+    assert result["online_agents"][0]["paw"] == "abc123"
+
+
 @responses.activate
 def test_start_operation_success(tmp_path):
     base_url = "http://caldera.test"
@@ -70,7 +122,8 @@ def test_start_operation_success(tmp_path):
                 "host": "victim-win10",
                 "platform": "windows",
                 "group": "red",
-                "trusted": True
+                "trusted": True,
+                "alive": True
             }
         ],
         status=200

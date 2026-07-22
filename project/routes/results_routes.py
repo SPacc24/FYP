@@ -161,6 +161,7 @@ def register_routes(app):
         return jsonify({
             "ok": True,
             "report": context["report"],
+            "pivot": context["pivot"],
             "report_url": url_for("report_view"),
             "download_url": url_for("export_report"),
         })
@@ -226,6 +227,7 @@ def register_routes(app):
             risk=context["risk"],
             remediations=context["remediations"],
             validation=context["validation"],
+            pivot=context["pivot"],
         )
 
         return send_file(

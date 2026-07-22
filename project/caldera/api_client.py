@@ -1,7 +1,7 @@
 
 import os
 import logging
-import re
+import ipaddress
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 from typing import Any
@@ -85,50 +85,103 @@ class CalderaClient:
                 return nested
         return []
 
-    def _agent_is_alive(self, agent):
-        raw = agent.get("alive")
-        if raw is not None:
-            return self._normalise_bool(raw)
-        status = str(agent.get("status") or agent.get("state") or "").lower()
-        if status in {"dead", "offline", "untrusted"}:
-            return False
-        if status in {"alive", "online", "trusted", "running"}:
-            return True
-        return True
+    def _agent_lifecycle(self, agent):
+        raw_alive = agent.get("alive")
+
+        if raw_alive is True:
+            return "online"
+
+        if raw_alive is False:
+            return "offline"
+
+        if isinstance(raw_alive, str):
+            value = raw_alive.strip().lower()
+
+            if value in {"true", "alive", "online", "running", "1"}:
+                return "online"
+
+            if value in {"false", "dead", "offline", "stopped", "0"}:
+                return "offline"
+
+            return "unknown"
+
+        status = str(
+            agent.get("status")
+            or agent.get("state")
+            or ""
+        ).strip().lower()
+
+        if status in {"alive", "online", "running"}:
+            return "online"
+
+        if status in {"dead", "offline", "stopped"}:
+            return "offline"
+
+        return "unknown"
+
+    def _normalise_ip_addresses(self, raw):
+        if isinstance(raw, list):
+            candidates = raw
+        else:
+            text = str(raw or "").replace(";", ",")
+            candidates = [
+                item.strip()
+                for item in text.split(",")
+                if item.strip()
+            ]
+
+        addresses = []
+
+        for candidate in candidates:
+            try:
+                address = str(ipaddress.ip_address(candidate))
+            except ValueError:
+                continue
+
+            if address not in addresses:
+                addresses.append(address)
+
+        return addresses
 
     def _normalise_agent(self, agent):
         trusted = self._normalise_bool(agent.get("trusted"))
         host = agent.get("host") or agent.get("host_name") or agent.get("hostname") or "unknown"
         last_seen = agent.get("last_seen") or agent.get("last_seen_time") or agent.get("last_seen_at")
-        ip = (
+        raw_ips = (
             agent.get("host_ip_addrs")
             or agent.get("host_ip")
             or agent.get("host_ipv4")
             or agent.get("host_address")
             or agent.get("ip")
             or agent.get("address")
-            or ""
+            or []
         )
-        if isinstance(ip, list):
-            host_ip_addrs = [str(item) for item in ip if item]
-            ip = ", ".join(host_ip_addrs)
-        else:
-            host_ip_addrs = re.findall(r"(?:\d{1,3}\.){3}\d{1,3}", str(ip))
-            ip = ", ".join(host_ip_addrs) or str(ip or "")
+
+        ip_addresses = self._normalise_ip_addresses(raw_ips)
+        lifecycle = self._agent_lifecycle(agent)
 
         return {
-            "paw": agent.get("paw"),
+            "paw": str(agent.get("paw") or "").strip(),
             "host": host,
             "hostname": host,
-            "ip": ip,
-            "host_ip_addrs": host_ip_addrs,
-            "platform": agent.get("platform") or agent.get("os") or agent.get("architecture") or "unknown",
+            "ip_addresses": ip_addresses,
+
+            # Compatibility fields for existing code.
+            "host_ip_addrs": ip_addresses,
+            "ip": ", ".join(ip_addresses),
+
+            "platform": (
+                agent.get("platform")
+                or agent.get("os")
+                or agent.get("architecture")
+                or "unknown"
+            ),
             "group": agent.get("group"),
             "last_seen": last_seen,
             "trusted": trusted,
-            "alive": self._agent_is_alive(agent),
-            "status": "Online" if self._agent_is_alive(agent) else "Offline",
-            "raw": agent,
+            "lifecycle": lifecycle,
+            "alive": lifecycle == "online",
+            "status": lifecycle.title(),
         }
 
     def get_agents_normalized(self):

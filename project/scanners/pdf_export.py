@@ -72,7 +72,7 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.units import mm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, CondPageBreak
     except ModuleNotFoundError:
         return _minimal_pdf(scan, results)
 
@@ -103,6 +103,42 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
     story.append(t)
     story.append(Spacer(1, 8))
+
+    policy = results.get('scan_options') or {}
+    policy_rows = [
+        ['Policy status', policy.get('policy_status', '')],
+        ['Policy SHA-256', policy.get('effective_policy_sha256', '')],
+        ['Policy conflict resolution', policy.get('policy_resolution', '')],
+        ['Disabled conflicting collectors', ', '.join(policy.get('policy_conflicts') or []) or 'None'],
+    ]
+    story.append(Paragraph('Effective Scan Policy', styles['Heading2']))
+    policy_table = Table([[_para(a, styles['Cell']), _para(b, styles['SmallWrap'])] for a, b in policy_rows], colWidths=[55*mm, 213*mm])
+    policy_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#f3f3f3')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+    story.append(policy_table)
+    story.append(Spacer(1, 6))
+
+    coverage = results.get('scan_coverage') or {}
+    if coverage:
+        coverage_rows = [[_para(x, styles['Cell']) for x in ['Host', 'TCP requested', 'TCP open', 'UDP requested', 'UDP open']]]
+        tcp_rows = coverage.get('tcp') or {}
+        udp_rows = coverage.get('udp') or {}
+        for host in sorted(set(tcp_rows) | set(udp_rows)):
+            tcp = tcp_rows.get(host) or {}
+            udp = udp_rows.get(host) or {}
+            coverage_rows.append([
+                _para(host, styles['SmallWrap']),
+                _para(tcp.get('explicit_port_count', 0), styles['SmallWrap']),
+                _para(tcp.get('open_port_count', 0), styles['SmallWrap']),
+                _para(udp.get('requested_port_count', 0), styles['SmallWrap']),
+                _para(len(udp.get('open_ports_observed') or []), styles['SmallWrap']),
+            ])
+        story.append(Paragraph('Port Coverage and Limitations', styles['Heading2']))
+        coverage_table = Table(coverage_rows, repeatRows=1, colWidths=[68*mm,50*mm,50*mm,50*mm,50*mm])
+        coverage_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(coverage_table)
+        for limitation in coverage.get('limitations') or []:
+            story.append(Paragraph('• ' + _p(limitation), styles['Muted']))
+        story.append(Spacer(1, 6))
 
     if results.get('pentester_summary'):
         story.append(Paragraph('Pentester Summary', styles['Heading2']))
@@ -147,6 +183,7 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
 
     groups = results.get('candidate_cve_groups') or []
     if groups:
+        story.append(CondPageBreak(45 * mm))
         story.append(Paragraph('Candidate CVE References', styles['Heading2']))
         data = [[_para(x, styles['Cell']) for x in ['Host','Ports','Service','Product / Version','References','Reason']]]
         for g in groups[:60]:
@@ -154,6 +191,23 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
             reason = (g.get('references') or [{}])[0].get('reason','')
             data.append([_para(g.get('host',''), styles['SmallWrap']), _para(', '.join(g.get('ports') or []), styles['SmallWrap']), _para(g.get('service',''), styles['SmallWrap']), _para(f"{g.get('product','')} {g.get('version','')}", styles['SmallWrap']), _para(refs, styles['SmallWrap']), _para(reason, styles['SmallWrap'])])
         table = Table(data, repeatRows=1, colWidths=[32*mm,32*mm,28*mm,56*mm,58*mm,62*mm])
+        table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(table)
+
+    diagnostics = results.get('cve_matcher_diagnostics') or []
+    if diagnostics:
+        story.append(CondPageBreak(40 * mm))
+        story.append(Paragraph('CVE Matcher Diagnostics', styles['Heading2']))
+        data = [[_para(x, styles['Cell']) for x in ['Host / Port', 'Status', 'Reason', 'Detail']]]
+        for row in diagnostics[:100]:
+            detail = row.get('error') or row.get('rebuild_command') or row.get('product') or ''
+            data.append([
+                _para(f"{row.get('host','')}:{row.get('port','')}", styles['SmallWrap']),
+                _para(row.get('matcher_status',''), styles['SmallWrap']),
+                _para(row.get('reason',''), styles['SmallWrap']),
+                _para(detail, styles['SmallWrap']),
+            ])
+        table = Table(data, repeatRows=1, colWidths=[48*mm,36*mm,72*mm,112*mm])
         table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(table)
 
@@ -180,5 +234,12 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
     story.append(table)
 
-    doc.build(story)
+    def page_footer(canvas, document):
+        canvas.saveState()
+        canvas.setFont('Helvetica', 7)
+        canvas.setFillColor(colors.HexColor('#666666'))
+        canvas.drawRightString(document.pagesize[0] - 12 * mm, 6 * mm, f'Page {document.page}')
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=page_footer, onLaterPages=page_footer)
     return buffer.getvalue()
