@@ -53,7 +53,10 @@
           "auto": true,
           "requires_approval": false,
           "filter": {
-            "include_module_types": ["auxiliary", "exploit"],
+            "include_module_types": [
+              "auxiliary",
+              "exploit"
+            ],
             "include_web_profiles": true,
             "include_lateral": true,
             "include_research_unknown": true
@@ -76,8 +79,14 @@
           "auto": true,
           "requires_approval": false,
           "filter": {
-            "module_types": ["auxiliary"],
-            "risks": ["low", "medium", "high"],
+            "module_types": [
+              "auxiliary"
+            ],
+            "risks": [
+              "low",
+              "medium",
+              "high"
+            ],
             "require_approval": false
           }
         }
@@ -116,8 +125,13 @@
           "auto": false,
           "requires_approval": true,
           "filter": {
-            "module_types": ["exploit"],
-            "risks": ["high", "critical"],
+            "module_types": [
+              "exploit"
+            ],
+            "risks": [
+              "high",
+              "critical"
+            ],
             "include_web_profiles": true,
             "require_approval": true
           }
@@ -140,7 +154,9 @@
           "auto": true,
           "requires_approval": false,
           "filter": {
-            "exclude_keys": ["lateral_eternalblue"]
+            "exclude_keys": [
+              "lateral_eternalblue"
+            ]
           }
         }
       ]
@@ -189,11 +205,18 @@
       "id": "web_foothold_candidate",
       "when": {
         "any": [
-          {"flag": "http_present"},
-          {"flag": "web_profile_matched"}
+          {
+            "flag": "http_present"
+          },
+          {
+            "flag": "web_profile_matched"
+          }
         ]
       },
-      "set_flags": ["impact_path_available", "web_path_ready"],
+      "set_flags": [
+        "impact_path_available",
+        "web_path_ready"
+      ],
       "message": "Web attack surface matched catalog profile — impact gate unlocked for approved foothold.",
       "priority": 10
     },
@@ -201,14 +224,26 @@
       "id": "ms17_open",
       "when": {
         "all": [
-          {"flag": "smb_present"},
-          {"any": [
-            {"flag": "ms17_cve_evidence"},
-            {"flag": "ms17_vulnerable"}
-          ]}
+          {
+            "flag": "smb_present"
+          },
+          {
+            "any": [
+              {
+                "flag": "ms17_cve_evidence"
+              },
+              {
+                "flag": "ms17_vulnerable"
+              }
+            ]
+          }
         ]
       },
-      "set_flags": ["impact_path_available", "ms17_path_ready", "branch_ms17_open"],
+      "set_flags": [
+        "impact_path_available",
+        "ms17_path_ready",
+        "branch_ms17_open"
+      ],
       "message": "SMB + MS17-010 class evidence present — EternalBlue-class exploit may be proposed after operator approval.",
       "priority": 20
     },
@@ -216,64 +251,430 @@
       "id": "ms17_patched_or_absent",
       "when": {
         "all": [
-          {"flag": "smb_present"},
-          {"not": {"flag": "ms17_vulnerable"}},
-          {"not": {"flag": "ms17_cve_evidence"}}
+          {
+            "flag": "smb_present"
+          },
+          {
+            "not": {
+              "flag": "ms17_vulnerable"
+            }
+          },
+          {
+            "not": {
+              "flag": "ms17_cve_evidence"
+            }
+          }
         ]
       },
-      "set_flags": ["alternate_lateral_enabled", "branch_ms17_suppressed", "ms17_not_exploitable"],
+      "set_flags": [
+        "alternate_lateral_enabled",
+        "branch_ms17_suppressed",
+        "ms17_not_exploitable"
+      ],
       "message": "SMB present but MS17-010 not evidenced — exploit suppressed. Alternate lateral planning enabled (professional non-exploit outcome).",
       "priority": 15
     },
     {
       "id": "unknown_surface",
-      "when": {"flag": "unknown_surface_present"},
-      "set_flags": ["research_queue_active"],
+      "when": {
+        "flag": "unknown_surface_present"
+      },
+      "set_flags": [
+        "research_queue_active"
+      ],
       "message": "Uncatalogued services entered zero-day readiness / research queue — safe probes only, no invented exploits.",
       "priority": 5
     },
     {
       "id": "foothold_recorded",
-      "when": {"flag": "foothold_proved"},
-      "set_flags": ["foothold_proved", "pivot_ready"],
+      "when": {
+        "flag": "foothold_proved"
+      },
+      "set_flags": [
+        "foothold_proved",
+        "pivot_ready"
+      ],
       "message": "Foothold proof recorded — pivot expansion may proceed under approval.",
       "priority": 30
+    },
+    {
+      "id": "bluekeep_open",
+      "when": {
+        "all": [
+          {
+            "flag": "rdp_present"
+          },
+          {
+            "any": [
+              {
+                "flag": "bluekeep_cve_evidence"
+              },
+              {
+                "flag": "rdp_bluekeep_vulnerable"
+              }
+            ]
+          }
+        ]
+      },
+      "set_flags": [
+        "impact_path_available",
+        "bluekeep_path_ready",
+        "branch_bluekeep_open"
+      ],
+      "message": "RDP + BlueKeep CVE evidence present — exploit available after operator approval.",
+      "priority": 18
+    },
+    {
+      "id": "bluekeep_patched_or_absent",
+      "when": {
+        "all": [
+          {
+            "flag": "rdp_present"
+          },
+          {
+            "not": {
+              "flag": "bluekeep_cve_evidence"
+            }
+          },
+          {
+            "not": {
+              "flag": "rdp_bluekeep_vulnerable"
+            }
+          }
+        ]
+      },
+      "set_flags": [
+        "branch_bluekeep_suppressed",
+        "bluekeep_not_exploitable"
+      ],
+      "message": "RDP present but BlueKeep not evidenced — exploit suppressed.",
+      "priority": 14
+    },
+    {
+      "id": "ms08_067_open",
+      "when": {
+        "all": [
+          {
+            "flag": "smb_present"
+          },
+          {
+            "any": [
+              {
+                "flag": "ms08_067_cve_evidence"
+              }
+            ]
+          }
+        ]
+      },
+      "set_flags": [
+        "impact_path_available",
+        "ms08_067_path_ready",
+        "branch_ms08_067_open"
+      ],
+      "message": "SMB + MS08-067 CVE evidence present — WinXP/2003 exploit available after operator approval.",
+      "priority": 17
+    },
+    {
+      "id": "ms08_067_patched_or_absent",
+      "when": {
+        "all": [
+          {
+            "flag": "smb_present"
+          },
+          {
+            "not": {
+              "flag": "ms08_067_cve_evidence"
+            }
+          }
+        ]
+      },
+      "set_flags": [
+        "branch_ms08_067_suppressed",
+        "ms08_067_not_exploitable"
+      ],
+      "message": "MS08-067 not evidenced — exploit suppressed (modern SMB or patched).",
+      "priority": 13
+    },
+    {
+      "id": "smbghost_open",
+      "when": {
+        "all": [
+          {
+            "flag": "smb_present"
+          },
+          {
+            "flag": "smbghost_cve_evidence"
+          }
+        ]
+      },
+      "set_flags": [
+        "impact_path_available",
+        "smbghost_path_ready",
+        "branch_smbghost_open"
+      ],
+      "message": "SMB + SMBGhost CVE evidence present — Win10 v1903/1909 exploit/LPE available after operator approval.",
+      "priority": 16
+    },
+    {
+      "id": "smbghost_patched_or_absent",
+      "when": {
+        "all": [
+          {
+            "flag": "smb_present"
+          },
+          {
+            "not": {
+              "flag": "smbghost_cve_evidence"
+            }
+          }
+        ]
+      },
+      "set_flags": [
+        "branch_smbghost_suppressed",
+        "smbghost_not_exploitable"
+      ],
+      "message": "SMB Ghost not evidenced — SMBv3 compression exploit suppressed.",
+      "priority": 12
+    },
+    {
+      "id": "zerologon_open",
+      "when": {
+        "all": [
+          {
+            "any": [
+              {
+                "flag": "smb_present"
+              },
+              {
+                "flag": "msrpc_present"
+              }
+            ]
+          },
+          {
+            "flag": "zerologon_cve_evidence"
+          }
+        ]
+      },
+      "set_flags": [
+        "impact_path_available",
+        "zerologon_path_ready",
+        "branch_zerologon_open"
+      ],
+      "message": "RPC/SMB + Zerologon CVE evidence present — DC takeover exploit available after EXTREME CAUTION approval.",
+      "priority": 24
+    },
+    {
+      "id": "zerologon_patched_or_absent",
+      "when": {
+        "all": [
+          {
+            "any": [
+              {
+                "flag": "smb_present"
+              },
+              {
+                "flag": "msrpc_present"
+              }
+            ]
+          },
+          {
+            "not": {
+              "flag": "zerologon_cve_evidence"
+            }
+          }
+        ]
+      },
+      "set_flags": [
+        "branch_zerologon_suppressed",
+        "zerologon_not_exploitable"
+      ],
+      "message": "Zerologon not evidenced — DC takeover suppressed.",
+      "priority": 11
+    },
+    {
+      "id": "printnightmare_open",
+      "when": {
+        "all": [
+          {
+            "any": [
+              {
+                "flag": "smb_present"
+              },
+              {
+                "flag": "msrpc_present"
+              }
+            ]
+          },
+          {
+            "flag": "printnightmare_cve_evidence"
+          }
+        ]
+      },
+      "set_flags": [
+        "impact_path_available",
+        "printnightmare_path_ready",
+        "branch_printnightmare_open"
+      ],
+      "message": "SMB/RPC + PrintNightmare CVE evidence present — Print Spooler RCE available after operator approval.",
+      "priority": 19
+    },
+    {
+      "id": "printnightmare_patched_or_absent",
+      "when": {
+        "all": [
+          {
+            "any": [
+              {
+                "flag": "smb_present"
+              },
+              {
+                "flag": "msrpc_present"
+              }
+            ]
+          },
+          {
+            "not": {
+              "flag": "printnightmare_cve_evidence"
+            }
+          }
+        ]
+      },
+      "set_flags": [
+        "branch_printnightmare_suppressed",
+        "printnightmare_not_exploitable"
+      ],
+      "message": "PrintNightmare not evidenced — Print Spooler RCE suppressed.",
+      "priority": 9
+    },
+    {
+      "id": "ms14_068_open",
+      "when": {
+        "all": [
+          {
+            "flag": "kerberos_present"
+          },
+          {
+            "flag": "ms14_068_cve_evidence"
+          }
+        ]
+      },
+      "set_flags": [
+        "impact_path_available",
+        "ms14_068_path_ready",
+        "branch_ms14_068_open"
+      ],
+      "message": "Kerberos + MS14-068 CVE evidence present — domain PAC forgery exploit available.",
+      "priority": 22
+    },
+    {
+      "id": "ms14_068_patched_or_absent",
+      "when": {
+        "all": [
+          {
+            "flag": "kerberos_present"
+          },
+          {
+            "not": {
+              "flag": "ms14_068_cve_evidence"
+            }
+          }
+        ]
+      },
+      "set_flags": [
+        "branch_ms14_068_suppressed",
+        "ms14_068_not_exploitable"
+      ],
+      "message": "MS14-068 not evidenced — Kerberos PAC forgery suppressed.",
+      "priority": 8
+    },
+    {
+      "id": "web_critical_unlocked",
+      "when": {
+        "any": [
+          {
+            "flag": "web_profile_matched"
+          },
+          {
+            "flag": "sql_injection_surface"
+          },
+          {
+            "flag": "file_upload_surface"
+          }
+        ]
+      },
+      "set_flags": [
+        "impact_path_available",
+        "web_critical_path_ready"
+      ],
+      "message": "Web critical attack surface detected — SQLi / file upload / cmd injection paths available after operator approval.",
+      "priority": 21
     }
   ],
   "evidence_detectors": [
     {
       "flag": "http_present",
       "match": {
-        "ports": [80, 8000, 8008, 8080],
-        "services": ["http", "http-alt", "http-proxy"]
+        "ports": [
+          80,
+          8000,
+          8008,
+          8080
+        ],
+        "services": [
+          "http",
+          "http-alt",
+          "http-proxy"
+        ]
       }
     },
     {
       "flag": "https_present",
       "match": {
-        "ports": [443, 8443],
-        "services": ["https", "ssl/http"]
+        "ports": [
+          443,
+          8443
+        ],
+        "services": [
+          "https",
+          "ssl/http"
+        ]
       }
     },
     {
       "flag": "smb_present",
       "match": {
-        "ports": [139, 445],
-        "services": ["smb", "microsoft-ds", "netbios-ssn"]
+        "ports": [
+          139,
+          445
+        ],
+        "services": [
+          "smb",
+          "microsoft-ds",
+          "netbios-ssn"
+        ]
       }
     },
     {
       "flag": "ssh_present",
       "match": {
-        "ports": [22],
-        "services": ["ssh"]
+        "ports": [
+          22
+        ],
+        "services": [
+          "ssh"
+        ]
       }
     },
     {
       "flag": "rdp_present",
       "match": {
-        "ports": [3389],
-        "services": ["rdp", "ms-wbt-server"]
+        "ports": [
+          3389
+        ],
+        "services": [
+          "rdp",
+          "ms-wbt-server"
+        ]
       }
     },
     {
@@ -292,7 +693,113 @@
     {
       "flag": "bluekeep_cve_evidence",
       "match": {
-        "cves": ["CVE-2019-0708"]
+        "cves": [
+          "CVE-2019-0708"
+        ]
+      }
+    },
+    {
+      "flag": "ms08_067_cve_evidence",
+      "match": {
+        "cves": [
+          "CVE-2008-4250",
+          "MS08-067"
+        ]
+      }
+    },
+    {
+      "flag": "smbghost_cve_evidence",
+      "match": {
+        "cves": [
+          "CVE-2020-0796"
+        ]
+      }
+    },
+    {
+      "flag": "zerologon_cve_evidence",
+      "match": {
+        "cves": [
+          "CVE-2020-1472"
+        ]
+      }
+    },
+    {
+      "flag": "printnightmare_cve_evidence",
+      "match": {
+        "cves": [
+          "CVE-2021-34527",
+          "CVE-2021-1675"
+        ]
+      }
+    },
+    {
+      "flag": "ms14_068_cve_evidence",
+      "match": {
+        "cves": [
+          "CVE-2014-6324",
+          "MS14-068"
+        ]
+      }
+    },
+    {
+      "flag": "kerberos_present",
+      "match": {
+        "ports": [
+          88
+        ],
+        "services": [
+          "kerberos",
+          "kerberos-sec"
+        ]
+      }
+    },
+    {
+      "flag": "msrpc_present",
+      "match": {
+        "ports": [
+          135,
+          593
+        ],
+        "services": [
+          "msrpc",
+          "epmap",
+          "dcerpc"
+        ]
+      }
+    },
+    {
+      "flag": "winrm_present",
+      "match": {
+        "ports": [
+          5985,
+          5986
+        ],
+        "services": [
+          "winrm",
+          "wsman"
+        ]
+      }
+    },
+    {
+      "flag": "mysql_present",
+      "match": {
+        "ports": [
+          3306
+        ],
+        "services": [
+          "mysql"
+        ]
+      }
+    },
+    {
+      "flag": "telnet_present",
+      "match": {
+        "ports": [
+          23
+        ],
+        "services": [
+          "telnet"
+        ]
       }
     }
   ],
