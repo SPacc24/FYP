@@ -431,11 +431,9 @@ def generate_pdf_report(
     pivot: dict[str, Any] | None = None,
     missions: list[dict[str, Any]] | None = None,
 ) -> str:
-    """Generate a plain-text report saved under storage/reports (PDF filename for future use).
+    """Generate a real PDF when ReportLab is available; otherwise a .txt fall-back.
 
-    When a PDF conversion pipeline is available (e.g. reportlab/pandoc), this function
-    will produce a real PDF. For now it generates the same text report with a .pdf
-    filename so that existing callers and download links work.
+    Never wrote binary-looking .pdf files that were actually plain text.
     """
     if scan is None:
         scan = {}
@@ -452,7 +450,39 @@ def generate_pdf_report(
     if remediations is None:
         remediations = []
 
-    report_text = build_report_summary(scan, mapping, operation, risk, remediations, validation, pivot, missions)
-    path = REPORT_DIR / f"autopentest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    path.write_text(report_text, encoding="utf-8")
-    return str(path)
+    report_text = build_report_summary(
+        scan, mapping, operation, risk, remediations, validation, pivot, missions
+    )
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+        from reportlab.lib.units import mm
+        from xml.sax.saxutils import escape
+
+        path = REPORT_DIR / f"autopentest_report_{stamp}.pdf"
+        doc = SimpleDocTemplate(
+            str(path),
+            pagesize=A4,
+            leftMargin=18 * mm,
+            rightMargin=18 * mm,
+            topMargin=16 * mm,
+            bottomMargin=16 * mm,
+        )
+        styles = getSampleStyleSheet()
+        body = styles["BodyText"]
+        body.fontSize = 9
+        body.leading = 12
+        story: list[Any] = []
+        for line in report_text.splitlines():
+            if not line.strip():
+                story.append(Spacer(1, 4))
+                continue
+            story.append(Paragraph(escape(line).replace(" ", "&nbsp;"), body))
+        doc.build(story)
+        return str(path)
+    except Exception:
+        path = REPORT_DIR / f"autopentest_report_{stamp}.txt"
+        path.write_text(report_text, encoding="utf-8")
+        return str(path)

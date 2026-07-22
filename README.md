@@ -2,7 +2,7 @@
 
 **Evidence-closed-loop pentest orchestration** for authorised cyber ranges and lab environments.
 
-> We don't let AI invent attacks. We don't hardcode them either. Evidence drives a closed loop of safe actions; policy + humans unlock impact — and when a path dies, the system **branches** instead of dying with it.
+> We don't let AI invent attacks. Evidence drives a closed loop of safe actions; policy + humans unlock impact — and when a path dies, the system **branches** instead of dying with it. JSON playbooks/catalogs **reduce** hardcoded decision trees; they do not eliminate engineered safety defaults (approval gates, proof-before-pivot).
 
 AutoPenTest is not a scanner clone, not an “AI hacker”, and not a PentestGPT-style freeform reasoner. It is an orchestration product:
 
@@ -18,14 +18,14 @@ Optional layers still include Ollama planning, allowlisted Metasploit, CALDERA, 
 
 > **Authorised use only.** Run this project only against systems you own or have explicit written permission to test. The default engagement policy rejects public targets; it is a demo policy—not a substitute for signed rules of engagement.
 
-For the step-by-step operating procedure, see the **[Operator Runbook](project/docs/operator_runbook.md)**.
+**30-second pitch:** [product_positioning_30s.md](project/docs/product_positioning_30s.md) · **Operator runbook:** [operator_runbook.md](project/docs/operator_runbook.md) · **Evaluation (RQ1–RQ3):** [evaluation_protocol.md](project/docs/evaluation_protocol.md) · **Hostile viva drill:** [hostile_viva_qa.md](project/docs/hostile_viva_qa.md)
 
 ## Product USP (why this is designation-grade)
 
 | Claim | How the product enforces it |
 | --- | --- |
 | AI never invents exploits | LLM may **rank/explain** catalog items only; module paths live in `policies/exploit_module_catalog.json` |
-| No hardcoded mission trees | Stages, branch rules, detectors, and pivot segments live in `policies/playbooks/*.json` |
+| Mission trees not hardcoded in Python | Stages, branch rules, detectors, and pivot segments live in `policies/playbooks/*.json` (engineed gates remain) |
 | Safe by default | Auxiliaries auto-queue; exploits/web footholds require operator approval |
 | Paths branch, not die | Patched/absent MS17-class evidence fires `branch_ms17_suppressed` and unlocks alternate lateral |
 | No finding without proof | Mission debrief “confirmed” count is bound to the proof store, not scanner noise |
@@ -123,7 +123,17 @@ project/
   scanners/              Recon orchestration + CVE matching
   exploitation/          Catalog loader, MSF policy, web validation
   mapping/ ai/ caldera/ pivot/ reports/ …
+  docs/                  Report, evaluation, viva, and ops material
+    architecture.md / setup_guide.md / test_cases.md
+    research_to_implementation_narrative.md  ★ Final-report narrative
+    research_to_implementation_matrix.md     ★ 1-page objective map
+    directors_pack.md                        ★ 8-slide director pack
+    evaluation_protocol.md                   ★ RQ experiments + baseline
+    graceful_degradation.md / hostile_viva_qa.md / anti_rejection_checklist.md
+    product_positioning_30s.md / cyber_range_demo_flow.md
+  scripts/run_orchestration_evaluation.py    ★ RQ1–RQ3 metrics harness
   tests/test_mission_orchestration.py
+  tests/test_evaluation_conditions.py
 ```
 
 ## Requirements
