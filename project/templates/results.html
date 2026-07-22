@@ -55,13 +55,6 @@
         missionPlaybooks: "{{ url_for('api_mission_playbooks') }}"
       };
 
-      window.DASHBOARD_CONTEXT = {
-        target: "{{ scan.target_ip if scan and scan.target_ip else session.get('target_ip', 'Unknown') }}",
-        portRange: "{{ scan.port_range if scan and scan.port_range else session.get('port_range', '1-1024') }}",
-        selectedMode: "{{ active_mode }}",
-        scanId: "{{ scan.scan_id if scan and scan.scan_id else session.get('scan_id', '') }}"
-      };
-
       window.DASHBOARD_SECURITY = {
         csrfToken: "{{ operator_csrf_token|default('') }}"
       };

