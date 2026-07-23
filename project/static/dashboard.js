@@ -992,6 +992,7 @@ function downloadReport() {
   URL.revokeObjectURL(url);
 }
 
+
 // Results workspace tabs
 (function initResultsWorkspaceTabs() {
   const tabs = Array.from(document.querySelectorAll('[data-dashboard-tab]'));
