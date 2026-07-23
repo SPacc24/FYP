@@ -5,101 +5,229 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AutoPenTest Recon</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+   <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
+
 <body>
+ <!-- ==========================================
+     Main Navigation Bar
+     ========================================== -->
+
+<nav class="main-navbar">
+
+  <!-- Brand -->
+  <a href="#" class="navbar-brand">
+    <span class="brand-icon">
+      <i class="bi bi-shield-check"></i>
+    </span>
+
+    <span>AutoPenTest</span>
+  </a>
+
+  <!-- Navigation -->
+  <div class="navbar-links">
+    <a href="#target" class="navbar-link">
+      <i class="bi bi-bullseye"></i>
+      <span>Target</span>
+    </a>
+
+    <a href="#strategy" class="navbar-link">
+      <i class="bi bi-radar"></i>
+      <span>Strategy</span>
+    </a>
+
+    <a href="#mapping" class="navbar-link">
+      <i class="bi bi-diagram-3"></i>
+      <span>Mapping</span>
+    </a>
+
+    <a href="#tools" class="navbar-link">
+      <i class="bi bi-tools"></i>
+      <span>Tools</span>
+    </a>
+  </div>
+
+  <!-- Right Controls -->
+  <div class="navbar-controls">
+
+    <!-- Light Mode Placeholder -->
+    <button
+      class="theme-toggle"
+      type="button"
+      title="Light Mode (Coming Soon)"
+      aria-label="Light Mode"
+    >
+      <i class="bi bi-sun-fill"></i>
+    </button>
+
+  </div>
+
+</nav>
+
   <main class="shell hero index-shell">
-    <section class="hero-card wide-hero index-card">
+  <section class="hero-card wide-hero index-card">
+
+    <div class="hero-top">
+
       <div class="index-head">
-        <p class="eyebrow">AutoPenTest · Full / Custom Recon</p>
+        <p class="eyebrow">FULL / CUSTOM RECON</p>
         <h1>Attack Surface Discovery</h1>
         <p class="muted">
           Enter a target and start authorised recon. Full Recon maximises evidence collection without exploitation, brute force, scoring, or teammate-module changes. Custom Recon runs only the selected collectors.
         </p>
       </div>
 
-      <div class="index-layout">
-        <div class="index-form-column">
-          {% if not operator_authenticated %}
-          <section class="operator-panel index-section">
-            <span class="label">Operator Access</span>
-            {% if operator_token_configured %}
-              <p class="muted small">Unlock this browser session before starting scans or running lab tools.</p>
-              <div class="operator-unlock-row">
-                <input id="operatorTokenInput" type="password" placeholder="Operator token" autocomplete="current-password" />
-                <button class="btn ghost mini" id="operatorUnlockBtn" type="button">Unlock</button>
+      {% if not operator_authenticated %}
+      <section class="operator-panel index-section hero-operator">
+        <span class="label">Operator Access</span>
+
+        {% if operator_token_configured %}
+          <p class="muted small">
+            Unlock this browser session before starting scans or running lab tools.
+          </p>
+
+          <div class="operator-unlock-row">
+            <input
+              id="operatorTokenInput"
+              type="password"
+              placeholder="Operator token"
+              autocomplete="current-password" />
+
+            <button
+              class="btn ghost mini"
+              id="operatorUnlockBtn"
+              type="button">
+              Unlock
+            </button>
+          </div>
+
+          <p class="muted small" id="operatorUnlockStatus"></p>
+
+        {% else %}
+          <p class="muted small">
+            Remote operator actions are disabled because OPERATOR_TOKEN is not configured.
+            Use the Kali browser locally or set OPERATOR_TOKEN in project/.env and restart Flask.
+          </p>
+        {% endif %}
+      </section>
+      {% endif %}
+
+    </div>
+
+    <div class="index-layout">
+      <div class="index-form-column">
+
+        <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting Recon...';">
+          <input type="hidden" name="_csrf_token" id="csrfTokenInput" value="{{ operator_csrf_token }}" />
+
+          <section class="index-section target-card target-section">
+            <label for="target">
+              <div class="section-header">
+                <span class="step-number">1</span>
+                <span class="label">TARGET</span>
               </div>
-              <p class="muted small" id="operatorUnlockStatus"></p>
-            {% else %}
-              <p class="muted small">
-                Remote operator actions are disabled because OPERATOR_TOKEN is not configured.
-                Use the Kali browser locally or set OPERATOR_TOKEN in project/.env and restart Flask.
-              </p>
-            {% endif %}
+              <input id="target" type="text" name="target" placeholder="e.g. single IP, CIDR range, or space-separated targets" required />
+            </label>
           </section>
-          {% endif %}
 
-          <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting Recon...';">
-            <input type="hidden" name="_csrf_token" id="csrfTokenInput" value="{{ operator_csrf_token }}" />
-            <section class="index-section target-section">
-              <label for="target">
-                <span class="label">Target</span>
-                <input id="target" type="text" name="target" placeholder="e.g. single IP, CIDR range, or space-separated targets" required />
-              </label>
-            </section>
-
-            <section class="index-section">
-              <span class="label">Recon Strategy</span>
+          <div class="config-grid">
+            <section id="strategy" class="index-section recon-strategy-section">
+              <div class="section-header">
+                <span class="step-number">2</span>
+                  <span class="label">RECON STRATEGY</span>
+              </div>
               <div class="profile-select">
                 <label class="radio-card active" data-profile-card="full">
                   <input type="radio" name="profile" value="full" checked>
                   <b>Full Recon</b>
-                  <span>Maximum evidence coverage for authorised assessment: passive intelligence, top-100 TCP, targeted UDP, high-value service validation, safe nuclei, and MITRE CVE matching. No brute force or exploitation.</span>
+                  <span>Performs a comprehensive authorised assessment with service discovery, vulnerability detection, and MITRE ATT&CK mapping.</span>
                 </label>
                 <label class="radio-card" data-profile-card="custom">
                   <input type="radio" name="profile" value="custom">
                   <b>Custom Recon</b>
-                  <span>Runs exactly the selected recon collectors below. Invalid or unknown tool IDs are ignored.</span>
+                  <span>Runs only the reconnaissance modules you select. Invalid or unknown tool IDs are ignored.</span>
                 </label>
               </div>
             </section>
 
-            <section class="index-section attack-mode-section">
+            <section id="mapping" class="index-section attack-mode-section">
+                <div class="section-header">
+                  <span class="step-number">3</span>
+                  <span class="label">TECHNIQUE MAPPING</span>
+                </div>
               <label>
-                <span class="label">Technique Mapping Mode</span>
                 <select name="technique_mode" required>
                   <option value="auto" {% if session.get('technique_mode','hybrid') == 'auto' %}selected{% endif %}>Auto - AI selects techniques automatically</option>
                   <option value="hybrid" {% if session.get('technique_mode','hybrid') == 'hybrid' %}selected{% endif %}>Hybrid - AI recommends, analyst can edit</option>
                   <option value="manual" {% if session.get('technique_mode','hybrid') == 'manual' %}selected{% endif %}>Manual - analyst selects techniques manually</option>
                 </select>
               </label>
+               <p class="mapping-description">Choose how techniques will be mapped during the assessment.</p>
             </section>
+          </div>
 
-            <section class="tool-picker index-section">
-              <div class="tool-picker-head">
-                <div>
-                  <span class="label">Evidence Tools</span>
-                  <h2>Tool Selection</h2>
-                </div>
-                <div class="tool-picker-actions">
-                  <button class="btn ghost mini" type="button" id="selectAll">Enable All</button>
-                  <button class="btn ghost mini" type="button" id="selectFull">Full Defaults</button>
-                </div>
-              </div>
-              <p class="muted small">CVE review stays active. These cards control evidence-collection tools only.</p>
-              <div class="tool-grid">
-                {% for tool in tool_options %}
-                <label class="tool-toggle" data-full="{{ '1' if tool.full else '0' }}">
-                  <input type="checkbox" name="tools" value="{{ tool.id }}" {% if tool.full %}checked{% endif %}>
-                  <span><b>{{ tool.label }}</b><small>{{ tool.category }} · {{ tool.purpose }}</small></span>
-                </label>
-                {% endfor %}
-              </div>
-            </section>
+           <section id="tools" class="tool-picker index-section">
+
+  <div class="tool-picker-head">
+    <div>
+      <div class="section-header">
+        <span class="step-number">4</span>
+        <span class="label">TOOL SELECTION</span>
+      </div>
+
+      <h2>Evidence Collection Tools</h2>
+
+      <p class="tool-selection-description">
+        Choose the evidence collection tools to include in this assessment.
+      </p>
+    </div>
+
+    <div class="tool-picker-actions">
+      <button class="btn ghost mini" type="button" id="selectAll">
+        Enable All
+      </button>
+
+      <button class="btn ghost mini" type="button" id="selectFull">
+        Full Defaults
+      </button>
+    </div>
+
+  </div>
+
+  <p class="muted small">
+    CVE review stays active. These cards control evidence-collection tools only.
+  </p>
+
+  <div class="tool-grid">
+    {% for tool in tool_options %}
+
+    <label class="tool-toggle" data-full="{{ '1' if tool.full else '0' }}">
+      <input
+        type="checkbox"
+        name="tools"
+        value="{{ tool.id }}"
+        {% if tool.full %}checked{% endif %}
+      >
+
+      <span>
+        <b>{{ tool.label }}</b>
+        <small>
+  <span class="tool-category">{{ tool.category }}</span>
+  <span class="tool-purpose">{{ tool.purpose }}</span>
+</small>
+      </span>
+    </label>
+
+    {% endfor %}
+  </div>
+
+</section>
 
             <section class="index-section">
               <span class="label">What the recon module will produce</span>
-              <div class="tool-grid">
+              <div class="recon-output-grid">
                 <article class="tool-toggle"><span><b>Environment Intelligence</b><small>TTL, route, DNS and initial response behaviour.</small></span></article>
                 <article class="tool-toggle"><span><b>Attack Surface Workbench</b><small>Web, remote access, file sharing, database and infrastructure surfaces.</small></span></article>
                 <article class="tool-toggle"><span><b>Evidence Gap Review</b><small>Missing product, version, CPE and service-context evidence.</small></span></article>
@@ -109,9 +237,25 @@
             </section>
 
             <div class="index-actions">
-              <button id="startBtn" class="btn" type="submit" {% if not operator_authenticated %}disabled{% endif %}>Start Recon</button>
-              <p class="note">Recon only: no scoring, no ranking, no prioritisation, no exploitation, no fake-IP evasion. The module uses adaptive low-impact collection and preserves evidence for downstream teams.</p>
-            </div>
+<button
+    id="startBtn"
+    class="btn"
+    type="submit"
+    {% if not operator_authenticated %}disabled{% endif %}
+>
+    <i class="bi bi-rocket-takeoff"></i>
+
+    <span>Launch Recon</span>
+
+    <i class="bi bi-arrow-right"></i>
+</button>
+
+  <p class="note">
+    Recon only: no scoring, no ranking, no prioritisation, no exploitation,
+    no fake-IP evasion. The module uses adaptive low-impact collection and
+    preserves evidence for downstream teams.
+  </p>
+</div>
           </form>
         </div>
       </div>
