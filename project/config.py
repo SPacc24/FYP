@@ -23,11 +23,8 @@ class Config:
     METASPLOIT_RPC_PASS = os.getenv('METASPLOIT_RPC_PASS', '')
     METASPLOIT_RPC_VERIFY_SSL = os.getenv('METASPLOIT_RPC_VERIFY_SSL', '0') == '1'
     METASPLOIT_RPC_TIMEOUT = int(os.getenv('METASPLOIT_RPC_TIMEOUT', '20'))
-    METASPLOIT_RESULT_TIMEOUT = float(os.getenv('METASPLOIT_RESULT_TIMEOUT', '90'))
+    METASPLOIT_RESULT_TIMEOUT = float(os.getenv('METASPLOIT_RESULT_TIMEOUT', '15'))
     METASPLOIT_POLL_INTERVAL = float(os.getenv('METASPLOIT_POLL_INTERVAL', '1'))
-    METASPLOIT_LPORT = int(os.getenv('METASPLOIT_LPORT', '4445'))
-    METASPLOIT_SESSION_TIMEOUT = float(os.getenv('METASPLOIT_SESSION_TIMEOUT', '45'))
-    METASPLOIT_SESSION_POLL_INTERVAL = float(os.getenv('METASPLOIT_SESSION_POLL_INTERVAL', '2'))
 
     AGENT_GROUP = os.getenv('AGENT_GROUP', 'red')
     KALI_IP = os.getenv('KALI_IP', '127.0.0.1')
@@ -83,11 +80,6 @@ class Config:
         os.getenv('WEB_VALIDATION_MAX_REDIRECTS', '2')
     )
     LAB_WEB_OS = os.getenv('LAB_WEB_OS', 'windows')
-    LAB_WEB_EXPECTED_TITLE = os.getenv(
-        'LAB_WEB_EXPECTED_TITLE', 'AutoPentest Lab Diagnostics'
-    )
-    LAB_WEB_SCHEME = os.getenv('LAB_WEB_SCHEME', 'http').lower()
-    LAB_WEB_PORT = int(os.getenv('LAB_WEB_PORT', '80') or '80')
 
     ENABLE_WEB_EXPLOITATION = (
     os.getenv("ENABLE_WEB_EXPLOITATION", "0") == "1"
@@ -112,3 +104,4 @@ class Config:
         "LAB_WEB_EXPLOIT_PLATFORM",
         "linux",
     ).lower()
+

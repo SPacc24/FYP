@@ -223,15 +223,17 @@ Confirm the exact target input before submitting it. Supported dashboard forms i
 
 The main pipeline expects IP addresses, not hostnames. Do not rely on the private-lab fallback for a real engagement; use explicit `allowed_networks` in a dedicated policy file.
 
-### 7.2 Choose the scan mode
+### 7.2 Choose numerical port coverage
 
-- **Full Recon** runs the policy-configured evidence collectors.
-- **Custom Recon** runs only the collectors selected in the UI.
-- **Auto** ATT&CK mode uses automatically selected techniques.
-- **Hybrid** combines deterministic/AI recommendations with operator selection.
-- **Manual** limits selection to operator-reviewed mapped techniques.
+- **Complete TCP coverage** tests ports 1 through 65,535.
+- **Common TCP coverage** uses the versioned numerical set in `policies/port_coverage.json`.
+- **Custom TCP coverage** tests only operator-entered ports and ranges.
+- Additional and excluded port fields modify the selected base coverage.
+- UDP coverage is selected and executed separately; it is disabled by default.
 
-Use Custom Recon when time, network sensitivity, or rules of engagement prohibit particular collectors.
+The port choice determines where the scanner looks. It does not determine which service is present. Every observed open port is submitted to the general fingerprinting stage before specialist modules are dispatched.
+
+The Advanced section defaults to 256 ports per sequential microbatch, four concurrent targets, a three-second probe timeout, and one retry. Only one microbatch runs at a time for any individual target.
 
 ### 7.3 Monitor execution
 
@@ -407,11 +409,13 @@ Check for an invalid integer in `.env`, a missing Python dependency, an occupied
 cd /home/kali/FYP/project
 source .venv/bin/activate
 python scripts/mitre_cve_status.py
+python scripts/nvd_status.py
 python scripts/rebuild_mitre_cve_index.py
+python scripts/sync_nvd_database.py
 python scripts/audit_cve_source.py
 ```
 
-Also confirm that the service has sufficiently specific product and version evidence. The matcher deliberately withholds weak matches.
+Also confirm that the service has a concrete CPE and sufficiently specific product/version evidence. The main table requires official NVD vulnerable-CPE applicability with satisfied configuration nodes. Incomplete conditions appear only under Analyst Review. CVE description prose is never parsed as matching proof.
 
 ### PDF export fails
 
@@ -443,4 +447,3 @@ Also confirm that the service has sufficiently specific product and version evid
 - [ ] Secrets were not included in evidence or reports.
 - [ ] Runtime data was archived or cleaned according to policy.
 - [ ] The lab was returned to its expected snapshot or baseline.
-

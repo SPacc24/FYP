@@ -4,16 +4,17 @@ import hashlib
 import json
 from pathlib import Path
 
-"""Two-mode recon profile selection.
+"""Collector registry compatibility for the single adaptive scan.
 
-Company-review design: only Full Recon and Custom Recon are user-facing.
-Full Recon enables every evidence-only recon collector that remains inside
-Matthew's reconnaissance boundary. Custom Recon respects exact user-selected
-collectors. No scoring, exploitation, brute force, or teammate Caldera/AI logic
-is introduced here.
+Profiles are no longer user-facing.  All policy-approved evidence collectors
+are available to the adaptive dispatcher; port coverage is configured
+separately in :mod:`scanners.scan_configuration`.
 """
 
+from .scan_configuration import normalise_scan_configuration
+
 TOOL_OPTIONS = [
+    {'id':'arp_scan','label':'Local ARP host discovery','category':'Discovery','purpose':'Use ARP only when an approved target is on the scanner local network.','full':True},
     {'id':'passive_dns','label':'Passive DNS intelligence','category':'Passive','purpose':'Collect approved DNS record evidence including MX/TXT/SRV/NS/CNAME without authentication or exploitation.','full':True},
     {'id':'passive_tls','label':'Passive TLS certificate intelligence','category':'Passive','purpose':'Collect TLS certificate, SAN, issuer and negotiated TLS evidence from observed TLS endpoints.','full':True},
     {'id':'passive_fingerprinting','label':'Passive enterprise fingerprinting','category':'Passive','purpose':'Infer email, authentication, VPN, CDN, reverse proxy, cloud and technology hints from already collected DNS/TLS/HTTP evidence.','full':True},
@@ -61,7 +62,7 @@ TOOL_OPTIONS = [
 ]
 
 VALID_TOOL_IDS = {tool['id'] for tool in TOOL_OPTIONS}
-PROFILE_LABELS = {'full':'Full Recon','custom':'Custom Recon'}
+PROFILE_LABELS = {'full':'Adaptive Comprehensive Scan','custom':'Adaptive Comprehensive Scan'}
 
 
 def _load_profile_policy() -> tuple[dict[str, Any], str, str]:
@@ -99,16 +100,22 @@ def profile_tool_ids(profile: str | None = None) -> list[str]:
     policy, status, _policy_hash = _load_profile_policy()
     if status != 'loaded':
         return []
-    configured = (
-        policy.get('full_recon_enabled_tools')
-        or policy.get('default_enabled_tools')
-        or [tool['id'] for tool in TOOL_OPTIONS if tool.get('full')]
+    configured = policy.get('adaptive_enabled_tools') or []
+    if configured:
+        enabled, _conflicts = _resolve_enabled_tools(policy, list(configured) + ['arp_scan'])
+        return enabled
+    enabled, _conflicts = _resolve_enabled_tools(
+        policy,
+        [tool['id'] for tool in TOOL_OPTIONS if tool.get('full')],
     )
-    enabled, _conflicts = _resolve_enabled_tools(policy, configured)
     return enabled
 
 
-def normalise_scan_options(profile: str | None = None, enabled_tools: Iterable[str] | None = None) -> dict[str, Any]:
+def normalise_scan_options(
+    profile: str | None = None,
+    enabled_tools: Iterable[str] | None = None,
+    scan_configuration: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     profile_key = (profile or 'full').lower()
     # Backward-compatible input mapping for old URLs/tests, but only two labels are exposed.
     if profile_key in {'adaptive', 'fast'}:
@@ -123,21 +130,23 @@ def normalise_scan_options(profile: str | None = None, enabled_tools: Iterable[s
         # Full can still honour posted toggles when the UI sends them; otherwise default to full policy.
         requested = {str(x) for x in enabled_tools if str(x) in VALID_TOOL_IDS}
     else:
-        configured = (
-            policy.get('full_recon_enabled_tools')
-            or policy.get('default_enabled_tools')
-            or [tool['id'] for tool in TOOL_OPTIONS if tool.get('full')]
-        ) if policy_status == 'loaded' else []
-        requested = set(configured)
+        requested = set(policy.get('adaptive_enabled_tools') or []) if policy_status == 'loaded' else set()
+
+    # Host discovery is a core stage of the single adaptive scan.  It remains
+    # method-aware at runtime, so registering ARP does not cause it to run on a
+    # routed target.
+    if profile_key != 'custom':
+        requested.add('arp_scan')
 
     selected_list, conflicts = _resolve_enabled_tools(policy, requested)
     selected = set(selected_list)
 
     disabled = VALID_TOOL_IDS - selected
-    return {
+    options = {
         'profile': profile_key,
         'profile_label': PROFILE_LABELS[profile_key],
-        'strategy': 'two_mode_full_or_custom_enterprise_recon',
+        'scan_type': 'adaptive_comprehensive',
+        'strategy': 'single_adaptive_evidence_driven_scan',
         'enabled_tools': sorted(selected),
         'enabled_tool_labels': [tool['label'] for tool in TOOL_OPTIONS if tool['id'] in selected],
         'disabled_tool_labels': [tool['label'] for tool in TOOL_OPTIONS if tool['id'] in disabled],
@@ -147,6 +156,8 @@ def normalise_scan_options(profile: str | None = None, enabled_tools: Iterable[s
         'policy_conflicts': conflicts,
         'policy_resolution': 'explicit_disabled_wins',
     }
+    options.update(normalise_scan_configuration(scan_configuration or {}))
+    return options
 
 
 def is_tool_enabled(options: dict[str, Any] | None, tool_id: str) -> bool:

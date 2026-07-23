@@ -19,6 +19,113 @@
 
     <section class="appendix-box">
       <div class="appendix-box-head">
+        <span class="label">CVE Data Lineage</span>
+        <h2>Applicability and Selected CVSS Evidence</h2>
+        <p class="muted">
+          CVE identity and descriptions come from official CVE/NVD records. Applicability uses machine-readable
+          CVE List affected entries and official NVD CPE/configuration data only. Description prose is never parsed
+          as applicability proof. Scores are never converted and a different CVSS version is never substituted.
+        </p>
+      </div>
+
+      {% set confirmed_cves = results.cve_matches|default([]) %}
+      {% set conditional_cves = results.relevant_cve_information|default([]) %}
+      {% if confirmed_cves %}
+        <h3>Validated CVE Applicability</h3>
+        <div class="appendix-table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>CVE ID</th>
+                <th>Applicability</th>
+                <th>Service / Port</th>
+                <th>Match Basis</th>
+                <th>Selected CVSS</th>
+                <th>Metric Provider</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for cve in confirmed_cves %}
+                <tr>
+                  <td class="mono">{{ cve.cve_id }}</td>
+                  <td>{{ cve.classification }}</td>
+                  <td>{{ cve.service }} / {{ cve.observed_ports|default([cve.port ~ '/' ~ cve.protocol])|join(', ') }}</td>
+                  <td class="small soft-wrap">{{ cve.match_basis }} — {{ cve.classification_reason }}</td>
+                  <td class="small">
+                    {% if cve.cvss_status == 'published' %}
+                      {{ cve.source_cvss_score }} {{ cve.source_cvss_severity }} (v{{ cve.source_cvss_version }})<br />
+                      <span class="mono">{{ cve.source_cvss_vector }}</span>
+                    {% else %}
+                      Not provided for CVSS v{{ cve.source_cvss_version }}
+                    {% endif %}
+                  </td>
+                  <td class="small">{{ cve.source_cvss_source or 'Not provided' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No CVE met the validated applicability requirements.</p>
+      {% endif %}
+
+      <h3>Analyst Review — Not Vulnerability Findings</h3>
+      {% if conditional_cves %}
+        <div class="appendix-table-shell">
+          <table>
+            <thead><tr><th>CVE ID</th><th>Service / Port</th><th>Required Conditions</th><th>Official Basis</th><th>Description</th></tr></thead>
+            <tbody>
+              {% for cve in conditional_cves %}
+                <tr>
+                  <td class="mono">{{ cve.cve_id }}</td>
+                  <td>{{ cve.service }} / {{ cve.observed_ports|default([cve.port ~ '/' ~ cve.protocol])|join(', ') }}</td>
+                  <td class="small">{{ cve.required_conditions|default([cve.classification_reason])|join('; ') }}</td>
+                  <td class="small">{{ cve.applicability_source }}<br><span class="mono">{{ cve.match_basis }}</span></td>
+                  <td class="small">{{ cve.vulnerability }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No records require analyst review.</p>
+      {% endif %}
+
+      {% set nvd_repository = results.mitre_source.nvd_repository|default({}) %}
+      <h3>Dataset Status</h3>
+      <div class="appendix-chip-grid">
+        <article class="appendix-chip"><span class="label">CVE List Records</span><strong>{{ results.mitre_source.records_indexed|default(0) }}</strong></article>
+        <article class="appendix-chip"><span class="label">NVD Records</span><strong>{{ nvd_repository.records|default(0) }}</strong></article>
+        <article class="appendix-chip"><span class="label">NVD Completeness</span><strong>{{ 'Complete mirror' if nvd_repository.complete else 'Partial / on-demand' }}</strong></article>
+        <article class="appendix-chip"><span class="label">Last NVD Update</span><strong>{{ nvd_repository.last_successful_update|default('Unavailable', true) }}</strong></article>
+      </div>
+      {% if nvd_repository.last_update_error %}<p class="muted small">Last NVD update error: {{ nvd_repository.last_update_error }}</p>{% endif %}
+      {% if nvd_repository.notice %}<p class="muted small">{{ nvd_repository.notice }}</p>{% endif %}
+
+      {% if results.cve_matcher_diagnostics %}
+        <details class="details-block top-gap">
+          <summary>CVE matcher and enrichment diagnostics</summary>
+          <div class="appendix-table-shell top-gap">
+            <table>
+              <thead><tr><th>Host / Port</th><th>Status</th><th>Reason</th><th>Detail</th></tr></thead>
+              <tbody>
+                {% for row in results.cve_matcher_diagnostics %}
+                  <tr>
+                    <td>{{ row.host|default('') }}{% if row.port is defined %}:{{ row.port }}{% endif %}</td>
+                    <td>{{ row.matcher_status }}</td>
+                    <td class="mono small">{{ row.reason }}</td>
+                    <td class="small soft-wrap">{{ row.error or row.detail or row.product_identity or row.product or '' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      {% endif %}
+    </section>
+
+    <section class="appendix-box">
+      <div class="appendix-box-head">
         <span class="label">Appendix</span>
         <h2>Scan Metadata</h2>
       </div>

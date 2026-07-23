@@ -253,18 +253,9 @@ class OperationManager:
         log.info('Agent found: %s | paw: %s', agent.get('host', 'unknown'), agent.get('paw'))
         return True, agent
 
-    def get_deploy_command(
-        self,
-        kali_ip=None,
-        group="red",
-        platform="unknown",
-    ):
-        return self.client.generate_sandcat_command(
-            kali_ip,
-            group,
-            platform,
-        )
-        
+    def get_deploy_command(self, kali_ip=None, group='red', platform='windows'):
+        return self.client.generate_sandcat_command(kali_ip, group, platform)
+
     def delete_agent(self, paw):
         if not paw:
             return {"ok": False, "message": "Missing agent paw."}

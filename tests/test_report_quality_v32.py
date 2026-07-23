@@ -38,17 +38,19 @@ def test_timeout_is_evidence_incomplete():
     assert status == "Timed Out - Incomplete"
 
 
-def test_exact_vsftpd_cve_is_strict():
+def test_exact_vsftpd_version_requires_package_provenance():
     service = {"product": "vsftpd", "version": "2.3.4", "service": "ftp"}
     match = {
         "source": OFFICIAL_CVE_SOURCE,
         "cve_id": "CVE-2011-2523",
         "description": "vsftpd 2.3.4 downloaded between 20110630 and 20110703 contains a backdoor which opens a shell on port 6200/tcp.",
         "match_basis": "exact_structured_version",
+        "applicability_decision": "analyst_review",
+        "required_conditions": ["Package provenance was not established."],
     }
     classification, reason = _classify_cve_match(service, match)
-    assert classification == STRICT_CVE_MATCH
-    assert "match" in reason.lower()
+    assert classification == RELEVANT_VERSION_INFORMATION
+    assert "provenance" in reason.lower()
 
 
 def test_range_only_cve_moves_to_relevant_information():
@@ -58,21 +60,23 @@ def test_range_only_cve_moves_to_relevant_information():
         "cve_id": "CVE-2021-25215",
         "description": "BIND 9.0.0 -> 9.11.29 can terminate due to an assertion check.",
         "match_basis": "explicit_same_product_text_range:9.0.0..9.11.29",
+        "applicability_decision": "analyst_review",
     }
     classification, _ = _classify_cve_match(service, match)
     assert classification == RELEVANT_VERSION_INFORMATION
 
 
-def test_module_dependent_cve_moves_to_evidence_incomplete():
+def test_module_dependent_cve_moves_to_conditional_candidate():
     service = {"product": "Apache httpd", "version": "2.2.8", "service": "http"}
     match = {
         "source": OFFICIAL_CVE_SOURCE,
         "cve_id": "CVE-2008-2364",
         "description": "The mod_proxy module in the Apache HTTP Server 2.2.8 does not limit interim responses.",
         "match_basis": "exact_observed_version_in_record_text",
+        "applicability_decision": "analyst_review",
     }
     classification, _ = _classify_cve_match(service, match)
-    assert classification == EVIDENCE_INCOMPLETE
+    assert classification == RELEVANT_VERSION_INFORMATION
 
 
 def test_wrong_platform_context_is_not_rendered_as_relevant_evidence():
@@ -82,6 +86,8 @@ def test_wrong_platform_context_is_not_rendered_as_relevant_evidence():
         "cve_id": "CVE-2010-0425",
         "description": "modules/arch/win32/mod_isapi.c in Apache HTTP Server allows remote attackers to execute arbitrary code.",
         "match_basis": "exact_observed_version_in_record_text",
+        "applicability_decision": "rejected",
+        "contradictions": ["Observed platform contradicts the required platform CPE."],
     }
     classification, _ = _classify_cve_match(service, match)
     assert classification == NOT_APPLICABLE_TO_CONTEXT

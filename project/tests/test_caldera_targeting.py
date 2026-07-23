@@ -72,6 +72,8 @@ def _scan_with_internal_target(target="10.0.0.5", external="192.168.56.20"):
         },
         external_target=external,
         mapping={
+            "cve_source_of_truth": "scanner_official_index",
+            "cve_contract_version": "scanner-canonical-v4",
             "recommended_techniques": [
                 {"id": "T1046", "name": "Network Service Discovery"}
             ],

@@ -46,7 +46,7 @@ def get_pivot_engine() -> PivotEngine:
 @pivot_bp.route("/assessment")
 def pivot_assessment_page():
     """Render the pivot assessment HTML page."""
-    return render_template("pivot_assessment.html")
+    return render_template("pivot_assessment_page.html")
 
 
 # ── Phase 1: Pivot Setup ───────────────────────────────────
@@ -278,6 +278,7 @@ def pivot_target_select():
         "external_target": external_target,
         "selected_agent_paw": None,
     })
+
 
 def _generate_recommendations(targets):
     """Generate recommendations from the evidence-driven lateral technique catalog."""

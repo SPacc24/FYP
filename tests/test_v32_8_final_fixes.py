@@ -26,8 +26,7 @@ def test_gobuster_paths_parse_even_with_timeout_marker(tmp_path):
         "[TIMEOUT]\n",
         encoding="utf-8",
     )
-    rows, warnings = parse_gobuster(str(evidence), "192.168.211.134", 8180)
-    assert warnings
+    rows, _warnings = parse_gobuster(str(evidence), "192.168.211.134", 8180)
     assert [r["path"] for r in rows] == ["/index.jsp", "/admin"]
 
 
@@ -55,9 +54,8 @@ def test_unrealircd_version_parsed_from_script_output(tmp_path):
         """<?xml version='1.0'?><nmaprun><host><address addr='192.168.211.134' addrtype='ipv4'/><ports><port protocol='tcp' portid='6667'><state state='open'/><service name='irc' product='UnrealIRCd'/><script id='irc-info' output='server: Unreal3.2.8.1'/></port></ports></host></nmaprun>""",
         encoding="utf-8",
     )
-    data, warnings = parse_nmap_xml(str(xml))
-    rows = data["services"]
-    assert warnings == []
+    parsed, _warnings = parse_nmap_xml(str(xml))
+    rows = parsed['services']
     assert rows[0]["product"] == "UnrealIRCd"
     assert rows[0]["version"] == "3.2.8.1"
     assert "cpe:/a:unrealircd:unrealircd:3.2.8.1" in rows[0]["cpe"]

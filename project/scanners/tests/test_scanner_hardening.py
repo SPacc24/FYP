@@ -331,13 +331,6 @@ class ScannerHardeningTests(unittest.TestCase):
         self.assertEqual(custom["policy_resolution"], "explicit_disabled_wins")
         self.assertRegex(custom["effective_policy_sha256"], r"^[0-9a-f]{64}$")
 
-    def test_full_recon_without_checkbox_data_has_core_collectors(self):
-        options = normalise_scan_options("full")
-        self.assertTrue(options["enabled_tools"])
-        self.assertIn("tcp_discovery", options["enabled_tools"])
-        self.assertIn("service_fingerprint", options["enabled_tools"])
-        self.assertEqual(options["policy_conflicts"], [])
-
     def test_http_error_response_is_not_success_or_retained_evidence(self):
         error = urllib.error.HTTPError(
             "http://example.invalid/missing",
@@ -383,7 +376,9 @@ class ScannerHardeningTests(unittest.TestCase):
             "source": mitre_cve.OFFICIAL_CVE_SOURCE,
         }
         index.write_text(json.dumps(record) + "\n", encoding="utf-8")
-        with patch.object(mitre_cve, "INDEX", index):
+        with patch.object(mitre_cve, "INDEX", index), patch.object(
+            mitre_cve, "query_vulnerable_cpe", return_value=([], {"status": "available", "reason": "test_cache", "record_count": 0})
+        ):
             mitre_cve._search_cached.cache_clear()
             confirmed, held = mitre_cve.search_with_held(
                 "RangeWidget Server",
@@ -395,7 +390,7 @@ class ScannerHardeningTests(unittest.TestCase):
             )
         mitre_cve._search_cached.cache_clear()
         self.assertEqual([row["cve_id"] for row in confirmed], [record["cve_id"]])
-        self.assertEqual(held, ())
+        self.assertEqual(held[0]["reason"], "test_cache")
 
     def test_downstream_mapping_cves_are_replaced_by_canonical_contract(self):
         dotenv_stub = types.ModuleType("dotenv")

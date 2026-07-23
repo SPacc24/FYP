@@ -1,54 +1,24 @@
 # AutoPenTest
 
-**Evidence-closed-loop pentest orchestration** for authorised cyber ranges and lab environments.
+AutoPenTest is a Flask-based assessment dashboard for authorised cyber ranges and lab environments. It orchestrates evidence-first reconnaissance, normalises service findings, correlates version evidence with the official CVE List, maps findings to MITRE ATT&CK, and produces reviewable reports and handoff artefacts. Optional integrations add local Ollama guidance, allowlisted Metasploit validation, CALDERA emulation, proof-of-access recording, and an experimental Chisel/proxychains pivot workflow.
 
-> We don't let AI invent attacks. Evidence drives a closed loop of safe actions; policy + humans unlock impact — and when a path dies, the system **branches** instead of dying with it. JSON playbooks/catalogs **reduce** hardcoded decision trees; they do not eliminate engineered safety defaults (approval gates, proof-before-pivot).
+> **Authorised use only.** Run this project only against systems you own or have explicit written permission to test. The default engagement policy rejects public targets, but it is a demo policy—not a substitute for signed rules of engagement.
 
-AutoPenTest is not a scanner clone, not an “AI hacker”, and not a PentestGPT-style freeform reasoner. It is an orchestration product:
-
-1. **Surface lock** — ingest authorised Ethernet/LAN scan evidence into a living attack graph  
-2. **Hypothesis** — match evidence only against the JSON module catalog (MSF / web profiles / lateral)  
-3. **Safe validation storm** — auto-queue low/medium-risk auxiliaries (no shells)  
-4. **Branch brain** — if celebrity exploit paths (e.g. MS17-010) are not evidenced, **suppress** them and enable alternate lateral  
-5. **Impact gate** — high-risk catalog actions wait for human approval + a proof plan  
-6. **Pivot expand** — only after a recorded foothold **proof** may internal segments be recommended  
-7. **Mission debrief** — proved findings, suppressed paths, research queue, blue-team timeline  
-
-Optional layers still include Ollama planning, allowlisted Metasploit, CALDERA, proof-of-access tickets, and Chisel/proxychains pivot plumbing — all under the same custody model.
-
-> **Authorised use only.** Run this project only against systems you own or have explicit written permission to test. The default engagement policy rejects public targets; it is a demo policy—not a substitute for signed rules of engagement.
-
-**30-second pitch:** [product_positioning_30s.md](project/docs/product_positioning_30s.md) · **Operator runbook:** [operator_runbook.md](project/docs/operator_runbook.md) · **Evaluation (RQ1–RQ3):** [evaluation_protocol.md](project/docs/evaluation_protocol.md) · **Hostile viva drill:** [hostile_viva_qa.md](project/docs/hostile_viva_qa.md)
-
-## Product USP (why this is designation-grade)
-
-| Claim | How the product enforces it |
-| --- | --- |
-| AI never invents exploits | LLM may **rank/explain** catalog items only; module paths live in `policies/exploit_module_catalog.json` |
-| Mission trees not hardcoded in Python | Stages, branch rules, detectors, and pivot segments live in `policies/playbooks/*.json` (engineed gates remain) |
-| Safe by default | Auxiliaries auto-queue; exploits/web footholds require operator approval |
-| Paths branch, not die | Patched/absent MS17-class evidence fires `branch_ms17_suppressed` and unlocks alternate lateral |
-| No finding without proof | Mission debrief “confirmed” count is bound to the proof store, not scanner noise |
-| Unknown surface readiness | Uncatalogued services enter a **research queue** (class hints only) — never hallucinated traits |
+For the step-by-step operating procedure, see the **[Operator Runbook](project/docs/operator_runbook.md)**.
 
 ## What the project does
 
-### Closed-loop mission orchestration (core)
-- **Mission Console** at `/mission` — start playbooks, approve impact, attach proofs, view attack graph/debrief
-- Declarative playbooks in `project/policies/playbooks/` (no Python hardcoding of steps)
-- Living **attack graph** built from scan evidence + catalog matches
-- **Proof store** under `project/storage/proofs/` — foothold artefacts unlock pivot expansion
-- Persistent missions under `project/storage/missions/`
-
-### Recon + intelligence (supporting)
-- Asynchronous, policy-gated recon (**Full** / **Custom**), multi-host / CIDR targets
-- Nmap + optional native collectors (web, SSH, SMB, LDAP, DNS, SNMP, RPC/NFS, RDP, WinRM, DB, K8s, TLS, …)
-- Service-centric attack-surface workbench with evidence gaps and tool coverage
-- CVE List correlation ([CVEProject/cvelistV5](https://github.com/CVEProject/cvelistV5)) — weak hits stay candidates
-- MITRE ATT&CK mapping + deterministic technique plan (optional Ollama enrichment)
-- Allowlisted Metasploit auxiliary validation; CALDERA readiness/ops; proof-of-access tickets
-- Reports (HTML/PDF/text), evidence manifests, technical appendix
-- Experimental pivot UI (Chisel SOCKS + proxychains internal scan)
+- Runs one asynchronous, policy-gated adaptive vulnerability scan. The operator selects numerical TCP/UDP coverage; observed protocol evidence selects specialist modules automatically.
+- Accepts a single IP, multiple IPs, CIDR blocks, and short or explicit IP ranges, up to the configured scope limit.
+- Collects adaptive host-discovery evidence, operator-selected TCP/UDP exposure, port-independent service fingerprints, and protocol-specific readiness evidence.
+- Uses Nmap and optional native tools for web, SSH, SMB, LDAP, DNS, SNMP, RPC/NFS, RDP, WinRM, database, container, Kubernetes, VPN, and TLS observations.
+- Builds a service-centric attack-surface workbench with raw evidence links, evidence gaps, security observations, and tool-coverage status.
+- Correlates observed product/version/CPE evidence with machine-readable [CVEProject/cvelistV5](https://github.com/CVEProject/cvelistV5) affected entries and official NVD CPE/configuration applicability. Unresolved conditions are isolated in Analyst Review and never enter downstream execution context.
+- Maps findings to MITRE ATT&CK and generates a deterministic technique plan, optionally enriched by a local Ollama model.
+- Performs allowlisted, non-destructive exposure validation and optional evidence-derived Metasploit auxiliary scans.
+- Integrates with CALDERA for agent readiness, ability coverage, adversary creation, operation monitoring, result parsing, risk context, and proof-of-access tickets.
+- Exports persisted scan JSON, CALDERA handoff JSON, HTML, PDF, plain-text reports, evidence manifests, and technical appendices.
+- Provides an experimental pivot UI for Chisel SOCKS setup and proxychains-based internal scanning.
 
 ## Safety and maturity boundaries
 
@@ -70,70 +40,51 @@ The Flask server uses an operator-session gate and CSRF validation when `OPERATO
 ## Architecture
 
 ```text
-Browser  ──►  Flask routes + operator / CSRF gate
-                 │
-                 ├─ Recon pipeline ──► normalised evidence + CVE correlation
-                 │         │
-                 │         ▼
-                 ├─ Mission Console (/mission)  ◄── playbooks JSON
-                 │         │
-                 │         ▼
-                 │   PlaybookEngine (closed loop)
-                 │         ├─ Attack graph (hosts/services/catalog)
-                 │         ├─ Safe auto-queue (catalog auxiliaries)
-                 │         ├─ Branch brain (suppress / alternate)
-                 │         ├─ Impact gate (human approval)
-                 │         ├─ Proof store ──► unlock pivot segments
-                 │         └─ Debrief (proved / suppressed / research / blue team)
-                 │
-                 ├─ Catalog custody  ◄── policies/exploit_module_catalog.json
-                 ├─ ATT&CK plan (deterministic ± Ollama rank-only)
-                 ├─ Allowlisted Metasploit / web validation / CALDERA
-                 └─ Reports + JSON persistence
+Browser dashboard
+      |
+      v
+Flask routes + operator/CSRF gate
+      |
+      +--> Recon pipeline --> native tools --> normalised evidence
+      |                              |              |
+      |                              v              v
+      |                         raw artefacts   CVE correlation
+      |                                             |
+      +--> ATT&CK mapper <---------------------------+
+      |       |
+      |       +--> deterministic/Ollama plan
+      |       +--> CALDERA handoff and execution
+      |
+      +--> lab validation / allowlisted Metasploit
+      +--> reports, evidence manifests, JSON persistence
+      +--> experimental pivot workflow
 ```
 
-### Mission API (operator-authenticated)
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| GET | `/mission` | Mission Console UI |
-| GET | `/api/mission/playbooks` | List declarative playbooks |
-| GET | `/api/mission/list` | Recent missions |
-| POST | `/api/mission/start` | Start mission (`playbook_id`, `parsed_results` or `scan_id`) |
-| GET | `/api/mission/<id>` | Full mission state (graph, queue, flags, debrief) |
-| POST | `/api/mission/<id>/approve` | Approve / skip gated action |
-| POST | `/api/mission/<id>/proof` | Attach foothold proof → unlock pivot |
-| POST | `/api/mission/<id>/outcome` | Record MSF/web execution outcome / flags |
-| POST | `/api/mission/<id>/continue` | Advance non-auto / skip locked stage |
-| POST | `/api/mission/<id>/abort` | Abort and compile debrief |
-
-### Important directories
+Important directories:
 
 ```text
 project/
-  app.py                 Application factory
-  automation/            ★ Playbook engine, mission service, attack graph, proof store
-  policies/
-    playbooks/           ★ JSON mission playbooks (no hardcoded trees in Python)
-    exploit_module_catalog.json  ★ Single custody of MSF/web/lateral techniques
-  routes/mission_routes.py       ★ Mission API + console
-  templates/mission_console.html ★ Operator mission UI
-  storage/missions/      Persistent mission JSON
-  storage/proofs/        Proof-of-impact artefacts
-  scanners/              Recon orchestration + CVE matching
-  exploitation/          Catalog loader, MSF policy, web validation
-  mapping/ ai/ caldera/ pivot/ reports/ …
-  docs/                  Report, evaluation, viva, and ops material
-    architecture.md / setup_guide.md / test_cases.md
-    research_to_implementation_narrative.md  ★ Final-report narrative
-    research_to_implementation_matrix.md     ★ 1-page objective map
-    directors_pack.md                        ★ 8-slide director pack
-    evaluation_protocol.md                   ★ RQ experiments + baseline
-    graceful_degradation.md / hostile_viva_qa.md / anti_rejection_checklist.md
-    product_positioning_30s.md / cyber_range_demo_flow.md
-  scripts/run_orchestration_evaluation.py    ★ RQ1–RQ3 metrics harness
-  tests/test_mission_orchestration.py
-  tests/test_evaluation_conditions.py
+  app.py                 Application factory and development entry point
+  config.py              Environment-backed configuration
+  runtime_env.py         Safe .env bootstrap and secret generation
+  routes/                HTTP routes grouped by feature
+  scanners/              Recon orchestration, parsing, profiles, CVE matching
+  enumeration/           Intelligence and operational-maturity summaries
+  mapping/               Evidence-to-ATT&CK mapping
+  ai/                    Ollama client, safety layer, technique planning
+  pentest_ai/             Evidence-based attack-path advice
+  exploitation/          Validation, Metasploit policy/RPC, web validation
+  caldera/               API client, coverage, operations, risk/remediation
+  proof_of_access/        Signed ticket issuance and marker clients
+  pivot/                  Experimental Chisel/proxychains workflow
+  reports/                Plain-text report generation
+  storage/                Runtime scan state, evidence, results, optional DB
+  policies/               Scope, collector, objective, and review controls
+  templates/              Jinja dashboard and report pages
+  static/                 Browser JavaScript and CSS
+  scripts/                Environment, tooling, and CVE maintenance commands
+  tests/                  Backend and integration-oriented tests
+tests/                    Repository-level UI/report/recon quality tests
 ```
 
 ## Requirements
@@ -192,94 +143,6 @@ Open `http://127.0.0.1:5000`. If the landing page asks for an operator token, re
 python project/scripts/bootstrap_env.py --show-secrets
 ```
 
-## Closed-loop playbooks
-
-Registered in `project/policies/playbooks/index.json`:
-
-| ID | Intent |
-| --- | --- |
-| `edge_to_internal_proof` (default) | Full closed loop: surface → safe auto → branch → impact gate → alternate lateral → proof-gated pivot → debrief |
-| `surface_validation_only` | Safe-only posture: map + auxiliary validation, **no** impact queue |
-
-Playbook JSON owns: `stages`, `actions` (`kind` + `filter`), `evidence_detectors`, `branches` (boolean flag logic), `pivot_segments`, and `blue_team_timeline_templates`.  
-Python only **evaluates** those rules and consults the module catalog — module names/paths are never hardcoded in the engine.
-
-## Internal verification (what to test)
-
-### Fast offline (no VMs)
-
-From repo root, with the project virtualenv if you use one:
-
-```bash
-cd project
-python -m pytest tests/ -q
-# Focused:
-python -m pytest tests/test_mission_orchestration.py tests/test_module_catalog.py -q
-```
-
-Expected: all tests green (mission suite covers branch-on-patched-MS17, safe-only posture, research queue, proof→pivot unlock, API console smoke).
-
-Manual mission loop without live targets:
-
-```bash
-cd project && python app.py
-# browser: http://127.0.0.1:5000/mission
-# 1) Pick playbook "Edge to internal impact proof"
-# 2) Demo profile "Web + SMB (MS17 absent — branch)" → Start
-# 3) Confirm flags include branch_ms17_suppressed + impact_path_available (via web)
-# 4) Approve the web foothold action at the impact gate
-# 5) Mission blocks on pivot until you click "Attach foothold proof"
-# 6) Pivot VLAN segments appear as awaiting_approval — approve or skip
-# 7) Debrief shows professional notes (suppressed EB path is a success of the system)
-```
-
-### Recommended lab VMs (Ethernet segment narrative)
-
-Assign **static IPs on an isolated lab vSwitch / physical Ethernet**. Do **not** use guest internet egress for exploitation demos.
-
-| Role | Example OS | Example IP | Why it is in the demo |
-| --- | --- | --- | --- |
-| **Operator (Kali)** | Kali Linux 2024+ | `10.10.10.10` | Runs AutoPenTest, nmap, msfrpcd, optional Chisel client |
-| **Edge web foothold** | Ubuntu 20.04 + vulnerable “diagnostics” web app (catalog web profile) **or** DVWA/custom CMDi lab | `10.10.10.20` | Produces `http_present` + web catalog match → impact unlock |
-| **Patched Windows (branch proof)** | Windows 10/Server with MS17-010 **patched**, SMB enabled | `10.10.10.30` | SMB open, **no** CVE-2017-014x evidence → EB exploit suppressed, alternate lateral planned |
-| **Legacy Windows (optional** EB path) | Windows 7 SP1 / Server 2008 R2, unpatched MS17-010, **isolated** | `10.10.10.40` | Only if ROE allows: check auxiliary + gated exploit after approval |
-| **Internal USERS host** | Ubuntu/Win10 join | `10.10.20.10` | Reachable **only after** foothold pivot (no direct route from Kali) |
-| **Internal ADMIN host** | Domain-ish lab box | `10.10.30.10` | Second hop narrative for ADMIN VLAN |
-
-Suggested topology:
-
-```text
-[ Kali 10.10.10.10 ]---- edge VLAN 10.10.10.0/24 ----[ Web  .20 ] [ Win-patched .30 ]
-                              |
-                    (after foothold + Chisel/pivot)
-                              |
-                    +---- USERS 10.10.20.0/24 ----[ .10 ]
-                    +---- ADMIN 10.10.30.0/24 ----[ .10 ]
-```
-
-> Ethernet scanning teammates own L2 discovery specifics. Mission pivot segment CIDRs are declared in the playbook JSON (`pivot_segments`) and can be overridden per-mission via `scope.pivot_segments` — not baked into Python.
-
-### End-to-end lab checklist (distinction narrative)
-
-1. **Scope lock** — engagement notes + authorised CIDRs only; public targets denied by policy  
-2. **Scan edge** — Full Recon against `10.10.10.0/24` from Kali  
-3. **Start mission** — Mission Console → bind `scan_id` or paste results → `edge_to_internal_proof`  
-4. **Watch branch brain** — on patched SMB host, debrief must **not** claim EternalBlue success  
-5. **Safe storm** — auxiliaries show `queued_auto`; no shell modules auto-run  
-6. **Impact gate** — approve **one** foothold path (web CMDi profile or gated MSF exploit)  
-7. **Proof** — attach operator-attested proof (callback / session evidence). Without it, pivot stays locked  
-8. **Pivot** — approve USERS/ADMIN segment scans through established tunnel  
-9. **Debrief** — export notes: proved findings count = proofs only; research queue listed; blue-team timeline from playbook templates  
-
-### Optional service dependencies
-
-| Service | When needed | Check |
-| --- | --- | --- |
-| msfrpcd | Metasploit actions | `ENABLE_METASPLOIT=1`, RPC on loopback |
-| CALDERA | Emulation ops | `ENABLE_CALDERA_EXECUTION=1` + API key + trusted agent |
-| Ollama | AI planner rank/explain | local model; never supplies module paths |
-| Chisel + proxychains | Live pivot | isolated range only; review `pivot/` first |
-
 ## Configuration
 
 `project/.env` is loaded by `project/config.py`. Direct startup and the launch scripts create or refresh it through `runtime_env.py`; existing non-placeholder values are preserved. On Unix, the generated file is restricted to mode `0600` when possible.
@@ -313,7 +176,8 @@ If `APP_HOST` is non-loopback, startup refuses unsafe combinations: `SECRET_KEY`
 | Web validation | `ENABLE_WEB_VALIDATION`, `WEB_VALIDATION_TIMEOUT`, `WEB_VALIDATION_MAX_RESPONSE_BYTES`, `WEB_VALIDATION_MAX_REDIRECTS`, `LAB_WEB_OS` |
 | Proof of access | `PROOF_OF_ACCESS_ENABLED`, `PROOF_OF_ACCESS_SECRET`, `PROOF_OF_ACCESS_TTL` |
 | MySQL | `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASS`, `MYSQL_DB` |
-| Recon toggles | `ENABLE_CONTEXT_FOOTPRINTING`, `ENABLE_ARP_SCAN`, `ENABLE_HTTPX`, `ENABLE_DEEP_WEB_DISCOVERY`, `ENABLE_SMBMAP`, `ENABLE_HYDRA`, `GOBUSTER_WORDLIST`, `HYDRA_CREDENTIAL_FILE`, `MITRE_CVE_REPO` |
+| CVE/NVD data | `MITRE_CVE_REPO`, `NVD_API_KEY`, `NVD_API_TIMEOUT_SECONDS`, `NVD_CACHE_TTL_HOURS`, `NVD_APPLICABILITY_CACHE_TTL_HOURS`, optional `NVD_API_DELAY_SECONDS` |
+| Recon toggles | `ENABLE_CONTEXT_FOOTPRINTING`, `ENABLE_ARP_SCAN`, `ENABLE_HTTPX`, `ENABLE_DEEP_WEB_DISCOVERY`, `ENABLE_SMBMAP`, `ENABLE_HYDRA`, `GOBUSTER_WORDLIST`, `HYDRA_CREDENTIAL_FILE` |
 | Lab credentials | `LAB_USER`, `LAB_PASS`, or service-specific `LAB_<SERVICE>_USER` and `LAB_<SERVICE>_PASS` |
 | Pivot declarations | `PIVOT_CHISEL_BINARY`, `PIVOT_DEFAULT_SOCKS_PORT`, `PIVOT_DEFAULT_CHISEL_PORT` (declared in configuration; the experimental engine currently uses its own hard-coded binary and route defaults) |
 
@@ -338,10 +202,10 @@ The policy limit and `MAX_EXPANDED_TARGETS` both apply; the lower effective limi
 ## Typical workflow
 
 1. Confirm written authorisation and configure the engagement policy.
-2. Start the app, unlock the browser session, and choose **Full Recon** or exact **Custom Recon** collectors.
-3. Enter authorised IP targets and select `auto`, `hybrid`, or `manual` ATT&CK technique mode.
-4. Follow asynchronous task and command progress in the dashboard.
-5. Review service evidence, CVE classifications, candidate references, evidence gaps, ATT&CK mapping, and the technical appendix.
+2. Start the app and unlock the browser session.
+3. Enter authorised IP targets, select complete/common/custom numerical port coverage, and adjust the optional advanced workload settings.
+4. Review the generated plan, then follow asynchronous task and command progress in the dashboard.
+5. Review service evidence, validated CVE applicability, the separate Analyst Review section, evidence gaps, ATT&CK mapping, dataset status, and the technical appendix.
 6. Optionally request attack-path advice or run explicitly approved lab validation.
 7. If configured, check CALDERA coverage, select a trusted agent, and run supported techniques.
 8. Export the handoff JSON, evidence manifest, PDF, or text report.
@@ -408,10 +272,12 @@ source .venv/bin/activate
 python scripts/sync_mitre_cve_database.py
 python scripts/rebuild_mitre_cve_index.py
 python scripts/mitre_cve_status.py
+python scripts/sync_nvd_database.py
+python scripts/nvd_status.py
 python scripts/audit_cve_source.py
 ```
 
-The mirror and index are runtime data under `project/storage/mitre_cve/` and are intentionally excluded from normal Git tracking. CVSS metadata may be incomplete in source records; the UI distinguishes unavailable scoring from confirmed evidence rather than inventing a score.
+The CVE List mirror/index and NVD SQLite repository are runtime data under `project/storage/mitre_cve/` and are intentionally excluded from the release ZIP. The initial NVD population follows official pagination and incremental updates use last-modified windows. The UI reports completeness, record count, last update and errors. CVSS metadata may still be absent for the exact selected version; the UI reports that absence rather than converting or inventing a score.
 
 ## API overview
 

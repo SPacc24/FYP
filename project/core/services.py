@@ -39,8 +39,6 @@ metasploit_service = MetasploitService(
     exploit_execution_enabled=Config.ENABLE_METASPLOIT_EXPLOITS,
     result_timeout=Config.METASPLOIT_RESULT_TIMEOUT,
     poll_interval=Config.METASPLOIT_POLL_INTERVAL,
-    session_timeout=Config.METASPLOIT_SESSION_TIMEOUT,
-    session_poll_interval=Config.METASPLOIT_SESSION_POLL_INTERVAL,
 )
 proof_ticket_manager = ProofTicketManager(
     secret=Config.PROOF_OF_ACCESS_SECRET,
@@ -76,12 +74,8 @@ web_validation_service = WebValidationService(
     operating_system=Config.LAB_WEB_OS,
 )
 
+# Initialize web exploiter (actual reverse shell exploitation)
 web_exploiter = WebExploiter(
-    lhost=Config.WEB_CALLBACK_ADVERTISE_HOST,
-    lport=Config.WEB_CALLBACK_PORT,
-    bind_host=Config.WEB_CALLBACK_BIND_HOST,
-    callback_host=Config.WEB_CALLBACK_ADVERTISE_HOST,
-    callback_port=Config.WEB_CALLBACK_PORT,
-    callback_timeout=Config.WEB_CALLBACK_TIMEOUT,
-    callback_max_bytes=Config.WEB_CALLBACK_MAX_BYTES,
+    lhost=Config.KALI_IP,
+    lport=4444,
 )

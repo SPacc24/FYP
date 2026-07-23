@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mapping.mapper_models import CVEMatch, VulnerabilityFinding
+from mapping.mapper_models import VulnerabilityFinding
 from mapping.mapper_knowledge import (
     SERVICE_KNOWLEDGE_BASE,
     SEVERITY_ORDER,
@@ -10,15 +10,9 @@ from mapping.mapper_knowledge import (
 from mapping.mapper_utils import (
     attach_tactics,
     normalise_service,
-    max_severity,
     build_evidence,
-    match_known_cves,
     priority_score,
-    build_title,
-    build_cve_hint,
-    build_recommendation,
     host_os_text,
-    is_legacy_windows_smb_candidate,
     apply_attack_path_context,
 )
 
@@ -82,51 +76,8 @@ def map_vulnerabilities(parsed_results: dict[str, Any]) -> dict[str, Any]:
                 },
             )
 
-            cves = match_known_cves(item, service)
-
-            if is_legacy_windows_smb_candidate(item, service, os_text):
-                cves.extend([
-                    CVEMatch(
-                        cve_id="CVE-2017-0143",
-                        title="Microsoft SMBv1 remote code execution vulnerability",
-                        severity="Critical",
-                        reason=(
-                            "SMB is exposed on a detected legacy Windows 10 build 10240 fingerprint. "
-                            "Link this official CVE record for analyst validation against patch level and SMBv1 status."
-                        ),
-                        remediation="Apply Microsoft SMB security updates, disable SMBv1, and restrict SMB exposure.",
-                    ),
-                    CVEMatch(
-                        cve_id="CVE-2017-0144",
-                        title="Microsoft SMBv1 remote code execution vulnerability",
-                        severity="Critical",
-                        reason=(
-                            "SMB is exposed on a detected legacy Windows 10 build 10240 fingerprint. "
-                            "This is a candidate MS17-010-related CVE and should be validated using safe checks."
-                        ),
-                        remediation="Apply Microsoft MS17-010 updates, disable SMBv1, and restrict SMB exposure.",
-                    ),
-                    CVEMatch(
-                        cve_id="CVE-2017-0145",
-                        title="Microsoft SMBv1 remote code execution vulnerability",
-                        severity="Critical",
-                        reason=(
-                            "SMB is exposed on a detected legacy Windows 10 build 10240 fingerprint. "
-                            "Link this official CVE record for analyst validation against patch level and SMBv1 status."
-                        ),
-                        remediation="Apply Microsoft SMB security updates, disable SMBv1, and restrict SMB exposure.",
-                    ),
-                ])
-
             severity = kb_entry["severity"]
-
-            for cve in cves:
-                severity = max_severity(severity, cve.severity)
-
-            title = build_title(kb_entry["title"], cves)
-            cve_hint = build_cve_hint(kb_entry["cve_hint"], cves)
-            recommendation = build_recommendation(kb_entry["recommendation"], cves)
-            priority = priority_score(severity, service, cves)
+            priority = priority_score(severity, service, [])
 
             finding = VulnerabilityFinding(
                 host=host_addr,
@@ -136,14 +87,14 @@ def map_vulnerabilities(parsed_results: dict[str, Any]) -> dict[str, Any]:
                 product=item.get("product", ""),
                 version=item.get("version", ""),
                 state=state,
-                title=title,
+                title=kb_entry["title"],
                 severity=severity,
                 priority_score=priority,
-                cve_ids=[c.cve_id for c in cves],
-                cve_matches=[c.to_dict() for c in cves],
-                cve_hint=cve_hint,
+                cve_ids=[],
+                cve_matches=[],
+                cve_hint=kb_entry["cve_hint"],
                 evidence=build_evidence(host_addr, item),
-                recommendation=recommendation,
+                recommendation=kb_entry["recommendation"],
                 attack_techniques=apply_attack_path_context(
                     kb_entry["techniques"],
                     service,
@@ -151,6 +102,11 @@ def map_vulnerabilities(parsed_results: dict[str, Any]) -> dict[str, Any]:
                     os_text,
                 ),
             ).to_dict()
+            finding["exposure_title"] = finding["title"]
+            finding["exposure_severity"] = finding["severity"]
+            finding["exposure_priority_score"] = finding["priority_score"]
+            finding["exposure_cve_hint"] = finding["cve_hint"]
+            finding["exposure_recommendation"] = finding["recommendation"]
 
             vulnerabilities.append(finding)
 

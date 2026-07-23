@@ -30,9 +30,10 @@ def test_custom_profile_respects_exact_user_selection():
     assert not is_tool_enabled(options, 'service_fingerprint')
 
 
-def test_ui_contains_profile_and_tool_switches():
+def test_ui_contains_adaptive_port_coverage_controls():
     index = (ROOT / 'templates' / 'index.html').read_text(encoding='utf-8')
-    assert 'Full Recon' in index
-    assert 'Custom Recon' in index
-    assert 'name="tools"' in index
-    assert 'Tool Selection' in index
+    assert 'Complete TCP coverage' in index
+    assert 'Common TCP coverage' in index
+    assert 'Custom TCP coverage' in index
+    assert 'name="ports_per_microbatch"' in index
+    assert 'concurrent_microbatches' not in index

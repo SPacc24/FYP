@@ -128,6 +128,8 @@ def test_caldera_run_uses_configured_group_and_target_context(monkeypatch):
         },
         external_target="192.168.56.20",
         mapping={
+            "cve_source_of_truth": "scanner_official_index",
+            "cve_contract_version": "scanner-canonical-v4",
             "recommended_techniques": [
                 {"id": "T1046", "name": "Network Service Discovery"}
             ],
@@ -212,6 +214,8 @@ def test_caldera_run_rejects_unmapped_technique(monkeypatch):
     scan_store.update(
         scan_id,
         mapping={
+            "cve_source_of_truth": "scanner_official_index",
+            "cve_contract_version": "scanner-canonical-v4",
             "recommended_techniques": [
                 {"id": "T1046", "name": "Network Service Discovery"}
             ],

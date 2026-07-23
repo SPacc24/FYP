@@ -331,16 +331,14 @@ def test_windows_sandcat_command_uses_official_payload_and_reachable_server():
     )
 
     client = CalderaClient(base_url=base_url, api_key="redadmin")
-    result = client.generate_sandcat_command(
+    command = client.generate_sandcat_command(
         kali_ip="192.168.67.128",
         group="red",
         platform="windows",
     )
 
-    assert result.get("supported") is True
-    command = result.get("command", "")
     assert "$server=\"http://192.168.67.128:8888\";" in command
-    assert "$wc.Headers.Add(\"platform\",\"windows\");" in command
-    assert "$wc.Headers.Add(\"file\",\"sandcat.go\");" in command
+    assert "$wc.Headers.add(\"platform\",\"windows\");" in command
+    assert "$wc.Headers.add(\"file\",\"sandcat.go\");" in command
     assert "sandcat-elfload" not in command
     assert "-k redadmin" not in command

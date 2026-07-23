@@ -30,7 +30,7 @@ python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
 
 printf '[*] Preparing storage directories...\n'
-mkdir -p storage/scans storage/results storage/mitre_cve
+mkdir -p storage/scans storage/results storage/mitre_cve storage/mitre_cve/nvd_metrics
 
 printf '[*] Creating local runtime configuration...\n'
 python scripts/bootstrap_env.py
@@ -39,6 +39,12 @@ printf '[*] Syncing official CVE List mirror from CVEProject/cvelistV5 if networ
 python scripts/sync_mitre_cve_database.py || {
   printf '[WARN] Official CVE List sync did not complete. The app still runs; run this later:\n'
   printf '       cd project && . .venv/bin/activate && python scripts/sync_mitre_cve_database.py\n'
+}
+
+printf '[*] Synchronising complete NVD CVE/CPE applicability repository. Initial population can take 20+ minutes without an NVD API key.\n'
+python scripts/sync_nvd_database.py || {
+  printf '[WARN] Complete NVD sync did not finish. The app will label repository completeness accurately and may use cached/on-demand official NVD CPE queries. Resume later with:\n'
+  printf '       cd project && . .venv/bin/activate && python scripts/sync_nvd_database.py\n'
 }
 
 printf '\n[+] Install complete. Start the app with:\n'

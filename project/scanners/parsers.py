@@ -95,8 +95,6 @@ def _service_details(
         )
         if match:
             version = match.group(1)
-    if product.lower() == "unrealircd" and version and not cpes:
-        cpes.append(f"cpe:/a:unrealircd:unrealircd:{version}")
     return service_name, product, version, extra, cpes
 
 
@@ -129,6 +127,9 @@ def _port_row(
         "product": product,
         "version": version,
         "extra": extra,
+        "tunnel": service_el.get("tunnel", "") if service_el is not None else "",
+        "fingerprint_method": service_el.get("method", "") if service_el is not None else "",
+        "fingerprint_confidence": service_el.get("conf", "") if service_el is not None else "",
         "cpe": cpes,
         "evidence_sources": ["nmap"],
         "raw_evidence_file": str(path),
@@ -269,9 +270,6 @@ def _manual_port_row(
         match = re.search(r"Unreal(?:IRCd)?\s*([0-9]+(?:\.[0-9]+){2,})", script_text, re.I)
         if match:
             version = match.group(1)
-    if product.lower() == "unrealircd" and version and not cpes:
-        cpes.append(f"cpe:/a:unrealircd:unrealircd:{version}")
-
     return {
         "host": host_ip,
         "port": int(portid),
