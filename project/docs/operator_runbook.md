@@ -195,7 +195,7 @@ Check the local official CVE index:
 cd /home/kali/FYP/project
 source .venv/bin/activate
 python scripts/mitre_cve_status.py
-python scripts/audit_cve_source.py
+python -m pytest scanners/tests/test_policy_and_source_hygiene.py -q
 ```
 
 If the mirror or index is absent or stale:
@@ -409,13 +409,12 @@ Check for an invalid integer in `.env`, a missing Python dependency, an occupied
 cd /home/kali/FYP/project
 source .venv/bin/activate
 python scripts/mitre_cve_status.py
-python scripts/nvd_status.py
+python scripts/sync_mitre_cve_database.py
 python scripts/rebuild_mitre_cve_index.py
-python scripts/sync_nvd_database.py
-python scripts/audit_cve_source.py
+python -m pytest scanners/tests/test_policy_and_source_hygiene.py -q
 ```
 
-Also confirm that the service has a concrete CPE and sufficiently specific product/version evidence. The main table requires official NVD vulnerable-CPE applicability with satisfied configuration nodes. Incomplete conditions appear only under Analyst Review. CVE description prose is never parsed as matching proof.
+Also confirm that the service has reliable identity and version evidence. Candidate requires a direct match to machine-readable CVE List V5 affected data with every represented platform, module, package, file, and routine condition satisfied. CVE description prose, partial identity, similarity, and unsupported range comparison never create a finding. Confirmed additionally requires target-specific validation evidence.
 
 ### PDF export fails
 

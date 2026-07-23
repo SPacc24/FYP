@@ -14,9 +14,10 @@ TCP coverage is complete, common, or custom. Operators may add or exclude numeri
 4. Submit every observed open port to Nmap version detection and banner collection. Port numbers may affect probe ordering but never prove service identity.
 5. Dispatch protocol modules from collected service/product/tunnel evidence. Unknown services remain unknown and retain their raw evidence.
 6. Consolidate fingerprints, contradictions, raw artefacts, commands, coverage, and evidence gaps.
-7. Correlate sufficiently reliable product/version/CPE evidence with the locally indexed official CVE List.
-8. Classify partial applicability as `candidate` and complete applicability evidence as `confirmed_affected`. Neither status claims successful exploitation.
-9. Present the evidence and limitations for pentester review and export.
+7. Correlate directly observed product, version, CPE, platform, module, package, file, and routine evidence with the locally indexed official CVE List V5 affected data.
+8. Create `Candidate` only when the observed asset satisfies a published machine-readable affected rule. Create `Confirmed` only when separate target-specific validation verifies the vulnerable condition.
+9. Emit no CVE finding when the published rule does not match or its represented conditions cannot be established. No third CVE state is created or retained.
+10. Present the evidence and limitations for pentester review and export.
 
 ## Configurable data
 

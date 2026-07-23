@@ -94,12 +94,12 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     story.append(Paragraph(f'Reconnaissance Evidence Report - {_p(target)}', styles['Title']))
     profile = (results.get('scan_options') or scan.get('scan_options') or {}).get('profile_label', 'Scan')
     story.append(Paragraph(f'Scan Profile: {_p(profile)}', styles['Muted']))
-    story.append(Paragraph('CVE applicability candidates require a concrete observed CPE Name and an official NVD CPE applicability match. They are not target-specific vulnerability detections. Published CVSS metrics are copied with their exact vector and provider; this module does not generate, convert, or substitute them.', styles['Muted']))
+    story.append(Paragraph('Candidate findings require a reliable observed product/version and a structured official CVE List V5 affected-version match. They are not target-specific vulnerability detections. Published CVSS metrics are copied with their exact vector and provider; this module does not generate, convert, fall back, or substitute them.', styles['Muted']))
     story.append(Spacer(1, 6))
 
-    summary = [[_para('Hosts', styles['Cell']), _para('TCP Services', styles['Cell']), _para('UDP Services', styles['Cell']), _para('NVD CPE Matches', styles['Cell']), _para('Needs Context', styles['Cell'])],
-               [_para(len(results.get('hosts') or []), styles['Cell']), _para(results.get('tcp_service_count', 0), styles['Cell']), _para(results.get('udp_service_count', 0), styles['Cell']), _para(len(results.get('cve_matches') or []), styles['Cell']), _para(len(results.get('relevant_cve_information') or []), styles['Cell'])]]
-    t = Table(summary, repeatRows=1, colWidths=[35*mm, 35*mm, 35*mm, 50*mm, 55*mm])
+    summary = [[_para('Hosts', styles['Cell']), _para('TCP Services', styles['Cell']), _para('UDP Services', styles['Cell']), _para('CVE Findings', styles['Cell'])],
+               [_para(len(results.get('hosts') or []), styles['Cell']), _para(results.get('tcp_service_count', 0), styles['Cell']), _para(results.get('udp_service_count', 0), styles['Cell']), _para(len(results.get('cve_matches') or []), styles['Cell'])]]
+    t = Table(summary, repeatRows=1, colWidths=[45*mm, 45*mm, 45*mm, 65*mm])
     t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
     story.append(t)
     story.append(Spacer(1, 8))
@@ -159,19 +159,15 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         styles['Muted'],
     ))
     story.append(Spacer(1, 6))
-    nvd_status = (results.get('mitre_source') or {}).get('nvd_repository') or {}
+    source_status = results.get('mitre_source') or {}
     story.append(Paragraph(
-        'NVD applicability repository: '
-        + ('complete mirror' if nvd_status.get('complete') else 'partial/on-demand')
-        + f"; records={nvd_status.get('records', 0)}; CPE criteria={nvd_status.get('cpe_criteria', 0)}; "
-        + f"last successful update={nvd_status.get('last_successful_update') or 'unavailable'}.",
+        f"CVE List V5 local index: records={source_status.get('records_indexed', 0)}; "
+        f"source={source_status.get('source') or 'Official CVE List V5'}.",
         styles['Muted'],
     ))
-    if nvd_status.get('notice'):
-        story.append(Paragraph(_p(nvd_status.get('notice')), styles['Muted']))
     story.append(Spacer(1, 6))
 
-    story.append(Paragraph('CVE Applicability Candidates', styles['Heading2']))
+    story.append(Paragraph('Candidate and Confirmed CVE Findings', styles['Heading2']))
     cves = list(results.get('cve_matches') or [])
     cve_source_ready = bool((results.get('mitre_source') or {}).get('available'))
     if not cve_source_ready:
@@ -215,30 +211,7 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         story.append(table)
         story.append(Spacer(1, 6))
     else:
-        story.append(Paragraph('No concrete observed CPE produced an applicable CVE through the official NVD query.', styles['BodyText']))
-
-    analyst_rows = list(results.get('relevant_cve_information') or [])
-    story.append(Paragraph('Needs Context — Not Vulnerability Findings', styles['Heading2']))
-    if analyst_rows:
-        review_table = [[_para(value, styles['Cell']) for value in ['CVE', 'Service / Port', 'Required Conditions', 'Official Basis', 'Description']]]
-        for c in analyst_rows:
-            ports = ', '.join(c.get('observed_ports') or [
-                str(c.get('port') or '') + '/' + str(c.get('protocol') or '')
-            ])
-            required = '; '.join(c.get('required_conditions') or []) or str(c.get('classification_reason') or '')
-            basis = f"{c.get('applicability_source') or ''}\n{c.get('match_basis') or ''}"
-            review_table.append([
-                _para(c.get('cve_id') or '', styles['SmallWrap']),
-                _para(f"{c.get('service') or ''} {c.get('product') or ''} {c.get('version') or ''}\n{ports}", styles['SmallWrap']),
-                _para(required, styles['SmallWrap']),
-                _para(basis, styles['SmallWrap']),
-                _para(c.get('vulnerability') or '', styles['SmallWrap']),
-            ])
-        table = Table(review_table, repeatRows=1, colWidths=[35*mm, 48*mm, 62*mm, 58*mm, 65*mm])
-        table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
-        story.append(table)
-    else:
-        story.append(Paragraph('No records require analyst review.', styles['BodyText']))
+        story.append(Paragraph('No CVE satisfied the Candidate or Confirmed requirements.', styles['BodyText']))
 
     observations = results.get('key_exposure_indicators') or results.get('security_relevant_observations') or []
     if observations:
@@ -255,16 +228,15 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     if diagnostics:
         story.append(CondPageBreak(40 * mm))
         story.append(Paragraph('CVE Matcher Diagnostics', styles['Heading2']))
-        data = [[_para(x, styles['Cell']) for x in ['Host / Port', 'Status', 'Reason', 'Detail']]]
+        data = [[_para(x, styles['Cell']) for x in ['Host / Port', 'Operational Event', 'Detail']]]
         for row in diagnostics[:100]:
             detail = row.get('error') or row.get('detail') or row.get('rebuild_command') or row.get('product') or row.get('product_identity') or ''
             data.append([
                 _para(f"{row.get('host','')}:{row.get('port','')}", styles['SmallWrap']),
-                _para(row.get('matcher_status',''), styles['SmallWrap']),
-                _para(row.get('reason',''), styles['SmallWrap']),
+                _para(row.get('event',''), styles['SmallWrap']),
                 _para(detail, styles['SmallWrap']),
             ])
-        table = Table(data, repeatRows=1, colWidths=[48*mm,36*mm,72*mm,112*mm])
+        table = Table(data, repeatRows=1, colWidths=[58*mm,70*mm,140*mm])
         table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(table)
 

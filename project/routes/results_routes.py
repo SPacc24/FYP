@@ -13,7 +13,7 @@ from config import Config
 from caldera.api_client import CalderaClient
 
 from scanners.mitre_cve import status as mitre_status
-from scanners.nmap_parser import parse_nmap_xml
+from scanners.parsers import parse_nmap_xml_dict
 from storage import scan_store
 
 from core.helpers import (
@@ -76,7 +76,7 @@ def register_routes(app):
 
         if scan["output_file"]:
             try:
-                parsed_results = parse_nmap_xml(scan["output_file"])
+                parsed_results = parse_nmap_xml_dict(scan["output_file"])
                 scan["os"] = parsed_results.get("os", "Unknown")
                 scan["ports"] = parsed_results.get("ports", [])
 

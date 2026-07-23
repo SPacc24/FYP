@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+import sqlite3
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -14,13 +15,8 @@ from .scoring_policy import (
     normalise_cvss_version,
     validate_published_metric,
 )
-from .nvd_repository import (
-    NVD_SOURCE,
-    cpe_attributes,
-    concrete_cpe23,
-    evaluate_configurations,
-    query_vulnerable_cpe,
-)
+from .cve_v5_matcher import search as search_cve_v5
+from .cve_v5_matcher import SQLITE_INDEX, affected_identity_keys
 
 BASE = Path('storage/mitre_cve')
 REPO_DIR = BASE / 'cvelistV5'
@@ -28,7 +24,7 @@ INDEX = BASE / 'official_mitre_cve_index.jsonl'
 OFFICIAL_CVE_REPO = 'https://github.com/CVEProject/cvelistV5.git'
 OFFICIAL_CVE_SOURCE = 'Official CVE List via CVEProject/cvelistV5 (MITRE/CVE Program)'
 # Production applicability is data-driven. Product identity comes only from
-# the observed fingerprint/CPE and machine-readable CVE List or NVD fields.
+# the observed fingerprint and machine-readable CVE List V5 fields.
 # No product-specific alias table or description parser participates.
 
 def status() -> dict[str, Any]:
@@ -42,7 +38,7 @@ def status() -> dict[str, Any]:
             with INDEX.open('r', encoding='utf-8', errors='ignore') as f:
                 for line in f:
                     records += 1
-                    if '"index_schema_version": 2' in line:
+                    if '"index_schema_version": 4' in line:
                         selection_schema_records += 1
                     has_cvss = False
                     for version in cvss_records_by_version:
@@ -60,16 +56,25 @@ def status() -> dict[str, Any]:
             cvss_records = 0
             cvss_records_by_version = {version: 0 for version in metric_keys_by_version()}
             status_error = f'{type(exc).__name__}: {exc}'
-    stale_cvss = INDEX.exists() and records > 0 and cvss_records == 0
+    index_ready = (
+        INDEX.exists()
+        and SQLITE_INDEX.exists()
+        and records > 0
+        and selection_schema_records == records
+        and not status_error
+    )
+    if records > 0 and not SQLITE_INDEX.exists() and not status_error:
+        status_error = 'Local CVE List V5 SQLite index is missing; rebuild schema v4.'
+    elif records > 0 and selection_schema_records != records and not status_error:
+        status_error = 'Local CVE List V5 index schema is outdated; rebuild schema v4.'
+    stale_cvss = index_ready and cvss_records == 0
     return {
         'source': OFFICIAL_CVE_SOURCE,
-        # Runtime applicability uses the NVD CVE API and does not depend on a
-        # complete local CVE List mirror. The index remains optional metadata.
-        'available': True,
-        'matcher_status': 'available',
+        'available': index_ready,
+        'matcher_status': 'available' if index_ready else 'unavailable',
         'status_error': status_error,
         'records_indexed': records,
-        'cvss_selection_ready': records > 0 and selection_schema_records == records,
+        'cvss_selection_ready': index_ready,
         'cvss_selection_schema_records': selection_schema_records,
         'records_with_cvss_metadata': cvss_records,
         'records_with_cvss_metadata_by_version': cvss_records_by_version,
@@ -78,106 +83,21 @@ def status() -> dict[str, Any]:
         'rebuild_command': 'python scripts/rebuild_mitre_cve_index.py',
         'index_file': str(INDEX),
         'repo_dir': str(REPO_DIR),
-        'matching_policy': 'Concrete observed CPE 2.3 Name queried through the official NVD CVE API using cpeName and isVulnerable, followed by NVD configuration-node evaluation. Product text, CVE descriptions, fuzzy names, aliases, confidence thresholds and CVE List affected-version guesses cannot emit candidates.',
-        'applicability_source': NVD_SOURCE,
+        'matching_policy': 'Candidate requires a direct match to machine-readable CVE List V5 affected data using the record-defined version semantics. Confirmed requires separate target-specific validation evidence. CVSS severity never creates or confirms a finding.',
+        'applicability_source': OFFICIAL_CVE_SOURCE,
     }
 
 
-def _sort_key(row: dict[str, Any]) -> tuple[int, str]:
-    # Not a report ranking; just stable grouping by availability of source metadata.
+def _sort_key(row: dict[str, Any]) -> tuple[bool, float, str]:
+    """Published technical severity order; unavailable metrics sort last."""
     score = row.get('cvss_score')
-    return (0 if score is not None else 1, str(row.get('cve_id') or ''))
+    return (score is None, -(float(score) if score is not None else 0.0), str(row.get('cve_id') or ''))
 
 
-def _observed_cpe_values(value: str) -> list[str]:
-    """Preserve escaped whitespace inside formatted CPE attribute values."""
-    return [item.strip() for item in re.split(r'[\r\n,]+', str(value or '')) if item.strip()]
-
-
-def _nvd_candidates(
-    cpe: str,
-    selected_version: str,
-    observed_environment_cpes: tuple[str, ...],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    from .nvd_enrichment import _extract_nvd_metrics
-
-    rows: dict[str, dict[str, Any]] = {}
-    diagnostics: list[dict[str, Any]] = []
-    for raw_cpe in _observed_cpe_values(cpe):
-        primary_cpe = concrete_cpe23(raw_cpe)
-        if not primary_cpe:
-            if raw_cpe.strip():
-                diagnostics.append({
-                    'matcher_status': 'not_evaluated',
-                    'reason': 'cpe_not_query_eligible',
-                    'cpe': raw_cpe.strip(),
-                    'detail': 'NVD cpeName matching requires concrete part, vendor, product and version attributes.',
-                })
-            continue
-        records, query_status = query_vulnerable_cpe(primary_cpe)
-        diagnostics.append({'matcher_status': query_status.get('status'), **query_status})
-        for rec in records:
-            cve_id = str(rec.get('cve_id') or '').upper()
-            if not cve_id:
-                continue
-            applicability = evaluate_configurations(
-                rec.get('configurations') or [],
-                primary_cpe,
-                observed_environment_cpes,
-                primary_query_verified=bool(query_status.get('authoritative_query_verified')),
-            )
-            metrics = _extract_nvd_metrics({'id': cve_id, **rec})
-            metric = metrics.get(selected_version) or {}
-            cpe_parts = cpe_attributes(primary_cpe)
-            candidate = {
-                'cve_id': cve_id,
-                'description': rec.get('description') or '',
-                'references': rec.get('references') or [],
-                'source': OFFICIAL_CVE_SOURCE,
-                'cvss_score': metric.get('cvss_score'),
-                'cvss_severity': metric.get('cvss_severity') or '',
-                'cvss_vector': metric.get('cvss_vector') or '',
-                'cvss_source': metric.get('cvss_source') or '',
-                'cvss_version': selected_version,
-                'cvss_score_type': 'Base',
-                'cvss_nomenclature': 'CVSS-B' if selected_version == '4.0' else 'CVSS Base',
-                'cvss_provider_role': metric.get('cvss_provider_role') or '',
-                'cvss_enrichment_source': metric.get('cvss_enrichment_source') or NVD_SOURCE,
-                'cvss_record_url': metric.get('cvss_record_url') or f'https://nvd.nist.gov/vuln/detail/{cve_id}',
-                'cvss_record_last_modified': metric.get('cvss_record_last_modified') or rec.get('last_modified') or '',
-                'cvss_status': 'published' if metric.get('cvss_score') is not None else 'not_provided_for_selected_version',
-                'cvss_available_versions': sorted(metrics),
-                'matched_product_tokens': [primary_cpe],
-                'matched_version_tokens': [cpe_parts[3]] if cpe_parts else [],
-                'match_basis': applicability.get('basis'),
-                'product_match_basis': 'nvd_cpe_name_is_vulnerable_query',
-                'applicability_decision': applicability.get('decision'),
-                'applicability_source': NVD_SOURCE,
-                'applicability_record_url': f'https://nvd.nist.gov/vuln/detail/{cve_id}',
-                'required_conditions': applicability.get('required_conditions') or [],
-                'contradictions': applicability.get('contradictions') or [],
-                'configuration_truth': applicability.get('configuration_truth') or 'unknown',
-                'official_description_source': NVD_SOURCE,
-                'detection_status': 'not_tested',
-                'applicability_only': True,
-            }
-            existing = rows.get(cve_id)
-            if existing:
-                precedence = {'rejected': 0, 'needs_context': 1, 'potentially_affected': 2}
-                existing_decision = str(existing.get('applicability_decision') or 'needs_context')
-                candidate_decision = str(candidate.get('applicability_decision') or 'needs_context')
-                selected = candidate if precedence.get(candidate_decision, 1) > precedence.get(existing_decision, 1) else existing
-                other = existing if selected is candidate else candidate
-                selected = dict(selected)
-                selected['references'] = list(dict.fromkeys((selected.get('references') or []) + (other.get('references') or [])))
-                selected['matched_product_tokens'] = list(dict.fromkeys((selected.get('matched_product_tokens') or []) + (other.get('matched_product_tokens') or [])))
-                selected['matched_version_tokens'] = list(dict.fromkeys((selected.get('matched_version_tokens') or []) + (other.get('matched_version_tokens') or [])))
-                selected['required_conditions'] = sorted(set((selected.get('required_conditions') or []) + (other.get('required_conditions') or [])))
-                selected['contradictions'] = sorted(set((selected.get('contradictions') or []) + (other.get('contradictions') or [])))
-                rows[cve_id] = selected
-            else:
-                rows[cve_id] = candidate
-    return list(rows.values()), diagnostics
+def _metric_for_version(record: dict[str, Any], selected_version: str) -> dict[str, Any]:
+    """Return only the exact published metric selected by the operator."""
+    metric = (record.get('cvss_metrics') or {}).get(selected_version)
+    return dict(metric) if isinstance(metric, dict) else {}
 
 
 def search(
@@ -187,54 +107,59 @@ def search(
     cpe: str = '',
     *,
     cvss_version: str | None = None,
-    confidence_score: float | None = None,
-    recommended_for_cve: bool | None = None,
     observed_environment_cpes: tuple[str, ...] = (),
+    observed_platforms: tuple[str, ...] = (),
+    observed_modules: tuple[str, ...] = (),
+    observed_package_names: tuple[str, ...] = (),
+    observed_program_files: tuple[str, ...] = (),
+    observed_program_routines: tuple[str, ...] = (),
 ) -> tuple[dict[str, Any], ...]:
-    confirmed, _ = search_with_held(
+    candidates, _ = search_with_diagnostics(
         product,
         version,
         service,
         cpe,
         cvss_version=cvss_version,
-        confidence_score=confidence_score,
-        recommended_for_cve=recommended_for_cve,
         observed_environment_cpes=observed_environment_cpes,
+        observed_platforms=observed_platforms,
+        observed_modules=observed_modules,
+        observed_package_names=observed_package_names,
+        observed_program_files=observed_program_files,
+        observed_program_routines=observed_program_routines,
     )
-    return tuple(confirmed)
+    return tuple(candidates)
 
 
-def search_with_held(
+def search_with_diagnostics(
     product: str,
     version: str,
     service: str,
     cpe: str = '',
     *,
     cvss_version: str | None = None,
-    confidence_score: float | None = None,
-    recommended_for_cve: bool | None = None,
     observed_environment_cpes: tuple[str, ...] = (),
+    observed_platforms: tuple[str, ...] = (),
+    observed_modules: tuple[str, ...] = (),
+    observed_package_names: tuple[str, ...] = (),
+    observed_program_files: tuple[str, ...] = (),
+    observed_program_routines: tuple[str, ...] = (),
 ) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
-    """Return only NVD CPE applicability results for concrete observed CPEs.
-
-    Product, version and service strings are retained in the signature for
-    caller compatibility, but cannot create CVE candidates. The former private
-    numeric fingerprint gate is intentionally ignored: CPE query eligibility
-    is now determined solely by the documented NVD ``cpeName`` requirements.
-    """
+    """Return Candidate findings and non-CVE operational diagnostics."""
     selected_version = normalise_cvss_version(cvss_version)
-    nvd_rows, nvd_diagnostics = _nvd_candidates(
-        cpe,
-        selected_version,
-        observed_environment_cpes,
+    service_cpes = tuple(value.strip() for value in str(cpe or '').splitlines() if value.strip())
+    rows, diagnostics = search_cve_v5(
+        product,
+        version,
+        selected_cvss=selected_version,
+        service_cpes=service_cpes,
+        environment_cpes=observed_environment_cpes,
+        observed_platforms=observed_platforms,
+        observed_modules=observed_modules,
+        observed_package_names=observed_package_names,
+        observed_program_files=observed_program_files,
+        observed_program_routines=observed_program_routines,
     )
-    if not any(concrete_cpe23(value) for value in _observed_cpe_values(cpe)):
-        nvd_diagnostics.insert(0, {
-            'reason': 'concrete_cpe_required',
-            'matcher_status': 'not_evaluated',
-            'detail': 'No CVE candidate was generated from product text, version text, service name or confidence score.',
-        })
-    return tuple(copy.deepcopy(sorted(nvd_rows, key=_sort_key))), tuple(copy.deepcopy(nvd_diagnostics))
+    return tuple(copy.deepcopy(sorted(rows, key=_sort_key))), tuple(copy.deepcopy(diagnostics))
 
 
 def _extract_metrics_from_node(node: Any, provider_role: str) -> dict[str, dict[str, Any]]:
@@ -293,6 +218,10 @@ def build_index() -> dict[str, Any]:
     cvss_count = 0
     cvss_count_by_version = {version: 0 for version in metric_keys_by_version()}
     temp_index = INDEX.with_suffix(INDEX.suffix + '.tmp')
+    temp_sqlite = SQLITE_INDEX.with_suffix(SQLITE_INDEX.suffix + '.tmp')
+    temp_sqlite.unlink(missing_ok=True)
+    database = sqlite3.connect(temp_sqlite)
+    database.execute('CREATE TABLE affected_identities (cve_id TEXT NOT NULL, identity_key TEXT NOT NULL, record_json TEXT NOT NULL)')
     with temp_index.open('w', encoding='utf-8') as out:
         for path in REPO_DIR.rglob('CVE-*.json'):
             try:
@@ -302,9 +231,9 @@ def build_index() -> dict[str, Any]:
             cve_id = data.get('cveMetadata', {}).get('cveId') or path.stem
             containers = data.get('containers', {})
             cna = containers.get('cna', {})
-            record_containers = [cna]
+            record_containers = [('CNA', cna)]
             record_containers.extend(
-                node for node in (containers.get('adp') or []) if isinstance(node, dict)
+                ('ADP', node) for node in (containers.get('adp') or []) if isinstance(node, dict)
             )
             descs = cna.get('descriptions') or []
             desc = ''
@@ -320,7 +249,8 @@ def build_index() -> dict[str, Any]:
             versions: list[str] = []
             affected_entries: list[dict[str, Any]] = []
             cpes: list[str] = []
-            for container in record_containers:
+            for container_role, container in record_containers:
+                provider = container.get('providerMetadata') or {}
                 for a in container.get('affected') or []:
                     if not isinstance(a, dict):
                         continue
@@ -340,6 +270,14 @@ def build_index() -> dict[str, Any]:
                             'lessThan': str(v.get('lessThan', '') or ''),
                             'lessThanOrEqual': str(v.get('lessThanOrEqual', '') or ''),
                             'versionType': str(v.get('versionType', '') or ''),
+                            'changes': [
+                                {
+                                    'at': str(change.get('at', '') or ''),
+                                    'status': str(change.get('status', '') or ''),
+                                }
+                                for change in (v.get('changes') or [])
+                                if isinstance(change, dict)
+                            ],
                         }
                         entry_versions.append(entry)
                         for fld in ('version', 'lessThan', 'lessThanOrEqual'):
@@ -350,10 +288,26 @@ def build_index() -> dict[str, Any]:
                         if isinstance(c, str):
                             cpes.append(c)
                             entry_cpes.append(c)
-                    affected_entries.append({'vendor': vendor, 'product': product, 'versions': entry_versions, 'cpes': entry_cpes})
+                    affected_entries.append({
+                        'container_role': container_role,
+                        'provider_org_id': str(provider.get('orgId', '') or ''),
+                        'provider_short_name': str(provider.get('shortName', '') or ''),
+                        'vendor': vendor,
+                        'product': product,
+                        'collectionURL': str(a.get('collectionURL', '') or ''),
+                        'packageName': str(a.get('packageName', '') or ''),
+                        'repo': str(a.get('repo', '') or ''),
+                        'defaultStatus': str(a.get('defaultStatus', '') or ''),
+                        'versions': entry_versions,
+                        'cpes': entry_cpes,
+                        'platforms': [str(x) for x in (a.get('platforms') or []) if x],
+                        'modules': [str(x) for x in (a.get('modules') or []) if x],
+                        'programFiles': [str(x) for x in (a.get('programFiles') or []) if x],
+                        'programRoutines': [x for x in (a.get('programRoutines') or []) if isinstance(x, (str, dict))],
+                    })
 
             refs = []
-            for container in record_containers:
+            for _container_role, container in record_containers:
                 for r in container.get('references') or []:
                     if not isinstance(r, dict):
                         continue
@@ -373,7 +327,8 @@ def build_index() -> dict[str, Any]:
                         cvss_count_by_version[version] += 1
 
             row = {
-                'index_schema_version': 2,
+                'index_schema_version': 4,
+                'state': str(data.get('cveMetadata', {}).get('state') or ''),
                 'cve_id': cve_id,
                 'description': desc,
                 'affected_vendors': sorted(set(vendors)),
@@ -385,10 +340,23 @@ def build_index() -> dict[str, Any]:
                 'source': OFFICIAL_CVE_SOURCE,
                 'cvss_metrics': metrics,
             }
-            out.write(json.dumps(row, ensure_ascii=False) + '\n')
+            encoded = json.dumps(row, ensure_ascii=False)
+            out.write(encoded + '\n')
+            identity_keys = set()
+            for affected_entry in affected_entries:
+                identity_keys.update(affected_identity_keys(affected_entry))
+            for identity_key in identity_keys:
+                database.execute('INSERT INTO affected_identities VALUES (?, ?, ?)', (cve_id, identity_key, encoded))
             count += 1
     if count <= 0:
+        database.close()
         temp_index.unlink(missing_ok=True)
+        temp_sqlite.unlink(missing_ok=True)
         raise RuntimeError('Official CVE repository contained no indexable CVE records.')
+    database.execute('CREATE INDEX affected_identity_key_idx ON affected_identities(identity_key)')
+    database.execute('CREATE INDEX affected_identity_cve_idx ON affected_identities(cve_id)')
+    database.commit()
+    database.close()
     temp_index.replace(INDEX)
-    return {'records_indexed': count, 'records_with_cvss_metadata': cvss_count, 'records_with_cvss_metadata_by_version': cvss_count_by_version, 'index_file': str(INDEX)}
+    temp_sqlite.replace(SQLITE_INDEX)
+    return {'records_indexed': count, 'records_with_cvss_metadata': cvss_count, 'records_with_cvss_metadata_by_version': cvss_count_by_version, 'index_file': str(INDEX), 'sqlite_index': str(SQLITE_INDEX)}

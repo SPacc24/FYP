@@ -59,9 +59,6 @@ _ALLOWED_OPTIONAL_METRICS = {
     },
 }
 
-LATEST_CVSS_VERSION = "4.0"
-
-
 def _severity_for_score(score: float) -> str:
     if score == 0.0:
         return "NONE"
@@ -181,12 +178,11 @@ def load_scoring_policy() -> dict[str, Any]:
         raise ScoringPolicyError("fallback_between_versions must remain false.")
     if policy.get("convert_between_versions") is not False:
         raise ScoringPolicyError("convert_between_versions must remain false.")
-    latest = LATEST_CVSS_VERSION if LATEST_CVSS_VERSION in seen else default
     return {
         **policy,
         "configured_default_version": default,
-        "default_version": latest,
-        "default_selection_basis": "latest_supported_first_cvss",
+        "default_version": default,
+        "default_selection_basis": "external_policy",
         "policy_file": str(path),
     }
 
@@ -205,8 +201,7 @@ def scoring_choices() -> list[dict[str, str]]:
 def normalise_cvss_version(value: str | None) -> str:
     policy = load_scoring_policy()
     supported = {str(entry["id"]) for entry in policy["supported_versions"]}
-    latest = LATEST_CVSS_VERSION if LATEST_CVSS_VERSION in supported else str(policy["default_version"])
-    selected = str(value or latest).strip()
+    selected = str(value or policy["default_version"]).strip()
     if selected not in supported:
         raise ScoringPolicyError(
             f"Unsupported CVSS version {selected!r}; supported versions: {', '.join(sorted(supported))}."
@@ -226,7 +221,7 @@ def cvss_selection(value: str | None) -> dict[str, Any]:
         "metric_key": str(entry["metric_key"]),
         "specification_url": str(entry.get("specification_url") or ""),
         "is_default": selected == normalise_cvss_version(None),
-        "default_selection_basis": "latest_supported_first_cvss",
+        "default_selection_basis": "external_policy",
         "fallback_between_versions": False,
         "convert_between_versions": False,
         "missing_score_behavior": str(policy.get("missing_selected_version") or "report_unavailable"),

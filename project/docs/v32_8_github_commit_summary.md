@@ -10,7 +10,7 @@ This build is prepared as the team handoff version for the recon module. It keep
 - Gobuster timeout with discovered paths is reported as `Partial Results Captured`, not `0 paths`.
 - Gobuster-discovered web paths are added to Web Evidence.
 - Key Exposure Indicator port rendering is fixed for both HTML and PDF output.
-- UnrealIRCd banner/script parsing extracts `Unreal3.2.8.1` where available and supports official CVE review for CVE-2010-2075.
+- IRC banner/script parsing retains the observed product and version for data-driven CVE List V5 correlation without embedding a CVE identifier.
 - Anonymous FTP access is added as a Key Exposure Indicator when `ftp-anon` evidence is collected.
 - Samba TCP/UDP evidence is merged into a single SMB service card.
 - NFS/RPC exposure text and candidate CVE headings are deduplicated.
