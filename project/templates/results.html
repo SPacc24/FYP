@@ -3,21 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AutoPenTest Dashboard</title>
+  <title>AutoPenTest Results</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
-
-<body>
-  <main class="page">
-
+<body class="results-page">
+  <main class="page results-shell">
     {% include "navbar.html" %}
 
-    <section class="hero compact-hero">
-      <p class="eyebrow">AUTOMATED PENETRATION TESTING PLATFORM</p>
-      <h1>Security Assessment Dashboard</h1>
-      <p class="muted">
-        Review scan findings, AI technique recommendations, Caldera execution, results, and report generation.
-      </p>
+    <section class="results-hero">
+      <div>
+        <p class="eyebrow">ASSESSMENT RESULTS</p>
+        <h1>Security Assessment Workspace</h1>
+        <p class="muted">Review the target, validate findings, run approved actions, and export evidence without fighting the interface.</p>
+      </div>
+      <div class="results-hero-actions">
+        <a class="button secondary" href="/">New Scan</a>
+        <a class="button" href="#report-workspace" data-dashboard-tab-link="report">Open Report</a>
+      </div>
     </section>
 
     {% set active_mode = selected_mode if selected_mode else session.get('technique_mode', 'hybrid') %}
@@ -68,37 +70,89 @@
       {{ scan.command_log|default([])|tojson }}
     </script>
 
-    <section class="dashboard-wireframe" data-components="service-card finding-card">
-      <aside class="dashboard-left" aria-label="Attack Surface Workbench">
-        {% include "attack_surface_workbench.html" %}
-        {% include "scan_summary_sidebar.html" %}
-      </aside>
 
-      <div class="dashboard-main dashboard-center" aria-label="CVE Findings Supported by Evidence and Candidate CVE References">
-        {% include "scan_vul.html" %}
-        {% include "ai_techniques.html" %}
-        {% include "exploitation_validation.html" %}
-        {% include "caldera_execution.html" %}
-        {% include "mission_dashboard_panel.html" %}
-        {% include "report.html" %}
-      </div>
 
-      <aside class="dashboard-right">
-        {% include "ai_chatbox.html" %}
-      </aside>
+    <section class="results-overview" aria-label="Assessment overview">
+      <article class="overview-card overview-primary">
+        <span class="overview-label">Target</span>
+        <strong>{{ scan.target_ip if scan and scan.target_ip else session.get('target_ip', 'Unknown') }}</strong>
+        <small>{{ results.os if results and results.os is defined else results.get('os', 'Operating system unknown') }}</small>
+      </article>
+      <article class="overview-card">
+        <span class="overview-label">Risk score</span>
+        <strong>{{ risk.score if risk and risk.score is defined else 'N/A' }}</strong>
+        <small>{{ risk.label if risk and risk.label is defined else 'Not rated' }}</small>
+      </article>
+      <article class="overview-card">
+        <span class="overview-label">Open services</span>
+        <strong>{{ results.ports|length if results and results.ports is defined else 0 }}</strong>
+        <small>Discovered during recon</small>
+      </article>
+      <article class="overview-card">
+        <span class="overview-label">CVE findings</span>
+        <strong>{{ results.cve_matches|length if results and results.cve_matches is defined else 0 }}</strong>
+        <small>Evidence-backed matches</small>
+      </article>
+      <article class="overview-card">
+        <span class="overview-label">Mode</span>
+        <strong>{{ active_mode|upper }}</strong>
+        <small>Technique planning mode</small>
+      </article>
     </section>
 
-    <section class="panel dashboard-appendix-shell" aria-label="Technical Appendix">
-      <details class="appendix-details">
-        <summary>
-          <span>Technical Appendix</span>
-          <small>Service inventory, evidence collection summary, command log, and candidate CVE references.</small>
-        </summary>
-        <p class="muted">
-          Use the dedicated appendix page for the full evidence tables. Candidate CVE References are retained for analyst review.
-        </p>
-        <a class="button secondary" href="/technical-appendix" target="_blank">Open Technical Appendix</a>
-      </details>
+    <nav class="results-tabs" aria-label="Results sections">
+      <button class="results-tab is-active" type="button" data-dashboard-tab="overview">Overview</button>
+      <button class="results-tab" type="button" data-dashboard-tab="findings">Findings</button>
+      <button class="results-tab" type="button" data-dashboard-tab="planning">AI Plan</button>
+      <button class="results-tab" type="button" data-dashboard-tab="validation">Validation</button>
+      <button class="results-tab" type="button" data-dashboard-tab="caldera">CALDERA</button>
+      <button class="results-tab" type="button" data-dashboard-tab="mission">Mission</button>
+      <button class="results-tab" type="button" data-dashboard-tab="assistant">AI Assistant</button>
+      <button class="results-tab" type="button" data-dashboard-tab="report">Report</button>
+    </nav>
+
+    <section class="results-workspace">
+      <div class="results-pane is-active" data-dashboard-pane="overview">
+        <div class="results-two-column">
+          <div>{% include "attack_surface_workbench.html" %}</div>
+          <div>{% include "scan_summary_sidebar.html" %}</div>
+        </div>
+      </div>
+
+      <div class="results-pane" data-dashboard-pane="findings">
+        {% include "scan_vul.html" %}
+      </div>
+
+      <div class="results-pane" data-dashboard-pane="planning">
+        {% include "ai_techniques.html" %}
+      </div>
+
+      <div class="results-pane" data-dashboard-pane="validation">
+        {% include "exploitation_validation.html" %}
+      </div>
+
+      <div class="results-pane" data-dashboard-pane="caldera">
+        {% include "caldera_execution.html" %}
+      </div>
+
+      <div class="results-pane" data-dashboard-pane="mission">
+        {% include "mission_dashboard_panel.html" %}
+      </div>
+
+      <div class="results-pane" data-dashboard-pane="assistant">
+        <div class="assistant-workspace">{% include "ai_chatbox.html" %}</div>
+      </div>
+
+      <div class="results-pane" data-dashboard-pane="report" id="report-workspace">
+        {% include "report.html" %}
+        <section class="panel dashboard-appendix-shell" aria-label="Technical Appendix">
+          <details class="appendix-details">
+            <summary><span>Technical Appendix</span><small>Full service inventory, evidence collection and command records.</small></summary>
+            <p class="muted">Open the appendix when you need detailed analyst evidence. It is kept out of the main workflow to reduce clutter.</p>
+            <a class="button secondary" href="/technical-appendix" target="_blank">Open Technical Appendix</a>
+          </details>
+        </section>
+      </div>
     </section>
   </main>
 

@@ -33,7 +33,7 @@ In the MariaDB prompt, replace `CHOOSE_A_STRONG_PASSWORD` and run:
 
 ```sql
 CREATE DATABASE autopentest;
-CREATE USER 'autopentest'@'localhost' IDENTIFIED BY 'CHOOSE_A_STRONG_PASSWORD';
+CREATE USER 'autopentest'@'localhost' IDENTIFIED BY 'Admin123#@!';
 GRANT ALL PRIVILEGES ON autopentest.* TO 'autopentest'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;

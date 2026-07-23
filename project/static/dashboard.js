@@ -970,3 +970,32 @@ function downloadReport() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// Results workspace tabs
+(function initResultsWorkspaceTabs() {
+  const tabs = Array.from(document.querySelectorAll('[data-dashboard-tab]'));
+  const panes = Array.from(document.querySelectorAll('[data-dashboard-pane]'));
+  if (!tabs.length || !panes.length) return;
+
+  function activate(name, updateHash = true) {
+    const valid = panes.some((pane) => pane.dataset.dashboardPane === name);
+    const target = valid ? name : 'overview';
+    tabs.forEach((tab) => {
+      const active = tab.dataset.dashboardTab === target;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    panes.forEach((pane) => pane.classList.toggle('is-active', pane.dataset.dashboardPane === target));
+    if (updateHash) history.replaceState(null, '', `#${target}`);
+    window.scrollTo({ top: Math.max(0, document.querySelector('.results-tabs').offsetTop - 14), behavior: 'smooth' });
+  }
+
+  tabs.forEach((tab) => tab.addEventListener('click', () => activate(tab.dataset.dashboardTab)));
+  document.querySelectorAll('[data-dashboard-tab-link]').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      activate(link.dataset.dashboardTabLink);
+    });
+  });
+  activate((location.hash || '').replace('#', '') || 'overview', false);
+})();

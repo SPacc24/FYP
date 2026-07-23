@@ -1880,3 +1880,132 @@ body:has(.index-shell) {
     margin-top: 10px;
   }
 }
+
+/* Results workspace redesign */
+.results-page {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(77,155,255,.16), transparent 30%),
+    radial-gradient(circle at 92% 4%, rgba(139,92,246,.12), transparent 28%),
+    #060a12;
+}
+
+.results-shell { width: min(1480px, 96vw); margin: 0 auto; }
+.results-hero {
+  display: flex; align-items: end; justify-content: space-between; gap: 24px;
+  padding: 28px 4px 18px;
+}
+.results-hero h1 { margin: 4px 0 8px; font-size: clamp(30px,4vw,48px); letter-spacing: -.035em; }
+.results-hero p { max-width: 820px; }
+.results-hero-actions { display:flex; gap:10px; flex-wrap:wrap; }
+
+.results-overview {
+  display:grid; grid-template-columns: 1.35fr repeat(4, minmax(130px,1fr)); gap:12px; margin: 0 0 18px;
+}
+.overview-card {
+  min-width:0; padding:16px 18px; border:1px solid rgba(148,163,184,.16); border-radius:16px;
+  background:linear-gradient(180deg,rgba(18,27,43,.96),rgba(8,13,23,.94)); box-shadow:0 12px 32px rgba(0,0,0,.18);
+}
+.overview-primary { border-color:rgba(77,155,255,.38); background:linear-gradient(135deg,rgba(30,64,175,.28),rgba(8,13,23,.95)); }
+.overview-label { display:block; color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.1em; margin-bottom:7px; }
+.overview-card strong { display:block; font-size:1.35rem; color:var(--text); overflow-wrap:anywhere; }
+.overview-card small { display:block; margin-top:5px; color:var(--muted); }
+
+.results-tabs {
+  position:sticky; top:10px; z-index:30; display:flex; gap:6px; overflow-x:auto; padding:8px;
+  margin:0 0 16px; border:1px solid rgba(148,163,184,.16); border-radius:15px;
+  background:rgba(7,12,21,.90); backdrop-filter:blur(16px); box-shadow:0 12px 30px rgba(0,0,0,.2);
+}
+.results-tab {
+  flex:0 0 auto; border:0; border-radius:10px; padding:10px 14px; color:#9eacc0; background:transparent;
+  font-weight:700; cursor:pointer; transition:.18s ease;
+}
+.results-tab:hover { color:#fff; background:rgba(77,155,255,.10); }
+.results-tab.is-active { color:#fff; background:linear-gradient(135deg,#2563eb,#4f46e5); box-shadow:0 8px 20px rgba(37,99,235,.28); }
+.results-workspace { min-width:0; }
+.results-pane { display:none; min-width:0; }
+.results-pane.is-active { display:block; animation:resultsFade .18s ease; }
+@keyframes resultsFade { from { opacity:.35; transform:translateY(4px); } to { opacity:1; transform:none; } }
+.results-two-column { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(280px,.65fr); gap:16px; align-items:start; }
+
+.results-page .flow-card,
+.results-page .panel,
+.results-page .ai-sidebar-inner {
+  border-radius:18px; border-color:rgba(148,163,184,.16); box-shadow:0 14px 36px rgba(0,0,0,.18);
+}
+.results-page .flow-card { padding:22px; }
+.results-page .flow-card-header { margin-bottom:18px; }
+.results-page .flow-card-header h2 { font-size:clamp(20px,2vw,28px); margin-top:4px; }
+.results-page .details-block { border:1px solid rgba(148,163,184,.15); border-radius:14px; overflow:hidden; margin:12px 0; background:rgba(5,10,18,.44); }
+.results-page .details-block > summary { padding:14px 16px; cursor:pointer; font-weight:750; background:rgba(148,163,184,.05); }
+.results-page .details-block[open] > summary { border-bottom:1px solid rgba(148,163,184,.13); }
+.results-page .details-block > :not(summary) { margin-left:14px; margin-right:14px; }
+
+/* Keep Metasploit controls visible without horizontal scrolling */
+.results-page #exploitability-validation .table-wrap { overflow-x:visible; }
+.results-page #exploitability-validation table { width:100%; min-width:0 !important; table-layout:fixed; }
+.results-page #exploitability-validation th,
+.results-page #exploitability-validation td { overflow-wrap:anywhere; word-break:break-word; vertical-align:top; }
+.results-page #exploitability-validation th:nth-child(1) { width:16%; }
+.results-page #exploitability-validation th:nth-child(2) { width:25%; }
+.results-page #exploitability-validation th:nth-child(3) { width:16%; }
+.results-page #exploitability-validation th:last-child { width:105px; }
+.results-page #metasploitActionsBody .button,
+.results-page #metasploitActionsBody button { width:100%; min-width:0; padding:8px 9px; white-space:normal; }
+
+/* Mission control: clearer hierarchy */
+.results-page #mission-orchestration #missionNoMission .split-row { display:grid !important; grid-template-columns:minmax(220px,1fr) minmax(220px,.8fr) auto; gap:10px; align-items:end; }
+.results-page #mission-orchestration select { width:100%; max-width:none !important; }
+.results-page #missionMetrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.results-page #missionMetrics .m { padding:14px; border:1px solid rgba(148,163,184,.14); border-radius:13px; background:rgba(15,23,42,.68); }
+.results-page #missionMetrics .m b,.results-page #missionMetrics .m span { display:block; }
+.results-page #missionMetrics .m > span { color:var(--muted); margin-top:4px; font-size:.78rem; }
+.results-page #missionStages { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+.results-page #missionStages .stage { padding:8px 11px; border-radius:999px; border:1px solid rgba(148,163,184,.18); background:rgba(15,23,42,.8); }
+.results-page #missionStages .stage.completed { border-color:rgba(34,197,94,.42); color:#86efac; }
+.results-page #missionStages .stage.active { border-color:rgba(59,130,246,.55); color:#bfdbfe; box-shadow:0 0 0 3px rgba(59,130,246,.10); }
+.results-page #mission-orchestration .cols { display:grid; grid-template-columns:1.15fr .85fr; gap:14px; }
+.results-page #missionActionQueue,
+.results-page #missionEventLog { border:1px solid rgba(148,163,184,.14); border-radius:14px; background:rgba(3,8,15,.55); padding:10px; }
+.results-page #missionActionQueue table { min-width:0 !important; table-layout:fixed; width:100%; }
+.results-page #missionEventLog > div { padding:8px 4px; border-bottom:1px solid rgba(148,163,184,.09); line-height:1.45; }
+.results-page #missionEventLog > div:last-child { border-bottom:0; }
+.results-page #mission-orchestration .row-actions { display:flex; flex-wrap:wrap; gap:8px; }
+
+/* CALDERA deployment command should wrap instead of widening page */
+.results-page #deployCommandText { white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; max-width:100%; }
+.results-page .caldera-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.results-page #deployCommandBox,
+.results-page #operationBox,
+.results-page #coverageWarningBox,
+.results-page .caldera-actions { grid-column:1 / -1; }
+
+/* Assistant becomes a full workspace, not a cramped sidebar */
+.assistant-workspace .ai-sidebar { width:100%; max-width:none; position:static; }
+.assistant-workspace .ai-sidebar-inner { min-height:620px; }
+.assistant-workspace .ai-chat-box { min-height:430px; max-height:58vh; }
+
+.results-page .table-wrap { max-width:100%; }
+.results-page table { width:100%; }
+.results-page td,.results-page th { line-height:1.4; }
+.results-page .button-row,.results-page .actions { display:flex; flex-wrap:wrap; gap:8px; }
+
+@media (max-width:1100px) {
+  .results-overview { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .overview-primary { grid-column:span 2; }
+  .results-two-column { grid-template-columns:1fr; }
+  .results-page #mission-orchestration .cols { grid-template-columns:1fr; }
+}
+@media (max-width:760px) {
+  .results-shell { width:min(100% - 20px,1480px); }
+  .results-hero { align-items:flex-start; flex-direction:column; }
+  .results-overview { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .overview-primary { grid-column:1 / -1; }
+  .results-page .flow-card { padding:15px; }
+  .results-page .stage-head-with-actions,.results-page .split-row { display:block; }
+  .results-page .stage-actions,.results-page .button-row { margin-top:10px; }
+  .results-page #mission-orchestration #missionNoMission .split-row { display:grid !important; grid-template-columns:1fr; }
+  .results-page #missionMetrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .results-page .caldera-grid { grid-template-columns:1fr; }
+  .results-page #exploitability-validation table,
+  .results-page #missionActionQueue table { font-size:.74rem; }
+}
