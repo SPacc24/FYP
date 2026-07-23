@@ -214,6 +214,31 @@ def register_routes(app):
             "count": len(vulns)
         })
 
+
+    @app.route("/report/export/pdf", methods=["GET"])
+    def export_report_pdf():
+        from reports.report_generator import generate_pdf_report
+
+        context = _build_active_report_context()
+        report_path = generate_pdf_report(
+            scan_id=session.get("scan_id", ""),
+            scan=context["scan"],
+            mapping=context["mapping"],
+            validation=context["validation"],
+            operation=context["operation"],
+            risk=context["risk"],
+            remediations=context["remediations"],
+            pivot=context["pivot"],
+            missions=context.get("missions", []),
+        )
+        mimetype = "application/pdf" if str(report_path).lower().endswith(".pdf") else "text/plain"
+        return send_file(
+            report_path,
+            as_attachment=True,
+            download_name=os.path.basename(report_path),
+            mimetype=mimetype,
+        )
+
     @app.route("/report/export", methods=["GET"])
     def export_report():
         from reports.report_generator import generate_text_report
@@ -228,6 +253,7 @@ def register_routes(app):
             remediations=context["remediations"],
             validation=context["validation"],
             pivot=context["pivot"],
+            missions=context.get("missions", []),
         )
 
         return send_file(

@@ -78,8 +78,8 @@ const scanId = "{{ scan_id }}";
 const labels = {queued:'Queued', running:'In Progress', success:'Completed Successfully', empty:'Completed - No Relevant Information Returned', failed:'Failed - Error', timeout:'Timed Out - Partial Results Retained', skipped:'Skipped - Not Applicable'};
 let latestCommandLog = [];
 function cls(s){return {queued:'queued',running:'running',success:'done',empty:'empty',failed:'failed',timeout:'failed',skipped:'empty'}[s]||'queued'}
-function countTcp(services){return (services||[]).filter(s => (s.protocol||'tcp') === 'tcp').length}
-function countUdp(services){return (services||[]).filter(s => (s.protocol||'') === 'udp').length}
+function countTcp(services){return (Array.isArray(services)?services:[]).filter(s => (s.protocol||'tcp') === 'tcp').length}
+function countUdp(services){return (Array.isArray(services)?services:[]).filter(s => (s.protocol||'') === 'udp').length}
 function escapeHtml(s){return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function shortText(s, n=160){s=String(s||''); return s.length>n ? s.slice(0,n)+'...' : s}
 function logRow(l, idx){
@@ -101,10 +101,13 @@ function closeOutputModal(){
   document.getElementById('outputModal').setAttribute('aria-hidden','true');
 }
 document.addEventListener('keydown', e => { if(e.key === 'Escape') closeOutputModal(); });
+let redirecting = false;
 async function poll(){
+ if (redirecting) return;
  let d;
  try {
    const r=await fetch(`/scan/status/${scanId}?t=${Date.now()}`, {cache:'no-store'});
+   if (!r.ok) throw new Error(`HTTP ${r.status}`);
    d=await r.json();
  } catch (err) {
    document.getElementById('current').textContent='Waiting for scan status';
@@ -126,17 +129,25 @@ async function poll(){
  document.getElementById('tasks').innerHTML = taskBlock('Running', activeTasks) + taskBlock('Queued', queuedTasks) + taskBlock('Completed', completedTasks);
  latestCommandLog = (d.command_log || []).slice(-80);
  document.getElementById('log').innerHTML=latestCommandLog.map((entry, idx)=>logRow(entry, idx)).join('') || '<tr><td colspan="4" class="muted">No command has completed yet.</td></tr>';
- const res=d.results||{}; const services=res.service_inventory||[];
+ const res=(d.results && typeof d.results === 'object') ? d.results : {};
+ const services=Array.isArray(res.service_inventory) ? res.service_inventory : [];
+ const hosts=Array.isArray(res.hosts) ? res.hosts : [];
+ const cves=Array.isArray(res.cve_matches) ? res.cve_matches : [];
  document.getElementById('summary').innerHTML=`
-   <div class="mini-card"><b>${(res.hosts||[]).length||0}</b><span>Hosts Observed</span></div>
+   <div class="mini-card"><b>${hosts.length}</b><span>Hosts Observed</span></div>
    <div class="mini-card"><b>${countTcp(services)}</b><span>TCP Services</span></div>
    <div class="mini-card"><b>${countUdp(services)}</b><span>UDP Services</span></div>
-   <div class="mini-card"><b>${(res.cve_matches||[]).length||0}</b><span>Validated MITRE References</span></div>`;
+   <div class="mini-card"><b>${cves.length}</b><span>Validated CVE Findings</span></div>`;
  // The backend stores completed scans as success. Redirect only when a result
  // package exists; otherwise a failed pipeline would open an empty dashboard.
- const hasSavedResults = Boolean(res.service_inventory || res.hosts || res.handoff_file || res.caldera_handoff);
- if(d.status === 'success' || d.status === 'done' || (['failed', 'empty', 'error'].includes(d.status) && hasSavedResults)){
-   window.location=`/scan/results/${scanId}`;
+ const hasSavedResults = Boolean(
+   Object.keys(res).length || res.handoff_file || res.caldera_handoff
+ );
+ const terminalStatus = ['success','done','completed','empty'].includes(String(d.status||'').toLowerCase());
+ if (terminalStatus || (['failed','error'].includes(String(d.status||'').toLowerCase()) && hasSavedResults)) {
+   redirecting = true;
+   document.getElementById('current').textContent='Opening results dashboard...';
+   window.location.assign(`/scan/results/${encodeURIComponent(scanId)}`);
    return;
  }
  if(['failed', 'error'].includes(d.status)){

@@ -83,6 +83,11 @@ class Config:
         os.getenv('WEB_VALIDATION_MAX_REDIRECTS', '2')
     )
     LAB_WEB_OS = os.getenv('LAB_WEB_OS', 'windows')
+    LAB_WEB_EXPECTED_TITLE = os.getenv(
+        'LAB_WEB_EXPECTED_TITLE', 'AutoPentest Lab Diagnostics'
+    )
+    LAB_WEB_SCHEME = os.getenv('LAB_WEB_SCHEME', 'http').lower()
+    LAB_WEB_PORT = int(os.getenv('LAB_WEB_PORT', '80') or '80')
 
     ENABLE_WEB_EXPLOITATION = (
     os.getenv("ENABLE_WEB_EXPLOITATION", "0") == "1"

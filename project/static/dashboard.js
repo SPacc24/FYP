@@ -247,6 +247,12 @@ async function loadCalderaStatus() {
   const box = document.getElementById("calderaStatusBox");
   const deployBox = document.getElementById("deployCommandBox");
   const deployText = document.getElementById("deployCommandText");
+  const deployPlatformText =
+    document.getElementById("deployPlatformText");
+  const deployShellText =
+    document.getElementById("deployShellText");
+  const deployCommandMessage =
+    document.getElementById("deployCommandMessage");
   const agentStatusSummary = document.getElementById("agentStatusSummary");
   const deployTargetText = document.getElementById("deployTargetText");
   const deployOsText = document.getElementById("deployOsText");
@@ -267,6 +273,20 @@ async function loadCalderaStatus() {
     const trustedName = data.online_agents?.[0]?.host || data.online_agents?.[0]?.hostname || data.online_agents?.[0]?.paw || "-";
     if (deployTargetText) deployTargetText.textContent = data.target || getDashboardContext().target || "Unknown";
     if (deployOsText) deployOsText.textContent = data.target_os || "Unknown";
+    if (deployPlatformText) {
+    deployPlatformText.textContent =
+        data.target_platform || "Unknown";
+    }
+
+    if (deployShellText) {
+    deployShellText.textContent =
+        data.deploy_shell || "None";
+    }
+
+    if (deployCommandMessage) {
+      deployCommandMessage.textContent =
+        data.deploy_message || "";
+    }
     if (deployTargetSourceText) deployTargetSourceText.textContent = data.target_source || "Unknown";
     if (deployExternalTargetText) deployExternalTargetText.textContent = data.external_target || "Unknown";
     if (targetMatchTypeText) targetMatchTypeText.textContent = data.target_match_type || (data.target_match_confirmed ? "ip" : "none");
@@ -288,10 +308,19 @@ async function loadCalderaStatus() {
       box.innerHTML =
         `<p><strong>Not Ready</strong> - ${escapeHtml(data.message || "Caldera reachable - no trusted agent available")}</p>`;
 
-      if (data.deploy_command && deployText && deployBox) {
-        deployText.textContent = data.deploy_command;
-        deployBox.style.display = "block";
-      }
+      if (deployBox) {
+    deployBox.style.display = "block";
+}
+
+      if (deployText) {
+        if (data.deploy_supported && data.deploy_command) {
+          deployText.textContent = data.deploy_command;
+         } else {
+         deployText.textContent =
+            data.deploy_message ||
+            "No automatic deployment command available.";
+    }
+}
     }
   }
 
@@ -373,6 +402,13 @@ async function runExploitabilityValidation() {
     document.getElementById("validationConfirmed").textContent = data.confirmed || 0;
     document.getElementById("validationPotential").textContent = data.potential || 0;
     document.getElementById("validationTotal").textContent = data.total_checked || 0;
+    const qConfirmed = document.getElementById("validationQuickConfirmed");
+    const qPotential = document.getElementById("validationQuickPotential");
+    const qTotal = document.getElementById("validationQuickTotal");
+    if (qConfirmed) qConfirmed.textContent = data.confirmed || 0;
+    if (qPotential) qPotential.textContent = data.potential || 0;
+    if (qTotal) qTotal.textContent = data.total_checked || 0;
+    document.getElementById("flowValidation")?.classList.add("complete");
 
     if (narrative) {
       narrative.textContent = data.narrative || "Validation completed.";
@@ -638,6 +674,20 @@ async function runMetasploitAction(button) {
 }
 
 function appendMetasploitRun(run) {
+  const visual = document.getElementById("metasploitVisualResults");
+  const actionForCard = run.action || {};
+  if (visual) {
+    const state = run.session_created ? "Session opened" : metasploitRunLabel(run);
+    visual.querySelector(".muted")?.remove();
+    visual.insertAdjacentHTML("afterbegin", `
+      <article class="msf-result-card">
+        <div class="msf-result-head"><span class="state ${run.session_created || run.validation_outcome === 'vulnerable' ? 'confirmed' : 'potential'}">${escapeHtml(state)}</span><time>${escapeHtml(run.timestamp || 'Now')}</time></div>
+        <h3>${escapeHtml(actionForCard.module_name || 'Metasploit action')}</h3>
+        <p class="mono">${escapeHtml(actionForCard.target || '-')}:${escapeHtml(actionForCard.port || '-')}</p>
+        <p>${escapeHtml(run.summary || 'Action completed.')}</p>
+      </article>`);
+  }
+  document.getElementById("flowExploitation")?.classList.add("complete");
   const tbody = document.getElementById("metasploitRunsBody");
   if (!tbody) return;
 
@@ -941,3 +991,62 @@ function downloadReport() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+
+// Results workspace tabs
+(function initResultsWorkspaceTabs() {
+  const tabs = Array.from(document.querySelectorAll('[data-dashboard-tab]'));
+  const panes = Array.from(document.querySelectorAll('[data-dashboard-pane]'));
+  if (!tabs.length || !panes.length) return;
+
+  function activate(name, updateHash = true) {
+    const valid = panes.some((pane) => pane.dataset.dashboardPane === name);
+    const target = valid ? name : 'overview';
+    tabs.forEach((tab) => {
+      const active = tab.dataset.dashboardTab === target;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    panes.forEach((pane) => pane.classList.toggle('is-active', pane.dataset.dashboardPane === target));
+    if (updateHash) history.replaceState(null, '', `#${target}`);
+    window.scrollTo({ top: Math.max(0, document.querySelector('.results-tabs').offsetTop - 14), behavior: 'smooth' });
+  }
+
+  tabs.forEach((tab) => tab.addEventListener('click', () => activate(tab.dataset.dashboardTab)));
+  document.querySelectorAll('[data-dashboard-tab-link]').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      activate(link.dataset.dashboardTabLink);
+    });
+  });
+  activate((location.hash || '').replace('#', '') || 'overview', false);
+})();
+
+
+document.addEventListener("DOMContentLoaded", function () {
+  const pdfBtn = document.getElementById("downloadPdfReportBtn");
+  if (pdfBtn) {
+    pdfBtn.addEventListener("click", function () {
+      window.location.href = getEndpoint("reportExportPdf", "/report/export/pdf");
+      document.getElementById("flowReport")?.classList.add("complete");
+    });
+  }
+
+  const fab = document.getElementById("aiFab");
+  const drawer = document.getElementById("aiChatDrawer");
+  const close = document.getElementById("aiChatClose");
+  const setOpen = (open) => {
+    if (!fab || !drawer) return;
+    drawer.classList.toggle("is-open", open);
+    drawer.setAttribute("aria-hidden", open ? "false" : "true");
+    fab.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) setTimeout(() => document.getElementById("aiChatInput")?.focus(), 120);
+  };
+  fab?.addEventListener("click", () => setOpen(!drawer?.classList.contains("is-open")));
+  close?.addEventListener("click", () => setOpen(false));
+  document.addEventListener("keydown", e => { if (e.key === "Escape") setOpen(false); });
+
+  if (document.querySelector("#operationBox .operation-result, #operationBox table")) {
+    document.getElementById("flowPostExploit")?.classList.add("complete");
+  }
+});
