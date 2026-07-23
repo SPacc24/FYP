@@ -297,12 +297,18 @@ body {
   margin: 28px 0 20px;
 }
 
-.eyebrow {
-  color: var(--blue);
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  font-size: 12px;
-  font-weight: 700;
+.eyebrow{
+    display: inline-block;
+    padding: 6px 12px;
+    border: 1px solid rgba(90,162,255,.25);
+    border-radius: 8px;
+    background: rgba(90,162,255,.08);
+
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: #7fb8ff;
 }
 
 h1 {
@@ -1258,8 +1264,8 @@ body:has(.input-page) .footer {
 }
 
 .target-section input {
-  min-height: 54px;
-  font-size: 16px;
+  min-height: 20px;
+  font-size: 15px;
 }
 
 .index-card .profile-select {
@@ -1679,16 +1685,18 @@ body:has(.index-shell) {
 
 .index-head h1 {
   font-size: clamp(30px, 4vw, 48px);
-  max-width: 860px;
+  max-width: 430px;
+  margin-bottom: 0.75rem;
 }
 
 .index-head .muted {
-  max-width: 900px;
+  max-width: 560px;
+  font-size: 0.95rem;
 }
 
 .index-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1080px);
+  grid-template-columns: minmax(0, 1500px);
   justify-content: center;
   gap: 0;
   align-items: start;
@@ -1879,6 +1887,373 @@ body:has(.index-shell) {
     justify-content: flex-start;
     margin-top: 10px;
   }
+}
+
+
+.hero-top{
+    display:grid;
+    grid-template-columns:minmax(0,1.8fr) 340px;
+    gap:3rem;
+    align-items:center;
+    
+}
+
+.hero-operator{
+    margin-top:0;
+}
+
+.section-header{
+    display:flex;
+    align-items:center;
+    gap:.75rem;
+    margin-bottom:1rem;
+}
+
+.step-number{
+    width:30px;
+    height:30px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    border-radius:8px;
+
+    background:linear-gradient(
+        180deg,
+        rgba(75,146,255,.28),
+        rgba(43,94,190,.22)
+    );
+
+    border:1px solid rgba(90,162,255,.25);
+
+    color:#9ec8ff;
+    font-size:.9rem;
+    font-weight:700;
+}
+
+.section-header .label{
+    margin:0;
+    color:#ffffff;
+    font-size:0.9rem;
+    font-weight:600;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+}
+
+/* ==========================================
+   Recon & Technique Mapping Layout
+   ========================================== */
+
+.config-grid {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 16px;
+    margin-top: 10px;
+    align-items: stretch;
+}
+
+/* ==========================================
+   Recon Strategy Option Layout
+   ========================================== */
+
+.recon-strategy-section .profile-select {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+/* ==========================================
+   Recon Strategy Card
+   ========================================== */
+
+.recon-strategy-section .radio-card span {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--muted);
+    font-weight: 400;
+}
+/* ==========================================
+   Technique Mapping Description
+   ========================================== */
+
+.mapping-description {
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+/* ==========================================
+   Target Card
+   ========================================== */
+
+.target-card {
+    background: rgba(5, 10, 18, 0.34);
+}
+
+/* ==========================================
+   Tool Selection Header
+   ========================================== */
+
+.tool-picker-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    margin-bottom: 12px;
+}
+
+.tool-picker-head h2 {
+    margin: 6px 0 0;
+}
+
+.tool-picker-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.tool-picker > .muted.small {
+    margin: 0 0 20px;
+    max-width: 560px;
+    line-height: 1.6;
+    color: var(--muted);
+}
+/* ==========================================
+   Tool Selection Cards
+   ========================================== */
+
+.tool-toggle span {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tool-toggle b {
+    display: block;
+}
+
+.tool-toggle small {
+    display: block;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+/* ==========================================
+   Recon Output Grid
+   ========================================== */
+
+.recon-output-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+}
+/* ==========================================
+   Start Recon Action Panel
+   ========================================== */
+
+.index-actions {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.7fr);
+  align-items: center;
+  gap: 28px;
+
+  padding: 14px 18px;
+  margin-top: 16px;
+
+  background: rgba(77, 155, 255, 0.06);
+  border: 1px solid rgba(77, 155, 255, 0.16);
+  border-radius: 14px;
+}
+
+/* ==========================================
+   Start Recon Button
+   ========================================== */
+
+.index-actions .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+
+    width: 100%;
+    min-height: 54px;
+    padding: 0 22px;
+}
+
+.index-actions .btn span {
+    flex: none;
+}
+
+.index-actions .btn i {
+    font-size: 1.1rem;
+}
+
+/* ==========================================
+   Recon Safety Note
+   ========================================== */
+
+.index-actions .note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* ==========================================
+   Main Navigation Bar
+   ========================================== */
+
+.main-navbar {
+    position: sticky;
+    top: 16px;
+    z-index: 1000;
+
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 28px;
+
+    margin-bottom: 24px;
+    padding: 12px 18px;
+
+    background: rgba(8, 14, 26, .82);
+    border: 1px solid rgba(77,155,255,.16);
+    border-radius: 16px;
+
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+/* ==========================================
+   Brand
+   ========================================== */
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    text-decoration: none;
+    color: #fff;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.brand-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 36px;
+    height: 36px;
+
+    color: #9ec8ff;
+
+    background: rgba(77,155,255,.10);
+    border: 1px solid rgba(77,155,255,.18);
+    border-radius: 10px;
+}
+
+/* ==========================================
+   Navigation Links
+   ========================================== */
+
+.navbar-links {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+}
+
+.navbar-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 9px 14px;
+
+    text-decoration: none;
+    color: var(--muted);
+
+    border-radius: 10px;
+
+    font-size: .88rem;
+    font-weight: 600;
+
+    transition: .25s;
+}
+
+.navbar-link i {
+    font-size: .95rem;
+}
+
+.navbar-link:hover {
+    color: white;
+    background: rgba(77,155,255,.08);
+}
+
+
+
+/* ==========================================
+   Right Controls
+   ========================================== */
+
+.navbar-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ==========================================
+   Theme Toggle
+   ========================================== */
+
+.theme-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 42px;
+    height: 42px;
+
+    color: #ffd76a;
+    font-size: 1rem;
+
+    background: rgba(77,155,255,.08);
+    border: 1px solid rgba(77,155,255,.16);
+    border-radius: 10px;
+
+    cursor: pointer;
+
+    transition: .25s;
+}
+
+.theme-toggle:hover {
+    background: rgba(77,155,255,.14);
+    border-color: rgba(77,155,255,.28);
+}
+
+/* ==========================================
+   Smooth Scroll
+   ========================================== */
+
+html {
+    scroll-behavior: smooth;
+}
+
+/* ==========================================
+   Anchor Offset
+   ========================================== */
+
+#target,
+#strategy,
+#mapping,
+#tools,
+#output {
+    scroll-margin-top: 200px;
 }
 
 /* Results workspace redesign */
