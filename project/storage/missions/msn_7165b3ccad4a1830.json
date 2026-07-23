@@ -1,13 +1,13 @@
 {
-  "mission_id": "msn_1341ff0357f3f29c",
+  "mission_id": "msn_7165b3ccad4a1830",
   "playbook_id": "edge_to_internal_proof",
   "playbook_title": "Edge to internal impact proof",
   "goal": "From authorised edge evidence, auto-validate safe exposures, branch when celebrity exploits are patched, unlock high-risk impact only with proof plan + operator approval, then expand via pivot.",
   "summary": "Closed-loop mission: surface \u2192 safe validation \u2192 branch brain \u2192 impact gate \u2192 pivot expand \u2192 debrief.",
   "risk_posture": "validate",
   "status": "completed",
-  "created_at": "2026-07-23T13:27:17.139547+00:00",
-  "updated_at": "2026-07-23T13:27:17.147363+00:00",
+  "created_at": "2026-07-23T14:04:33.453335+00:00",
+  "updated_at": "2026-07-23T14:04:33.458497+00:00",
   "scan_id": "",
   "scope": {},
   "notes": "",
@@ -22,7 +22,7 @@
       "status": "completed",
       "auto_advance": true,
       "requires_unlock_flag": "",
-      "completed_at": "2026-07-23T13:27:17.142871+00:00"
+      "completed_at": "2026-07-23T14:04:33.455036+00:00"
     },
     {
       "id": "surface_lock",
@@ -32,12 +32,12 @@
       "status": "completed",
       "auto_advance": true,
       "requires_unlock_flag": "",
-      "started_at": "2026-07-23T13:27:17.142964+00:00",
+      "started_at": "2026-07-23T14:04:33.455145+00:00",
       "completed_actions": [
         "ingest_scan",
         "build_graph"
       ],
-      "completed_at": "2026-07-23T13:27:17.144052+00:00"
+      "completed_at": "2026-07-23T14:04:33.455988+00:00"
     },
     {
       "id": "hypothesis",
@@ -47,11 +47,11 @@
       "status": "completed",
       "auto_advance": true,
       "requires_unlock_flag": "",
-      "started_at": "2026-07-23T13:27:17.144616+00:00",
+      "started_at": "2026-07-23T14:04:33.456073+00:00",
       "completed_actions": [
         "catalog_hypotheses"
       ],
-      "completed_at": "2026-07-23T13:27:17.145175+00:00"
+      "completed_at": "2026-07-23T14:04:33.456502+00:00"
     },
     {
       "id": "safe_validation",
@@ -61,11 +61,11 @@
       "status": "completed",
       "auto_advance": true,
       "requires_unlock_flag": "",
-      "started_at": "2026-07-23T13:27:17.145240+00:00",
+      "started_at": "2026-07-23T14:04:33.456551+00:00",
       "completed_actions": [
         "queue_safe_aux"
       ],
-      "completed_at": "2026-07-23T13:27:17.145858+00:00"
+      "completed_at": "2026-07-23T14:04:33.457039+00:00"
     },
     {
       "id": "branch_brain",
@@ -75,11 +75,11 @@
       "status": "completed",
       "auto_advance": true,
       "requires_unlock_flag": "",
-      "started_at": "2026-07-23T13:27:17.145905+00:00",
+      "started_at": "2026-07-23T14:04:33.457096+00:00",
       "completed_actions": [
         "evaluate_branches"
       ],
-      "completed_at": "2026-07-23T13:27:17.146398+00:00"
+      "completed_at": "2026-07-23T14:04:33.457651+00:00"
     },
     {
       "id": "impact_gate",
@@ -89,7 +89,7 @@
       "status": "skipped",
       "auto_advance": false,
       "requires_unlock_flag": "impact_path_available",
-      "completed_at": "2026-07-23T13:27:17.146452+00:00"
+      "completed_at": "2026-07-23T14:04:33.457710+00:00"
     },
     {
       "id": "alternate_lateral",
@@ -99,7 +99,7 @@
       "status": "skipped",
       "auto_advance": true,
       "requires_unlock_flag": "alternate_lateral_enabled",
-      "completed_at": "2026-07-23T13:27:17.146489+00:00"
+      "completed_at": "2026-07-23T14:04:33.457751+00:00"
     },
     {
       "id": "pivot_expand",
@@ -109,7 +109,7 @@
       "status": "skipped",
       "auto_advance": false,
       "requires_unlock_flag": "foothold_proved",
-      "completed_at": "2026-07-23T13:27:17.146529+00:00"
+      "completed_at": "2026-07-23T14:04:33.457794+00:00"
     },
     {
       "id": "mission_debrief",
@@ -119,11 +119,11 @@
       "status": "completed",
       "auto_advance": true,
       "requires_unlock_flag": "",
-      "started_at": "2026-07-23T13:27:17.146560+00:00",
+      "started_at": "2026-07-23T14:04:33.457827+00:00",
       "completed_actions": [
         "compile_debrief"
       ],
-      "completed_at": "2026-07-23T13:27:17.147247+00:00"
+      "completed_at": "2026-07-23T14:04:33.458378+00:00"
     }
   ],
   "flags": [],
@@ -150,57 +150,57 @@
   "branch_events": [],
   "event_log": [
     {
-      "at": "2026-07-23T13:27:17.139956+00:00",
+      "at": "2026-07-23T14:04:33.453470+00:00",
       "kind": "mission_started",
       "message": "Mission started: Edge to internal impact proof"
     },
     {
-      "at": "2026-07-23T13:27:17.142985+00:00",
+      "at": "2026-07-23T14:04:33.455168+00:00",
       "kind": "stage_active",
       "message": "Entered stage Surface lock"
     },
     {
-      "at": "2026-07-23T13:27:17.143169+00:00",
+      "at": "2026-07-23T14:04:33.455380+00:00",
       "kind": "scan_ingested",
       "message": "0 host(s), 0 port row(s)"
     },
     {
-      "at": "2026-07-23T13:27:17.143582+00:00",
+      "at": "2026-07-23T14:04:33.455489+00:00",
       "kind": "graph_built",
       "message": "Graph hosts=0"
     },
     {
-      "at": "2026-07-23T13:27:17.144657+00:00",
+      "at": "2026-07-23T14:04:33.456091+00:00",
       "kind": "stage_active",
       "message": "Entered stage Hypothesis"
     },
     {
-      "at": "2026-07-23T13:27:17.144744+00:00",
+      "at": "2026-07-23T14:04:33.456165+00:00",
       "kind": "hypotheses_ready",
       "message": "0 catalog/research hypothese(s)"
     },
     {
-      "at": "2026-07-23T13:27:17.145254+00:00",
+      "at": "2026-07-23T14:04:33.456565+00:00",
       "kind": "stage_active",
       "message": "Entered stage Safe validation storm"
     },
     {
-      "at": "2026-07-23T13:27:17.145525+00:00",
+      "at": "2026-07-23T14:04:33.456650+00:00",
       "kind": "actions_queued",
       "message": "queued_auto=0 awaiting_approval=0"
     },
     {
-      "at": "2026-07-23T13:27:17.145918+00:00",
+      "at": "2026-07-23T14:04:33.457112+00:00",
       "kind": "stage_active",
       "message": "Entered stage Branch brain"
     },
     {
-      "at": "2026-07-23T13:27:17.146571+00:00",
+      "at": "2026-07-23T14:04:33.457840+00:00",
       "kind": "stage_active",
       "message": "Entered stage Mission debrief"
     },
     {
-      "at": "2026-07-23T13:27:17.147351+00:00",
+      "at": "2026-07-23T14:04:33.458484+00:00",
       "kind": "mission_completed",
       "message": "Mission debrief compiled"
     }
@@ -279,7 +279,7 @@
     "professional_notes": [
       "Mission followed evidence-closed-loop orchestration with catalog custody of modules."
     ],
-    "compiled_at": "2026-07-23T13:27:17.147329+00:00"
+    "compiled_at": "2026-07-23T14:04:33.458460+00:00"
   },
   "parsed_results_snapshot": {},
   "evidence": {

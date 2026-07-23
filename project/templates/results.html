@@ -46,6 +46,7 @@
         generateReport: "{{ url_for('generate_report') }}",
         reportView: "{{ url_for('report_view') }}",
         reportExport: "{{ url_for('export_report') }}",
+        reportExportPdf: "{{ url_for('export_report_pdf') }}",
         missionStart: "{{ url_for('api_mission_start') }}",
         missionList: "{{ url_for('api_mission_list') }}",
         missionGet: "{{ url_for('api_mission_get', mission_id='__ID__') }}".replace('__ID__', ''),
@@ -100,6 +101,18 @@
       </article>
     </section>
 
+
+    <section class="assessment-flow" aria-label="Assessment workflow">
+      <div class="flow-track">
+        <article class="flow-node complete"><span>1</span><strong>Scan</strong><small>Discover assets</small></article>
+        <article class="flow-node complete"><span>2</span><strong>Technique Selection</strong><small>Map evidence to ATT&amp;CK</small></article>
+        <article class="flow-node" id="flowValidation"><span>3</span><strong>Validation</strong><small>Confirm safely</small></article>
+        <article class="flow-node" id="flowExploitation"><span>4</span><strong>Exploitation</strong><small>Approved Metasploit actions</small></article>
+        <article class="flow-node" id="flowPostExploit"><span>5</span><strong>Post-Exploitation</strong><small>CALDERA mission</small></article>
+        <article class="flow-node" id="flowReport"><span>6</span><strong>Report</strong><small>Evidence and remediation</small></article>
+      </div>
+    </section>
+
     <nav class="results-tabs" aria-label="Results sections">
       <button class="results-tab is-active" type="button" data-dashboard-tab="overview">Overview</button>
       <button class="results-tab" type="button" data-dashboard-tab="findings">Findings</button>
@@ -107,7 +120,6 @@
       <button class="results-tab" type="button" data-dashboard-tab="validation">Validation</button>
       <button class="results-tab" type="button" data-dashboard-tab="caldera">CALDERA</button>
       <button class="results-tab" type="button" data-dashboard-tab="mission">Mission</button>
-      <button class="results-tab" type="button" data-dashboard-tab="assistant">AI Assistant</button>
       <button class="results-tab" type="button" data-dashboard-tab="report">Report</button>
     </nav>
 
@@ -137,10 +149,6 @@
 
       <div class="results-pane" data-dashboard-pane="mission">
         {% include "mission_dashboard_panel.html" %}
-      </div>
-
-      <div class="results-pane" data-dashboard-pane="assistant">
-        <div class="assistant-workspace">{% include "ai_chatbox.html" %}</div>
       </div>
 
       <div class="results-pane" data-dashboard-pane="report" id="report-workspace">
@@ -179,6 +187,18 @@
       </div>
     </div>
   </div>
+
+
+  <button class="ai-fab" id="aiFab" type="button" aria-label="Open AI assistant" aria-expanded="false">
+    <span aria-hidden="true">✦</span>
+  </button>
+  <section class="ai-chat-drawer" id="aiChatDrawer" aria-hidden="true" aria-label="AI assistant">
+    <div class="ai-chat-drawer-head">
+      <div><small>ASSESSMENT ASSISTANT</small><strong>Ask AutoPenTest AI</strong></div>
+      <button class="icon-btn" id="aiChatClose" type="button">Close</button>
+    </div>
+    {% include "ai_chatbox.html" %}
+  </section>
 
   <footer class="footer">
     <p>Automated Penetration Testing · Group 6 · AI-Assisted Security Assessment</p>

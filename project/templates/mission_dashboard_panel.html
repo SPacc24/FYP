@@ -30,7 +30,7 @@
         </div>
         <div>
           <h3 style="font-size:.85rem;color:var(--muted);margin:0 0 .35rem;">Event Log</h3>
-          <div class="log" id="missionEventLog" style="max-height:280px;"></div>
+          <div class="log" id="missionEventLog"></div>
         </div>
       </div>
 
@@ -39,6 +39,7 @@
         <button class="button secondary" id="missionContinueBtn" type="button">Continue</button>
         <button class="button secondary" id="missionValidateSafeBtn" type="button">Validate Safe Actions</button>
         <button class="button danger" id="missionAbortBtn" type="button">Abort</button>
+        <button class="button secondary" id="missionDownloadDebriefBtn" type="button" disabled>Download Debrief</button>
       </div>
 
       <div id="missionPendingApprovals" style="margin-top:.75rem;"></div>
@@ -149,7 +150,7 @@
       let logHtml = '';
       const events = (mission.event_log || []).slice(-20);
       events.forEach(e => {
-        logHtml += `<div><span class="muted">${formatTime(e.timestamp)}</span> ${e.message || e.event || ''}</div>`;
+        logHtml += `<div><span class="muted">${formatTime(e.timestamp)}</span><span>${String(e.message || e.event || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span></div>`;
       });
       document.getElementById('missionEventLog').innerHTML = logHtml || '<div class="empty">No events yet.</div>';
 
@@ -174,8 +175,10 @@
       if (mission.debrief) {
         const db = document.getElementById('missionDebriefPanel');
         db.classList.remove('hidden');
-        db.innerHTML = `<strong>${mission.debrief.reason || 'Debrief'}</strong><br>
-          <span class="muted small">Goal: ${mission.debrief.goal_met||'N/A'} | Actions: ${mission.debrief.total_actions||'?'} | Successful: ${mission.debrief.successful_actions||0} | Failed: ${mission.debrief.failed_actions||0}</span>`;
+        db.innerHTML = `<div class="debrief-head"><div><span class="label">Mission Debrief</span><strong>${mission.debrief.reason || 'Mission completed'}</strong></div><span class="state ${mission.debrief.goal_met === true ? 'confirmed' : 'potential'}">${mission.debrief.goal_met === true ? 'Goal met' : 'Goal not proven'}</span></div>
+          <div class="debrief-stats"><span>Actions <b>${mission.debrief.total_actions||0}</b></span><span>Successful <b>${mission.debrief.successful_actions||0}</b></span><span>Failed <b>${mission.debrief.failed_actions||0}</b></span><span>Proofs <b>${(mission.proofs||[]).length}</b></span></div>`;
+        const downloadBtn = document.getElementById('missionDownloadDebriefBtn');
+        if (downloadBtn) downloadBtn.disabled = false;
       }
 
       // Summary strip
@@ -278,6 +281,29 @@
     });
 
     // Init
+    document.getElementById('missionDownloadDebriefBtn')?.addEventListener('click', () => {
+      if (!activeMission) return;
+      const payload = {
+        mission_id: activeMission.mission_id,
+        playbook: activeMission.playbook_title || activeMission.playbook_id,
+        status: activeMission.status,
+        target: activeMission.target || '',
+        debrief: activeMission.debrief || {},
+        proofs: activeMission.proofs || [],
+        action_queue: activeMission.action_queue || [],
+        event_log: activeMission.event_log || []
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mission_debrief_${activeMission.mission_id || 'latest'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
     loadPlaybooks();
 
     // Check for existing mission via scan context
