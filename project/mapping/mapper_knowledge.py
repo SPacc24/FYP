@@ -23,6 +23,39 @@ SEVERITY_SCORE = {
 MITRE_ENTERPRISE_ATTACK_FILE = Path("data") / "enterprise_attack.json"
 
 
+KNOWN_CVE_SIGNATURES: list[dict[str, Any]] = [
+    {
+        "match_type": "cpe_contains",
+        "patterns": ["vsftpd:vsftpd:2.3.4"],
+        "cve_id": "CVE-2011-2523",
+        "title": "vsftpd 2.3.4 backdoor vulnerability",
+        "severity": "Critical",
+        "reason": "Detected vsftpd 2.3.4 CPE/version, a well-known vulnerable FTP daemon build used in lab targets.",
+        "remediation": "Remove vsftpd 2.3.4, install a trusted patched version, disable anonymous access, and prefer SFTP/FTPS where possible.",
+    },
+    {
+        "match_type": "product_version_contains",
+        "product": "samba",
+        "version_patterns": ["3.0.20"],
+        "cve_id": "CVE-2007-2447",
+        "title": "Samba username map script command execution risk",
+        "severity": "Critical",
+        "reason": "Detected Samba 3.0.20, which falls within the vulnerable Samba 3.0.0 to 3.0.25rc3 range when unsafe username map script configuration exists.",
+        "remediation": "Upgrade Samba, disable unsafe username map script configuration, restrict SMB access, and segment file-sharing services.",
+    },
+    {
+        "match_type": "product_version_contains",
+        "product": "apache httpd",
+        "version_patterns": ["2.2.8"],
+        "cve_id": "CVE-2011-3192",
+        "title": "Apache HTTPD byterange denial-of-service risk",
+        "severity": "High",
+        "reason": "Detected Apache httpd 2.2.8, an old 2.2.x release affected by historic Range-header denial-of-service issues.",
+        "remediation": "Upgrade Apache httpd, apply vendor patches, review modules, remove default pages, and enforce secure web configuration.",
+    },
+]
+
+
 SERVICE_KNOWLEDGE_BASE: dict[str, dict[str, Any]] = {
     "ftp": {
         "title": "FTP service exposed",

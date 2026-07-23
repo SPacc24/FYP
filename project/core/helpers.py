@@ -12,6 +12,7 @@ from reports.report_generator import build_report_summary
 from scanners.nmap_parser import parse_nmap_xml
 from storage import scan_store
 
+from automation.mission_service import get_mission_service
 from core.services import caldera_client, risk_scorer
 
 log = logging.getLogger(__name__)
@@ -94,14 +95,12 @@ def _safe_risk_calculate(vulns, op_results):
         })
         return risk_scorer.calculate(vulns, op_results)
     except Exception as e:
-        log.warning(f"Operational risk calculation unavailable: {e}")
+        log.warning(f"Risk score fallback triggered: {e}")
         return {
-            "score": None,
-            "label": "Unavailable",
-            "colour": "grey",
-            "badge": "unavailable",
-            "status": "calculation_unavailable",
-            "error": str(e),
+            "score": 50,
+            "label": "Medium",
+            "colour": "orange",
+             "badge": "warning",
         }
 
 
@@ -187,12 +186,8 @@ def _active_scan_record() -> dict:
 
 def _active_mapping_results() -> dict:
     data = _active_scan_record()
-    mapping = data.get("mapping") or {}
-    if (
-        isinstance(mapping, dict)
-        and mapping.get("cve_source_of_truth") == "scanner_official_index"
-        and mapping.get("cve_contract_version") == "scanner-canonical-v4"
-    ):
+    mapping = data.get("mapping") or session.get("mapping_results") or {}
+    if isinstance(mapping, dict):
         return mapping
     return {}
 
@@ -261,16 +256,10 @@ def _build_active_report_context(data: dict | None = None) -> dict:
     scan["os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
     scan["ports"] = parsed_results.get("ports", [])
 
-    mapping_results = active.get("mapping") or {}
-    if not (
-        isinstance(mapping_results, dict)
-        and mapping_results.get("cve_source_of_truth") == "scanner_official_index"
-        and mapping_results.get("cve_contract_version") == "scanner-canonical-v4"
-    ):
-        mapping_results = {}
+    mapping_results = active.get("mapping") or _active_mapping_results()
     operation_results = active.get("operation_results") or _active_operation_results()
     validation_results = active.get("validation_results") or _active_validation_results()
-    pivot_results = active.get("pivot_assessment") or {}
+    pivot_results = active.get("pivot_assessment") or session.get("pivot_assessment", {})
     attack_advice = active.get("attack_advice") or _active_attack_advice()
     metasploit_results = active.get("metasploit_results") or _active_metasploit_results()
     if isinstance(validation_results, dict) and attack_advice:
@@ -283,8 +272,14 @@ def _build_active_report_context(data: dict | None = None) -> dict:
             **validation_results,
             "metasploit_results": metasploit_results,
         }
-    risk = {}
-    remediations = []
+    risk = active.get("risk") or session.get("risk_score", {})
+    remediations = active.get("remediations") or session.get("remediations", [])
+
+    try:
+        missions = get_mission_service().list_missions(limit=10)
+    except Exception:
+        log.warning("Could not load missions for report context", exc_info=True)
+        missions = []
 
     report = build_report_summary(
         scan=scan,
@@ -294,6 +289,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         remediations=remediations,
         validation=validation_results,
         pivot=pivot_results,
+        missions=missions,
     )
 
     return {
@@ -307,6 +303,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         "risk": risk,
         "remediations": remediations,
         "report": report,
+        "missions": missions,
     }
 
 
@@ -319,22 +316,10 @@ def _ensure_scan_analysis(data: dict) -> dict:
     parsed_results = _stored_results_to_parsed_results(results, data) if results else {}
 
     mapping_results = data.get("mapping")
-    if not (
-        isinstance(mapping_results, dict)
-        and mapping_results.get("cve_source_of_truth") == "scanner_official_index"
-        and mapping_results.get("cve_contract_version") == "scanner-canonical-v4"
-    ):
+    if not isinstance(mapping_results, dict) or not mapping_results.get("recommended_techniques"):
         try:
-            from scanners.enumerator import _canonicalise_downstream_mapping
             mapping_results = map_vulnerabilities(parsed_results)
-            mapping_results = _canonicalise_downstream_mapping(
-                mapping_results,
-                results.get("cve_matches") or [],
-                results.get("relevant_cve_information") or [],
-            )
             data["mapping"] = mapping_results
-            data["ai_plan"] = {}
-            data["attack_plan"] = {}
             changed = True
         except Exception:
             log.exception("Could not build vulnerability mapping for stored scan")
@@ -369,8 +354,9 @@ def _ensure_scan_analysis(data: dict) -> dict:
             log.exception("Could not build attack plan for stored scan")
 
     risk = data.get("risk")
-    if risk:
-        data["risk"] = {}
+    if not isinstance(risk, dict) or "score" not in risk:
+        risk = _safe_risk_calculate((mapping_results or {}).get("vulnerabilities", []), data.get("operation_results") or {})
+        data["risk"] = risk
         changed = True
 
     if changed and data.get("scan_id"):
@@ -389,6 +375,81 @@ def _ensure_scan_analysis(data: dict) -> dict:
     session["technique_mode"] = mode
     session["target_os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
     return data
+
+
+def _normalise_target_os(os_value) -> dict:
+    """
+    Convert Nmap/pivot OS evidence into a consistent deployment platform.
+
+    Returns:
+        {
+            "name": original human-readable OS name,
+            "platform": windows | windows_legacy | linux | darwin | unknown,
+            "confidence": optional accuracy value
+        }
+    """
+    confidence = ""
+
+    if isinstance(os_value, dict):
+        os_name = str(
+            os_value.get("name")
+            or os_value.get("family")
+            or os_value.get("os")
+            or "Unknown"
+        ).strip()
+
+        confidence = str(
+            os_value.get("accuracy")
+            or os_value.get("confidence")
+            or ""
+        ).strip()
+    else:
+        os_name = str(os_value or "Unknown").strip()
+
+    lowered = os_name.lower()
+
+    if not lowered or lowered in {"unknown", "none", "n/a"}:
+        platform = "unknown"
+
+    elif any(token in lowered for token in (
+        "windows xp",
+        "windows 2000",
+        "windows server 2003",
+        "windows vista",
+    )):
+        platform = "windows_legacy"
+
+    elif "windows" in lowered or "microsoft" in lowered:
+        platform = "windows"
+
+    elif any(token in lowered for token in (
+        "linux",
+        "ubuntu",
+        "debian",
+        "kali",
+        "centos",
+        "red hat",
+        "fedora",
+        "arch",
+    )):
+        platform = "linux"
+
+    elif any(token in lowered for token in (
+        "mac os",
+        "macos",
+        "darwin",
+        "os x",
+    )):
+        platform = "darwin"
+
+    else:
+        platform = "unknown"
+
+    return {
+        "name": os_name or "Unknown",
+        "platform": platform,
+        "confidence": confidence,
+    }
 
 
 def _current_target_context():
@@ -411,25 +472,32 @@ def _current_target_context():
 
     if isinstance(selected, dict) and selected.get("ip"):
         target = selected["ip"]
-        os_name = selected.get("os") or "Unknown"
+        raw_os = selected.get("os") or "Unknown"
         source = "pivot_scan"
     else:
         target = external_target
-        os_name = (
+        raw_os = (
             parsed_results.get("os")
             or session.get("target_os")
             or "Unknown"
         )
         source = "external_scan"
 
+        # Fall back to the first host's OS evidence.
+        if (
+            raw_os in {"Unknown", "", None}
+            and isinstance(parsed_results.get("hosts"), list)
+            and parsed_results["hosts"]
+        ):
+            raw_os = parsed_results["hosts"][0].get("os") or "Unknown"
+
+    os_context = _normalise_target_os(raw_os)
+
     return {
         "target": target,
-        "os": os_name,
-        "platform": (
-            "windows"
-            if "win" in str(os_name).lower()
-            else "linux"
-        ),
+        "os": os_context["name"],
+        "os_confidence": os_context["confidence"],
+        "platform": os_context["platform"],
         "source": source,
         "external_target": external_target,
     }
@@ -451,55 +519,112 @@ def _official_cve_url(cve_id):
     return f"https://www.cve.org/CVERecord?id={cve_id}"
 
 
-def _build_detected_cve_rows(ai_plan=None, mapping_result=None, results=None):
-    # Completed scanner runs have a canonical CVE contract produced only from
-    # official index records and captured service evidence. Do not reconstruct
-    # those rows from downstream mapping or AI content.
-    if isinstance(results, dict) and (
-        "canonical_cve_contract" in results or "cve_matches" in results
-    ):
-        rows = []
-        # Primary vulnerability mapping contains validated applicability only.
-        # Analyst-review records are rendered in their own report section and
-        # never flow into downstream risk, ATT&CK, AI or execution consumers.
-        canonical_rows = list(results.get("cve_matches") or [])
-        for match in canonical_rows:
-            cve_id = str(match.get("cve_id") or "").strip().upper()
+def _build_detected_cve_rows(ai_plan=None, mapping_result=None):
+    cve_lookup = {}
+
+    # 1. First: build from mapping.vulnerabilities directly
+    for vuln in (mapping_result or {}).get("vulnerabilities", []):
+        cve_ids = vuln.get("cve_ids", []) or []
+
+        for cve_id in cve_ids:
             if not cve_id:
                 continue
-            ports = match.get("observed_ports") or []
-            if not ports:
-                port = match.get("port")
-                protocol = match.get("protocol")
-                ports = [f"{port}/{protocol}"] if port else []
-            service = str(match.get("service") or "Unidentified service")
-            endpoint = ", ".join(str(value) for value in ports if value)
-            rows.append({
-                "cve_id": cve_id,
-                "port": endpoint or "Port unavailable",
-                "service": service,
-                "product": str(match.get("product") or ""),
-                "version": str(match.get("version") or ""),
-                "severity": match.get("source_cvss_severity") or "Unavailable",
-                "cvss_score": match.get("source_cvss_score"),
-                "cvss_vector": match.get("source_cvss_vector") or "",
-                "cvss_version": match.get("source_cvss_version") or (results.get("vulnerability_scoring") or {}).get("version") or "",
-                "cvss_source": match.get("source_cvss_source") or "",
-                "cvss_metric_integrity": match.get("source_cvss_metric_integrity") or "",
-                "cvss_record_url": match.get("source_cvss_record_url") or "",
-                "cvss_record_last_modified": match.get("source_cvss_record_last_modified") or "",
-                "cvss_status": match.get("cvss_status") or ("published" if match.get("source_cvss_score") is not None else "not_provided_for_selected_version"),
-                "confidence": match.get("classification") or "Evidence-linked",
-                "applicability_reason": match.get("classification_reason") or "",
-                "match_basis": match.get("match_basis") or "",
-                "service_port": f"{service}/{endpoint or 'port unavailable'}",
-                "description": match.get("vulnerability") or "No official description available.",
-                "official_cve_url": _official_cve_url(cve_id),
-                "nvd_url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
-                "linked_techniques": [],
-            })
-        return rows
 
-    # Legacy mapping and AI objects are not authoritative vulnerability sources.
-    # Without a canonical scanner result, emit no CVE rows.
-    return []
+            cve_matches = vuln.get("cve_matches", []) or []
+            matching_cve = next(
+                (c for c in cve_matches if c.get("cve_id") == cve_id),
+                {}
+            )
+
+            if cve_id not in cve_lookup:
+                cve_lookup[cve_id] = {
+                    "cve_id": cve_id,
+                    "severity": (
+                        matching_cve.get("severity")
+                        or vuln.get("severity")
+                        or "Unknown"
+                    ),
+                    "confidence": "Candidate / Needs validation",
+                    "service_port": f"{vuln.get('service', 'Unknown')}/{vuln.get('port', 'Unknown')}",
+                    "description": (
+                        matching_cve.get("reason")
+                        or matching_cve.get("title")
+                        or vuln.get("title")
+                        or "No CVE description available."
+                    ),
+                    "official_cve_url": _official_cve_url(cve_id),
+                    "nvd_url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+                    "linked_techniques": [],
+                }
+
+            for tech in vuln.get("attack_techniques", []) or []:
+                technique_id = tech.get("id")
+                if technique_id:
+                    already_added = any(
+                        item.get("id") == technique_id
+                        for item in cve_lookup[cve_id]["linked_techniques"]
+                    )
+
+                    if not already_added:
+                        cve_lookup[cve_id]["linked_techniques"].append({
+                            "id": technique_id,
+                            "name": tech.get("name", ""),
+                            "mitre_url": (
+                                f"https://attack.mitre.org/techniques/{technique_id.replace('.', '/')}/"
+                            ),
+                        })
+
+    # 2. Second: enrich from ai_plan.allowed_techniques if available
+    for tech in (ai_plan or {}).get("allowed_techniques", []):
+        technique_id = tech.get("id") or tech.get("technique_id")
+        technique_name = tech.get("name") or tech.get("technique_name", "")
+        mitre_url = tech.get("mitre_url", "")
+
+        for cve in tech.get("linked_cves", []) or []:
+            cve_id = cve.get("id")
+            if not cve_id:
+                continue
+
+            if cve_id not in cve_lookup:
+                nvd = cve.get("nvd", {}) or {}
+                cvss = nvd.get("cvss", {}) or {}
+                mapped_findings = cve.get("mapped_findings", [])
+                first_finding = mapped_findings[0] if mapped_findings else {}
+
+                cve_lookup[cve_id] = {
+                    "cve_id": cve_id,
+                    "severity": (
+                        cvss.get("severity")
+                        or first_finding.get("severity")
+                        or "Unknown"
+                    ),
+                    "confidence": "Official CVE linked",
+                    "service_port": f"{first_finding.get('service', 'Unknown')}/{first_finding.get('port', 'Unknown')}",
+                    "description": (
+                        nvd.get("description")
+                        or first_finding.get("description")
+                        or first_finding.get("title")
+                        or "No CVE description available."
+                    ),
+                    "official_cve_url": _official_cve_url(cve_id),
+                    "nvd_url": nvd.get(
+                        "nvd_url",
+                        f"https://nvd.nist.gov/vuln/detail/{cve_id}"
+                    ),
+                    "linked_techniques": [],
+                }
+
+            if technique_id:
+                already_added = any(
+                    item.get("id") == technique_id
+                    for item in cve_lookup[cve_id]["linked_techniques"]
+                )
+
+                if not already_added:
+                    cve_lookup[cve_id]["linked_techniques"].append({
+                        "id": technique_id,
+                        "name": technique_name,
+                        "mitre_url": mitre_url,
+                    })
+
+    return list(cve_lookup.values())

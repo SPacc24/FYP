@@ -6,7 +6,7 @@ PROJECT = ROOT / 'project'
 sys.path.insert(0, str(PROJECT))
 
 from scanners.parsers import parse_nmap_xml
-from scanners.enumerator import _classify_cve_match, RELEVANT_VERSION_INFORMATION, _credential_combo_file
+from scanners.enumerator import _classify_cve_match, _credential_combo_file
 from scanners.mitre_cve import OFFICIAL_CVE_SOURCE
 
 
@@ -17,22 +17,17 @@ def test_unrealircd_version_extracted_from_script_output(tmp_path):
     rows = parsed['services']
     assert rows[0]['product'] == 'UnrealIRCd'
     assert rows[0]['version'] == '3.2.8.1'
-    assert 'cpe:/a:unrealircd:unrealircd:3.2.8.1' in rows[0]['cpe']
+    # A product CPE must come from observed scanner evidence. The parser must
+    # not manufacture one from banner text, even when product/version parsing
+    # succeeds.
+    assert rows[0]['cpe'] == []
 
 
-def test_samba_2007_2447_is_reportable_when_official_version_match_exists():
-    service = {'product': 'Samba smbd', 'version': '3.0.20-Debian', 'service': 'netbios-ssn'}
-    match = {
+def test_non_contract_cve_classification_is_not_accepted():
+    assert _classify_cve_match({
         'source': OFFICIAL_CVE_SOURCE,
-        'cve_id': 'CVE-2007-2447',
-        'description': 'The MS-RPC functionality in smbd in Samba 3.0.0 through 3.0.25rc3 allows remote attackers to execute arbitrary commands via shell metacharacters involving the username map script smb.conf option.',
-        'match_basis': 'explicit_same_product_text_range:3.0.0..3.0.25rc3',
-        'applicability_decision': 'analyst_review',
-        'required_conditions': ['Additional context was not established by authoritative configuration data.'],
-    }
-    classification, reason = _classify_cve_match(service, match)
-    assert classification == RELEVANT_VERSION_INFORMATION
-    assert 'additional context' in reason.lower()
+        'classification': 'Different value',
+    }) is None
 
 
 def test_packaged_default_credential_file_exists():

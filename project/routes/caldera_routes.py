@@ -41,16 +41,24 @@ def register_routes(app):
 
         status["target"] = target_context["target"]
         status["target_os"] = target_context["os"]
+        status["target_platform"] = target_context["platform"]
+        status["os_confidence"] = target_context.get("os_confidence", "")
         status["target_source"] = target_context["source"]
         status["external_target"] = target_context["external_target"]
         status["selected_agent_paw"] = session.get("selected_agent_paw")
 
         if not status.get("agent_ready"):
-            status["deploy_command"] = operation_manager.get_deploy_command(
+            deployment = operation_manager.get_deploy_command(
                 kali_ip=_caldera_agent_server_host(),
                 group=getattr(Config, "AGENT_GROUP", "red"),
                 platform=target_context["platform"],
             )
+
+            status["deployment"] = deployment
+            status["deploy_command"] = deployment.get("command", "")
+            status["deploy_supported"] = deployment.get("supported", False)
+            status["deploy_shell"] = deployment.get("shell", "none")
+            status["deploy_message"] = deployment.get("message", "")
 
         return jsonify(status)
 

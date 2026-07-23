@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AutoPenTest Adaptive Scanner</title>
+  <title>AutoPenTest Recon</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
@@ -11,10 +11,10 @@
   <main class="shell hero index-shell">
     <section class="hero-card wide-hero index-card">
       <div class="index-head">
-        <p class="eyebrow">AutoPenTest · Adaptive Vulnerability Scanner · v1.6.0 Full</p>
-        <h1>New Vulnerability Scan</h1>
+        <p class="eyebrow">AutoPenTest · Full / Custom Recon</p>
+        <h1>Attack Surface Discovery</h1>
         <p class="muted">
-          Supply the authorised targets, choose numerical port coverage, and start one evidence-driven scan. Open ports are fingerprinted independently of their conventional service assignments.
+          Enter a target and start authorised recon. Full Recon maximises evidence collection without exploitation, brute force, scoring, or teammate-module changes. Custom Recon runs only the selected collectors.
         </p>
       </div>
 
@@ -24,184 +24,146 @@
           <section class="operator-panel index-section">
             <span class="label">Operator Access</span>
             {% if operator_token_configured %}
-              <p class="muted small">Unlock this browser session before starting a scan.</p>
+              <p class="muted small">Unlock this browser session before starting scans or running lab tools.</p>
               <div class="operator-unlock-row">
                 <input id="operatorTokenInput" type="password" placeholder="Operator token" autocomplete="current-password" />
                 <button class="btn ghost mini" id="operatorUnlockBtn" type="button">Unlock</button>
               </div>
               <p class="muted small" id="operatorUnlockStatus"></p>
             {% else %}
-              <p class="muted small">Remote operator actions are disabled because OPERATOR_TOKEN is not configured. Use the Kali browser locally or configure the token and restart.</p>
+              <p class="muted small">
+                Remote operator actions are disabled because OPERATOR_TOKEN is not configured.
+                Use the Kali browser locally or set OPERATOR_TOKEN in project/.env and restart Flask.
+              </p>
             {% endif %}
           </section>
           {% endif %}
 
-          <form action="{{ url_for('scan') }}" method="POST" id="scanForm">
+          <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting Recon...';">
             <input type="hidden" name="_csrf_token" id="csrfTokenInput" value="{{ operator_csrf_token }}" />
-
             <section class="index-section target-section">
               <label for="target">
-                <span class="label">Authorised IP addresses or CIDR ranges</span>
-                <textarea id="target" name="target" rows="3" placeholder="192.168.1.10, 192.168.1.20 or 192.168.1.0/24" required></textarea>
+                <span class="label">Target</span>
+                <input id="target" type="text" name="target" placeholder="e.g. single IP, CIDR range, or space-separated targets" required />
               </label>
-              <p class="muted small">Addresses may be separated by spaces, commas or new lines. These submitted addresses become the enforced scan boundary.</p>
             </section>
 
-            <section class="index-section scoring-standard-section">
-              <label for="cvssVersion">
-                <span class="label">Vulnerability Severity Standard</span>
-                <select id="cvssVersion" name="cvss_version" required>
-                  {% for option in cvss_choices %}
-                    <option value="{{ option.id }}" {% if option.id == default_cvss_version %}selected{% endif %}>{{ option.label }}{% if option.id == default_cvss_version %} (Default){% endif %}</option>
-                  {% endfor %}
+            <section class="index-section">
+              <span class="label">Recon Strategy</span>
+              <div class="profile-select">
+                <label class="radio-card active" data-profile-card="full">
+                  <input type="radio" name="profile" value="full" checked>
+                  <b>Full Recon</b>
+                  <span>Maximum evidence coverage for authorised assessment: passive intelligence, top-100 TCP, targeted UDP, high-value service validation, safe nuclei, and MITRE CVE matching. No brute force or exploitation.</span>
+                </label>
+                <label class="radio-card" data-profile-card="custom">
+                  <input type="radio" name="profile" value="custom">
+                  <b>Custom Recon</b>
+                  <span>Runs exactly the selected recon collectors below. Invalid or unknown tool IDs are ignored.</span>
+                </label>
+              </div>
+            </section>
+
+            <section class="index-section attack-mode-section">
+              <label>
+                <span class="label">Technique Mapping Mode</span>
+                <select name="technique_mode" required>
+                  <option value="auto" {% if session.get('technique_mode','hybrid') == 'auto' %}selected{% endif %}>Auto - AI selects techniques automatically</option>
+                  <option value="hybrid" {% if session.get('technique_mode','hybrid') == 'hybrid' %}selected{% endif %}>Hybrid - AI recommends, analyst can edit</option>
+                  <option value="manual" {% if session.get('technique_mode','hybrid') == 'manual' %}selected{% endif %}>Manual - analyst selects techniques manually</option>
                 </select>
               </label>
-              <p class="muted small">Uses only authoritative metrics published for the selected CVSS version. Scores are not converted and another CVSS version is not used as a fallback.</p>
             </section>
 
-            <section class="index-section">
-              <span class="label">TCP port coverage</span>
-              <div class="profile-select port-coverage-select">
-                <label class="radio-card active" data-coverage-card="complete">
-                  <input type="radio" name="tcp_coverage" value="complete" checked>
-                  <b>Complete TCP coverage</b>
-                  <span>Tests every TCP port from 1 through 65,535. This is the only option that covers services placed on arbitrary TCP ports.</span>
-                </label>
-                <label class="radio-card" data-coverage-card="common">
-                  <input type="radio" name="tcp_coverage" value="common">
-                  <b>Common TCP coverage</b>
-                  <span>Uses the versioned numerical common-port set for a faster assessment. It does not assume which service occupies a selected port.</span>
-                </label>
-                <label class="radio-card" data-coverage-card="custom">
-                  <input type="radio" name="tcp_coverage" value="custom">
-                  <b>Custom TCP coverage</b>
-                  <span>Tests only the exact ports and ranges entered by the operator.</span>
-                </label>
+            <section class="tool-picker index-section">
+              <div class="tool-picker-head">
+                <div>
+                  <span class="label">Evidence Tools</span>
+                  <h2>Tool Selection</h2>
+                </div>
+                <div class="tool-picker-actions">
+                  <button class="btn ghost mini" type="button" id="selectAll">Enable All</button>
+                  <button class="btn ghost mini" type="button" id="selectFull">Full Defaults</button>
+                </div>
               </div>
-
-              <div class="scan-field-grid">
-                <label><span class="label">Custom TCP ports</span><input name="tcp_custom" id="tcpCustom" placeholder="22,80,443,8000-9000" disabled></label>
-                <label><span class="label">Additional TCP ports</span><input name="tcp_additional" id="tcpAdditional" placeholder="2222,8443"></label>
-                <label><span class="label">Excluded TCP ports</span><input name="tcp_excluded" id="tcpExcluded" placeholder="Optional"></label>
+              <p class="muted small">CVE review stays active. These cards control evidence-collection tools only.</p>
+              <div class="tool-grid">
+                {% for tool in tool_options %}
+                <label class="tool-toggle" data-full="{{ '1' if tool.full else '0' }}">
+                  <input type="checkbox" name="tools" value="{{ tool.id }}" {% if tool.full %}checked{% endif %}>
+                  <span><b>{{ tool.label }}</b><small>{{ tool.category }} · {{ tool.purpose }}</small></span>
+                </label>
+                {% endfor %}
               </div>
             </section>
 
             <section class="index-section">
-              <span class="label">UDP port coverage</span>
-              <div class="profile-select port-coverage-select udp-coverage-select">
-                <label class="radio-card active" data-udp-card="disabled"><input type="radio" name="udp_coverage" value="disabled" checked><b>Disabled</b><span>No UDP probes.</span></label>
-                <label class="radio-card" data-udp-card="common"><input type="radio" name="udp_coverage" value="common"><b>Common UDP coverage</b><span>Uses the versioned numerical UDP set.</span></label>
-                <label class="radio-card" data-udp-card="complete"><input type="radio" name="udp_coverage" value="complete"><b>Complete UDP coverage</b><span>Tests UDP ports 1 through 65,535 and may take substantially longer.</span></label>
-                <label class="radio-card" data-udp-card="custom"><input type="radio" name="udp_coverage" value="custom"><b>Custom UDP coverage</b><span>Tests only operator-entered UDP ports.</span></label>
+              <span class="label">What the recon module will produce</span>
+              <div class="tool-grid">
+                <article class="tool-toggle"><span><b>Environment Intelligence</b><small>TTL, route, DNS and initial response behaviour.</small></span></article>
+                <article class="tool-toggle"><span><b>Attack Surface Workbench</b><small>Web, remote access, file sharing, database and infrastructure surfaces.</small></span></article>
+                <article class="tool-toggle"><span><b>Evidence Gap Review</b><small>Missing product, version, CPE and service-context evidence.</small></span></article>
+                <article class="tool-toggle"><span><b>MITRE CVE Correlation</b><small>Official CVE matches based on collected service evidence.</small></span></article>
+                <article class="tool-toggle"><span><b>Exploit-Validation Handoff</b><small>Candidate handoff records for exploitation/AI/CALDERA teammates. No exploitation is performed by recon.</small></span></article>
               </div>
-              <div class="scan-field-grid">
-                <label><span class="label">Custom UDP ports</span><input name="udp_custom" id="udpCustom" placeholder="53,123,161" disabled></label>
-                <label><span class="label">Additional UDP ports</span><input name="udp_additional" id="udpAdditional" placeholder="1194,51820"></label>
-                <label><span class="label">Excluded UDP ports</span><input name="udp_excluded" id="udpExcluded" placeholder="Optional"></label>
-              </div>
-            </section>
-
-            <details class="index-section advanced-settings">
-              <summary><strong>Advanced settings</strong> <span class="muted small">Prefilled defaults</span></summary>
-              <p class="muted small">Only one microbatch runs at a time for each target. Concurrent microbatches are not used.</p>
-              <div class="scan-field-grid advanced-grid">
-                <label><span class="label">Ports per microbatch</span><input type="number" name="ports_per_microbatch" min="1" max="4096" value="{{ scan_defaults.advanced.ports_per_microbatch }}" required></label>
-                <label><span class="label">Concurrent targets</span><input type="number" name="concurrent_targets" min="1" max="32" value="{{ scan_defaults.advanced.concurrent_targets }}" required></label>
-                <label><span class="label">Probe timeout (seconds)</span><input type="number" name="probe_timeout_seconds" min="1" max="30" value="{{ scan_defaults.advanced.probe_timeout_seconds }}" required></label>
-                <label><span class="label">Retry limit</span><input type="number" name="retry_limit" min="0" max="5" value="{{ scan_defaults.advanced.retry_limit }}" required></label>
-              </div>
-            </details>
-
-            <section class="index-section scan-plan-panel">
-              <span class="label">Final plan preview</span>
-              <div class="summary-grid" id="planPreview">
-                <div class="mini-card"><b id="tcpPlanCount">65,535</b><span>TCP ports per target</span></div>
-                <div class="mini-card"><b id="udpPlanCount">0</b><span>UDP ports per target</span></div>
-                <div class="mini-card"><b>Sequential</b><span>Microbatches per target</span></div>
-                <div class="mini-card"><b>Automatic</b><span>Evidence-selected modules</span></div>
-              </div>
-              <p class="muted small" id="coverageWarning">Complete TCP coverage selected.</p>
             </section>
 
             <div class="index-actions">
-              <button id="startBtn" class="btn" type="submit" {% if not operator_authenticated %}disabled{% endif %}>Start Scan</button>
-              <p class="note">Vulnerability assessment only: no password attacks, exploitation, persistence or evasion. Port numbers guide coverage; collected protocol evidence determines service identity.</p>
+              <button id="startBtn" class="btn" type="submit" {% if not operator_authenticated %}disabled{% endif %}>Start Recon</button>
+              <p class="note">Recon only: no scoring, no ranking, no prioritisation, no exploitation, no fake-IP evasion. The module uses adaptive low-impact collection and preserves evidence for downstream teams.</p>
             </div>
           </form>
         </div>
       </div>
     </section>
   </main>
-
-  <footer class="footer"><p>Automated Penetration Testing · Adaptive Scanner Build</p></footer>
+  <footer class="footer">
+  <p>
+    Automated Penetration Testing · Group 6 · Full / Custom Recon Build
+  </p>
+</footer>
 
   <script>
-  const commonTcpPorts = new Set({{ common_tcp_ports|tojson }});
-  const commonUdpPorts = new Set({{ common_udp_ports|tojson }});
-
-  function parsePortText(value) {
-    const ports = new Set();
-    String(value || '').split(/[\s,;]+/).filter(Boolean).forEach(token => {
-      if (/^\d+$/.test(token)) {
-        const port = Number(token); if (port >= 1 && port <= 65535) ports.add(port);
-      } else if (/^\d+-\d+$/.test(token)) {
-        let [a,b] = token.split('-').map(Number); if (b < a) [a,b] = [b,a];
-        if (a >= 1 && b <= 65535) for (let port=a; port<=b; port++) ports.add(port);
-      }
+  function applyProfile(profile){
+    document.querySelectorAll('[data-profile-card]').forEach(c => c.classList.toggle('active', c.dataset.profileCard === profile));
+    if(profile === 'custom') return;
+    document.querySelectorAll('.tool-toggle').forEach(row => {
+      const cb = row.querySelector('input[type="checkbox"]');
+      if(cb) cb.checked = row.dataset.full === '1';
     });
-    return ports;
   }
-
-  function estimatedCount(protocol) {
-    const coverage = document.querySelector(`input[name="${protocol}_coverage"]:checked`)?.value;
-    if (coverage === 'disabled') return 0;
-    if (coverage === 'complete') return Math.max(0, 65535 - parsePortText(document.getElementById(protocol === 'tcp' ? 'tcpExcluded' : 'udpExcluded').value).size);
-    const selected = coverage === 'common'
-      ? new Set(protocol === 'tcp' ? commonTcpPorts : commonUdpPorts)
-      : parsePortText(document.getElementById(protocol === 'tcp' ? 'tcpCustom' : 'udpCustom').value);
-    const additional = parsePortText(document.getElementById(protocol === 'tcp' ? 'tcpAdditional' : 'udpAdditional').value);
-    const excluded = parsePortText(document.getElementById(protocol === 'tcp' ? 'tcpExcluded' : 'udpExcluded').value);
-    additional.forEach(port => selected.add(port));
-    excluded.forEach(port => selected.delete(port));
-    return selected.size;
-  }
-
-  function refreshPlan() {
-    const tcpCoverage = document.querySelector('input[name="tcp_coverage"]:checked')?.value;
-    const udpCoverage = document.querySelector('input[name="udp_coverage"]:checked')?.value;
-    document.getElementById('tcpCustom').disabled = tcpCoverage !== 'custom';
-    document.getElementById('udpCustom').disabled = udpCoverage !== 'custom';
-    document.querySelectorAll('[data-coverage-card]').forEach(card => card.classList.toggle('active', card.dataset.coverageCard === tcpCoverage));
-    document.querySelectorAll('[data-udp-card]').forEach(card => card.classList.toggle('active', card.dataset.udpCard === udpCoverage));
-    document.getElementById('tcpPlanCount').textContent = estimatedCount('tcp').toLocaleString();
-    document.getElementById('udpPlanCount').textContent = estimatedCount('udp').toLocaleString();
-    document.getElementById('coverageWarning').textContent = tcpCoverage === 'complete'
-      ? 'Complete TCP coverage selected. Services on unconventional TCP ports remain discoverable.'
-      : 'Limited TCP coverage selected. The final report will disclose that unselected ports were not tested.';
-  }
-
-  document.querySelectorAll('input[name$="_coverage"], #tcpCustom, #tcpAdditional, #tcpExcluded, #udpCustom, #udpAdditional, #udpExcluded').forEach(element => element.addEventListener('input', refreshPlan));
-  document.getElementById('scanForm').addEventListener('submit', () => {
-    const button = document.getElementById('startBtn');
-    button.disabled = true;
-    button.innerText = 'Starting Scan...';
-  });
-  refreshPlan();
+  document.querySelectorAll('input[name="profile"]').forEach(r => r.addEventListener('change', e => applyProfile(e.target.value)));
+  document.querySelectorAll('.tool-toggle input').forEach(cb => cb.addEventListener('change', () => {
+    const customRadio = document.querySelector('input[name="profile"][value="custom"]');
+    if (customRadio) customRadio.checked = true;
+    applyProfile('custom');
+}));
+  document.getElementById('selectAll')?.addEventListener('click', () => {document.querySelector('input[value="custom"]').checked=true;applyProfile('custom');document.querySelectorAll('.tool-toggle input').forEach(cb=>cb.checked=true);});
+  document.getElementById('selectFull')?.addEventListener('click', () => {document.querySelector('input[name="profile"][value="full"]').checked=true;applyProfile('full');});
 
   document.getElementById('operatorUnlockBtn')?.addEventListener('click', async () => {
     const input = document.getElementById('operatorTokenInput');
     const status = document.getElementById('operatorUnlockStatus');
+    const token = input?.value || '';
     if (status) status.textContent = 'Checking operator token...';
     try {
       const response = await fetch('{{ url_for("operator_unlock") }}', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({operator_token: input?.value || ''})
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({operator_token: token})
       });
       const data = await response.json();
-      if (!response.ok || !data.ok) { if (status) status.textContent = data.error || 'Operator unlock failed.'; return; }
+      if (!response.ok || !data.ok) {
+        if (status) status.textContent = data.error || 'Operator unlock failed.';
+        return;
+      }
       if (status) status.textContent = 'Operator session unlocked.';
-      if (data.csrf_token) document.getElementById('csrfTokenInput').value = data.csrf_token;
-      document.getElementById('startBtn').disabled = false;
+      if (data.csrf_token) {
+        const csrfInput = document.getElementById('csrfTokenInput');
+        if (csrfInput) csrfInput.value = data.csrf_token;
+      }
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) startBtn.disabled = false;
     } catch (err) {
       if (status) status.textContent = 'Could not unlock operator session.';
     }

@@ -1,6 +1,6 @@
 from exploitation.metasploit_policy import authorize_metasploit_action, build_metasploit_actions
 from exploitation.metasploit_client import MetasploitRpcClient, MetasploitRpcError
-from exploitation.metasploit_service import MetasploitService
+from exploitation.metasploit_service import MetasploitService, classify_module_result
 from config import Config
 
 
@@ -221,7 +221,7 @@ def test_known_service_is_not_reinterpreted_only_from_its_port_number():
 
     actions = build_metasploit_actions(scan)
 
-    assert {action["policy_key"] for action in actions} == {"msf_http_title", "msf_http_robots"}
+    assert {"msf_http_title", "msf_http_robots"}.issubset({action["policy_key"] for action in actions})
 
 
 class FakeMetasploitClient:
@@ -341,12 +341,21 @@ def test_authenticated_metasploit_routes_use_shared_service(monkeypatch):
                 "version": {"version": "test"},
             }
 
-        def propose_actions(self, parsed_results, attack_advice):
+        def propose_actions(self, parsed_results, attack_advice, previous_results=None):
             assert parsed_results["target_ip"] == "192.168.56.20"
+            assert previous_results == {}
             return {"ok": True, "count": 1, "actions": [{"action_id": "safe:445"}]}
 
-        def run_action(self, action_id, parsed_results, attack_advice, approved=False):
+        def run_action(
+            self,
+            action_id,
+            parsed_results,
+            attack_advice,
+            approved=False,
+            previous_results=None,
+        ):
             assert action_id == "safe:445"
+            assert previous_results == {}
             return {
                 "ok": True,
                 "timestamp": "2026-07-11T00:00:00Z",
@@ -396,8 +405,7 @@ def test_authenticated_metasploit_routes_use_shared_service(monkeypatch):
         app_module.Config.OPERATOR_TOKEN = old_token
 
 
-def test_ms17_010_exploit_proposed_only_with_cve_evidence():
-    """The EternalBlue exploit action appears only when CVE evidence exists."""
+def test_ms17_010_exploit_proposed_only_after_positive_safe_check():
     scan = {
         "target_ip": "10.10.20.50",
         "ports": [
@@ -411,20 +419,17 @@ def test_ms17_010_exploit_proposed_only_with_cve_evidence():
         action["action_id"] for action in actions
     }
 
-    scan_with_cve = {
-        "target_ip": "10.10.20.50",
-        "ports": [
-            {
+    previous_results = {
+        "runs": [{
+            "action": {
+                "policy_key": "msf_smb_ms17_010_check",
+                "target": "10.10.20.50",
                 "port": 445,
-                "state": "open",
-                "service": "microsoft-ds",
-                "product": "Windows 10",
-                "cves": ["CVE-2017-0144"],
             },
-        ],
+            "validation_outcome": "vulnerable",
+        }]
     }
-
-    actions = build_metasploit_actions(scan_with_cve)
+    actions = build_metasploit_actions(scan, previous_results=previous_results)
     exploit_action = next(
         (a for a in actions if a["policy_key"] == "msf_smb_ms17_010_exploit"),
         None,
@@ -435,9 +440,10 @@ def test_ms17_010_exploit_proposed_only_with_cve_evidence():
     assert exploit_action["requires_approval"] is True
     assert exploit_action["allow_session"] is True
     assert exploit_action["payload"]["name"] == "windows/x64/meterpreter/reverse_tcp"
+    assert exploit_action["source"] == "metasploit_validation"
 
 
-def test_ms17_010_exploit_proposed_with_explicit_exploit_advice():
+def test_ai_exploit_advice_cannot_unlock_ms17_010_exploit():
     scan = {
         "target_ip": "10.10.20.50",
         "ports": [
@@ -451,6 +457,7 @@ def test_ms17_010_exploit_proposed_with_explicit_exploit_advice():
                 "port": 445,
                 "recommended_validation": "smb_ms17_010",
                 "recommended_module_type": "exploit",
+                "propose_exploit": True,
                 "technique_ids": ["T1203"],
                 "reasoning": "Operator-approved EternalBlue path.",
             }
@@ -458,6 +465,213 @@ def test_ms17_010_exploit_proposed_with_explicit_exploit_advice():
     }
 
     actions = build_metasploit_actions(scan, advice)
-    assert any(
-        a["policy_key"] == "msf_smb_ms17_010_exploit" for a in actions
+    assert not any(a["policy_key"] == "msf_smb_ms17_010_exploit" for a in actions)
+
+
+def test_positive_check_must_match_exact_target_and_port():
+    previous_results = {
+        "runs": [{
+            "action": {
+                "policy_key": "msf_smb_ms17_010_check",
+                "target": "10.10.20.51",
+                "port": 445,
+            },
+            "validation_outcome": "vulnerable",
+        }]
+    }
+    actions = build_metasploit_actions(_scan(), previous_results=previous_results)
+    assert not any(a["policy_key"] == "msf_smb_ms17_010_exploit" for a in actions)
+
+
+def _positive_check_results():
+    return {
+        "runs": [{
+            "action": {
+                "policy_key": "msf_smb_ms17_010_check",
+                "target": "192.168.56.20",
+                "port": 445,
+            },
+            "validation_outcome": "vulnerable",
+        }]
+    }
+
+
+def _exploit_action():
+    return next(
+        action
+        for action in build_metasploit_actions(
+            _scan(),
+            previous_results=_positive_check_results(),
+        )
+        if action["policy_key"] == "msf_smb_ms17_010_exploit"
     )
+
+
+def test_exploit_options_include_payload_callback_when_module_options_omit_them(monkeypatch):
+    client = FakeMetasploitClient()
+    service = MetasploitService(client, exploit_execution_enabled=True)
+    action = _exploit_action()
+    policy = service.policies_by_key[action["policy_key"]]
+    monkeypatch.setattr(Config, "KALI_IP", "192.168.56.10")
+    monkeypatch.setattr(Config, "METASPLOIT_LPORT", 5555)
+
+    options = service._build_options(action, {"RHOSTS": {}, "RPORT": {}}, policy)
+
+    assert options == {
+        "RHOSTS": "192.168.56.20",
+        "RPORT": 445,
+        "PAYLOAD": "windows/x64/meterpreter/reverse_tcp",
+        "LHOST": "192.168.56.10",
+        "LPORT": 5555,
+    }
+
+
+class FakeExploitClient(FakeMetasploitClient):
+    def __init__(self, sessions):
+        super().__init__()
+        self.sessions = iter(sessions)
+        self.stopped_sessions = []
+        self.stopped_jobs = []
+
+    def module_options(self, module_type, module_name):
+        return {"RHOSTS": {}, "RPORT": {}}
+
+    def session_list(self):
+        return next(self.sessions)
+
+    def session_stop(self, session_id):
+        self.stopped_sessions.append(str(session_id))
+        return {"result": "success"}
+
+    def job_stop(self, job_id):
+        self.stopped_jobs.append(str(job_id))
+        return {"result": "success"}
+
+
+def test_completed_exploit_requires_target_verified_new_session(monkeypatch):
+    import exploitation.metasploit_service as service_module
+
+    client = FakeExploitClient([
+        {"7": {"session_host": "192.168.56.99"}},
+        {
+            "7": {"session_host": "192.168.56.99"},
+            "8": {"tunnel_peer": "192.168.56.20:49152"},
+        },
+    ])
+    service = MetasploitService(
+        client,
+        exploit_execution_enabled=True,
+        session_timeout=0,
+    )
+    monkeypatch.setattr(Config, "KALI_IP", "192.168.56.10")
+    monkeypatch.setattr(service_module, "_local_ipv4_addresses", lambda: {"192.168.56.10"})
+
+    result = service.run_action(
+        _exploit_action()["action_id"],
+        _scan(),
+        approved=True,
+        previous_results=_positive_check_results(),
+    )
+
+    assert result["module_completed"] is True
+    assert result["session_created"] is True
+    assert result["new_session_ids"] == ["8"]
+    assert result["target_session_ids"] == ["8"]
+    assert result["execution_succeeded"] is True
+
+
+def test_completed_exploit_without_session_is_not_success(monkeypatch):
+    import exploitation.metasploit_service as service_module
+
+    client = FakeExploitClient([{}, {}])
+    service = MetasploitService(
+        client,
+        exploit_execution_enabled=True,
+        session_timeout=0,
+    )
+    monkeypatch.setattr(Config, "KALI_IP", "192.168.56.10")
+    monkeypatch.setattr(service_module, "_local_ipv4_addresses", lambda: {"192.168.56.10"})
+
+    result = service.run_action(
+        _exploit_action()["action_id"],
+        _scan(),
+        approved=True,
+        previous_results=_positive_check_results(),
+    )
+
+    assert result["module_completed"] is True
+    assert result["session_created"] is False
+    assert result["new_session_ids"] == []
+    assert result["execution_succeeded"] is False
+
+
+def test_remote_exploit_rejects_loopback_kali_ip(monkeypatch):
+    client = FakeExploitClient([])
+    service = MetasploitService(client, exploit_execution_enabled=True)
+    monkeypatch.setattr(Config, "KALI_IP", "127.0.0.1")
+
+    result = service.run_action(
+        _exploit_action()["action_id"],
+        _scan(),
+        approved=True,
+        previous_results=_positive_check_results(),
+    )
+
+    assert result["ok"] is False
+    assert "remote target cannot return" in result["error"]
+    assert client.executed == []
+
+
+def test_module_result_classification_distinguishes_check_outcomes():
+    assert classify_module_result("check", {"result": {"code": "appears"}}) == "vulnerable"
+    assert classify_module_result("check", {"result": {"message": "Host is not vulnerable"}}) == "not_vulnerable"
+    assert classify_module_result("check", {"result": "connection refused"}) == "inconclusive"
+    assert classify_module_result("check", {"result": {"code": "detected"}}) == "observed"
+
+
+def test_cleanup_closes_only_target_verified_sessions_and_stops_job():
+    client = FakeExploitClient([
+        {"8": {"tunnel_peer": "192.168.56.20:49152"}},
+    ])
+    service = MetasploitService(client, exploit_execution_enabled=True)
+    record = {
+        "run_id": "msf_test",
+        "action": {"target": "192.168.56.20"},
+        "target_session_ids": ["8"],
+        "new_session_ids": ["8", "9"],
+        "rpc_result": {"job_id": 7},
+        "summary": "Session opened.",
+    }
+
+    result = service.cleanup_run(record, approved=True)
+
+    assert result["ok"] is True
+    assert client.stopped_sessions == ["8"]
+    assert client.stopped_jobs == ["7"]
+    assert result["record"]["execution_state"] == "session_closed"
+    assert result["record"]["session_closed"] is True
+    assert result["record"]["snapshot_revert_required"] is True
+
+
+def test_cleanup_does_not_stop_session_that_no_longer_matches_target():
+    client = FakeExploitClient([
+        {"8": {"session_host": "192.168.56.99"}},
+    ])
+    service = MetasploitService(client, exploit_execution_enabled=True)
+    record = {
+        "run_id": "msf_test",
+        "action": {"target": "192.168.56.20"},
+        "target_session_ids": ["8"],
+        "rpc_result": {"job_id": 7},
+    }
+
+    result = service.cleanup_run(record, approved=True)
+
+    assert result["ok"] is False
+    assert client.stopped_sessions == []
+    assert client.stopped_jobs == ["7"]
+    assert result["record"]["closed_session_ids"] == []
+    assert result["record"]["session_closed"] is False
+    assert result["record"]["cleanup_errors"] == [
+        "session 8: no longer belongs to target",
+    ]

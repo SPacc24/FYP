@@ -422,9 +422,8 @@ def validate_service_fingerprint(
 ) -> ServiceFingerprint:
     """Cross-validate a service identity using only captured tool evidence.
 
-    ``recommended_for_cve`` is retained only as a legacy UI compatibility
-    field. Runtime CVE applicability no longer uses this private score or flag;
-    it requires a concrete observed CPE Name instead.
+    A CVE lookup is recommended only when the score reaches 0.70 and no
+    contradiction remains.
 
     Runtime identity values are supplied by the current scan. Examples and
     fixed targets intentionally live only in the isolated test suite.

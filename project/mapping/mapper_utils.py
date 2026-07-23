@@ -4,9 +4,12 @@ from typing import Any
 import json
 import logging
 
+from mapping.mapper_models import CVEMatch
 from mapping.mapper_knowledge import (
+    KNOWN_CVE_SIGNATURES,
     MITRE_ENTERPRISE_ATTACK_FILE,
     PORT_FALLBACKS,
+    SEVERITY_ORDER,
     SEVERITY_SCORE,
 )
 
@@ -134,6 +137,10 @@ def normalise_service(item: dict[str, Any]) -> str:
     return service
 
 
+def max_severity(a: str, b: str) -> str:
+    return a if SEVERITY_ORDER.get(a, 0) >= SEVERITY_ORDER.get(b, 0) else b
+
+
 def build_evidence(host: str, item: dict[str, Any]) -> str:
     product = item.get("product") or "unknown product"
     version = item.get("version") or "unknown version"
@@ -146,7 +153,48 @@ def build_evidence(host: str, item: dict[str, Any]) -> str:
     )
 
 
-def priority_score(severity: str, service: str, cve_matches: list[dict[str, Any]]) -> int:
+def match_known_cves(item: dict[str, Any], service: str) -> list[CVEMatch]:
+    product = normalise(item.get("product"))
+    version = normalise(item.get("version"))
+    cpes = [normalise(cpe) for cpe in item.get("cpe", [])]
+
+    matches: list[CVEMatch] = []
+
+    for sig in KNOWN_CVE_SIGNATURES:
+        matched = False
+
+        if sig["match_type"] == "cpe_contains":
+            for pattern in sig.get("patterns", []):
+                if any(normalise(pattern) in cpe for cpe in cpes):
+                    matched = True
+                    break
+
+        elif sig["match_type"] == "product_version_contains":
+            product_pattern = normalise(sig.get("product"))
+            version_patterns = [normalise(p) for p in sig.get("version_patterns", [])]
+
+            if product_pattern in product and any(p in version for p in version_patterns):
+                matched = True
+
+            if service in {"microsoft-ds", "netbios-ssn"} and "samba" in product:
+                if any(p in version for p in version_patterns):
+                    matched = True
+
+        if matched:
+            matches.append(
+                CVEMatch(
+                    cve_id=sig["cve_id"],
+                    title=sig["title"],
+                    severity=sig["severity"],
+                    reason=sig["reason"],
+                    remediation=sig["remediation"],
+                )
+            )
+
+    return matches
+
+
+def priority_score(severity: str, service: str, cve_matches: list[CVEMatch]) -> int:
     score = SEVERITY_SCORE.get(severity, 0)
 
     if cve_matches:
@@ -165,6 +213,29 @@ def priority_score(severity: str, service: str, cve_matches: list[dict[str, Any]
         score += 1
 
     return min(score, 10)
+
+
+def build_title(base_title: str, cves: list[CVEMatch]) -> str:
+    if not cves:
+        return base_title
+
+    return f"{base_title} ({', '.join(c.cve_id for c in cves)})"
+
+
+def build_cve_hint(base_hint: str, cves: list[CVEMatch]) -> str:
+    if not cves:
+        return base_hint
+
+    cve_lines = [f"{c.cve_id}: {c.title} — {c.reason}" for c in cves]
+    return "Known match: " + " | ".join(cve_lines)
+
+
+def build_recommendation(base_recommendation: str, cves: list[CVEMatch]) -> str:
+    if not cves:
+        return base_recommendation
+
+    specific = " ".join(c.remediation for c in cves)
+    return f"{specific} General hardening: {base_recommendation}"
 
 
 def host_os_text(host: dict[str, Any], parsed_results: dict[str, Any]) -> str:
@@ -204,6 +275,30 @@ def service_fingerprint_text(item: dict[str, Any], os_text: str) -> str:
         str(item.get("extrainfo", "")),
         str(item.get("cpe", "")),
     ]).lower()
+
+
+def is_legacy_windows_smb_candidate(
+    item: dict[str, Any],
+    service: str,
+    os_text: str,
+) -> bool:
+    text = service_fingerprint_text(item, os_text)
+
+    is_smb = (
+        service in {"microsoft-ds", "netbios-ssn"}
+        or "smb" in text
+        or "microsoft-ds" in text
+    )
+
+    legacy_windows_tokens = [
+        "windows 10 enterprise 10240",
+        "windows 10 10240",
+        "build 10240",
+        "windows 10 1507",
+        "windows 10 enterprise",
+    ]
+
+    return is_smb and any(token in text for token in legacy_windows_tokens)
 
 
 def technique_reason(

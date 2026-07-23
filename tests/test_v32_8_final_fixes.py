@@ -58,4 +58,6 @@ def test_unrealircd_version_parsed_from_script_output(tmp_path):
     rows = parsed['services']
     assert rows[0]["product"] == "UnrealIRCd"
     assert rows[0]["version"] == "3.2.8.1"
-    assert "cpe:/a:unrealircd:unrealircd:3.2.8.1" in rows[0]["cpe"]
+    # Product/version parsing must not manufacture a CPE that Nmap did not
+    # actually report.
+    assert rows[0]["cpe"] == []

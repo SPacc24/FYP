@@ -95,6 +95,8 @@ def _service_details(
         )
         if match:
             version = match.group(1)
+    if product.lower() == "unrealircd" and version and not cpes:
+        cpes.append(f"cpe:/a:unrealircd:unrealircd:{version}")
     return service_name, product, version, extra, cpes
 
 
@@ -127,9 +129,6 @@ def _port_row(
         "product": product,
         "version": version,
         "extra": extra,
-        "tunnel": service_el.get("tunnel", "") if service_el is not None else "",
-        "fingerprint_method": service_el.get("method", "") if service_el is not None else "",
-        "fingerprint_confidence": service_el.get("conf", "") if service_el is not None else "",
         "cpe": cpes,
         "evidence_sources": ["nmap"],
         "raw_evidence_file": str(path),
@@ -270,6 +269,9 @@ def _manual_port_row(
         match = re.search(r"Unreal(?:IRCd)?\s*([0-9]+(?:\.[0-9]+){2,})", script_text, re.I)
         if match:
             version = match.group(1)
+    if product.lower() == "unrealircd" and version and not cpes:
+        cpes.append(f"cpe:/a:unrealircd:unrealircd:{version}")
+
     return {
         "host": host_ip,
         "port": int(portid),
@@ -393,57 +395,6 @@ def parse_nmap_xml(
             data["parser_status"] = "failed" if data["parser_status"] != "partial" else "partial"
             warnings.append("No ports found in output; scan may have failed")
     return data, list(dict.fromkeys(warnings))
-
-
-_LEGACY_STATE_EXPLANATIONS = {
-    "open": "Accessible service detected",
-    "filtered": "Likely blocked by firewall or packet filtering",
-    "closed": "Host reachable, but no service listening",
-}
-
-
-def _legacy_port_row(row: dict[str, Any]) -> dict[str, Any]:
-    """Reshape a parse_nmap_xml() port row into the retired nmap_parser.py shape."""
-    state = str(row.get("state") or "unknown")
-    return {
-        "port": str(row.get("portid") or row.get("port") or ""),
-        "protocol": row.get("protocol", ""),
-        "state": state,
-        "state_explanation": _LEGACY_STATE_EXPLANATIONS.get(state, "Unknown port state"),
-        "reason": row.get("reason", ""),
-        "service": row.get("service", "unknown"),
-        "product": row.get("product", ""),
-        "version": row.get("version", ""),
-        "extra_info": row.get("extra", ""),
-        "ostype": "",
-        "method": row.get("fingerprint_method", ""),
-        "confidence": row.get("fingerprint_confidence", ""),
-        "cpe": row.get("cpe", []),
-        "scripts": row.get("scripts", []),
-    }
-
-
-def parse_nmap_xml_dict(xml_path: str | Path) -> dict[str, Any]:
-    """Legacy flat-dict wrapper around parse_nmap_xml() for callers expecting 'os'/'ports' keys.
-
-    This exists only for the pre-scan-store fallback path used when a scan's
-    structured results aren't available yet (see core/helpers.py and
-    routes/results_routes.py); the live scan pipeline in enumerator.py uses
-    parse_nmap_xml() directly and never needs this shape. OS fingerprint
-    fields are not populated -- this parser does not extract nmap's <os>
-    element -- so callers see 'Unknown', matching their existing default.
-    """
-    data, warnings = parse_nmap_xml(xml_path)
-    return {
-        "scan_file": data.get("scan_file", str(xml_path)),
-        "parser_status": data.get("parser_status", "failed"),
-        "partial": data.get("partial", False),
-        "warnings": warnings,
-        "hosts": data.get("hosts", []),
-        "os": "Unknown",
-        "ports": [_legacy_port_row(row) for row in data.get("ports", [])],
-        "services": [_legacy_port_row(row) for row in data.get("services", [])],
-    }
 
 
 def parse_httpx_jsonl(path: str | Path) -> tuple[list[dict[str, Any]], list[str]]:

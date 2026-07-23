@@ -43,13 +43,16 @@
         operationStatus: "{{ url_for('operation_status') }}",
         generateReport: "{{ url_for('generate_report') }}",
         reportView: "{{ url_for('report_view') }}",
-        reportExport: "{{ url_for('export_report') }}"
-      };
-
-      window.DASHBOARD_CONTEXT = {
-        target: "{{ scan.target_ip if scan and scan.target_ip else session.get('target_ip', 'Unknown') }}",
-        portRange: "{{ scan.port_range if scan and scan.port_range else session.get('port_range', '1-1024') }}",
-        selectedMode: "{{ active_mode }}"
+        reportExport: "{{ url_for('export_report') }}",
+        missionStart: "{{ url_for('api_mission_start') }}",
+        missionList: "{{ url_for('api_mission_list') }}",
+        missionGet: "{{ url_for('api_mission_get', mission_id='__ID__') }}".replace('__ID__', ''),
+        missionAdvance: "{{ url_for('api_mission_advance', mission_id='__ID__') }}".replace('__ID__', ''),
+        missionContinue: "{{ url_for('api_mission_continue', mission_id='__ID__') }}".replace('__ID__', ''),
+        missionApprove: "{{ url_for('api_mission_approve', mission_id='__ID__') }}".replace('__ID__', ''),
+        missionValidateSafe: "{{ url_for('api_mission_validate_safe', mission_id='__ID__') }}".replace('__ID__', ''),
+        missionAbort: "{{ url_for('api_mission_abort', mission_id='__ID__') }}".replace('__ID__', ''),
+        missionPlaybooks: "{{ url_for('api_mission_playbooks') }}"
       };
 
       window.DASHBOARD_SECURITY = {
@@ -71,12 +74,13 @@
         {% include "scan_summary_sidebar.html" %}
       </aside>
 
-      <div class="dashboard-main dashboard-center" aria-label="Evidence-linked CVEs and selected-version published CVSS metrics">
+      <div class="dashboard-main dashboard-center" aria-label="CVE Findings Supported by Evidence and Candidate CVE References">
         {% include "scan_vul.html" %}
         {% include "ai_techniques.html" %}
         {% include "exploitation_validation.html" %}
         {% include "caldera_execution.html" %}
         {% include "pivot_assessment.html" %}
+        {% include "mission_dashboard_panel.html" %}
         {% include "report.html" %}
       </div>
 
@@ -89,10 +93,10 @@
       <details class="appendix-details">
         <summary>
           <span>Technical Appendix</span>
-          <small>Service inventory, evidence collection summary, command log, and evidence-linked CVE applicability.</small>
+          <small>Service inventory, evidence collection summary, command log, and candidate CVE references.</small>
         </summary>
         <p class="muted">
-          Use the dedicated appendix page for full evidence tables, validated applicability, analyst-review records, and dataset status.
+          Use the dedicated appendix page for the full evidence tables. Candidate CVE References are retained for analyst review.
         </p>
         <a class="button secondary" href="/technical-appendix" target="_blank">Open Technical Appendix</a>
       </details>

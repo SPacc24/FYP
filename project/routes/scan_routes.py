@@ -17,21 +17,6 @@ from flask import (
 from scanners.enumerator import TASKS, run_pipeline
 from scanners.mitre_cve import status as mitre_status
 from scanners.scan_profiles import TOOL_OPTIONS, normalise_scan_options
-from scanners.scan_configuration import (
-    ScanConfigurationError,
-    default_scan_configuration,
-    normalise_scan_configuration,
-    resolve_tcp_ports,
-    resolve_udp_ports,
-)
-from scanners.scoring_policy import (
-    ScoringPolicyError,
-    cvss_selection,
-    load_scoring_policy,
-    scoring_choices,
-)
-from scanners.targets import expand_target_input
-from config import Config
 from storage import scan_store
 
 from core.helpers import (
@@ -46,21 +31,7 @@ log = logging.getLogger(__name__)
 def register_routes(app):
     @app.route("/")
     def index():
-        scoring_policy = load_scoring_policy()
-        common_plan = normalise_scan_configuration({
-            "tcp_coverage": "common",
-            "udp_coverage": "common",
-        })
-        return render_template(
-            "index.html",
-            tool_options=TOOL_OPTIONS,
-            scan_defaults=default_scan_configuration(),
-            common_port_counts=common_plan.get("plan_summary") or {},
-            common_tcp_ports=resolve_tcp_ports(common_plan),
-            common_udp_ports=resolve_udp_ports(common_plan),
-            cvss_choices=scoring_choices(),
-            default_cvss_version=scoring_policy["default_version"],
-        )
+        return render_template("index.html", tool_options=TOOL_OPTIONS)
 
     @app.route("/scan", methods=["POST"])
     def scan():
@@ -72,24 +43,25 @@ def register_routes(app):
                 error_message="No target provided"
             ), 400
 
-        try:
-            targets = expand_target_input(target, Config.MAX_EXPANDED_TARGETS)
-            submitted_configuration = normalise_scan_configuration(request.form)
-            selected_cvss = cvss_selection(request.form.get("cvss_version"))
-            scan_options = normalise_scan_options(
-                "full",
-                scan_configuration=submitted_configuration,
-            )
-        except (ValueError, ScanConfigurationError, ScoringPolicyError) as exc:
-            return render_template(
-                "error.html",
-                error_message=str(exc),
-            ), 400
+        profile = (
+            request.form.get("profile")
+            or request.form.get("scan_profile")
+            or "full"
+        ).strip().lower()
+        enabled_tools = (
+            request.form.getlist("enabled_tools")
+            or request.form.getlist("tools")
+        )
+        technique_mode = request.form.get("technique_mode")
 
-        technique_mode = "hybrid"
+        if technique_mode not in {"auto", "hybrid", "manual"}:
+            technique_mode = "hybrid"
+
+        scan_options = normalise_scan_options(
+            profile,
+            enabled_tools if profile == "custom" or enabled_tools else None
+        )
         scan_options["technique_mode"] = technique_mode
-        scan_options["cvss"] = selected_cvss
-        scan_options.setdefault("plan_summary", {})["target_count"] = len(targets)
 
         scan_id = scan_store.new_scan(
             target,
@@ -99,18 +71,17 @@ def register_routes(app):
         )
 
         log.info(
-            "[scan] new_scan created: %s target=%s scan_type=%s tcp_coverage=%s udp_coverage=%s cvss=%s",
+            "[scan] new_scan created: %s target=%s profile=%s technique_mode=%s enabled_tools=%s",
             scan_id,
             target,
-            scan_options.get("scan_type"),
-            (scan_options.get("port_selection") or {}).get("tcp_coverage"),
-            (scan_options.get("port_selection") or {}).get("udp_coverage"),
-            selected_cvss["version"],
+            profile,
+            technique_mode,
+            enabled_tools,
         )
 
         scan_store.log(
             scan_id,
-            f"Scan requested: target={target} scan_type=adaptive_comprehensive cvss={selected_cvss['version']}"
+            f"Scan requested: target={target} profile={profile} technique_mode={technique_mode}"
         )
 
         # Starting a new assessment should clear old scan state without
@@ -227,8 +198,7 @@ def register_routes(app):
 
         detected_cves = _build_detected_cve_rows(
             ai_plan,
-            mapping_result,
-            data.get("results") or {},
+            mapping_result
         )
 
         return render_template(

@@ -325,7 +325,7 @@ def build_detection_budget_summary(modern_active_validation: dict[str, Any]) -> 
 def build_executive_recon_summary(intelligence: dict[str, Any], services: list[dict[str, Any]]) -> list[dict[str, str]]:
     discovered = f"{len(_host_services(services))} host(s) with {len(services or [])} service record(s) were retained for recon analysis."
     validated = f"{len(intelligence.get('confidence') or [])} host-level evidence confidence row(s) generated from banners, validators, passive observations, or correlations."
-    uncertain = 'Uncertainty is retained as Information Gaps, Negative Evidence, Unresolved Hypotheses, or conditional CVE matches requiring analyst validation when supporting context is incomplete.'
+    uncertain = 'Uncertainty is retained as Information Gaps, Negative Evidence, Unresolved Hypotheses, or MITRE Candidate References when supporting context is incomplete.'
     boundary = 'Open ports are treated as transport reachability evidence, not absolute proof of application permission, firewall policy, or exploitable exposure.'
     return [
         {'question': 'What was discovered?', 'answer': discovered},

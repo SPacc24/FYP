@@ -19,7 +19,7 @@
                 </div>
                 <div class="service-meta"><b>{{ s.host }}</b><span>{{ s.ports|join(', ') }}</span></div>
               </div>
-              <div class="service-state">{{ s.state }}</div>
+              <div class="service-state">{{ 'Candidate References Available' if s.state == 'Candidate CVE References' else s.state }}</div>
               {% if s.observations %}
                 <div class="service-block"><b>Exposure Evidence</b><ul>{% for o in s.observations %}<li>{{ o.observation }}</li>{% endfor %}</ul></div>
               {% endif %}
@@ -37,10 +37,10 @@
               {% endif %}
               {% if s.candidate_references %}
                 <details class="mini-details">
-                  <summary>Show conditional CVE matches</summary>
+                  <summary>Show candidate CVE references</summary>
                   {% for g in s.candidate_references %}
                     <p class="muted small">
-                      {{ g.reference_count }} CVE match{% if g.reference_count != 1 %}es{% endif %} requiring validation:
+                      {{ g.reference_count }} reference{% if g.reference_count != 1 %}s{% endif %}:
                       {% for r in g.references[:8] %}{{ r.cve_id }}{% if not loop.last %}, {% endif %}{% endfor %}{% if g.reference_count > 8 %}, ...{% endif %}
                     </p>
                   {% endfor %}

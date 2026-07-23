@@ -94,12 +94,12 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     story.append(Paragraph(f'Reconnaissance Evidence Report - {_p(target)}', styles['Title']))
     profile = (results.get('scan_options') or scan.get('scan_options') or {}).get('profile_label', 'Scan')
     story.append(Paragraph(f'Scan Profile: {_p(profile)}', styles['Muted']))
-    story.append(Paragraph('Candidate findings require a reliable observed product/version and a structured official CVE List V5 affected-version match. They are not target-specific vulnerability detections. Published CVSS metrics are copied with their exact vector and provider; this module does not generate, convert, fall back, or substitute them.', styles['Muted']))
+    story.append(Paragraph('CVE findings are linked from collected product, version, and supporting service evidence. The recon module does not score, rank, prioritise, or make execution decisions.', styles['Muted']))
     story.append(Spacer(1, 6))
 
-    summary = [[_para('Hosts', styles['Cell']), _para('TCP Services', styles['Cell']), _para('UDP Services', styles['Cell']), _para('CVE Findings', styles['Cell'])],
-               [_para(len(results.get('hosts') or []), styles['Cell']), _para(results.get('tcp_service_count', 0), styles['Cell']), _para(results.get('udp_service_count', 0), styles['Cell']), _para(len(results.get('cve_matches') or []), styles['Cell'])]]
-    t = Table(summary, repeatRows=1, colWidths=[45*mm, 45*mm, 45*mm, 65*mm])
+    summary = [[_para('Hosts', styles['Cell']), _para('TCP Services', styles['Cell']), _para('UDP Services', styles['Cell']), _para('CVE Findings', styles['Cell']), _para('Candidate Groups', styles['Cell'])],
+               [_para(len(results.get('hosts') or []), styles['Cell']), _para(results.get('tcp_service_count', 0), styles['Cell']), _para(results.get('udp_service_count', 0), styles['Cell']), _para(len(results.get('cve_matches') or []), styles['Cell']), _para(len(results.get('candidate_cve_groups') or []), styles['Cell'])]]
+    t = Table(summary, repeatRows=1, colWidths=[35*mm, 35*mm, 35*mm, 50*mm, 55*mm])
     t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
     story.append(t)
     story.append(Spacer(1, 8))
@@ -148,70 +148,27 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     if (results.get('mitre_source') or {}).get('cvss_metadata_warning'):
         story.append(Paragraph('CVE metadata notice: ' + _p((results.get('mitre_source') or {}).get('cvss_metadata_warning')), styles['Muted']))
         story.append(Spacer(1, 6))
-    if (results.get('mitre_source') or {}).get('selected_cvss_warning'):
-        story.append(Paragraph('Selected CVSS notice: ' + _p((results.get('mitre_source') or {}).get('selected_cvss_warning')), styles['Muted']))
-        story.append(Spacer(1, 6))
 
-    scoring = results.get('vulnerability_scoring') or {}
-    story.append(Paragraph(
-        'Vulnerability severity standard: ' + _p(scoring.get('label') or 'Not recorded for this scan')
-        + '. Published source metrics only; no conversion or cross-version fallback. CVSS severity is separate from target applicability and client risk.',
-        styles['Muted'],
-    ))
-    story.append(Spacer(1, 6))
-    source_status = results.get('mitre_source') or {}
-    story.append(Paragraph(
-        f"CVE List V5 local index: records={source_status.get('records_indexed', 0)}; "
-        f"source={source_status.get('source') or 'Official CVE List V5'}.",
-        styles['Muted'],
-    ))
-    story.append(Spacer(1, 6))
-
-    story.append(Paragraph('Candidate and Confirmed CVE Findings', styles['Heading2']))
-    cves = list(results.get('cve_matches') or [])
-    cve_source_ready = bool((results.get('mitre_source') or {}).get('available'))
-    if not cve_source_ready:
-        story.append(Paragraph('CVE correlation was unavailable because the official index was not ready. A zero count is not a successful no-match result.', styles['BodyText']))
-    elif cves:
-        rows = [[_para(value, styles['Cell']) for value in ['Port', 'Service', 'CVE', 'Severity', 'Score', 'Description']]]
+    story.append(Paragraph('CVE Findings', styles['Heading2']))
+    cves = results.get('cve_matches') or []
+    if cves:
         for c in cves:
-            selected_version = c.get('source_cvss_version') or scoring.get('version') or 'unknown'
-            if c.get('cvss_status') == 'published':
-                severity = str(c.get('source_cvss_severity') or '')
-                score = (
-                    f"{c.get('source_cvss_score')} (v{selected_version})\n"
-                    f"{c.get('source_cvss_vector') or ''}\n"
-                    f"Provider: {c.get('source_cvss_source') or ''}"
-                )
-            else:
-                severity = f"Not provided for CVSS v{selected_version}"
-                score = severity
-            ports = ', '.join(c.get('observed_ports') or [
-                str(c.get('port') or '') + '/' + str(c.get('protocol') or '')
-            ])
-            service = ' '.join(value for value in [
-                str(c.get('service') or ''),
-                str(c.get('product') or ''),
-                str(c.get('version') or ''),
-            ] if value)
-            cve_cell = f"{c.get('cve_id') or ''}\n{c.get('classification') or 'Evidence-linked CVE'}"
-            description = str(c.get('vulnerability') or '')
-            if c.get('classification_reason'):
-                description += f"\nApplicability: {c.get('classification_reason')}"
-            rows.append([
-                _para(ports, styles['SmallWrap']),
-                _para(service, styles['SmallWrap']),
-                _para(cve_cell, styles['SmallWrap']),
-                _para(severity, styles['SmallWrap']),
-                _para(score, styles['SmallWrap']),
-                _para(description, styles['SmallWrap']),
-            ])
-        table = Table(rows, repeatRows=1, colWidths=[25*mm, 42*mm, 48*mm, 34*mm, 55*mm, 64*mm])
-        table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
-        story.append(table)
-        story.append(Spacer(1, 6))
+            title = f"{c.get('cve_id','')} - {c.get('product','')} {c.get('version','')}"
+            story.append(Paragraph(_p(title), styles['Heading3']))
+            rows = [
+                ['Finding Type', c.get('finding_type','CVE Finding')],
+                ['Host / Ports', f"{c.get('host','')} / {', '.join(c.get('observed_ports') or [str(c.get('port','')) + '/' + str(c.get('protocol',''))])}"],
+                ['Vulnerability', c.get('vulnerability','')],
+                ['Potential Outcome', c.get('attacker_outcome','')],
+                ['Remediation', c.get('remediation_direction','')],
+                ['Evidence Basis', str(c.get('classification_reason') or '')],
+            ]
+            table = Table([[ _para(a, styles['Cell']), _para(b, styles['SmallWrap'])] for a,b in rows], colWidths=[38*mm, 230*mm])
+            table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#f3f3f3')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+            story.append(table)
+            story.append(Spacer(1, 6))
     else:
-        story.append(Paragraph('No CVE satisfied the Candidate or Confirmed requirements.', styles['BodyText']))
+        story.append(Paragraph('No confirmed CVE findings were linked from the collected evidence.', styles['BodyText']))
 
     observations = results.get('key_exposure_indicators') or results.get('security_relevant_observations') or []
     if observations:
@@ -224,19 +181,33 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(table)
 
+    groups = results.get('candidate_cve_groups') or []
+    if groups:
+        story.append(CondPageBreak(45 * mm))
+        story.append(Paragraph('Candidate CVE References', styles['Heading2']))
+        data = [[_para(x, styles['Cell']) for x in ['Host','Ports','Service','Product / Version','References','Reason']]]
+        for g in groups[:60]:
+            refs = ', '.join(str(r.get('cve_id','')) for r in g.get('references') or [])
+            reason = (g.get('references') or [{}])[0].get('reason','')
+            data.append([_para(g.get('host',''), styles['SmallWrap']), _para(', '.join(g.get('ports') or []), styles['SmallWrap']), _para(g.get('service',''), styles['SmallWrap']), _para(f"{g.get('product','')} {g.get('version','')}", styles['SmallWrap']), _para(refs, styles['SmallWrap']), _para(reason, styles['SmallWrap'])])
+        table = Table(data, repeatRows=1, colWidths=[32*mm,32*mm,28*mm,56*mm,58*mm,62*mm])
+        table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(table)
+
     diagnostics = results.get('cve_matcher_diagnostics') or []
     if diagnostics:
         story.append(CondPageBreak(40 * mm))
         story.append(Paragraph('CVE Matcher Diagnostics', styles['Heading2']))
-        data = [[_para(x, styles['Cell']) for x in ['Host / Port', 'Operational Event', 'Detail']]]
+        data = [[_para(x, styles['Cell']) for x in ['Host / Port', 'Status', 'Reason', 'Detail']]]
         for row in diagnostics[:100]:
-            detail = row.get('error') or row.get('detail') or row.get('rebuild_command') or row.get('product') or row.get('product_identity') or ''
+            detail = row.get('error') or row.get('rebuild_command') or row.get('product') or ''
             data.append([
                 _para(f"{row.get('host','')}:{row.get('port','')}", styles['SmallWrap']),
-                _para(row.get('event',''), styles['SmallWrap']),
+                _para(row.get('matcher_status',''), styles['SmallWrap']),
+                _para(row.get('reason',''), styles['SmallWrap']),
                 _para(detail, styles['SmallWrap']),
             ])
-        table = Table(data, repeatRows=1, colWidths=[58*mm,70*mm,140*mm])
+        table = Table(data, repeatRows=1, colWidths=[48*mm,36*mm,72*mm,112*mm])
         table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(table)
 

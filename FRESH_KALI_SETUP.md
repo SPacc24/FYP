@@ -69,19 +69,20 @@ project/.venv/bin/python project/scripts/bootstrap_env.py --show-secrets
 
 The CVSS v3.1/v4.0 selector appears immediately below the target field.
 
-The installer builds the complete CVE List index and then performs the NVD API's
-offset-paginated initial population into `storage/mitre_cve/nvd_repository.sqlite3`.
-Without an NVD API key, NVD's documented public rate limit makes the first sync take
-roughly 20 minutes or longer. It is resumable. Check or resume it with:
+The installer downloads the official CVE List V5 repository once and builds local
+indexes under `storage/mitre_cve/`. Later updates retrieve only changed CVE records.
+Check or refresh the local data with:
 
 ```bash
 cd ~/Desktop/FYP-hehe/project
 source .venv/bin/activate
-python scripts/nvd_status.py
-python scripts/sync_nvd_database.py
+python scripts/mitre_cve_status.py
+python scripts/sync_mitre_cve_database.py
 ```
 
-An NVD API key is optional; add `NVD_API_KEY=...` to `project/.env` only if you have
-one. NVD CPE/configuration data decides applicability. CVE prose is never used as
-matching proof. CVSS metrics use the selected published version only, with no score
-conversion or cross-version fallback.
+No API key is required. The installer builds local index schema v4. Machine-readable
+CVE List V5 affected data decides whether a CVE becomes a Candidate. CVE prose is
+never used as matching proof. Confirmed requires separate target-specific validation
+evidence, and no other CVE finding value exists.
+CVSS metrics use the operator-selected published version only, with no score
+conversion, estimation, or cross-version fallback.

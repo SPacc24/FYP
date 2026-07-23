@@ -8,15 +8,15 @@ Uses mysql-connector-python.
 
 import json
 import logging
-import re
 from contextlib import closing
 from datetime import datetime
-
-from scanners.mitre_cve import OFFICIAL_CVE_SOURCE
 
 log = logging.getLogger(__name__)
 
 SCHEMA_SQL = """
+CREATE DATABASE IF NOT EXISTS autopentest;
+USE autopentest;
+
 CREATE TABLE IF NOT EXISTS scans (
     id INT AUTO_INCREMENT PRIMARY KEY,
     target_ip VARCHAR(50) NOT NULL,
@@ -102,12 +102,7 @@ class Database:
 
     def init_schema(self):
         try:
-            database = str(self.config.get('database') or '').strip()
-            if not re.fullmatch(r'[A-Za-z0-9_]+', database):
-                raise ValueError('MYSQL_DB must contain only letters, numbers, and underscores')
             with closing(self._connect(include_db=False)) as conn, closing(conn.cursor()) as cursor:
-                cursor.execute(f'CREATE DATABASE IF NOT EXISTS `{database}`')
-                cursor.execute(f'USE `{database}`')
                 self._execute_many(cursor, SCHEMA_SQL.strip().split(';'))
                 conn.commit()
             log.info('Database schema initialised successfully.')
@@ -162,43 +157,20 @@ class Database:
             return []
 
     def save_vulnerabilities(self, scan_id: int, vulns: list) -> bool:
-        raise RuntimeError(
-            'Direct vulnerability persistence is disabled. '
-            'Use replace_canonical_vulnerabilities() with a completed scanner result.'
-        )
-
-    def replace_canonical_vulnerabilities(self, scan_id: int, results: dict) -> bool:
-        """Persist only canonical confirmed rows from a completed scanner result."""
-        contract = (results or {}).get('canonical_cve_contract') or {}
-        if (
-            contract.get('source_key') != 'scanner_official_index'
-            or contract.get('version') != 'scanner-canonical-v3'
-            or contract.get('source') != OFFICIAL_CVE_SOURCE
-        ):
-            raise ValueError('Canonical scanner CVE contract is required')
-        rows = (results or {}).get('cve_matches') or []
+        if not vulns:
+            return True
         try:
             with closing(self._connect()) as conn, closing(conn.cursor()) as cursor:
-                cursor.execute('DELETE FROM vulnerabilities WHERE scan_id = %s', (scan_id,))
-                for row in rows:
-                    if str(row.get('applicability_status') or '').lower() != 'confirmed_affected':
-                        continue
+                for v in vulns:
                     cursor.execute(
                         'INSERT INTO vulnerabilities (scan_id, port, service, cve_id, cve_score, severity, description) VALUES (%s, %s, %s, %s, %s, %s, %s)',
-                        (
-                            scan_id,
-                            row.get('port'),
-                            row.get('service') or '',
-                            row.get('cve_id'),
-                            row.get('source_cvss_score'),
-                            row.get('source_cvss_severity') or 'Unavailable',
-                            row.get('vulnerability') or '',
-                        ),
+                        (scan_id, v.get('port'), v.get('service', ''), v.get('cve_id', 'N/A'), v.get('cve_score', 0.0), v.get('severity', 'Unknown'), v.get('description', ''))
                     )
                 conn.commit()
+            log.info('Saved %s vulnerabilities for scan %s', len(vulns), scan_id)
             return True
-        except Exception as exc:
-            log.error('replace_canonical_vulnerabilities failed: %s', exc)
+        except Exception as e:
+            log.error('save_vulnerabilities failed: %s', e)
             return False
 
     def get_vulnerabilities(self, scan_id: int):

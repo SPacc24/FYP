@@ -16,6 +16,8 @@
         Source: <span id="deployTargetSourceText">Unknown</span><br>
         External Target: <span id="deployExternalTargetText">Unknown</span><br>
         OS: <span id="deployOsText">Unknown</span><br>
+        Platform: <span id="deployPlatformText">Unknown</span><br>
+        Required Shell: <span id="deployShellText">Unknown</span><br>
         Trusted Agent: <span id="trustedAgentName">-</span><br>
         Match Type: <span id="targetMatchTypeText">-</span><br>
         Rejection: <span id="agentRejectionReasonText">-</span><br>
@@ -32,7 +34,8 @@
     <div id="deployCommandBox" class="command-box deploy-card" style="display:none;">
       <h4>Deploy Command</h4>
       <p class="small">Copy-only; run this inside the authorised lab target host when no trusted agent is available.</p>
-      <pre id="deployCommandText" class="deploy-command-text mono"></pre>
+      <p class="small" id="deployCommandMessage"></p>
+       id="deployCommandText" class="deploy-command-text mono"></pre>
       <button class="button secondary top-gap" id="copyDeployCommandBtn" type="button">
         Copy Deploy Command
       </button>

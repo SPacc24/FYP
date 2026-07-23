@@ -13,7 +13,7 @@
     <article>
       <span class="label">Score</span>
       <strong id="riskScoreValue">
-        {{ risk.score if risk and risk.score is defined and risk.score is not none else 'N/A' }}
+        {{ risk.score if risk and risk.score is defined else 'N/A' }}
       </strong>
     </article>
 

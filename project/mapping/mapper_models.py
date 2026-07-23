@@ -5,6 +5,18 @@ from typing import Any
 
 
 @dataclass
+class CVEMatch:
+    cve_id: str
+    title: str
+    severity: str
+    reason: str
+    remediation: str
+
+    def to_dict(self) -> dict[str, str]:
+        return asdict(self)
+
+
+@dataclass
 class VulnerabilityFinding:
     host: str
     port: str

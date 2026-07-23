@@ -13,7 +13,7 @@ from config import Config
 from caldera.api_client import CalderaClient
 
 from scanners.mitre_cve import status as mitre_status
-from scanners.parsers import parse_nmap_xml_dict
+from scanners.nmap_parser import parse_nmap_xml
 from storage import scan_store
 
 from core.helpers import (
@@ -44,8 +44,7 @@ def register_routes(app):
 
                 detected_cves = _build_detected_cve_rows(
                     ai_plan,
-                    mapping_result,
-                    data.get("results") or {},
+                    mapping_result
                 )
 
                 return render_template(
@@ -76,7 +75,7 @@ def register_routes(app):
 
         if scan["output_file"]:
             try:
-                parsed_results = parse_nmap_xml_dict(scan["output_file"])
+                parsed_results = parse_nmap_xml(scan["output_file"])
                 scan["os"] = parsed_results.get("os", "Unknown")
                 scan["ports"] = parsed_results.get("ports", [])
 
@@ -196,10 +195,24 @@ def register_routes(app):
 
     @app.route("/vulnerabilities/save", methods=["POST"])
     def save_vulnerabilities():
+        data = request.get_json(silent=True) or {}
+
+        vulns = data.get("vulnerabilities", [])
+        scan_id = session.get("scan_id")
+
+        if not scan_id:
+            return jsonify({
+                "success": False,
+                "error": "No scan_id in session"
+            }), 400
+
+        db.save_vulnerabilities(scan_id, vulns)
+        session["vulnerabilities"] = vulns
+
         return jsonify({
-            "success": False,
-            "error": "Direct browser-submitted vulnerability persistence is disabled."
-        }), 410
+            "success": True,
+            "count": len(vulns)
+        })
 
     @app.route("/report/export", methods=["GET"])
     def export_report():
@@ -215,6 +228,7 @@ def register_routes(app):
             remediations=context["remediations"],
             validation=context["validation"],
             pivot=context["pivot"],
+            missions=context.get("missions", []),
         )
 
         return send_file(

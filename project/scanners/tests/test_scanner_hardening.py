@@ -272,21 +272,21 @@ class ScannerHardeningTests(unittest.TestCase):
         with patch("socket.create_connection", side_effect=socket.timeout("timeout")):
             self.assertIsNone(collect_ssh_cryptography("192.0.2.31", 22, 1))
 
-    def test_mitre_search_has_no_private_confidence_gate(self):
-        record = {
-            "cve_id": _synthetic_cve(2099, 12001),
-            "classification": "Candidate",
-            "cvss_score": None,
-        }
-        with patch.object(mitre_cve, "search_cve_v5", return_value=([record], [])) as lookup:
-            candidates, events = mitre_cve.search_with_diagnostics(
-                "Example Server",
-                "1.0.0",
-                "example",
+    def test_mitre_search_stops_before_index_lookup_on_low_confidence(self):
+        with patch.object(
+            mitre_cve,
+            "_search_cached",
+            side_effect=AssertionError("index lookup must not run"),
+        ):
+            confirmed, held = mitre_cve.search_with_held(
+                "Apache httpd",
+                "2.4.41",
+                "http",
+                confidence_score=0.6,
+                recommended_for_cve=False,
             )
-        self.assertEqual([row["cve_id"] for row in candidates], [record["cve_id"]])
-        self.assertEqual(events, ())
-        self.assertNotIn("confidence_score", lookup.call_args.kwargs)
+        self.assertEqual(confirmed, ())
+        self.assertEqual(held[0]["reason"], "fingerprint_confidence_below_cve_threshold")
 
     def test_enumerator_applies_consensus_and_dashboard_badge(self):
         dotenv_stub = types.ModuleType("dotenv")
@@ -331,6 +331,13 @@ class ScannerHardeningTests(unittest.TestCase):
         self.assertEqual(custom["policy_resolution"], "explicit_disabled_wins")
         self.assertRegex(custom["effective_policy_sha256"], r"^[0-9a-f]{64}$")
 
+    def test_full_recon_without_checkbox_data_has_core_collectors(self):
+        options = normalise_scan_options("full")
+        self.assertTrue(options["enabled_tools"])
+        self.assertIn("tcp_discovery", options["enabled_tools"])
+        self.assertIn("service_fingerprint", options["enabled_tools"])
+        self.assertEqual(options["policy_conflicts"], [])
+
     def test_http_error_response_is_not_success_or_retained_evidence(self):
         error = urllib.error.HTTPError(
             "http://example.invalid/missing",
@@ -362,24 +369,33 @@ class ScannerHardeningTests(unittest.TestCase):
         self.assertTrue(fingerprint.recommended_for_cve)
 
     def test_dynamic_product_cpe_match_uses_only_index_record(self):
+        index = self.root / "official-index.jsonl"
         record = {
             "cve_id": _synthetic_cve(2099, 12345),
-            "classification": "Candidate",
-            "cvss_score": None,
+            "description": "RangeWidget Server issue",
+            "affected_entries": [{
+                "vendor": "ExampleVendor",
+                "product": "RangeWidget Server",
+                "versions": [{"version": "7.4.2", "status": "affected"}],
+                "cpes": ["cpe:2.3:a:examplevendor:rangewidget_server:7.4.2:*:*:*:*:*:*:*"],
+            }],
+            "references": ["https://example.invalid/advisory"],
+            "source": mitre_cve.OFFICIAL_CVE_SOURCE,
         }
-        with patch.object(
-            mitre_cve,
-            "search_cve_v5",
-            return_value=([record], [{"event": "test_event", "detail": "fixture"}]),
-        ):
-            candidates, events = mitre_cve.search_with_diagnostics(
+        index.write_text(json.dumps(record) + "\n", encoding="utf-8")
+        with patch.object(mitre_cve, "INDEX", index):
+            mitre_cve._search_cached.cache_clear()
+            confirmed, held = mitre_cve.search_with_held(
                 "RangeWidget Server",
                 "7.4.2",
                 "custom-service",
                 "cpe:/a:examplevendor:rangewidget_server:7.4.2",
+                confidence_score=0.95,
+                recommended_for_cve=True,
             )
-        self.assertEqual([row["cve_id"] for row in candidates], [record["cve_id"]])
-        self.assertEqual(events[0]["event"], "test_event")
+        mitre_cve._search_cached.cache_clear()
+        self.assertEqual([row["cve_id"] for row in confirmed], [record["cve_id"]])
+        self.assertEqual(held, ())
 
     def test_downstream_mapping_cves_are_replaced_by_canonical_contract(self):
         dotenv_stub = types.ModuleType("dotenv")
@@ -395,21 +411,12 @@ class ScannerHardeningTests(unittest.TestCase):
         }], "top_risks": [], "recommended_techniques": []}
         result = enumerator._canonicalise_downstream_mapping(mapping, [{
             "host": "192.0.2.50", "port": 443, "cve_id": canonical_id,
-            "classification": "Candidate", "source_cvss_severity": "High",
-            "match_source": mitre_cve.OFFICIAL_CVE_SOURCE,
+            "cvss_severity": "High", "source": mitre_cve.OFFICIAL_CVE_SOURCE,
         }], [])
         finding = result["vulnerabilities"][0]
-        self.assertEqual(finding["cve_ids"], [])
-        self.assertEqual([row["cve_id"] for row in finding["cve_matches"]], [canonical_id])
+        self.assertEqual(finding["cve_ids"], [canonical_id])
         self.assertNotIn(legacy_id, json.dumps(result))
-        self.assertEqual(
-            result["cve_source_of_truth"],
-            "cve_list_v5_structured_applicability",
-        )
-        self.assertEqual(
-            result["cve_contract_version"],
-            "scanner-canonical-v7-cve-list-v5",
-        )
+        self.assertEqual(result["cve_source_of_truth"], "scanner_official_index")
 
     def test_scanner_runtime_has_no_fixed_cve_or_private_target_literals(self):
         scanner_root = Path(__file__).resolve().parents[1]

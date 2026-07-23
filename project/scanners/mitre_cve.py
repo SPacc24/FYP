@@ -4,100 +4,528 @@ from __future__ import annotations
 import copy
 import json
 import re
-import sqlite3
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
-
-from .scoring_policy import (
-    ScoringPolicyError,
-    metric_keys_by_version,
-    normalise_cvss_version,
-    validate_published_metric,
-)
-from .cve_v5_matcher import search as search_cve_v5
-from .cve_v5_matcher import SQLITE_INDEX, affected_identity_keys
 
 BASE = Path('storage/mitre_cve')
 REPO_DIR = BASE / 'cvelistV5'
 INDEX = BASE / 'official_mitre_cve_index.jsonl'
 OFFICIAL_CVE_REPO = 'https://github.com/CVEProject/cvelistV5.git'
 OFFICIAL_CVE_SOURCE = 'Official CVE List via CVEProject/cvelistV5 (MITRE/CVE Program)'
-# Production applicability is data-driven. Product identity comes only from
-# the observed fingerprint and machine-readable CVE List V5 fields.
-# No product-specific alias table or description parser participates.
+MIN_FINGERPRINT_CONFIDENCE = 0.7
+
+
+# v32-from-v31 principle: official CVE candidates only; report layer decides strict vs relevant information.
+# The matcher does NOT use broad record-text search as proof. A visible CVE row
+# needs exact CPE evidence, exact product identity plus exact observed version,
+# or a clearly bounded affected-version range for the same product family.
+
+def _load_product_alias_registry() -> dict[str, dict[str, Any]]:
+    candidates = [Path('project/policies/product_alias_registry.json'), Path('policies/product_alias_registry.json')]
+    path = next((x for x in candidates if x.exists()), None)
+    if path is None:
+        raise RuntimeError('Product alias registry missing; CVE matching cannot safely infer product families.')
+    data = json.loads(path.read_text(encoding='utf-8'))
+    out: dict[str, dict[str, Any]] = {}
+    for key, spec in data.items():
+        out[key] = {
+            'detect': list(spec.get('detect') or []),
+            'affected_products': set(spec.get('affected_products') or []),
+            'desc_phrases': list(spec.get('desc_phrases') or []),
+            'blocked': set(spec.get('blocked') or []),
+        }
+    return out
+
+PRODUCTS: dict[str, dict[str, Any]] = _load_product_alias_registry()
+
+GENERIC_TOKENS = {
+    'linux','debian','ubuntu','windows','microsoft','server','daemon','service','protocol','tcp','udp',
+    'ssl','tls','http','https','ssh','ftp','smtp','smtpd','dns','domain','netbios','rpcbind','unknown',
+    'openbsd','solaris','gnu','classpath','root','shell','db','database','telnet','telnetd','vnc','rmi',
+    'ruby','apache','samba','smb','mysql','postgres','postgresql','bind','isc'
+}
+
 
 def status() -> dict[str, Any]:
     records = 0
-    selection_schema_records = 0
     cvss_records = 0
-    cvss_records_by_version = {version: 0 for version in metric_keys_by_version()}
     status_error = ''
     if INDEX.exists():
         try:
             with INDEX.open('r', encoding='utf-8', errors='ignore') as f:
                 for line in f:
                     records += 1
-                    if '"index_schema_version": 4' in line:
-                        selection_schema_records += 1
-                    has_cvss = False
-                    for version in cvss_records_by_version:
-                        if '"cvss_metrics"' in line and f'"{version}":' in line:
-                            cvss_records_by_version[version] += 1
-                            has_cvss = True
-                        elif f'"cvss_version": "{version}"' in line and '"cvss_score"' in line:
-                            cvss_records_by_version[version] += 1
-                            has_cvss = True
-                    if has_cvss:
+                    if 'cvss_score' in line:
                         cvss_records += 1
         except Exception as exc:
             records = 0
-            selection_schema_records = 0
             cvss_records = 0
-            cvss_records_by_version = {version: 0 for version in metric_keys_by_version()}
             status_error = f'{type(exc).__name__}: {exc}'
-    index_ready = (
-        INDEX.exists()
-        and SQLITE_INDEX.exists()
-        and records > 0
-        and selection_schema_records == records
-        and not status_error
-    )
-    if records > 0 and not SQLITE_INDEX.exists() and not status_error:
-        status_error = 'Local CVE List V5 SQLite index is missing; rebuild schema v4.'
-    elif records > 0 and selection_schema_records != records and not status_error:
-        status_error = 'Local CVE List V5 index schema is outdated; rebuild schema v4.'
-    stale_cvss = index_ready and cvss_records == 0
+    stale_cvss = INDEX.exists() and records > 0 and cvss_records == 0
     return {
         'source': OFFICIAL_CVE_SOURCE,
-        'available': index_ready,
-        'matcher_status': 'available' if index_ready else 'unavailable',
+        'available': INDEX.exists() and records > 0,
+        'matcher_status': 'error' if status_error else ('available' if records > 0 else 'unavailable'),
         'status_error': status_error,
         'records_indexed': records,
-        'cvss_selection_ready': index_ready,
-        'cvss_selection_schema_records': selection_schema_records,
         'records_with_cvss_metadata': cvss_records,
-        'records_with_cvss_metadata_by_version': cvss_records_by_version,
         'cvss_metadata_stale': stale_cvss,
         'cvss_metadata_warning': 'CVE index is available, but CVSS metadata is missing. Run: python scripts/rebuild_mitre_cve_index.py' if stale_cvss else '',
         'rebuild_command': 'python scripts/rebuild_mitre_cve_index.py',
         'index_file': str(INDEX),
         'repo_dir': str(REPO_DIR),
-        'matching_policy': 'Candidate requires a direct match to machine-readable CVE List V5 affected data using the record-defined version semantics. Confirmed requires separate target-specific validation evidence. CVSS severity never creates or confirms a finding.',
-        'applicability_source': OFFICIAL_CVE_SOURCE,
+        'matching_policy': 'v32_from_v31_mitre_only_candidates: official CVE List via CVEProject/cvelistV5 only; service fingerprints must be contradiction-free with confidence >= 0.70 before product/version/CPE matching; candidate records are further classified by exact version/CPE and context evidence',
+        'minimum_fingerprint_confidence': MIN_FINGERPRINT_CONFIDENCE,
     }
 
 
-def _sort_key(row: dict[str, Any]) -> tuple[bool, float, str]:
-    """Published technical severity order; unavailable metrics sort last."""
+def _norm(s: str) -> str:
+    return re.sub(r'\s+', ' ', (s or '').replace('_', ' ').replace('-', ' ')).strip().lower()
+
+
+def _tokens(s: str) -> set[str]:
+    return {t for t in re.split(r'[^a-zA-Z0-9._+-]+', (s or '').lower()) if t}
+
+
+def _first_version(s: str) -> str:
+    if not s:
+        return ''
+    m = re.search(r'\d+(?:\.\d+){1,4}(?:[a-z]+\d*)?', s.lower())
+    return m.group(0) if m else ''
+
+
+def _version_tuple(s: str) -> tuple[int, ...]:
+    nums = [int(x) for x in re.findall(r'\d+', (s or ''))]
+    return tuple(nums[:4])
+
+
+def _cmp_tuple(a: tuple[int, ...], b: tuple[int, ...]) -> int:
+    ln = max(len(a), len(b))
+    aa = a + (0,) * (ln - len(a))
+    bb = b + (0,) * (ln - len(b))
+    return (aa > bb) - (aa < bb)
+
+
+def _version_le(a: tuple[int, ...], b: tuple[int, ...]) -> bool:
+    return bool(a and b) and _cmp_tuple(a, b) <= 0
+
+
+def _version_lt(a: tuple[int, ...], b: tuple[int, ...]) -> bool:
+    return bool(a and b) and _cmp_tuple(a, b) < 0
+
+
+def _version_ge(a: tuple[int, ...], b: tuple[int, ...]) -> bool:
+    return bool(a and b) and _cmp_tuple(a, b) >= 0
+
+
+def _same_major(a: tuple[int, ...], b: tuple[int, ...]) -> bool:
+    return bool(a and b) and a[0] == b[0]
+
+
+def _same_major_minor(a: tuple[int, ...], b: tuple[int, ...]) -> bool:
+    if not a or not b:
+        return False
+    if len(a) >= 2 and len(b) >= 2:
+        return a[0] == b[0] and a[1] == b[1]
+    return a[0] == b[0]
+
+
+def _major_minor(s: str) -> str:
+    nums = re.findall(r'\d+', s or '')
+    return '.'.join(nums[:2]) if len(nums) >= 2 else (nums[0] if nums else '')
+
+
+_WINDOWS_EDITION_VERSIONS: list[tuple[str, str]] = [
+    ('windows server 2022', '10.0'),
+    ('windows server 2019', '10.0'),
+    ('windows server 2016', '10.0'),
+    ('windows server 2012', '6.2'),
+    ('windows server 2008', '6.0'),
+    ('windows server 2003', '5.2'),
+    ('windows 11', '10.0'),
+    ('windows 10', '10.0'),
+    ('windows 8.1', '6.3'),
+    ('windows 8', '6.2'),
+    ('windows 7', '6.1'),
+    ('windows xp', '5.1'),
+    ('windows vista', '6.0'),
+    ('windows 2000', '5.0'),
+]
+
+
+def _derive_os_version(product: str, service: str, cpe: str) -> str:
+    """Infer a numeric OS version when a scanner banner omits one."""
+    text = _norm(' '.join([product or '', service or '', cpe or '']))
+    for edition, version in _WINDOWS_EDITION_VERSIONS:
+        if edition in text:
+            return version
+    # CPE fallback for windows_xp, windows_7, etc.
+    for raw_cpe in re.split(r'[\s,]+', cpe or ''):
+        parts = _cpe_parts(raw_cpe)
+        if not parts:
+            continue
+        _part, vendor, cpe_product, cpe_version = parts
+        if vendor != 'microsoft' or 'windows' not in cpe_product:
+            continue
+        if cpe_version not in {'', '*', '-'}:
+            return cpe_version
+        cpe_product_norm = cpe_product.replace('_', ' ')
+        for edition, version in _WINDOWS_EDITION_VERSIONS:
+            if edition in cpe_product_norm:
+                return version
+    return ''
+
+
+def _identity(product: str, service: str, cpe: str) -> tuple[str | None, dict[str, Any]]:
+    text = _norm(' '.join([product or '', service or '', cpe or '']))
+    for key, spec in PRODUCTS.items():
+        for pat in spec['detect']:
+            if re.search(pat, text, flags=re.I):
+                return key, spec
+
+    # Products outside the reviewed alias registry may still be matched safely
+    # when the scanner observed a concrete product or CPE identity. This is
+    # deliberately exact: it never guesses a product family from a port number.
+    names: set[str] = set()
+    product_name = _norm(product)
+    meaningful = {token for token in _tokens(product_name) if token not in GENERIC_TOKENS and not token.isdigit()}
+    if product_name and meaningful:
+        names.add(product_name)
+    for raw_cpe in re.split(r'[\s,]+', cpe or ''):
+        parts = _cpe_parts(raw_cpe)
+        if not parts:
+            continue
+        _part, vendor, cpe_product, _version = parts
+        cpe_name = _norm(cpe_product)
+        if cpe_name and {token for token in _tokens(cpe_name) if token not in GENERIC_TOKENS and not token.isdigit()}:
+            names.add(cpe_name)
+            if vendor not in {'', '*', '-'}:
+                names.add(_norm(f'{vendor} {cpe_product}'))
+    if not names:
+        return None, {}
+    identity = sorted(names, key=lambda value: (-len(value), value))[0]
+    return identity, {
+        'detect': [],
+        'affected_products': names,
+        'desc_phrases': [],
+        'blocked': set(),
+        'dynamic_exact_identity': True,
+    }
+
+
+def _affected_entries(rec: dict[str, Any]) -> list[dict[str, Any]]:
+    entries = rec.get('affected_entries')
+    if isinstance(entries, list):
+        return entries
+    products = rec.get('affected_products') or []
+    versions = rec.get('affected_versions') or []
+    vendors = rec.get('affected_vendors') or []
+    if products or versions or vendors:
+        return [{
+            'vendor': ' '.join(map(str, vendors)),
+            'product': ' '.join(map(str, products)),
+            'versions': [{'version': str(v), 'status': 'affected'} for v in versions],
+            'cpes': rec.get('cpes') or []
+        }]
+    return []
+
+
+def _record_text(rec: dict[str, Any]) -> str:
+    vals = [rec.get('description', '')]
+    vals.extend(rec.get('affected_products') or [])
+    vals.extend(rec.get('affected_vendors') or [])
+    vals.extend(rec.get('affected_versions') or [])
+    for ent in _affected_entries(rec):
+        vals.append(str(ent.get('vendor', '')))
+        vals.append(str(ent.get('product', '')))
+    return _norm(' '.join(map(str, vals)))
+
+
+def _product_name_matches(name: str, allowed: set[str]) -> bool:
+    n = _norm(name)
+    if not n or n in {'n/a', 'na', 'unknown', '*'}:
+        return False
+    for a in allowed:
+        a = _norm(a)
+        if n == a:
+            return True
+        # Allow full product phrase containment, but not generic one-word containment.
+        if ' ' in a and re.search(rf'\b{re.escape(a)}\b', n):
+            return True
+    return False
+
+
+def _product_ok_for_record(rec: dict[str, Any], spec: dict[str, Any]) -> tuple[bool, list[str], str]:
+    text = _record_text(rec)
+    toks = _tokens(text)
+    blocked = {b for b in spec.get('blocked', set()) if b in text or b in toks}
+    if blocked:
+        return False, [], f'different product family token present: {sorted(blocked)}'
+
+    allowed = {_norm(x) for x in spec.get('affected_products', set())}
+    matched = []
+    entries = _affected_entries(rec)
+    for ent in entries:
+        vendor = _norm(str(ent.get('vendor', '')))
+        product = _norm(str(ent.get('product', '')))
+        names = [product, f'{vendor} {product}'.strip()]
+        for name in names:
+            if _product_name_matches(name, allowed):
+                matched.append(name)
+    if matched:
+        return True, sorted(set(matched)), 'affected_product_field'
+
+    # Only fall back to description phrases when the record lacks usable structured affected product names.
+    has_real_product = any(_norm(str(ent.get('product', ''))) not in {'', 'n/a', 'na', 'unknown', '*'} for ent in entries)
+    if not has_real_product:
+        for pat in spec.get('desc_phrases', []):
+            if re.search(pat, text, flags=re.I):
+                label = re.sub(r'\\b|\\s\+|\\s\*', ' ', pat).strip('^$ ')
+                return True, [label or 'description_phrase'], 'description_full_product_phrase_no_structured_product'
+    return False, [], 'no exact affected product identity'
+
+
+def _entry_matches_product(ent: dict[str, Any], prod_hits: list[str]) -> bool:
+    if not prod_hits:
+        return True
+    ent_prod = _norm(str(ent.get('product', '')))
+    ent_vendor = _norm(str(ent.get('vendor', '')))
+    ent_names = {ent_prod, f'{ent_vendor} {ent_prod}'.strip()}
+    for hit in prod_hits:
+        h = _norm(hit)
+        if h in ent_names:
+            return True
+        if any(h and name and (h in name or name in h) for name in ent_names):
+            return True
+    return False
+
+
+def _entry_version_match(entry: dict[str, Any], observed_version: str) -> tuple[bool, str, str]:
+    obs_raw = _first_version(observed_version)
+    obs_tuple = _version_tuple(obs_raw)
+    if not obs_tuple:
+        return False, '', 'observed_version_missing'
+    obs_mm = _major_minor(obs_raw)
+    versions = entry.get('versions') or []
+    for v in versions:
+        if not isinstance(v, dict):
+            continue
+        status = str(v.get('status', '')).lower()
+        if status and status not in {'affected', 'unknown'}:
+            continue
+        base = str(v.get('version', '') or '')
+        lt = str(v.get('lessThan', '') or '')
+        lte = str(v.get('lessThanOrEqual', '') or '')
+        entry_text = _norm(' '.join(str(x) for x in [base, lt, lte, v.get('versionType', '')]))
+
+        # Wildcard/unspecified entries are common for OS-level CVEs and lab seed records.
+        if base.lower() in {'*', 'unspecified', 'all', 'any', 'unknown'}:
+            return True, obs_raw, 'wildcard_version_match'
+
+        for field in [base, lt, lte]:
+            if field and _first_version(field) and _first_version(field) == obs_raw:
+                return True, obs_raw, 'exact_structured_version'
+
+        lower = _version_tuple(base)
+        upper = _version_tuple(lte or lt)
+        inclusive = bool(lte)
+        if lower and upper:
+            upper_ok = _version_le(obs_tuple, upper) if inclusive else _version_lt(obs_tuple, upper)
+            if _version_ge(obs_tuple, lower) and upper_ok and _same_major(obs_tuple, lower):
+                return True, obs_raw, f'structured_same_product_range:{base}..{lte or lt}'
+
+        # Lower-bound only ranges (e.g. affected from Windows Vista/6.0 onwards).
+        if lower and not upper and _version_ge(obs_tuple, lower):
+            return True, obs_raw, f'structured_min_version:{base}'
+
+        # Single upper-bound ranges are allowed only when the observed branch is explicitly named.
+        if upper and not lower and obs_mm and obs_mm in entry_text:
+            upper_ok = _version_le(obs_tuple, upper) if inclusive else _version_lt(obs_tuple, upper)
+            if upper_ok:
+                return True, obs_raw, f'structured_named_branch_upper_bound:{lte or lt}'
+    return False, '', 'no exact structured version/range match'
+
+
+def _text_version_match(rec: dict[str, Any], observed_version: str) -> tuple[bool, str, str]:
+    obs_raw = _first_version(observed_version)
+    obs_tuple = _version_tuple(obs_raw)
+    if not obs_raw or not obs_tuple:
+        return False, '', 'observed_version_missing'
+    text = _record_text(rec)
+    if re.search(rf'(?<![0-9A-Za-z.]){re.escape(obs_raw)}(?![0-9A-Za-z.])', text):
+        return True, obs_raw, 'exact_observed_version_in_record_text'
+
+    range_patterns = [
+        r'(?P<lo>\d+(?:\.\d+){1,4}(?:rc\d+)?)\s*(?:through|thru|to|-)\s*(?P<hi>\d+(?:\.\d+){1,4}(?:rc\d+)?)',
+        r'(?P<lo>\d+(?:\.\d+){1,4}(?:rc\d+)?)\s*(?:up to and including|up to|until)\s*(?P<hi>\d+(?:\.\d+){1,4}(?:rc\d+)?)',
+        r'(?P<lo>\d+(?:\.\d+){1,4}(?:rc\d+)?)\s*(?:through|thru|to|-)\s*(?:before|prior to)\s*(?P<hi>\d+(?:\.\d+){1,4}(?:rc\d+)?)',
+    ]
+    for pat in range_patterns:
+        for m in re.finditer(pat, text, flags=re.I):
+            lo_raw = m.group('lo')
+            hi_raw = m.group('hi')
+            lo = _version_tuple(lo_raw)
+            hi = _version_tuple(hi_raw)
+            if lo and hi and _version_ge(obs_tuple, lo) and _version_le(obs_tuple, hi) and _same_major(obs_tuple, lo):
+                return True, obs_raw, f'explicit_same_product_text_range:{lo_raw}..{hi_raw}'
+
+    # "before X" only when the observed major.minor branch is explicitly named in the same text.
+    obs_mm = _major_minor(obs_raw)
+    if obs_mm:
+        before_patterns = [
+            rf'\b{re.escape(obs_mm)}(?:\.x)?\b[^.\n]{{0,80}}(?:before|prior to)\s*(?P<hi>\d+(?:\.\d+){{1,4}}(?:rc\d+)?)',
+            rf'(?:before|prior to)\s*(?P<hi>\d+(?:\.\d+){{1,4}}(?:rc\d+)?)[^.\n]{{0,80}}\b{re.escape(obs_mm)}(?:\.x)?\b',
+        ]
+        for pat in before_patterns:
+            for m in re.finditer(pat, text, flags=re.I):
+                hi = _version_tuple(m.group('hi'))
+                if hi and _version_lt(obs_tuple, hi):
+                    return True, obs_raw, f'named_branch_before:{m.group("hi")}'
+    return False, '', 'no exact text version/range match'
+
+
+def _cpe_parts(value: str) -> tuple[str, str, str, str] | None:
+    raw = str(value or '').strip().lower()
+    if raw.startswith('cpe:2.3:'):
+        parts = raw.split(':')
+        if len(parts) >= 6:
+            return parts[2], parts[3], parts[4], parts[5]
+    if raw.startswith('cpe:/'):
+        parts = raw.split(':')
+        if len(parts) >= 5:
+            return parts[1].lstrip('/'), parts[2], parts[3], parts[4]
+    return None
+
+
+def _cpe_match(rec: dict[str, Any], observed_cpe: str) -> tuple[bool, str]:
+    if not observed_cpe:
+        return False, ''
+    observed = [(c.strip().lower(), _cpe_parts(c)) for c in re.split(r'[\s,]+', observed_cpe) if c.strip()]
+    rec_cpes: list[tuple[str, tuple[str, str, str, str] | None]] = []
+    for ent in _affected_entries(rec):
+        for c in ent.get('cpes') or []:
+            raw = str(c).strip().lower()
+            rec_cpes.append((raw, _cpe_parts(raw)))
+    for observed_raw, observed_parts in observed:
+        if not observed_parts:
+            continue
+        for record_raw, record_parts in rec_cpes:
+            if not record_parts:
+                continue
+            if observed_parts[:3] != record_parts[:3]:
+                continue
+            observed_version = observed_parts[3]
+            record_version = record_parts[3]
+            # CPE evidence is confirmation only when the version is concrete
+            # and equal. Wildcard/range records continue through version logic.
+            if observed_version not in {'', '*', '-'} and observed_version == record_version:
+                return True, f'{observed_raw} == {record_raw}'
+    return False, ''
+
+
+def _sort_key(row: dict[str, Any]) -> tuple[int, str]:
+    # Not a report ranking; just stable grouping by availability of source metadata.
     score = row.get('cvss_score')
-    return (score is None, -(float(score) if score is not None else 0.0), str(row.get('cve_id') or ''))
+    return (0 if score is not None else 1, str(row.get('cve_id') or ''))
 
 
-def _metric_for_version(record: dict[str, Any], selected_version: str) -> dict[str, Any]:
-    """Return only the exact published metric selected by the operator."""
-    metric = (record.get('cvss_metrics') or {}).get(selected_version)
-    return dict(metric) if isinstance(metric, dict) else {}
+@lru_cache(maxsize=4096)
+def _search_cached(product: str, version: str, service: str, cpe: str = '') -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
+    if not INDEX.exists():
+        return tuple(), ({'reason': 'cve_index_unavailable', 'matcher_status': 'unavailable', 'index_file': str(INDEX)},)
+    ident, spec = _identity(product, service, cpe)
+    if not ident:
+        return tuple(), ({'reason': 'unsupported_product_identity', 'matcher_status': 'held'},)
+    obs_version = _first_version(version)
+    if not obs_version:
+        obs_version = _derive_os_version(product, service, cpe)
+    if not obs_version:
+        return tuple(), ({'reason': 'observed_version_missing', 'matcher_status': 'held'},)
+
+    confirmed: list[dict[str, Any]] = []
+    malformed_records = 0
+    try:
+        with INDEX.open('r', encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    malformed_records += 1
+                    continue
+                if rec.get('source') != OFFICIAL_CVE_SOURCE:
+                    continue
+                product_ok, product_hits, product_basis = _product_ok_for_record(rec, spec)
+                cpe_ok, cpe_hit = _cpe_match(rec, cpe)
+                if not (cpe_ok or product_ok):
+                    continue
+
+                version_ok = False
+                matched_version = obs_version
+                basis = ''
+                if cpe_ok:
+                    version_ok = True
+                    basis = f'exact_cpe_match:{cpe_hit}'
+                else:
+                    for ent in _affected_entries(rec):
+                        if not _entry_matches_product(ent, product_hits):
+                            continue
+                        ok, token, why = _entry_version_match(ent, obs_version)
+                        if ok:
+                            version_ok = True
+                            matched_version = token or obs_version
+                            basis = why
+                            break
+                    if not version_ok:
+                        ok, token, why = _text_version_match(rec, obs_version)
+                        if ok:
+                            version_ok = True
+                            matched_version = token or obs_version
+                            basis = why
+                if not version_ok:
+                    continue
+                row = {
+                    'cve_id': rec.get('cve_id'),
+                    'description': rec.get('description'),
+                    'references': rec.get('references') or [],
+                    'source': rec.get('source'),
+                    'cvss_score': rec.get('cvss_score'),
+                    'cvss_severity': rec.get('cvss_severity'),
+                    'cvss_vector': rec.get('cvss_vector'),
+                    'cvss_source': rec.get('cvss_source'),
+                    'cvss_version': rec.get('cvss_version'),
+                    'matched_product_tokens': product_hits or [ident],
+                    'matched_version_tokens': [matched_version],
+                    'match_basis': basis,
+                    'product_match_basis': product_basis,
+                }
+                confirmed.append(row)
+    except Exception as exc:
+        return tuple(), ({
+            'reason': 'cve_matcher_error',
+            'matcher_status': 'error',
+            'error_type': type(exc).__name__,
+            'error': str(exc),
+        },)
+
+    # Deduplicate by CVE without display caps. A report renderer may paginate,
+    # but the canonical evidence contract must never silently discard matches.
+    dedup: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in sorted(confirmed, key=_sort_key):
+        cve_id = str(row.get('cve_id') or '')
+        if cve_id and cve_id not in seen:
+            seen.add(cve_id)
+            dedup.append(row)
+    diagnostics: list[dict[str, Any]] = []
+    if malformed_records:
+        diagnostics.append({
+            'reason': 'index_records_skipped',
+            'matcher_status': 'degraded',
+            'record_count': malformed_records,
+        })
+    return tuple(dedup), tuple(diagnostics)
 
 
 def search(
@@ -106,77 +534,63 @@ def search(
     service: str,
     cpe: str = '',
     *,
-    cvss_version: str | None = None,
-    observed_environment_cpes: tuple[str, ...] = (),
-    observed_platforms: tuple[str, ...] = (),
-    observed_modules: tuple[str, ...] = (),
-    observed_package_names: tuple[str, ...] = (),
-    observed_program_files: tuple[str, ...] = (),
-    observed_program_routines: tuple[str, ...] = (),
+    confidence_score: float | None = None,
+    recommended_for_cve: bool | None = None,
 ) -> tuple[dict[str, Any], ...]:
-    candidates, _ = search_with_diagnostics(
+    confirmed, _ = search_with_held(
         product,
         version,
         service,
         cpe,
-        cvss_version=cvss_version,
-        observed_environment_cpes=observed_environment_cpes,
-        observed_platforms=observed_platforms,
-        observed_modules=observed_modules,
-        observed_package_names=observed_package_names,
-        observed_program_files=observed_program_files,
-        observed_program_routines=observed_program_routines,
+        confidence_score=confidence_score,
+        recommended_for_cve=recommended_for_cve,
     )
-    return tuple(candidates)
+    return tuple(confirmed)
 
 
-def search_with_diagnostics(
+def search_with_held(
     product: str,
     version: str,
     service: str,
     cpe: str = '',
     *,
-    cvss_version: str | None = None,
-    observed_environment_cpes: tuple[str, ...] = (),
-    observed_platforms: tuple[str, ...] = (),
-    observed_modules: tuple[str, ...] = (),
-    observed_package_names: tuple[str, ...] = (),
-    observed_program_files: tuple[str, ...] = (),
-    observed_program_routines: tuple[str, ...] = (),
+    confidence_score: float | None = None,
+    recommended_for_cve: bool | None = None,
 ) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
-    """Return Candidate findings and non-CVE operational diagnostics."""
-    selected_version = normalise_cvss_version(cvss_version)
-    service_cpes = tuple(value.strip() for value in str(cpe or '').splitlines() if value.strip())
-    rows, diagnostics = search_cve_v5(
-        product,
-        version,
-        selected_cvss=selected_version,
-        service_cpes=service_cpes,
-        environment_cpes=observed_environment_cpes,
-        observed_platforms=observed_platforms,
-        observed_modules=observed_modules,
-        observed_package_names=observed_package_names,
-        observed_program_files=observed_program_files,
-        observed_program_routines=observed_program_routines,
-    )
-    return tuple(copy.deepcopy(sorted(rows, key=_sort_key))), tuple(copy.deepcopy(diagnostics))
+    """Search official CVE records only after fingerprint confidence passes.
+
+    ``None`` retains compatibility for offline index maintenance callers. The
+    scan pipeline always supplies both values from ``ServiceFingerprint``.
+    """
+    if confidence_score is not None or recommended_for_cve is not None:
+        try:
+            score = float(confidence_score or 0.0)
+        except (TypeError, ValueError):
+            score = 0.0
+        recommended = bool(recommended_for_cve)
+        if score < MIN_FINGERPRINT_CONFIDENCE or not recommended:
+            held = ({
+                'reason': 'fingerprint_confidence_below_cve_threshold',
+                'confidence_score': round(score, 2),
+                'minimum_confidence': MIN_FINGERPRINT_CONFIDENCE,
+                'recommended_for_cve': recommended,
+            },)
+            return tuple(), held
+    confirmed, held = _search_cached(product, version, service, cpe)
+    return tuple(copy.deepcopy(list(confirmed))), tuple(copy.deepcopy(list(held)))
 
 
-def _extract_metrics_from_node(node: Any, provider_role: str) -> dict[str, dict[str, Any]]:
+def _extract_metrics_from_node(node: Any) -> dict[str, Any]:
     if not isinstance(node, dict):
         return {}
     candidates = []
     metrics = node.get('metrics')
     if isinstance(metrics, list):
         candidates.extend(metrics)
-    extracted: dict[str, dict[str, Any]] = {}
-    metric_keys = metric_keys_by_version()
     for c in candidates:
         if not isinstance(c, dict):
             continue
-        for version, key in metric_keys.items():
-            if version in extracted:
-                continue
+        for key in ('cvssV4_0', 'cvssV3_1', 'cvssV3_0', 'cvssV2_0'):
             data = c.get(key)
             if not isinstance(data, dict):
                 continue
@@ -185,25 +599,30 @@ def _extract_metrics_from_node(node: Any, provider_role: str) -> dict[str, dict[
             vector = data.get('vectorString')
             if score is not None:
                 try:
-                    published = validate_published_metric(version, score, severity, vector)
-                except ScoringPolicyError:
-                    continue
-                extracted[version] = {
-                    **published,
+                    score = float(score)
+                except Exception:
+                    pass
+                return {
+                    'cvss_score': score,
+                    'cvss_severity': str(severity or '').upper() if severity else '',
+                    'cvss_vector': vector or '',
                     'cvss_source': c.get('source') or node.get('providerMetadata', {}).get('orgId') or '',
-                    'cvss_provider_role': provider_role,
+                    'cvss_version': key.replace('cvssV', '').replace('_', '.'),
                 }
-    return extracted
+    return {}
 
 
-def _extract_metrics(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def _extract_metric(data: dict[str, Any]) -> dict[str, Any]:
     containers = data.get('containers', {}) if isinstance(data, dict) else {}
     cna = containers.get('cna') or {}
-    metrics = _extract_metrics_from_node(cna, 'CNA')
+    metric = _extract_metrics_from_node(cna)
+    if metric:
+        return metric
     for adp in containers.get('adp') or []:
-        for version, metric in _extract_metrics_from_node(adp, 'ADP').items():
-            metrics.setdefault(version, metric)
-    return metrics
+        metric = _extract_metrics_from_node(adp)
+        if metric:
+            return metric
+    return {}
 
 
 def build_index() -> dict[str, Any]:
@@ -216,25 +635,14 @@ def build_index() -> dict[str, Any]:
 
     count = 0
     cvss_count = 0
-    cvss_count_by_version = {version: 0 for version in metric_keys_by_version()}
-    temp_index = INDEX.with_suffix(INDEX.suffix + '.tmp')
-    temp_sqlite = SQLITE_INDEX.with_suffix(SQLITE_INDEX.suffix + '.tmp')
-    temp_sqlite.unlink(missing_ok=True)
-    database = sqlite3.connect(temp_sqlite)
-    database.execute('CREATE TABLE affected_identities (cve_id TEXT NOT NULL, identity_key TEXT NOT NULL, record_json TEXT NOT NULL)')
-    with temp_index.open('w', encoding='utf-8') as out:
+    with INDEX.open('w', encoding='utf-8') as out:
         for path in REPO_DIR.rglob('CVE-*.json'):
             try:
                 data = json.loads(path.read_text(encoding='utf-8', errors='ignore'))
             except Exception:
                 continue
             cve_id = data.get('cveMetadata', {}).get('cveId') or path.stem
-            containers = data.get('containers', {})
-            cna = containers.get('cna', {})
-            record_containers = [('CNA', cna)]
-            record_containers.extend(
-                ('ADP', node) for node in (containers.get('adp') or []) if isinstance(node, dict)
-            )
+            cna = data.get('containers', {}).get('cna', {})
             descs = cna.get('descriptions') or []
             desc = ''
             for d in descs:
@@ -249,86 +657,45 @@ def build_index() -> dict[str, Any]:
             versions: list[str] = []
             affected_entries: list[dict[str, Any]] = []
             cpes: list[str] = []
-            for container_role, container in record_containers:
-                provider = container.get('providerMetadata') or {}
-                for a in container.get('affected') or []:
-                    if not isinstance(a, dict):
+            for a in cna.get('affected') or []:
+                vendor = str(a.get('vendor', '') or '')
+                product = str(a.get('product', '') or '')
+                if vendor:
+                    vendors.append(vendor)
+                if product:
+                    products.append(product)
+                entry_versions = []
+                for v in a.get('versions') or []:
+                    if not isinstance(v, dict):
                         continue
-                    vendor = str(a.get('vendor', '') or '')
-                    product = str(a.get('product', '') or '')
-                    if vendor:
-                        vendors.append(vendor)
-                    if product:
-                        products.append(product)
-                    entry_versions = []
-                    for v in a.get('versions') or []:
-                        if not isinstance(v, dict):
-                            continue
-                        entry = {
-                            'version': str(v.get('version', '') or ''),
-                            'status': str(v.get('status', '') or ''),
-                            'lessThan': str(v.get('lessThan', '') or ''),
-                            'lessThanOrEqual': str(v.get('lessThanOrEqual', '') or ''),
-                            'versionType': str(v.get('versionType', '') or ''),
-                            'changes': [
-                                {
-                                    'at': str(change.get('at', '') or ''),
-                                    'status': str(change.get('status', '') or ''),
-                                }
-                                for change in (v.get('changes') or [])
-                                if isinstance(change, dict)
-                            ],
-                        }
-                        entry_versions.append(entry)
-                        for fld in ('version', 'lessThan', 'lessThanOrEqual'):
-                            if entry.get(fld):
-                                versions.append(entry[fld])
-                    entry_cpes = []
-                    for c in a.get('cpes') or []:
-                        if isinstance(c, str):
-                            cpes.append(c)
-                            entry_cpes.append(c)
-                    affected_entries.append({
-                        'container_role': container_role,
-                        'provider_org_id': str(provider.get('orgId', '') or ''),
-                        'provider_short_name': str(provider.get('shortName', '') or ''),
-                        'vendor': vendor,
-                        'product': product,
-                        'collectionURL': str(a.get('collectionURL', '') or ''),
-                        'packageName': str(a.get('packageName', '') or ''),
-                        'repo': str(a.get('repo', '') or ''),
-                        'defaultStatus': str(a.get('defaultStatus', '') or ''),
-                        'versions': entry_versions,
-                        'cpes': entry_cpes,
-                        'platforms': [str(x) for x in (a.get('platforms') or []) if x],
-                        'modules': [str(x) for x in (a.get('modules') or []) if x],
-                        'programFiles': [str(x) for x in (a.get('programFiles') or []) if x],
-                        'programRoutines': [x for x in (a.get('programRoutines') or []) if isinstance(x, (str, dict))],
-                    })
+                    entry = {
+                        'version': str(v.get('version', '') or ''),
+                        'status': str(v.get('status', '') or ''),
+                        'lessThan': str(v.get('lessThan', '') or ''),
+                        'lessThanOrEqual': str(v.get('lessThanOrEqual', '') or ''),
+                        'versionType': str(v.get('versionType', '') or ''),
+                    }
+                    entry_versions.append(entry)
+                    for fld in ('version', 'lessThan', 'lessThanOrEqual'):
+                        if entry.get(fld):
+                            versions.append(entry[fld])
+                entry_cpes = []
+                for c in a.get('cpes') or []:
+                    if isinstance(c, str):
+                        cpes.append(c)
+                        entry_cpes.append(c)
+                affected_entries.append({'vendor': vendor, 'product': product, 'versions': entry_versions, 'cpes': entry_cpes})
 
             refs = []
-            for _container_role, container in record_containers:
-                for r in container.get('references') or []:
-                    if not isinstance(r, dict):
-                        continue
-                    url = r.get('url')
-                    if url:
-                        refs.append(url)
-            metrics = _extract_metrics(data)
-            record_url = f'https://www.cve.org/CVERecord?id={cve_id}'
-            record_updated = str(data.get('cveMetadata', {}).get('dateUpdated') or '')
-            for metric in metrics.values():
-                metric['cvss_record_url'] = record_url
-                metric['cvss_record_last_modified'] = record_updated
-            if metrics:
+            for r in cna.get('references') or []:
+                url = r.get('url')
+                if url:
+                    refs.append(url)
+            metric = _extract_metric(data)
+            if metric:
                 cvss_count += 1
-                for version in metrics:
-                    if version in cvss_count_by_version:
-                        cvss_count_by_version[version] += 1
 
             row = {
-                'index_schema_version': 4,
-                'state': str(data.get('cveMetadata', {}).get('state') or ''),
                 'cve_id': cve_id,
                 'description': desc,
                 'affected_vendors': sorted(set(vendors)),
@@ -336,27 +703,11 @@ def build_index() -> dict[str, Any]:
                 'affected_versions': sorted(set(versions)),
                 'affected_entries': affected_entries,
                 'cpes': sorted(set(cpes)),
-                'references': list(dict.fromkeys(refs))[:10],
+                'references': refs[:10],
                 'source': OFFICIAL_CVE_SOURCE,
-                'cvss_metrics': metrics,
             }
-            encoded = json.dumps(row, ensure_ascii=False)
-            out.write(encoded + '\n')
-            identity_keys = set()
-            for affected_entry in affected_entries:
-                identity_keys.update(affected_identity_keys(affected_entry))
-            for identity_key in identity_keys:
-                database.execute('INSERT INTO affected_identities VALUES (?, ?, ?)', (cve_id, identity_key, encoded))
+            row.update(metric)
+            out.write(json.dumps(row, ensure_ascii=False) + '\n')
             count += 1
-    if count <= 0:
-        database.close()
-        temp_index.unlink(missing_ok=True)
-        temp_sqlite.unlink(missing_ok=True)
-        raise RuntimeError('Official CVE repository contained no indexable CVE records.')
-    database.execute('CREATE INDEX affected_identity_key_idx ON affected_identities(identity_key)')
-    database.execute('CREATE INDEX affected_identity_cve_idx ON affected_identities(cve_id)')
-    database.commit()
-    database.close()
-    temp_index.replace(INDEX)
-    temp_sqlite.replace(SQLITE_INDEX)
-    return {'records_indexed': count, 'records_with_cvss_metadata': cvss_count, 'records_with_cvss_metadata_by_version': cvss_count_by_version, 'index_file': str(INDEX), 'sqlite_index': str(SQLITE_INDEX)}
+    _search_cached.cache_clear()
+    return {'records_indexed': count, 'records_with_cvss_metadata': cvss_count, 'index_file': str(INDEX)}

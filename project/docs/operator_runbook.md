@@ -195,7 +195,7 @@ Check the local official CVE index:
 cd /home/kali/FYP/project
 source .venv/bin/activate
 python scripts/mitre_cve_status.py
-python -m pytest scanners/tests/test_policy_and_source_hygiene.py -q
+python scripts/audit_cve_source.py
 ```
 
 If the mirror or index is absent or stale:
@@ -223,17 +223,15 @@ Confirm the exact target input before submitting it. Supported dashboard forms i
 
 The main pipeline expects IP addresses, not hostnames. Do not rely on the private-lab fallback for a real engagement; use explicit `allowed_networks` in a dedicated policy file.
 
-### 7.2 Choose numerical port coverage
+### 7.2 Choose the scan mode
 
-- **Complete TCP coverage** tests ports 1 through 65,535.
-- **Common TCP coverage** uses the versioned numerical set in `policies/port_coverage.json`.
-- **Custom TCP coverage** tests only operator-entered ports and ranges.
-- Additional and excluded port fields modify the selected base coverage.
-- UDP coverage is selected and executed separately; it is disabled by default.
+- **Full Recon** runs the policy-configured evidence collectors.
+- **Custom Recon** runs only the collectors selected in the UI.
+- **Auto** ATT&CK mode uses automatically selected techniques.
+- **Hybrid** combines deterministic/AI recommendations with operator selection.
+- **Manual** limits selection to operator-reviewed mapped techniques.
 
-The port choice determines where the scanner looks. It does not determine which service is present. Every observed open port is submitted to the general fingerprinting stage before specialist modules are dispatched.
-
-The Advanced section defaults to 256 ports per sequential microbatch, four concurrent targets, a three-second probe timeout, and one retry. Only one microbatch runs at a time for any individual target.
+Use Custom Recon when time, network sensitivity, or rules of engagement prohibit particular collectors.
 
 ### 7.3 Monitor execution
 
@@ -409,12 +407,11 @@ Check for an invalid integer in `.env`, a missing Python dependency, an occupied
 cd /home/kali/FYP/project
 source .venv/bin/activate
 python scripts/mitre_cve_status.py
-python scripts/sync_mitre_cve_database.py
 python scripts/rebuild_mitre_cve_index.py
-python -m pytest scanners/tests/test_policy_and_source_hygiene.py -q
+python scripts/audit_cve_source.py
 ```
 
-Also confirm that the service has reliable identity and version evidence. Candidate requires a direct match to machine-readable CVE List V5 affected data with every represented platform, module, package, file, and routine condition satisfied. CVE description prose, partial identity, similarity, and unsupported range comparison never create a finding. Confirmed additionally requires target-specific validation evidence.
+Also confirm that the service has sufficiently specific product and version evidence. The matcher deliberately withholds weak matches.
 
 ### PDF export fails
 
@@ -446,3 +443,4 @@ Also confirm that the service has reliable identity and version evidence. Candid
 - [ ] Secrets were not included in evidence or reports.
 - [ ] Runtime data was archived or cleaned according to policy.
 - [ ] The lab was returned to its expected snapshot or baseline.
+

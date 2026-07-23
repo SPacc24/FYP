@@ -54,13 +54,7 @@
   <details class="details-block" open>
     <summary>View Vulnerability Mapping</summary>
 
-    {% if detected_cves %}
-      {% set scoring = results.vulnerability_scoring if results and results.vulnerability_scoring is defined else {} %}
-      <p class="muted small">
-        One row per validated-applicability CVE. Severity and Score are copied only from an authoritative metric
-        published for the selected {{ scoring.label if scoring and scoring.label else 'CVSS version' }}.
-        No internal score, conversion, hardcoded value, or cross-version fallback is permitted.
-      </p>
+    {% if mapping and mapping.vulnerabilities %}
       <div class="table-wrap">
         <table>
           <thead>
@@ -75,77 +69,34 @@
           </thead>
 
           <tbody>
-            {% for cve in detected_cves %}
+            {% for item in mapping.vulnerabilities %}
               <tr>
-                <td class="mono">{{ cve.port }}</td>
-                <td>
-                  {{ cve.service }}
-                  {% if cve.product or cve.version %}
-                    <div class="muted small">{{ cve.product }}{% if cve.version %} {{ cve.version }}{% endif %}</div>
-                  {% endif %}
-                </td>
-                <td>
-                  <a class="mono" href="{{ cve.official_cve_url }}" target="_blank" rel="noopener">{{ cve.cve_id }}</a>
-                  <div class="muted small">{{ cve.confidence }}</div>
-                  {% if cve.applicability_reason %}<div class="muted small">{{ cve.applicability_reason }}</div>{% endif %}
-                </td>
-                <td>
-                  {% if cve.cvss_status == 'published' %}
-                    <span class="severity {{ cve.severity|lower }}">{{ cve.severity }}</span>
-                  {% else %}
-                    <span class="muted">Not provided for CVSS v{{ cve.cvss_version }}</span>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if cve.cvss_status == 'published' %}
-                    <span class="mono">{{ cve.cvss_score }}</span>
-                    <div class="mono small">CVSS v{{ cve.cvss_version }}</div>
-                    <div class="mono small">{{ cve.cvss_vector }}</div>
-                    <div class="muted small">{{ cve.cvss_source }}</div>
-                    {% if cve.cvss_record_url %}
-                      <a class="small" href="{{ cve.cvss_record_url }}" target="_blank" rel="noopener">Published record</a>
-                    {% endif %}
-                  {% else %}
-                    <span class="muted">Not provided for CVSS v{{ cve.cvss_version }}</span>
-                  {% endif %}
-                </td>
-                <td>{{ cve.description }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <p class="muted">No CVE met the validated applicability requirements. Unresolved records, if any, are listed separately under Analyst Review.</p>
-    {% endif %}
-  </details>
+                <td class="mono">{{ item.port }}</td>
+                <td>{{ item.service }}</td>
 
-  {% set analyst_review_cves = results.relevant_cve_information if results and results.relevant_cve_information is defined else [] %}
-  <details class="details-block">
-    <summary>Analyst Review — Unresolved Official Applicability ({{ analyst_review_cves|length }})</summary>
-    <p class="muted small">
-      These records are not vulnerability findings and are excluded from risk, ATT&amp;CK, AI, CALDERA and exploitation handoffs.
-      Each row has machine-readable official product/version relevance, but an authoritative applicability condition is unresolved.
-    </p>
-    {% if analyst_review_cves %}
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>CVE</th><th>Service / Port</th><th>Required Conditions</th><th>Official Basis</th><th>Description</th></tr></thead>
-          <tbody>
-            {% for cve in analyst_review_cves %}
-              <tr>
-                <td class="mono"><a href="https://www.cve.org/CVERecord?id={{ cve.cve_id }}" target="_blank" rel="noopener">{{ cve.cve_id }}</a></td>
-                <td>{{ cve.service }} {{ cve.product }} {{ cve.version }}<div class="mono small">{{ cve.observed_ports|default([cve.port ~ '/' ~ cve.protocol])|join(', ') }}</div></td>
-                <td class="small">{{ cve.required_conditions|default([cve.classification_reason])|join('; ') }}</td>
-                <td class="small">{{ cve.applicability_source }}<div class="mono small">{{ cve.match_basis }}</div></td>
-                <td class="small">{{ cve.vulnerability }}</td>
+                <td>
+                  {% if item.cve_ids %}
+                    {{ item.cve_ids | join(', ') }}
+                  {% else %}
+                    None
+                  {% endif %}
+                </td>
+
+                <td>
+                  <span class="severity {{ item.severity|lower }}">
+                    {{ item.severity }}
+                  </span>
+                </td>
+
+                <td>{{ item.priority_score }}</td>
+                <td>{{ item.title }}</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     {% else %}
-      <p class="muted">No records require analyst review.</p>
+      <p class="muted">No vulnerability matches yet.</p>
     {% endif %}
   </details>
 
@@ -153,16 +104,14 @@
     <div class="modal-backdrop" onclick="closeCveModal()"></div>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cveModalTitle">
       <div class="modal-head">
-        <h2 id="cveModalTitle">Validated CVE Findings</h2>
+        <h2 id="cveModalTitle">CVE Findings</h2>
         <button id="closeCveModal" class="icon-btn" type="button">Close</button>
       </div>
 
       <div class="modal-body">
       {% set cve_matches = results.cve_matches if results and results.cve_matches is defined else [] %}
-      {% set conditional_cves = results.relevant_cve_information if results and results.relevant_cve_information is defined else [] %}
+      {% set candidate_groups = results.candidate_cve_groups if results and results.candidate_cve_groups is defined else [] %}
       {% set mitre_source = results.mitre_source if results and results.mitre_source is defined else {} %}
-      {% set scoring = results.vulnerability_scoring if results and results.vulnerability_scoring is defined else {} %}
-      {% set nvd_repository = mitre_source.nvd_repository if mitre_source and mitre_source.nvd_repository is defined else {} %}
 
       <div class="mini-panel">
         <p class="small">
@@ -171,29 +120,9 @@
           Indexed records:
           {{ mitre_source.records_indexed if mitre_source and mitre_source.records_indexed is defined else 'N/A' }}.
         </p>
-        <p class="small">
-          NVD applicability repository: {{ 'complete' if nvd_repository.complete else 'partial/on-demand' }};
-          {{ nvd_repository.records|default(0) }} cached records;
-          {{ nvd_repository.cpe_criteria|default(0) }} CPE criteria;
-          last successful update {{ nvd_repository.last_successful_update|default('not available', true) }}.
-        </p>
-        <p class="small">
-          Severity standard: <b>{{ scoring.label if scoring and scoring.label else 'Not recorded for this scan' }}</b>.
-          Published technical severity is separate from target applicability and client risk.
-          No score conversion or cross-version fallback is performed.
-        </p>
-        <p class="small">
-          CVSS provider order: CVE List CNA/ADP metric first; official NVD enrichment only when the selected
-          version is absent. NVD enrichment never creates a CVE match or changes applicability.
-        </p>
-        {% if not mitre_source or not mitre_source.available %}
-          <p class="small">
-            CVE correlation was unavailable for this scan because the official index was not ready.
-            A zero count is not a successful no-match result. Restore the index and rerun the scan.
-          </p>
-        {% elif not cve_matches and conditional_cves %}
+        {% if not cve_matches and candidate_groups %}
           <p class="muted small">
-            No validated CVE findings were linked. Unresolved records are isolated in the separate Analyst Review table.
+            No confirmed CVE findings were linked, but candidate references were retained for analyst review.
           </p>
         {% elif not cve_matches %}
           <p class="muted small">
@@ -218,9 +147,8 @@
           <thead>
             <tr>
               <th>CVE ID</th>
-              <th>Applicability</th>
-              <th>Selected CVSS</th>
-              <th>Provider</th>
+              <th>Severity</th>
+              <th>Confidence</th>
               <th>Service/Port</th>
               <th>Linked Techniques</th>
               <th>Description</th>
@@ -238,19 +166,13 @@
                     </a>
                   </td>
 
-                  <td>{{ cve.confidence }}</td>
-
                   <td>
-                    {% if cve.cvss_status == 'published' %}
-                      <span class="severity {{ cve.severity|lower }}">{{ cve.severity }}</span>
-                      <div class="mono small">{{ cve.cvss_score }} · v{{ cve.cvss_version }}</div>
-                      <div class="mono small">{{ cve.cvss_vector }}</div>
-                    {% else %}
-                      <span class="muted">Not provided for CVSS v{{ cve.cvss_version }}</span>
-                    {% endif %}
+                    <span class="severity {{ cve.severity|lower }}">
+                      {{ cve.severity }}
+                    </span>
                   </td>
 
-                  <td class="small">{{ cve.cvss_source if cve.cvss_source else 'Not provided' }}</td>
+                  <td>{{ cve.confidence }}</td>
 
                   <td class="mono">{{ cve.service_port }}</td>
 
@@ -286,15 +208,9 @@
                   </td>
                 </tr>
               {% endfor %}
-            {% elif not mitre_source or not mitre_source.available %}
-              <tr>
-                <td colspan="8" class="small">
-                  CVE correlation unavailable; no CVE conclusion can be drawn from this scan.
-                </td>
-              </tr>
             {% else %}
               <tr>
-                <td colspan="8" class="small muted">
+                <td colspan="7" class="small muted">
                   No CVEs detected or linked to mapped techniques.
                 </td>
               </tr>
