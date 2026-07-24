@@ -682,9 +682,11 @@ function appendMetasploitRun(run) {
     visual.insertAdjacentHTML("afterbegin", `
       <article class="msf-result-card">
         <div class="msf-result-head"><span class="state ${run.session_created || run.validation_outcome === 'vulnerable' ? 'confirmed' : 'potential'}">${escapeHtml(state)}</span><time>${escapeHtml(run.timestamp || 'Now')}</time></div>
-        <h3>${escapeHtml(actionForCard.module_name || 'Metasploit action')}</h3>
+        <h3>${escapeHtml(actionForCard.title || actionForCard.module_name || 'Metasploit action')}</h3>
         <p class="mono">${escapeHtml(actionForCard.target || '-')}:${escapeHtml(actionForCard.port || '-')}</p>
-        <p>${escapeHtml(run.summary || 'Action completed.')}</p>
+        <p><strong>What this means:</strong> ${escapeHtml(run.evidence_summary || run.summary || 'Action completed.')}</p>
+        ${(run.evidence_items || []).length ? `<ul class="msf-evidence-list">${run.evidence_items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
+        <details><summary>Technical module name</summary><code>${escapeHtml(actionForCard.module_type || '-')}/${escapeHtml(actionForCard.module_name || '-')}</code></details>
       </article>`);
   }
   document.getElementById("flowExploitation")?.classList.add("complete");

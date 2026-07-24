@@ -241,6 +241,62 @@ def _save_active_scan_fields(**fields):
         log.warning("Could not persist active scan fields for %s: %s", scan_id, exc)
 
 
+def _fallback_remediations(parsed_results: dict, mapping_results: dict) -> list[dict]:
+    """Create useful remediation guidance even when CALDERA has not run."""
+    rows: list[dict] = []
+    seen: set[tuple] = set()
+    cves = parsed_results.get("cve_matches") or []
+    for finding in cves:
+        if not isinstance(finding, dict):
+            continue
+        host = finding.get("host") or parsed_results.get("target_ip") or "Unknown"
+        port = finding.get("port") or "N/A"
+        cve_id = finding.get("cve_id") or "Vulnerability finding"
+        key = (host, str(port), cve_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        fix = finding.get("remediation_direction") or (
+            f"Apply the vendor security update for {cve_id}, verify the affected service version, "
+            "and rerun the safe validation check."
+        )
+        rows.append({
+            "type": "vulnerability",
+            "severity": finding.get("source_cvss_severity") or finding.get("severity") or "High",
+            "title": cve_id,
+            "affected_host": host,
+            "affected_port": port,
+            "summary": finding.get("vulnerability") or finding.get("description") or "Review and remediate the matched vulnerability.",
+            "fixes": [fix],
+        })
+
+    for port in parsed_results.get("ports") or []:
+        if not isinstance(port, dict) or str(port.get("state", "")).lower() != "open":
+            continue
+        service = str(port.get("service") or "unknown")
+        number = port.get("port") or "N/A"
+        key = ("service", str(number), service)
+        if key in seen:
+            continue
+        seen.add(key)
+        fixes = ["Restrict access to authorised management hosts and network segments."]
+        lowered = service.lower()
+        if lowered in {"microsoft-ds", "netbios-ssn", "smb"}:
+            fixes = ["Disable SMBv1 where possible, apply current Windows patches, require SMB signing, and restrict ports 139/445 at firewalls."]
+        elif lowered in {"msrpc", "epmap"}:
+            fixes = ["Restrict RPC exposure to trusted administration networks and apply supported operating-system security updates."]
+        rows.append({
+            "type": "vulnerability",
+            "severity": "Medium",
+            "title": f"Exposed {service} service",
+            "affected_host": parsed_results.get("target_ip") or "Unknown",
+            "affected_port": number,
+            "summary": f"{service} is reachable on port {number} and should be reviewed against business need.",
+            "fixes": fixes,
+        })
+    return rows[:20]
+
+
 def _build_active_report_context(data: dict | None = None) -> dict:
     """
     Build the same report inputs for the inline API, full report page, and
@@ -274,6 +330,8 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         }
     risk = active.get("risk") or session.get("risk_score", {})
     remediations = active.get("remediations") or session.get("remediations", [])
+    if not remediations:
+        remediations = _fallback_remediations(parsed_results, mapping_results if isinstance(mapping_results, dict) else {})
 
     try:
         missions = get_mission_service().list_missions(limit=10)

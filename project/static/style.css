@@ -2397,3 +2397,11 @@ html {
 .validation-quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}.validation-quick-grid article{padding:16px;border-radius:15px;border:1px solid rgba(148,163,184,.15);background:rgba(15,23,42,.62)}.validation-quick-grid span,.validation-quick-grid small{display:block;color:var(--muted)}.validation-quick-grid strong{display:block;font-size:2rem;margin:3px 0}.metasploit-result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:16px 0}.msf-result-card{padding:16px;border:1px solid rgba(148,163,184,.15);border-radius:15px;background:linear-gradient(180deg,rgba(15,23,42,.78),rgba(3,8,15,.6))}.msf-result-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.msf-result-head time{color:var(--muted);font-size:.72rem}.msf-result-card h3{margin:12px 0 5px;font-size:1rem}.msf-result-card p{margin:5px 0;overflow-wrap:anywhere}
 @media(max-width:760px){.ai-fab{right:14px;bottom:14px}.ai-chat-drawer{right:14px;bottom:82px}.validation-quick-grid,.debrief-stats{grid-template-columns:1fr}.assessment-flow{padding:14px}}
 
+
+/* Operator-readable Metasploit evidence cards */
+.msf-evidence-list { margin:.65rem 0 0; padding-left:1.15rem; line-height:1.5; }
+.msf-evidence-list li { margin:.25rem 0; overflow-wrap:anywhere; }
+.msf-result-card details { margin-top:.65rem; font-size:.78rem; color:var(--muted); }
+.msf-result-card code { display:block; margin-top:.35rem; white-space:normal; overflow-wrap:anywhere; }
+#missionEventLog { max-height:320px; overflow:auto; overflow-wrap:anywhere; word-break:break-word; }
+#missionEventLog > div { min-width:0; }

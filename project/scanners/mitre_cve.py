@@ -9,6 +9,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from . import nvd_client
+
 BASE = Path('storage/mitre_cve')
 REPO_DIR = BASE / 'cvelistV5'
 INDEX = BASE / 'official_mitre_cve_index.jsonl'
@@ -64,10 +66,16 @@ def status() -> dict[str, Any]:
             cvss_records = 0
             status_error = f'{type(exc).__name__}: {exc}'
     stale_cvss = INDEX.exists() and records > 0 and cvss_records == 0
+    nvd = nvd_client.status()
+    local_available = INDEX.exists() and records > 0
     return {
         'source': OFFICIAL_CVE_SOURCE,
-        'available': INDEX.exists() and records > 0,
-        'matcher_status': 'error' if status_error else ('available' if records > 0 else 'unavailable'),
+        'source_mode': 'local_index' if local_available else ('targeted_nvd_api' if nvd.get('enabled') else 'unavailable'),
+        'available': local_available or bool(nvd.get('enabled')),
+        'local_index_available': local_available,
+        'nvd_enrichment': nvd,
+        'attribution': nvd.get('attribution', ''),
+        'matcher_status': 'error' if status_error else ('available' if (local_available or nvd.get('enabled')) else 'unavailable'),
         'status_error': status_error,
         'records_indexed': records,
         'records_with_cvss_metadata': cvss_records,
@@ -576,7 +584,10 @@ def search_with_held(
                 'recommended_for_cve': recommended,
             },)
             return tuple(), held
-    confirmed, held = _search_cached(product, version, service, cpe)
+    if INDEX.exists():
+        confirmed, held = _search_cached(product, version, service, cpe)
+    else:
+        confirmed, held = nvd_client.search(product, version, service, cpe)
     return tuple(copy.deepcopy(list(confirmed))), tuple(copy.deepcopy(list(held)))
 
 

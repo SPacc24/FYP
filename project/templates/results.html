@@ -61,6 +61,11 @@
       window.DASHBOARD_SECURITY = {
         csrfToken: "{{ operator_csrf_token|default('') }}"
       };
+
+      window.DASHBOARD_CONTEXT = {
+        scanId: "{{ scan.scan_id if scan and scan.scan_id else session.get('scan_id', '') }}",
+        target: "{{ scan.target_ip if scan and scan.target_ip else session.get('target_ip', '') }}"
+      };
     </script>
 
     <script type="application/json" id="coverageRowsJson">
@@ -266,5 +271,6 @@
       document.getElementById("recordModal").setAttribute("aria-hidden", "true");
     }
   </script>
+<div class="nvd-attribution" style="margin:18px auto;max-width:1200px;padding:10px 14px;font-size:.82rem;opacity:.72;text-align:center;">This product uses the NVD API but is not endorsed or certified by the NVD.</div>
 </body>
 </html>

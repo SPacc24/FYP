@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from flask import jsonify, render_template, request
+from flask import jsonify, render_template, request, session
 
 from automation.mission_service import get_mission_service
 from automation.playbook_loader import list_playbooks
@@ -128,25 +128,31 @@ def register_routes(app):
         body = _body()
         playbook_id = str(body.get("playbook_id") or "").strip() or None
         risk_posture = str(body.get("risk_posture") or "").strip() or None
-        scan_id = str(body.get("scan_id") or "").strip()
+        scan_id = str(body.get("scan_id") or session.get("scan_id") or "").strip()
         notes = str(body.get("notes") or "")
         scope = body.get("scope") if isinstance(body.get("scope"), dict) else {}
         parsed = body.get("parsed_results") if isinstance(body.get("parsed_results"), dict) else None
         if not parsed and scan_id:
             parsed = _load_scan_results(scan_id)
 
-        # Minimal empty surface if none provided (demo interior loop)
+        # Do not create a misleading empty mission. A playbook needs the active scan.
         if not parsed:
             hosts = body.get("hosts")
             ports = body.get("ports")
-            if isinstance(ports, list):
+            if isinstance(ports, list) and ports:
                 parsed = {
-                    "target": str(body.get("target") or "0.0.0.0"),
+                    "target": str(body.get("target") or ""),
+                    "target_ip": str(body.get("target") or ""),
                     "ports": ports,
                     "hosts": hosts or [],
                 }
-            elif isinstance(hosts, list):
+            elif isinstance(hosts, list) and hosts:
                 parsed = {"hosts": hosts, "target": str(body.get("target") or "")}
+            else:
+                return jsonify({
+                    "ok": False,
+                    "error": "No active scan evidence was found. Open Results from a completed scan, then start the mission again."
+                }), 400
 
         try:
             mission = svc().start(

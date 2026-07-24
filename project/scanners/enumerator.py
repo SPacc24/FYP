@@ -1947,13 +1947,43 @@ def _match_cves(
 
     for s in services:
         cpe_text = ' '.join(s.get('cpe') or [])
+        product_text = str(s.get('product',''))
+        version_text = str(s.get('version',''))
+        service_text = str(s.get('service',''))
+
+        # Nmap often identifies legacy Windows editions in the product field but
+        # leaves the version column blank. Preserve the observed edition while
+        # deriving the OS version needed for targeted NVD enrichment.
+        edition_text = f"{product_text} {service_text} {cpe_text}".lower()
+        if not version_text.strip():
+            windows_versions = (
+                ('windows xp', '5.1'), ('windows server 2003', '5.2'),
+                ('windows vista', '6.0'), ('windows 7', '6.1'),
+                ('windows 8.1', '6.3'), ('windows 8', '6.2'),
+                ('windows 10', '10.0'), ('windows 11', '10.0'),
+            )
+            for edition, derived in windows_versions:
+                if edition in edition_text:
+                    version_text = derived
+                    break
+
+        edition_is_concrete = any(token in edition_text for token in (
+            'windows xp', 'windows server 2003', 'windows vista',
+            'windows 7', 'windows 8', 'windows 10', 'windows 11'
+        ))
+        effective_confidence = s.get('confidence_score', 0.0)
+        effective_recommended = bool(s.get('recommended_for_cve', False))
+        if edition_is_concrete and version_text:
+            effective_confidence = max(float(effective_confidence or 0.0), 0.85)
+            effective_recommended = True
+
         matches, held_refs = mitre_search_with_held(
-            str(s.get('product','')),
-            str(s.get('version','')),
-            str(s.get('service','')),
+            product_text,
+            version_text,
+            service_text,
             cpe_text,
-            confidence_score=s.get('confidence_score', 0.0),
-            recommended_for_cve=bool(s.get('recommended_for_cve', False)),
+            confidence_score=effective_confidence,
+            recommended_for_cve=effective_recommended,
         )
         if diagnostics is not None:
             for held in held_refs:
