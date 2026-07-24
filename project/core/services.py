@@ -9,7 +9,7 @@ from caldera.risk_scorer import RiskScorer
 
 from exploitation.metasploit_client import MetasploitRpcClient
 from exploitation.metasploit_service import MetasploitService
-from exploitation.smb_exploiter import SmbExploiter
+from exploitation.smb_expliotation import SmbExploiter
 from exploitation.validator import ExploitabilityValidator
 from exploitation.web_exploiter import WebExploiter
 from exploitation.web_validator import WebValidationService
