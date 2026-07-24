@@ -9,7 +9,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-BASE = Path('storage/mitre_cve')
+from . import nvd_client
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+BASE = PROJECT_ROOT / 'storage' / 'mitre_cve'
 REPO_DIR = BASE / 'cvelistV5'
 INDEX = BASE / 'official_mitre_cve_index.jsonl'
 OFFICIAL_CVE_REPO = 'https://github.com/CVEProject/cvelistV5.git'
@@ -64,10 +67,16 @@ def status() -> dict[str, Any]:
             cvss_records = 0
             status_error = f'{type(exc).__name__}: {exc}'
     stale_cvss = INDEX.exists() and records > 0 and cvss_records == 0
+    nvd = nvd_client.status()
+    local_available = INDEX.exists() and records > 0
     return {
         'source': OFFICIAL_CVE_SOURCE,
-        'available': INDEX.exists() and records > 0,
-        'matcher_status': 'error' if status_error else ('available' if records > 0 else 'unavailable'),
+        'source_mode': 'local_index' if local_available else ('targeted_nvd_api' if nvd.get('enabled') else 'unavailable'),
+        'available': local_available or bool(nvd.get('enabled')),
+        'local_index_available': local_available,
+        'nvd_enrichment': nvd,
+        'attribution': nvd.get('attribution', ''),
+        'matcher_status': 'error' if status_error else ('available' if (local_available or nvd.get('enabled')) else 'unavailable'),
         'status_error': status_error,
         'records_indexed': records,
         'records_with_cvss_metadata': cvss_records,
@@ -135,6 +144,47 @@ def _same_major_minor(a: tuple[int, ...], b: tuple[int, ...]) -> bool:
 def _major_minor(s: str) -> str:
     nums = re.findall(r'\d+', s or '')
     return '.'.join(nums[:2]) if len(nums) >= 2 else (nums[0] if nums else '')
+
+
+_WINDOWS_EDITION_VERSIONS: list[tuple[str, str]] = [
+    ('windows server 2022', '10.0'),
+    ('windows server 2019', '10.0'),
+    ('windows server 2016', '10.0'),
+    ('windows server 2012', '6.2'),
+    ('windows server 2008', '6.0'),
+    ('windows server 2003', '5.2'),
+    ('windows 11', '10.0'),
+    ('windows 10', '10.0'),
+    ('windows 8.1', '6.3'),
+    ('windows 8', '6.2'),
+    ('windows 7', '6.1'),
+    ('windows xp', '5.1'),
+    ('windows vista', '6.0'),
+    ('windows 2000', '5.0'),
+]
+
+
+def _derive_os_version(product: str, service: str, cpe: str) -> str:
+    """Infer a numeric OS version when a scanner banner omits one."""
+    text = _norm(' '.join([product or '', service or '', cpe or '']))
+    for edition, version in _WINDOWS_EDITION_VERSIONS:
+        if edition in text:
+            return version
+    # CPE fallback for windows_xp, windows_7, etc.
+    for raw_cpe in re.split(r'[\s,]+', cpe or ''):
+        parts = _cpe_parts(raw_cpe)
+        if not parts:
+            continue
+        _part, vendor, cpe_product, cpe_version = parts
+        if vendor != 'microsoft' or 'windows' not in cpe_product:
+            continue
+        if cpe_version not in {'', '*', '-'}:
+            return cpe_version
+        cpe_product_norm = cpe_product.replace('_', ' ')
+        for edition, version in _WINDOWS_EDITION_VERSIONS:
+            if edition in cpe_product_norm:
+                return version
+    return ''
 
 
 def _identity(product: str, service: str, cpe: str) -> tuple[str | None, dict[str, Any]]:
@@ -279,6 +329,10 @@ def _entry_version_match(entry: dict[str, Any], observed_version: str) -> tuple[
         lte = str(v.get('lessThanOrEqual', '') or '')
         entry_text = _norm(' '.join(str(x) for x in [base, lt, lte, v.get('versionType', '')]))
 
+        # Wildcard/unspecified entries are common for OS-level CVEs and lab seed records.
+        if base.lower() in {'*', 'unspecified', 'all', 'any', 'unknown'}:
+            return True, obs_raw, 'wildcard_version_match'
+
         for field in [base, lt, lte]:
             if field and _first_version(field) and _first_version(field) == obs_raw:
                 return True, obs_raw, 'exact_structured_version'
@@ -290,6 +344,10 @@ def _entry_version_match(entry: dict[str, Any], observed_version: str) -> tuple[
             upper_ok = _version_le(obs_tuple, upper) if inclusive else _version_lt(obs_tuple, upper)
             if _version_ge(obs_tuple, lower) and upper_ok and _same_major(obs_tuple, lower):
                 return True, obs_raw, f'structured_same_product_range:{base}..{lte or lt}'
+
+        # Lower-bound only ranges (e.g. affected from Windows Vista/6.0 onwards).
+        if lower and not upper and _version_ge(obs_tuple, lower):
+            return True, obs_raw, f'structured_min_version:{base}'
 
         # Single upper-bound ranges are allowed only when the observed branch is explicitly named.
         if upper and not lower and obs_mm and obs_mm in entry_text:
@@ -391,6 +449,8 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '') -> t
         return tuple(), ({'reason': 'unsupported_product_identity', 'matcher_status': 'held'},)
     obs_version = _first_version(version)
     if not obs_version:
+        obs_version = _derive_os_version(product, service, cpe)
+    if not obs_version:
         return tuple(), ({'reason': 'observed_version_missing', 'matcher_status': 'held'},)
 
     confirmed: list[dict[str, Any]] = []
@@ -420,14 +480,14 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '') -> t
                     for ent in _affected_entries(rec):
                         if not _entry_matches_product(ent, product_hits):
                             continue
-                        ok, token, why = _entry_version_match(ent, version)
+                        ok, token, why = _entry_version_match(ent, obs_version)
                         if ok:
                             version_ok = True
                             matched_version = token or obs_version
                             basis = why
                             break
                     if not version_ok:
-                        ok, token, why = _text_version_match(rec, version)
+                        ok, token, why = _text_version_match(rec, obs_version)
                         if ok:
                             version_ok = True
                             matched_version = token or obs_version
@@ -518,14 +578,37 @@ def search_with_held(
             score = 0.0
         recommended = bool(recommended_for_cve)
         if score < MIN_FINGERPRINT_CONFIDENCE or not recommended:
-            held = ({
+            threshold_diag = {
                 'reason': 'fingerprint_confidence_below_cve_threshold',
                 'confidence_score': round(score, 2),
                 'minimum_confidence': MIN_FINGERPRINT_CONFIDENCE,
                 'recommended_for_cve': recommended,
-            },)
-            return tuple(), held
-    confirmed, held = _search_cached(product, version, service, cpe)
+            }
+            # Never promote an uncorroborated fingerprint to a confirmed CVE.
+            # However, a concrete product+version observed directly by Nmap
+            # (normally confidence 0.60) is still useful as analyst-review
+            # candidate information. Search the same official source and tag
+            # every returned record so the report layer keeps it non-confirmed.
+            has_identity = bool(str(product or '').strip() and str(version or '').strip())
+            candidate_eligible = has_identity and score >= 0.60
+            if candidate_eligible:
+                if INDEX.exists():
+                    candidates, source_diag = _search_cached(product, version, service, cpe)
+                elif nvd_client.enabled():
+                    candidates, source_diag = nvd_client.search(product, version, service, cpe)
+                else:
+                    candidates, source_diag = tuple(), tuple()
+                candidate_rows = tuple({
+                    **dict(row),
+                    'low_confidence_candidate': True,
+                    'nvd_candidate': bool(dict(row).get('nvd_candidate', False)),
+                } for row in candidates)
+                return candidate_rows, (threshold_diag, *tuple(source_diag))
+            return tuple(), (threshold_diag,)
+    if INDEX.exists():
+        confirmed, held = _search_cached(product, version, service, cpe)
+    else:
+        confirmed, held = nvd_client.search(product, version, service, cpe)
     return tuple(copy.deepcopy(list(confirmed))), tuple(copy.deepcopy(list(held)))
 
 

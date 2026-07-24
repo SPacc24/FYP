@@ -8,10 +8,7 @@ if str(PROJECT) not in sys.path:
 from scanners.enumerator import (  # noqa: E402
     _coverage_display_status,
     _classify_cve_match,
-    STRICT_CVE_MATCH,
-    RELEVANT_VERSION_INFORMATION,
-    EVIDENCE_INCOMPLETE,
-    NOT_APPLICABLE_TO_CONTEXT,
+    ALLOWED_CVE_STATUSES,
 )
 from storage import scan_store  # noqa: E402
 from scanners.mitre_cve import OFFICIAL_CVE_SOURCE  # noqa: E402
@@ -38,53 +35,21 @@ def test_timeout_is_evidence_incomplete():
     assert status == "Timed Out - Incomplete"
 
 
-def test_exact_vsftpd_cve_is_strict():
-    service = {"product": "vsftpd", "version": "2.3.4", "service": "ftp"}
-    match = {
+def test_cve_contract_accepts_only_candidate_and_confirmed():
+    for status in ALLOWED_CVE_STATUSES:
+        result = _classify_cve_match({
+            "source": OFFICIAL_CVE_SOURCE,
+            "classification": status,
+            "classification_reason": "Published applicability evidence.",
+        })
+        assert result == (status, "Published applicability evidence.")
+
+
+def test_cve_contract_rejects_every_other_value():
+    assert _classify_cve_match({
         "source": OFFICIAL_CVE_SOURCE,
-        "cve_id": "CVE-2011-2523",
-        "description": "vsftpd 2.3.4 downloaded between 20110630 and 20110703 contains a backdoor which opens a shell on port 6200/tcp.",
-        "match_basis": "exact_structured_version",
-    }
-    classification, reason = _classify_cve_match(service, match)
-    assert classification == STRICT_CVE_MATCH
-    assert "match" in reason.lower()
-
-
-def test_range_only_cve_moves_to_relevant_information():
-    service = {"product": "ISC BIND", "version": "9.4.2", "service": "domain"}
-    match = {
-        "source": OFFICIAL_CVE_SOURCE,
-        "cve_id": "CVE-2021-25215",
-        "description": "BIND 9.0.0 -> 9.11.29 can terminate due to an assertion check.",
-        "match_basis": "explicit_same_product_text_range:9.0.0..9.11.29",
-    }
-    classification, _ = _classify_cve_match(service, match)
-    assert classification == RELEVANT_VERSION_INFORMATION
-
-
-def test_module_dependent_cve_moves_to_evidence_incomplete():
-    service = {"product": "Apache httpd", "version": "2.2.8", "service": "http"}
-    match = {
-        "source": OFFICIAL_CVE_SOURCE,
-        "cve_id": "CVE-2008-2364",
-        "description": "The mod_proxy module in the Apache HTTP Server 2.2.8 does not limit interim responses.",
-        "match_basis": "exact_observed_version_in_record_text",
-    }
-    classification, _ = _classify_cve_match(service, match)
-    assert classification == EVIDENCE_INCOMPLETE
-
-
-def test_wrong_platform_context_is_not_rendered_as_relevant_evidence():
-    service = {"product": "Apache httpd", "version": "2.2.8", "service": "http"}
-    match = {
-        "source": OFFICIAL_CVE_SOURCE,
-        "cve_id": "CVE-2010-0425",
-        "description": "modules/arch/win32/mod_isapi.c in Apache HTTP Server allows remote attackers to execute arbitrary code.",
-        "match_basis": "exact_observed_version_in_record_text",
-    }
-    classification, _ = _classify_cve_match(service, match)
-    assert classification == NOT_APPLICABLE_TO_CONTEXT
+        "classification": "Different value",
+    }) is None
 
 
 def test_service_level_nmap_script_descriptions_are_specific():

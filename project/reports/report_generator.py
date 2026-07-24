@@ -293,6 +293,45 @@ def _summarize_pivot(pivot: dict[str, Any]) -> list[str]:
 
     return lines
 
+def _summarize_missions(missions: list[dict[str, Any]]) -> list[str]:
+    if not missions:
+        return ["No mission has been orchestrated for this assessment."]
+
+    lines: list[str] = []
+    lines.append(f"Total missions: {len(missions)}")
+    for mission in missions:
+        lines.append(f"\n  Mission {mission.get('mission_id', 'N/A')}")
+        lines.append(f"  Status: {_safe_text(mission.get('status'))}")
+        lines.append(f"  Playbook: {_safe_text(mission.get('playbook_id'))}")
+        lines.append(f"  Risk posture: {_safe_text(mission.get('risk_posture'))}")
+        debrief = mission.get("debrief") or {}
+        if debrief:
+            lines.append(f"  Outcome: {_safe_text(debrief.get('reason'))}")
+            lines.append(f"  Goal met: {_safe_text(debrief.get('goal_met'))}")
+            lines.append(f"  Total actions: {debrief.get('total_actions', '?')}")
+            lines.append(f"  Successful: {debrief.get('successful_actions', 0)}")
+            lines.append(f"  Failed: {debrief.get('failed_actions', 0)}")
+        queue = mission.get("action_queue") or []
+        if queue:
+            lines.append(f"  Action queue ({len(queue)} items):")
+            for a in queue[:10]:
+                lines.append(
+                    f"    - {a.get('title') or a.get('catalog_key', '?')} "
+                    f"[{a.get('status', '?')}] "
+                    f"{a.get('target', '')}:{a.get('port', '')}"
+                )
+        proofs = mission.get("proofs") or []
+        if proofs:
+            lines.append(f"  Proofs ({len(proofs)}):")
+            for p in proofs[:5]:
+                lines.append(
+                    f"    - {p.get('proof_type', '?')} "
+                    f"{p.get('catalog_key', '')} "
+                    f"({p.get('target', '')})"
+                )
+    return lines
+
+
 def _summarize_risk(risk: dict[str, Any]) -> list[str]:
     if not risk:
         return ["Risk score has not been calculated."]
@@ -304,6 +343,42 @@ def _summarize_risk(risk: dict[str, Any]) -> list[str]:
         f"Colour: {risk.get('colour', 'N/A')}",
         f"Breakdown: {risk.get('breakdown', {})}",
     ]
+
+
+def _fallback_remediations(scan: dict[str, Any], mapping: dict[str, Any]) -> list[dict[str, Any]]:
+    """Produce actionable baseline guidance when CALDERA-specific advice is absent."""
+    ports = scan.get("ports") or scan.get("service_inventory") or []
+    text = " ".join(str(x) for x in ports).lower() + " " + str(mapping).lower()
+    fixes: list[str] = []
+    if any(token in text for token in ("445", "139", "smb", "microsoft-ds", "netbios")):
+        fixes += [
+            "Disable SMBv1 where operationally possible and apply all supported Microsoft security updates.",
+            "Restrict TCP 139/445 to trusted management and file-server segments only.",
+            "Require SMB signing, strong unique credentials, and remove unnecessary administrative shares.",
+        ]
+    if any(token in text for token in ("3389", "rdp", "ms-wbt-server")):
+        fixes += [
+            "Restrict RDP to a VPN or management network, enable Network Level Authentication, and enforce MFA where supported.",
+            "Review RDP account lockout, logging, and permitted user groups.",
+        ]
+    if any(token in text for token in ("5985", "winrm", "wsman")):
+        fixes += [
+            "Restrict WinRM to approved administration hosts and prefer HTTPS transport with strong authentication.",
+        ]
+    if any(token in text for token in ("windows xp", "server 2003")):
+        fixes.insert(0, "Migrate the unsupported legacy Windows host to a currently supported operating system.")
+    fixes.append("Re-run the assessment after remediation and compare the new evidence with this baseline.")
+    unique=[]
+    for fix in fixes:
+        if fix not in unique: unique.append(fix)
+    return [{
+        "type": "baseline",
+        "technique_id": "HARDENING",
+        "technique_name": "Evidence-based hardening",
+        "tactic": "remediation",
+        "summary": "Baseline remediation generated from observed services and platform evidence.",
+        "fixes": unique,
+    }]
 
 
 def _summarize_remediations(remediations: list[dict[str, Any]]) -> list[str]:
@@ -341,6 +416,7 @@ def build_report_summary(
     remediations: list[dict[str, Any]],
     validation: dict[str, Any] | None = None,
     pivot: dict[str, Any] | None = None,
+    missions: list[dict[str, Any]] | None = None,
 ) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [f"AutoPenTest Report", f"Generated: {now}", ""]
@@ -358,7 +434,9 @@ def build_report_summary(
         )
     )
     lines.append(_section("Risk Summary", _summarize_risk(risk)))
-    lines.append(_section("Remediation Guidance", _summarize_remediations(remediations)))
+    lines.append(_section("Mission Orchestration", _summarize_missions(missions or [])))
+    effective_remediations = remediations or _fallback_remediations(scan, mapping)
+    lines.append(_section("Remediation Guidance", _summarize_remediations(effective_remediations)))
 
     return "\n".join(lines).strip() + "\n"
 
@@ -371,23 +449,29 @@ def generate_text_report(
     remediations: list[dict[str, Any]],
     validation: dict[str, Any] | None = None,
     pivot: dict[str, Any] | None = None,
+    missions: list[dict[str, Any]] | None = None,
 ) -> str:
-    report_text = build_report_summary(scan, mapping, operation, risk, remediations, validation, pivot)
+    report_text = build_report_summary(scan, mapping, operation, risk, remediations, validation, pivot, missions)
     path = REPORT_DIR / f"autopentest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     path.write_text(report_text, encoding="utf-8")
     return str(path)
 
 
 def generate_pdf_report(
-    scan_id=None,
-    scan=None,
-    mapping=None,
-    validation=None,
-    operation=None,
-    risk=None,
-    remediations=None,
-    pivot=None,
+    scan_id: str = "",
+    scan: dict[str, Any] | None = None,
+    mapping: dict[str, Any] | None = None,
+    validation: dict[str, Any] | None = None,
+    operation: dict[str, Any] | None = None,
+    risk: dict[str, Any] | None = None,
+    remediations: list[dict[str, Any]] | None = None,
+    pivot: dict[str, Any] | None = None,
+    missions: list[dict[str, Any]] | None = None,
 ) -> str:
+    """Generate a real PDF when ReportLab is available; otherwise a .txt fall-back.
+
+    Never wrote binary-looking .pdf files that were actually plain text.
+    """
     if scan is None:
         scan = {}
     if mapping is None:
@@ -403,4 +487,39 @@ def generate_pdf_report(
     if remediations is None:
         remediations = []
 
-    return generate_text_report(scan, mapping, operation, risk, remediations, validation, pivot)
+    report_text = build_report_summary(
+        scan, mapping, operation, risk, remediations, validation, pivot, missions
+    )
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+        from reportlab.lib.units import mm
+        from xml.sax.saxutils import escape
+
+        path = REPORT_DIR / f"autopentest_report_{stamp}.pdf"
+        doc = SimpleDocTemplate(
+            str(path),
+            pagesize=A4,
+            leftMargin=18 * mm,
+            rightMargin=18 * mm,
+            topMargin=16 * mm,
+            bottomMargin=16 * mm,
+        )
+        styles = getSampleStyleSheet()
+        body = styles["BodyText"]
+        body.fontSize = 9
+        body.leading = 12
+        story: list[Any] = []
+        for line in report_text.splitlines():
+            if not line.strip():
+                story.append(Spacer(1, 4))
+                continue
+            story.append(Paragraph(escape(line).replace(" ", "&nbsp;"), body))
+        doc.build(story)
+        return str(path)
+    except Exception:
+        path = REPORT_DIR / f"autopentest_report_{stamp}.txt"
+        path.write_text(report_text, encoding="utf-8")
+        return str(path)

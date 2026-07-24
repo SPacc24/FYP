@@ -12,6 +12,7 @@ from reports.report_generator import build_report_summary
 from scanners.nmap_parser import parse_nmap_xml
 from storage import scan_store
 
+from automation.mission_service import get_mission_service
 from core.services import caldera_client, risk_scorer
 
 log = logging.getLogger(__name__)
@@ -240,6 +241,62 @@ def _save_active_scan_fields(**fields):
         log.warning("Could not persist active scan fields for %s: %s", scan_id, exc)
 
 
+def _fallback_remediations(parsed_results: dict, mapping_results: dict) -> list[dict]:
+    """Create useful remediation guidance even when CALDERA has not run."""
+    rows: list[dict] = []
+    seen: set[tuple] = set()
+    cves = parsed_results.get("cve_matches") or []
+    for finding in cves:
+        if not isinstance(finding, dict):
+            continue
+        host = finding.get("host") or parsed_results.get("target_ip") or "Unknown"
+        port = finding.get("port") or "N/A"
+        cve_id = finding.get("cve_id") or "Vulnerability finding"
+        key = (host, str(port), cve_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        fix = finding.get("remediation_direction") or (
+            f"Apply the vendor security update for {cve_id}, verify the affected service version, "
+            "and rerun the safe validation check."
+        )
+        rows.append({
+            "type": "vulnerability",
+            "severity": finding.get("source_cvss_severity") or finding.get("severity") or "High",
+            "title": cve_id,
+            "affected_host": host,
+            "affected_port": port,
+            "summary": finding.get("vulnerability") or finding.get("description") or "Review and remediate the matched vulnerability.",
+            "fixes": [fix],
+        })
+
+    for port in parsed_results.get("ports") or []:
+        if not isinstance(port, dict) or str(port.get("state", "")).lower() != "open":
+            continue
+        service = str(port.get("service") or "unknown")
+        number = port.get("port") or "N/A"
+        key = ("service", str(number), service)
+        if key in seen:
+            continue
+        seen.add(key)
+        fixes = ["Restrict access to authorised management hosts and network segments."]
+        lowered = service.lower()
+        if lowered in {"microsoft-ds", "netbios-ssn", "smb"}:
+            fixes = ["Disable SMBv1 where possible, apply current Windows patches, require SMB signing, and restrict ports 139/445 at firewalls."]
+        elif lowered in {"msrpc", "epmap"}:
+            fixes = ["Restrict RPC exposure to trusted administration networks and apply supported operating-system security updates."]
+        rows.append({
+            "type": "vulnerability",
+            "severity": "Medium",
+            "title": f"Exposed {service} service",
+            "affected_host": parsed_results.get("target_ip") or "Unknown",
+            "affected_port": number,
+            "summary": f"{service} is reachable on port {number} and should be reviewed against business need.",
+            "fixes": fixes,
+        })
+    return rows[:20]
+
+
 def _build_active_report_context(data: dict | None = None) -> dict:
     """
     Build the same report inputs for the inline API, full report page, and
@@ -273,6 +330,14 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         }
     risk = active.get("risk") or session.get("risk_score", {})
     remediations = active.get("remediations") or session.get("remediations", [])
+    if not remediations:
+        remediations = _fallback_remediations(parsed_results, mapping_results if isinstance(mapping_results, dict) else {})
+
+    try:
+        missions = get_mission_service().list_missions(limit=10)
+    except Exception:
+        log.warning("Could not load missions for report context", exc_info=True)
+        missions = []
 
     report = build_report_summary(
         scan=scan,
@@ -282,6 +347,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         remediations=remediations,
         validation=validation_results,
         pivot=pivot_results,
+        missions=missions,
     )
 
     return {
@@ -295,6 +361,7 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         "risk": risk,
         "remediations": remediations,
         "report": report,
+        "missions": missions,
     }
 
 
@@ -368,6 +435,81 @@ def _ensure_scan_analysis(data: dict) -> dict:
     return data
 
 
+def _normalise_target_os(os_value) -> dict:
+    """
+    Convert Nmap/pivot OS evidence into a consistent deployment platform.
+
+    Returns:
+        {
+            "name": original human-readable OS name,
+            "platform": windows | windows_legacy | linux | darwin | unknown,
+            "confidence": optional accuracy value
+        }
+    """
+    confidence = ""
+
+    if isinstance(os_value, dict):
+        os_name = str(
+            os_value.get("name")
+            or os_value.get("family")
+            or os_value.get("os")
+            or "Unknown"
+        ).strip()
+
+        confidence = str(
+            os_value.get("accuracy")
+            or os_value.get("confidence")
+            or ""
+        ).strip()
+    else:
+        os_name = str(os_value or "Unknown").strip()
+
+    lowered = os_name.lower()
+
+    if not lowered or lowered in {"unknown", "none", "n/a"}:
+        platform = "unknown"
+
+    elif any(token in lowered for token in (
+        "windows xp",
+        "windows 2000",
+        "windows server 2003",
+        "windows vista",
+    )):
+        platform = "windows_legacy"
+
+    elif "windows" in lowered or "microsoft" in lowered:
+        platform = "windows"
+
+    elif any(token in lowered for token in (
+        "linux",
+        "ubuntu",
+        "debian",
+        "kali",
+        "centos",
+        "red hat",
+        "fedora",
+        "arch",
+    )):
+        platform = "linux"
+
+    elif any(token in lowered for token in (
+        "mac os",
+        "macos",
+        "darwin",
+        "os x",
+    )):
+        platform = "darwin"
+
+    else:
+        platform = "unknown"
+
+    return {
+        "name": os_name or "Unknown",
+        "platform": platform,
+        "confidence": confidence,
+    }
+
+
 def _current_target_context():
     active_scan = _active_scan_record()
     parsed_results = _load_current_scan_results() or {}
@@ -388,25 +530,32 @@ def _current_target_context():
 
     if isinstance(selected, dict) and selected.get("ip"):
         target = selected["ip"]
-        os_name = selected.get("os") or "Unknown"
+        raw_os = selected.get("os") or "Unknown"
         source = "pivot_scan"
     else:
         target = external_target
-        os_name = (
+        raw_os = (
             parsed_results.get("os")
             or session.get("target_os")
             or "Unknown"
         )
         source = "external_scan"
 
+        # Fall back to the first host's OS evidence.
+        if (
+            raw_os in {"Unknown", "", None}
+            and isinstance(parsed_results.get("hosts"), list)
+            and parsed_results["hosts"]
+        ):
+            raw_os = parsed_results["hosts"][0].get("os") or "Unknown"
+
+    os_context = _normalise_target_os(raw_os)
+
     return {
         "target": target,
-        "os": os_name,
-        "platform": (
-            "windows"
-            if "win" in str(os_name).lower()
-            else "linux"
-        ),
+        "os": os_context["name"],
+        "os_confidence": os_context["confidence"],
+        "platform": os_context["platform"],
         "source": source,
         "external_target": external_target,
     }

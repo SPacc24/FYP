@@ -8,12 +8,12 @@ For the step-by-step operating procedure, see the **[Operator Runbook](project/d
 
 ## What the project does
 
-- Runs asynchronous, policy-gated reconnaissance with **Full Recon** and **Custom Recon** modes.
+- Runs one asynchronous, policy-gated adaptive vulnerability scan. The operator selects numerical TCP/UDP coverage; observed protocol evidence selects specialist modules automatically.
 - Accepts a single IP, multiple IPs, CIDR blocks, and short or explicit IP ranges, up to the configured scope limit.
-- Collects passive DNS/TLS context, TCP and targeted UDP exposure, service fingerprints, and protocol-specific readiness evidence.
+- Collects adaptive host-discovery evidence, operator-selected TCP/UDP exposure, port-independent service fingerprints, and protocol-specific readiness evidence.
 - Uses Nmap and optional native tools for web, SSH, SMB, LDAP, DNS, SNMP, RPC/NFS, RDP, WinRM, database, container, Kubernetes, VPN, and TLS observations.
 - Builds a service-centric attack-surface workbench with raw evidence links, evidence gaps, security observations, and tool-coverage status.
-- Correlates observed product/version/CPE evidence with a local mirror of [CVEProject/cvelistV5](https://github.com/CVEProject/cvelistV5). Weak matches remain candidate references rather than confirmed findings.
+- Correlates observed identity and version evidence with machine-readable affected data from [CVEProject/cvelistV5](https://github.com/CVEProject/cvelistV5). Candidate requires a direct published applicability match. Confirmed requires target-specific validation evidence. CVE description prose never creates a finding.
 - Maps findings to MITRE ATT&CK and generates a deterministic technique plan, optionally enriched by a local Ollama model.
 - Performs allowlisted, non-destructive exposure validation and optional evidence-derived Metasploit auxiliary scans.
 - Integrates with CALDERA for agent readiness, ability coverage, adversary creation, operation monitoring, result parsing, risk context, and proof-of-access tickets.
@@ -176,7 +176,8 @@ If `APP_HOST` is non-loopback, startup refuses unsafe combinations: `SECRET_KEY`
 | Web validation | `ENABLE_WEB_VALIDATION`, `WEB_VALIDATION_TIMEOUT`, `WEB_VALIDATION_MAX_RESPONSE_BYTES`, `WEB_VALIDATION_MAX_REDIRECTS`, `LAB_WEB_OS` |
 | Proof of access | `PROOF_OF_ACCESS_ENABLED`, `PROOF_OF_ACCESS_SECRET`, `PROOF_OF_ACCESS_TTL` |
 | MySQL | `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASS`, `MYSQL_DB` |
-| Recon toggles | `ENABLE_CONTEXT_FOOTPRINTING`, `ENABLE_ARP_SCAN`, `ENABLE_HTTPX`, `ENABLE_DEEP_WEB_DISCOVERY`, `ENABLE_SMBMAP`, `ENABLE_HYDRA`, `GOBUSTER_WORDLIST`, `HYDRA_CREDENTIAL_FILE`, `MITRE_CVE_REPO` |
+| CVE List V5 data | `MITRE_CVE_REPO` (optional official CVE List mirror override) |
+| Recon toggles | `ENABLE_CONTEXT_FOOTPRINTING`, `ENABLE_ARP_SCAN`, `ENABLE_HTTPX`, `ENABLE_DEEP_WEB_DISCOVERY`, `ENABLE_SMBMAP`, `ENABLE_HYDRA`, `GOBUSTER_WORDLIST`, `HYDRA_CREDENTIAL_FILE` |
 | Lab credentials | `LAB_USER`, `LAB_PASS`, or service-specific `LAB_<SERVICE>_USER` and `LAB_<SERVICE>_PASS` |
 | Pivot declarations | `PIVOT_CHISEL_BINARY`, `PIVOT_DEFAULT_SOCKS_PORT`, `PIVOT_DEFAULT_CHISEL_PORT` (declared in configuration; the experimental engine currently uses its own hard-coded binary and route defaults) |
 
@@ -201,10 +202,10 @@ The policy limit and `MAX_EXPANDED_TARGETS` both apply; the lower effective limi
 ## Typical workflow
 
 1. Confirm written authorisation and configure the engagement policy.
-2. Start the app, unlock the browser session, and choose **Full Recon** or exact **Custom Recon** collectors.
-3. Enter authorised IP targets and select `auto`, `hybrid`, or `manual` ATT&CK technique mode.
-4. Follow asynchronous task and command progress in the dashboard.
-5. Review service evidence, CVE classifications, candidate references, evidence gaps, ATT&CK mapping, and the technical appendix.
+2. Start the app and unlock the browser session.
+3. Enter authorised IP targets, select complete/common/custom numerical port coverage, and adjust the optional advanced workload settings.
+4. Review the generated plan, then follow asynchronous task and command progress in the dashboard.
+5. Review service evidence, Candidate/Confirmed CVE findings, evidence gaps, ATT&CK mapping, dataset status, and the technical appendix.
 6. Optionally request attack-path advice or run explicitly approved lab validation.
 7. If configured, check CALDERA coverage, select a trusted agent, and run supported techniques.
 8. Export the handoff JSON, evidence manifest, PDF, or text report.
@@ -271,10 +272,10 @@ source .venv/bin/activate
 python scripts/sync_mitre_cve_database.py
 python scripts/rebuild_mitre_cve_index.py
 python scripts/mitre_cve_status.py
-python scripts/audit_cve_source.py
+python -m pytest scanners/tests/test_policy_and_source_hygiene.py -q
 ```
 
-The mirror and index are runtime data under `project/storage/mitre_cve/` and are intentionally excluded from normal Git tracking. CVSS metadata may be incomplete in source records; the UI distinguishes unavailable scoring from confirmed evidence rather than inventing a score.
+The CVE List mirror and generated local indexes are runtime data under `project/storage/mitre_cve/` and are intentionally excluded from the release ZIP. The first sync downloads the official repository; later syncs retrieve only changes. Existing validated local data remains usable offline. CVSS metadata may be absent for the selected version; the UI reports that absence rather than converting, estimating, or substituting a score.
 
 ## API overview
 
@@ -307,15 +308,19 @@ Run repository-level quality tests from the repository root with the project on 
 PYTHONPATH=project python -m pytest tests -q
 ```
 
-Two additional audit scripts report recon-boundary wording and CVE-index provenance:
+Recon-boundary wording and CVE-index provenance are covered by two tests in
+`scanners/tests/test_policy_and_source_hygiene.py`:
 
 ```bash
 cd project
-python scripts/audit_no_scoring.py
-python scripts/audit_cve_source.py
+python -m pytest scanners/tests/test_policy_and_source_hygiene.py -q
 ```
 
-These are policy audits rather than test-suite prerequisites. They intentionally return a failure when disallowed UI wording is present or a sampled index contains an unexpected source; the CVE audit also reports when the local index has not yet been built.
+`test_no_forbidden_scoring_wording_in_shipped_assets` fails if scanner-owned
+policy/static assets present business-risk wording as if it were a scanner
+output. `test_cve_index_uses_official_source_only` is skipped until the
+local CVE index has been built, then fails if a sampled indexed record is
+attributed to a non-official source.
 
 Most tests mock network services. Tests explicitly aimed at live CALDERA, MySQL, external binaries, or lab targets require those dependencies and suitable local configuration.
 
