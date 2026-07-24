@@ -94,7 +94,7 @@ class Config:
     )
 
     LAB_WEB_EXPLOIT_PARAMETER = os.getenv(
-        "LAB_WEB_EXPLOIT_PARAMETER",
+        "LAB_WEB_EXPzLOIT_PARAMETER",
         "host",
     )
 
@@ -107,3 +107,22 @@ class Config:
         "LAB_WEB_EXPLOIT_PLATFORM",
         "linux",
     ).lower()
+
+    # --- Controlled SMB lab configuration ---
+    ENABLE_SMB_EXPLOITATION = (
+        os.getenv("ENABLE_SMB_EXPLOITATION", "0") == "1"
+    )
+
+    SMB_DEFAULT_USERNAME = os.getenv(
+        "SMB_DEFAULT_USERNAME",
+        "smbtest",
+    )
+
+    SMB_DEFAULT_SHARE = os.getenv(
+        "SMB_DEFAULT_SHARE",
+        "PrivEscLab",
+    )
+
+    SMB_HYDRA_TIMEOUT = int(
+        os.getenv("SMB_HYDRA_TIMEOUT", "90")
+    )

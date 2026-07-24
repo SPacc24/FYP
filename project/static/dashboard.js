@@ -941,3 +941,177 @@ function downloadReport() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+function getSmbTarget() {
+  const ctx = getDashboardContext ? getDashboardContext() : window.DASHBOARD_CONTEXT;
+  return ctx?.target || "";
+}
+
+async function smbApiPost(path, body = {}) {
+  const csrf = window.DASHBOARD_SECURITY?.csrfToken || "";
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+function showSmbResults() {
+  document.getElementById("smbResults").style.display = "block";
+  document.getElementById("smbFingerprintBtn").style.display = "";
+  document.getElementById("smbHydraBtn").style.display = "";
+  document.getElementById("smbFileOpsBtn").style.display = "";
+  document.getElementById("smbChainBtn").style.display = "";
+}
+
+// ── PROPOSE ──
+document.getElementById("smbProposeBtn")?.addEventListener("click", async () => {
+  const list = document.getElementById("smbActionsList");
+  const target = getSmbTarget();
+  if (!target) { list.innerHTML = "<p class='muted'>No target in scan context. Run a scan first.</p>"; return; }
+
+  list.innerHTML = "<p class='muted'>Checking scan results for SMB services...</p>";
+  const data = await smbApiPost("/pentest/smb/propose");
+  if (!data.ok || !data.actions?.length) {
+    list.innerHTML = `<p class='muted'>${data.error || "No SMB services detected. Ensure port 445 is open."}</p>`;
+    return;
+  }
+  showSmbResults();
+  list.innerHTML = data.actions.map(a => `
+    <div class="action-card" style="padding:8px;margin:4px 0;border-left:3px solid ${a.risk==='high'?'red':a.risk==='medium'?'orange':'#4a9'};background:#1e1e1e;">
+      <strong>${escapeHtml(a.title)}</strong>
+      <span class="state ${a.risk}">${a.risk.toUpperCase()}</span>
+      <p class="small muted">${escapeHtml(a.description)}</p>
+    </div>
+  `).join("");
+  window._smbActions = data.actions;
+});
+
+// ── FINGERPRINT ──
+document.getElementById("smbFingerprintBtn")?.addEventListener("click", async () => {
+  const pre = document.getElementById("smbFingerprintOutput");
+  pre.textContent = "Running nmap SMB scripts...";
+  const data = await smbApiPost("/pentest/smb/fingerprint", { target: getSmbTarget() });
+  showSmbResults();
+  pre.textContent = data.raw_output || JSON.stringify(data, null, 2);
+  if (data.port_open === false) {
+    pre.textContent += "\n\n[!] PORT 445 IS CLOSED — SMB exploitation not possible.";
+  }
+});
+
+// ── HYDRA ──
+document.getElementById("smbHydraBtn")?.addEventListener("click", async () => {
+  const pre = document.getElementById("smbHydraOutput");
+  pre.textContent = "Running Hydra against smb2:// ...";
+  const data = await smbApiPost("/pentest/smb/hydra", { target: getSmbTarget() });
+  showSmbResults();
+  pre.textContent = data.raw_output || JSON.stringify(data, null, 2);
+  const credDiv = document.getElementById("smbCredentialsFound");
+  const credSpan = document.getElementById("smbCredsDisplay");
+  if (data.password_found) {
+    credDiv.style.display = "block";
+    credSpan.textContent = `${data.username || 'smbtest'} : ${data.password_found}`;
+    window._smbPassword = data.password_found;
+    window._smbUsername = data.username || "smbtest";
+  } else {
+    credDiv.style.display = "block";
+    credSpan.textContent = "No credentials found.";
+    credSpan.style.color = "red";
+  }
+});
+
+// ── FILE OPERATIONS ──
+document.getElementById("smbFileOpsBtn")?.addEventListener("click", async () => {
+  const password = window._smbPassword || prompt("Enter SMB password:");
+  if (!password) return;
+  const username = window._smbUsername || "smbtest";
+
+  document.getElementById("smbBeforeFiles").textContent = "Running...";
+  document.getElementById("smbAfterFiles").textContent = "...";
+  const data = await smbApiPost("/pentest/smb/file-ops", {
+    target: getSmbTarget(), username, password,
+  });
+  showSmbResults();
+  document.getElementById("smbBeforeFiles").textContent = data.before_raw || data.before_files?.join("\n") || "(no files)";
+  document.getElementById("smbAfterFiles").textContent = data.after_raw || data.after_files?.join("\n") || "(no files)";
+  document.getElementById("smbOpsTableBody").innerHTML = (data.operations || []).map(op => `
+    <tr>
+      <td><strong>${escapeHtml(op.action)}</strong></td>
+      <td class="mono">${escapeHtml(op.file)}</td>
+      <td><span class="state ${op.success ? 'confirmed' : 'failed'}">${op.success ? 'OK' : 'FAIL'}</span></td>
+      <td class="small">${escapeHtml(op.output || (op.original_preview ? 'Original: ' + op.original_preview.substring(0, 60) + '...' : ''))}</td>
+    </tr>
+  `).join("");
+  document.getElementById("smbSummary").textContent = data.summary || "";
+});
+
+// ── FULL CHAIN ──
+let _smbChainPollTimer = null;
+document.getElementById("smbChainBtn")?.addEventListener("click", async () => {
+  const password = window._smbPassword || prompt("Enter SMB password (or leave blank for Hydra):") || "";
+  const username = window._smbUsername || "smbtest";
+
+  const progress = document.getElementById("smbChainProgress");
+  progress.style.display = "block";
+  document.getElementById("smbChainStatus").textContent = "starting...";
+  document.getElementById("smbChainSteps").innerHTML = "";
+
+  const data = await smbApiPost("/pentest/smb/chain", {
+    target: getSmbTarget(), username, password,
+  });
+  if (!data.ok || !data.run_id) {
+    document.getElementById("smbChainStatus").textContent = "Failed to start: " + (data.error || "unknown");
+    return;
+  }
+
+  if (_smbChainPollTimer) clearInterval(_smbChainPollTimer);
+  _smbChainPollTimer = setInterval(async () => {
+    const s = await fetch(`/pentest/smb/chain/status/${data.run_id}`).then(r => r.json());
+    document.getElementById("smbChainStatus").textContent = s.status || "unknown";
+    const stepsDiv = document.getElementById("smbChainSteps");
+    stepsDiv.innerHTML = (s.steps || []).map(step => `
+      <div style="padding:4px 8px;margin:2px 0;background:#1e1e1e;border-left:3px solid ${step.status==='success'?'#4a9':step.status==='failed'?'red':'orange'};">
+        <strong>${escapeHtml(step.title)}</strong>
+        <span class="small">[${step.status}]</span>
+        ${step.result ? `<span class="small mono"> — ${escapeHtml(step.result)}</span>` : ""}
+        ${step.password_found ? `<span class="good small"> — Password: ${escapeHtml(step.username || '')}:${escapeHtml(step.password_found || step.password || '')}</span>` : ""}
+        ${step.summary ? `<p class="small muted">${escapeHtml(step.summary)}</p>` : ""}
+        ${step.added_files ? `<p class="small">+ Added: ${escapeHtml(step.added_files.join(', ') || 'none')}</p>` : ""}
+        ${step.removed_files ? `<p class="small">- Removed: ${escapeHtml(step.removed_files.join(', ') || 'none')}</p>` : ""}
+      </div>
+    `).join("") || stepsDiv.innerHTML;
+
+    if (s.status === "completed" || s.status === "failed") {
+      clearInterval(_smbChainPollTimer);
+      _smbChainPollTimer = null;
+      document.getElementById("smbChainStatus").textContent =
+        s.status === "completed" ? "✓ CHAIN COMPLETE" : "✗ CHAIN FAILED";
+      // Also populate before/after if file ops data is in the last step
+      const foStep = (s.steps || []).find(st => st.stage === "file_operations");
+      if (foStep) {
+        document.getElementById("smbBeforeFiles").textContent = (foStep.before_files || []).join("\n");
+        document.getElementById("smbAfterFiles").textContent = (foStep.after_files || []).join("\n");
+        document.getElementById("smbOpsTableBody").innerHTML = (foStep.operations || []).map(op => `
+          <tr>
+            <td><strong>${escapeHtml(op.action)}</strong></td>
+            <td class="mono">${escapeHtml(op.file)}</td>
+            <td><span class="state ${op.success ? 'confirmed' : 'failed'}">${op.success ? 'OK' : 'FAIL'}</span></td>
+            <td class="small">${escapeHtml(op.output || '')}</td>
+          </tr>
+        `).join("");
+        document.getElementById("smbSummary").textContent = foStep.summary || "";
+        showSmbResults();
+      }
+    }
+  }, 2000);
+});
+
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
