@@ -684,7 +684,9 @@ function appendMetasploitRun(run) {
         <div class="msf-result-head"><span class="state ${run.session_created || run.validation_outcome === 'vulnerable' ? 'confirmed' : 'potential'}">${escapeHtml(state)}</span><time>${escapeHtml(run.timestamp || 'Now')}</time></div>
         <h3>${escapeHtml(actionForCard.title || actionForCard.module_name || 'Metasploit action')}</h3>
         <p class="mono">${escapeHtml(actionForCard.target || '-')}:${escapeHtml(actionForCard.port || '-')}</p>
-        <p><strong>What this means:</strong> ${escapeHtml(run.evidence_summary || run.summary || 'Action completed.')}</p>
+        <p><strong>Outcome:</strong> ${escapeHtml(run.evidence_summary || run.summary || 'Action completed.')}</p>
+        <p><strong>Access gained:</strong> ${run.session_created ? 'Yes — target-verified session opened' : 'No — safe check or no session opened'}</p>
+        <p><strong>Next step:</strong> ${run.validation_outcome === 'vulnerable' && !run.session_created ? 'Approve the matching controlled exploit action if it is in scope.' : (run.session_created ? 'Continue with authorised CALDERA post-exploitation.' : 'Review evidence; do not claim exploitation success.')}</p>
         ${(run.evidence_items || []).length ? `<ul class="msf-evidence-list">${run.evidence_items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
         <details><summary>Technical module name</summary><code>${escapeHtml(actionForCard.module_type || '-')}/${escapeHtml(actionForCard.module_name || '-')}</code></details>
       </article>`);
@@ -831,16 +833,18 @@ async function runCaldera() {
             <td><strong>${escapeHtml(t.status)}</strong></td>
             <td class="small">${escapeHtml(t.timestamp || "-")}</td>
             <td class="small">
-              <details>
-                <summary>${escapeHtml(t.evidence_summary || "View execution evidence")}</summary>
-                <p><strong>Command executed</strong></p>
-                <pre class="small mono">${escapeHtml(t.command || "No command returned by CALDERA.")}</pre>
-                <p><strong>Parsed evidence</strong></p>
+              <div class="caldera-readable-result">
+                <strong>${escapeHtml(t.evidence_summary || (t.status === 'success' ? 'Technique completed successfully.' : 'Technique did not produce confirmed evidence.'))}</strong>
                 ${formatEvidenceList(t.parsed_evidence)}
-                <p><strong>Raw stdout</strong></p>
-                <pre class="small mono">${escapeHtml(t.stdout || t.output || "Execution completed but no evidence returned.")}</pre>
-                ${t.stderr ? `<p><strong>Raw stderr</strong></p><pre class="small mono">${escapeHtml(t.stderr)}</pre>` : ""}
-              </details>
+                <details>
+                  <summary>Technical command and raw output</summary>
+                  <p><strong>Command executed</strong></p>
+                  <pre class="small mono">${escapeHtml(t.command || "No command returned by CALDERA.")}</pre>
+                  <p><strong>Raw stdout</strong></p>
+                  <pre class="small mono">${escapeHtml(t.stdout || t.output || "Execution completed but no evidence returned.")}</pre>
+                  ${t.stderr ? `<p><strong>Raw stderr</strong></p><pre class="small mono">${escapeHtml(t.stderr)}</pre>` : ""}
+                </details>
+              </div>
             </td>
           </tr>
         `).join("");

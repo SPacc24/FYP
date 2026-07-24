@@ -345,6 +345,42 @@ def _summarize_risk(risk: dict[str, Any]) -> list[str]:
     ]
 
 
+def _fallback_remediations(scan: dict[str, Any], mapping: dict[str, Any]) -> list[dict[str, Any]]:
+    """Produce actionable baseline guidance when CALDERA-specific advice is absent."""
+    ports = scan.get("ports") or scan.get("service_inventory") or []
+    text = " ".join(str(x) for x in ports).lower() + " " + str(mapping).lower()
+    fixes: list[str] = []
+    if any(token in text for token in ("445", "139", "smb", "microsoft-ds", "netbios")):
+        fixes += [
+            "Disable SMBv1 where operationally possible and apply all supported Microsoft security updates.",
+            "Restrict TCP 139/445 to trusted management and file-server segments only.",
+            "Require SMB signing, strong unique credentials, and remove unnecessary administrative shares.",
+        ]
+    if any(token in text for token in ("3389", "rdp", "ms-wbt-server")):
+        fixes += [
+            "Restrict RDP to a VPN or management network, enable Network Level Authentication, and enforce MFA where supported.",
+            "Review RDP account lockout, logging, and permitted user groups.",
+        ]
+    if any(token in text for token in ("5985", "winrm", "wsman")):
+        fixes += [
+            "Restrict WinRM to approved administration hosts and prefer HTTPS transport with strong authentication.",
+        ]
+    if any(token in text for token in ("windows xp", "server 2003")):
+        fixes.insert(0, "Migrate the unsupported legacy Windows host to a currently supported operating system.")
+    fixes.append("Re-run the assessment after remediation and compare the new evidence with this baseline.")
+    unique=[]
+    for fix in fixes:
+        if fix not in unique: unique.append(fix)
+    return [{
+        "type": "baseline",
+        "technique_id": "HARDENING",
+        "technique_name": "Evidence-based hardening",
+        "tactic": "remediation",
+        "summary": "Baseline remediation generated from observed services and platform evidence.",
+        "fixes": unique,
+    }]
+
+
 def _summarize_remediations(remediations: list[dict[str, Any]]) -> list[str]:
     if not remediations:
         return ["No remediation guidance is available."]
@@ -399,7 +435,8 @@ def build_report_summary(
     )
     lines.append(_section("Risk Summary", _summarize_risk(risk)))
     lines.append(_section("Mission Orchestration", _summarize_missions(missions or [])))
-    lines.append(_section("Remediation Guidance", _summarize_remediations(remediations)))
+    effective_remediations = remediations or _fallback_remediations(scan, mapping)
+    lines.append(_section("Remediation Guidance", _summarize_remediations(effective_remediations)))
 
     return "\n".join(lines).strip() + "\n"
 

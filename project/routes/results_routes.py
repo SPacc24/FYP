@@ -55,6 +55,26 @@ def _append_scan_cve_rows(rows, parsed_results):
         })
     return output
 
+
+def _fallback_result_remediations(parsed_results):
+    text = str(parsed_results or {}).lower()
+    fixes = []
+    if any(x in text for x in ("microsoft-ds", "netbios-ssn", "smb", "445", "139")):
+        fixes.extend([
+            "Disable SMBv1 where possible and apply supported Microsoft security updates.",
+            "Restrict ports 139 and 445 to trusted network segments.",
+            "Require SMB signing and strong unique credentials.",
+        ])
+    if any(x in text for x in ("ms-wbt-server", "rdp", "3389")):
+        fixes.append("Restrict RDP to approved management paths and enable NLA/MFA where supported.")
+    if any(x in text for x in ("winrm", "5985", "wsman")):
+        fixes.append("Restrict WinRM to administration hosts and prefer HTTPS transport.")
+    if "windows xp" in text:
+        fixes.insert(0, "Replace the unsupported Windows XP system with a supported operating system.")
+    fixes.append("Re-test after remediation and compare against the current scan baseline.")
+    return [{"type":"baseline","technique_id":"HARDENING","technique_name":"Service hardening","tactic":"remediation","summary":"Generated from current scan evidence.","fixes":list(dict.fromkeys(fixes))}]
+
+
 def register_routes(app):
     @app.route("/results")
     def results():
@@ -87,7 +107,7 @@ def register_routes(app):
                     validation_results=data.get("validation_results"),
                     operation_results=data.get("operation_results"),
                     risk=data.get("risk"),
-                    remediations=data.get("remediations") or [],
+                    remediations=data.get("remediations") or _fallback_result_remediations(parsed_for_view),
                 )
 
         scan = {
