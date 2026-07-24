@@ -577,13 +577,22 @@ def search_with_held(
             score = 0.0
         recommended = bool(recommended_for_cve)
         if score < MIN_FINGERPRINT_CONFIDENCE or not recommended:
-            held = ({
+            threshold_diag = {
                 'reason': 'fingerprint_confidence_below_cve_threshold',
                 'confidence_score': round(score, 2),
                 'minimum_confidence': MIN_FINGERPRINT_CONFIDENCE,
                 'recommended_for_cve': recommended,
-            },)
-            return tuple(), held
+            }
+            # A low-confidence fingerprint must never create a confirmed CVE.
+            # It may, however, drive targeted NVD enrichment when an observed
+            # product and version exist.  NVD records returned here are already
+            # marked ``nvd_candidate`` and are displayed as candidate references
+            # requiring validation.
+            if str(product or '').strip() and str(version or '').strip() and nvd_client.enabled():
+                candidates, nvd_diag = nvd_client.search(product, version, service, cpe)
+                candidate_rows = tuple({**dict(row), 'nvd_candidate': True} for row in candidates)
+                return candidate_rows, (threshold_diag, *tuple(nvd_diag))
+            return tuple(), (threshold_diag,)
     if INDEX.exists():
         confirmed, held = _search_cached(product, version, service, cpe)
     else:

@@ -1757,6 +1757,20 @@ def _apply_service_fingerprints(
             additional_evidence=list(row.get('native_fingerprint_evidence') or []),
         )
         fingerprint_dict = fingerprint.to_dict()
+        # Keep canonical fields and add compatibility aliases used by the
+        # results UI, diagnostics scripts, and older downstream consumers.
+        fingerprint_dict.update({
+            'host': fingerprint.target,
+            'service': row.get('service', ''),
+            'product': fingerprint.primary_product,
+            'version': fingerprint.primary_version,
+            'confidence': fingerprint.confidence_score,
+            'reason': (
+                'eligible_for_confirmed_cve_matching'
+                if fingerprint.recommended_for_cve
+                else 'candidate_enrichment_only'
+            ),
+        })
         fingerprints.append(fingerprint_dict)
         row['service_fingerprint'] = fingerprint_dict
         row['consensus_product'] = fingerprint.primary_product
@@ -1765,6 +1779,14 @@ def _apply_service_fingerprints(
         row['confidence_badge'] = _confidence_badge(fingerprint.confidence_score)
         row['contradictions'] = list(fingerprint.contradictions)
         row['recommended_for_cve'] = fingerprint.recommended_for_cve
+        # Never discard a product/version recovered from corroborating scripts or
+        # native protocol evidence merely because it has not crossed the strict
+        # confirmation threshold.  It remains candidate evidence and is labelled
+        # as such downstream.
+        if fingerprint.primary_product and not str(row.get('product') or '').strip():
+            row['product'] = fingerprint.primary_product
+        if fingerprint.primary_version and not str(row.get('version') or '').strip():
+            row['version'] = fingerprint.primary_version
         if fingerprint.recommended_for_cve:
             if fingerprint.primary_product:
                 row['product'] = fingerprint.primary_product

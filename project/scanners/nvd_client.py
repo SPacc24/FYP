@@ -131,6 +131,42 @@ def _cpe_matches(cve: dict[str, Any], observed_cpe: str) -> bool:
     return False
 
 
+
+
+def _normalise_query_identity(product: str, version: str, service: str) -> tuple[str, str, str]:
+    """Reduce noisy Nmap identities to stable NVD search terms.
+
+    Nmap commonly emits values such as ``Microsoft Windows 7 - 10
+    microsoft-ds``.  Passing that literal string to NVD returns no results,
+    even when the detected OS/version is useful.  This function keeps the
+    observation auditable while producing a conservative query identity.
+    """
+    raw_product = " ".join(str(product or "").split())
+    raw_version = " ".join(str(version or "").split())
+    raw_service = " ".join(str(service or "").split())
+    text = f"{raw_product} {raw_service}".lower()
+
+    windows = (
+        ("windows xp", "Microsoft Windows XP", "5.1"),
+        ("windows server 2003", "Microsoft Windows Server 2003", "5.2"),
+        ("windows vista", "Microsoft Windows Vista", "6.0"),
+        ("windows 7", "Microsoft Windows 7", "6.1"),
+        ("windows 8.1", "Microsoft Windows 8.1", "6.3"),
+        ("windows 8", "Microsoft Windows 8", "6.2"),
+        ("windows 10", "Microsoft Windows 10", "10.0"),
+        ("windows 11", "Microsoft Windows 11", "10.0"),
+    )
+    for token, canonical, derived_version in windows:
+        if token in text:
+            return canonical, raw_version or derived_version, raw_service
+
+    # Remove protocol suffixes frequently appended to an OS/product identity.
+    cleaned = raw_product
+    for suffix in (" microsoft-ds", " netbios-ssn", " ms-wbt-server", " wsman", " httpapi"):
+        if cleaned.lower().endswith(suffix):
+            cleaned = cleaned[: -len(suffix)].strip()
+    return cleaned, raw_version, raw_service
+
 def _keyword(product: str, version: str, service: str) -> str:
     product = " ".join(product.split())
     version = " ".join(version.split())
@@ -185,6 +221,7 @@ def search(product: str, version: str, service: str, cpe: str = "") -> tuple[tup
     if not enabled():
         return tuple(), ({"reason": "nvd_enrichment_disabled", "matcher_status": "disabled"},)
 
+    product, version, service = _normalise_query_identity(product, version, service)
     query = _keyword(product, version, service)
     if not query or not version:
         return tuple(), ({"reason": "observed_version_missing", "matcher_status": "held"},)
