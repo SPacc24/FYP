@@ -1864,6 +1864,8 @@ def _classify_cve_match(service: dict[str, Any], match: dict[str, Any]) -> tuple
     product = str(service.get('product') or '')
     service_name = str(service.get('service') or '')
     cve_id = str(match.get('cve_id') or '')
+    if match.get('low_confidence_candidate') or match.get('nvd_candidate'):
+        return RELEVANT_VERSION_INFORMATION, 'Product/version was observed but the fingerprint is not corroborated enough for confirmation; retain as an analyst-review candidate.'
     context_classification, context_reason = _context_gate_for_cve(description, product, service_name)
     if context_classification == NOT_APPLICABLE_TO_CONTEXT:
         return context_classification, context_reason

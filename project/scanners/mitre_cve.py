@@ -11,7 +11,8 @@ from typing import Any
 
 from . import nvd_client
 
-BASE = Path('storage/mitre_cve')
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+BASE = PROJECT_ROOT / 'storage' / 'mitre_cve'
 REPO_DIR = BASE / 'cvelistV5'
 INDEX = BASE / 'official_mitre_cve_index.jsonl'
 OFFICIAL_CVE_REPO = 'https://github.com/CVEProject/cvelistV5.git'
@@ -583,15 +584,26 @@ def search_with_held(
                 'minimum_confidence': MIN_FINGERPRINT_CONFIDENCE,
                 'recommended_for_cve': recommended,
             }
-            # A low-confidence fingerprint must never create a confirmed CVE.
-            # It may, however, drive targeted NVD enrichment when an observed
-            # product and version exist.  NVD records returned here are already
-            # marked ``nvd_candidate`` and are displayed as candidate references
-            # requiring validation.
-            if str(product or '').strip() and str(version or '').strip() and nvd_client.enabled():
-                candidates, nvd_diag = nvd_client.search(product, version, service, cpe)
-                candidate_rows = tuple({**dict(row), 'nvd_candidate': True} for row in candidates)
-                return candidate_rows, (threshold_diag, *tuple(nvd_diag))
+            # Never promote an uncorroborated fingerprint to a confirmed CVE.
+            # However, a concrete product+version observed directly by Nmap
+            # (normally confidence 0.60) is still useful as analyst-review
+            # candidate information. Search the same official source and tag
+            # every returned record so the report layer keeps it non-confirmed.
+            has_identity = bool(str(product or '').strip() and str(version or '').strip())
+            candidate_eligible = has_identity and score >= 0.60
+            if candidate_eligible:
+                if INDEX.exists():
+                    candidates, source_diag = _search_cached(product, version, service, cpe)
+                elif nvd_client.enabled():
+                    candidates, source_diag = nvd_client.search(product, version, service, cpe)
+                else:
+                    candidates, source_diag = tuple(), tuple()
+                candidate_rows = tuple({
+                    **dict(row),
+                    'low_confidence_candidate': True,
+                    'nvd_candidate': bool(dict(row).get('nvd_candidate', False)),
+                } for row in candidates)
+                return candidate_rows, (threshold_diag, *tuple(source_diag))
             return tuple(), (threshold_diag,)
     if INDEX.exists():
         confirmed, held = _search_cached(product, version, service, cpe)
