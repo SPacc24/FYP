@@ -59,8 +59,25 @@ def register_routes(app):
 
         scan_options = normalise_scan_options(
             profile,
-            enabled_tools if profile == "custom" or enabled_tools else None
+            enabled_tools if profile == "custom" or enabled_tools else None,
+            tcp_port_mode=request.form.get("tcp_port_mode"),
+            tcp_custom_ports=request.form.get("tcp_custom_ports"),
+            udp_port_mode=request.form.get("udp_port_mode"),
+            udp_custom_ports=request.form.get("udp_custom_ports"),
+            advanced_settings={
+                "command_timeout_seconds": request.form.get("command_timeout_seconds"),
+                "retry_failed_batches": "retry_failed_batches" in request.form,
+                "retry_count": request.form.get("retry_count"),
+                "ports_per_batch": request.form.get("ports_per_batch"),
+                "parallel_scanning": "parallel_scanning" in request.form,
+                "parallel_workers": request.form.get("parallel_workers"),
+            },
         )
+        if scan_options.get("validation_errors"):
+            return render_template(
+                "error.html",
+                error_message="; ".join(scan_options["validation_errors"]),
+            ), 400
         scan_options["technique_mode"] = technique_mode
 
         scan_id = scan_store.new_scan(
@@ -71,17 +88,21 @@ def register_routes(app):
         )
 
         log.info(
-            "[scan] new_scan created: %s target=%s profile=%s technique_mode=%s enabled_tools=%s",
+            "[scan] new_scan created: %s target=%s profile=%s technique_mode=%s enabled_tools=%s ports=%s advanced=%s",
             scan_id,
             target,
             profile,
             technique_mode,
             enabled_tools,
+            scan_options.get("port_selection"),
+            scan_options.get("advanced_settings"),
         )
 
         scan_store.log(
             scan_id,
-            f"Scan requested: target={target} profile={profile} technique_mode={technique_mode}"
+            f"Scan requested: target={target} profile={profile} technique_mode={technique_mode} "
+            f"tcp={scan_options.get('port_selection', {}).get('tcp', {}).get('mode')} "
+            f"udp={scan_options.get('port_selection', {}).get('udp', {}).get('mode')}"
         )
 
         # Starting a new assessment should clear old scan state without
@@ -196,18 +217,21 @@ def register_routes(app):
         ai_plan = data.get("ai_plan") or {}
         mapping_result = data.get("mapping") or {}
 
+        parsed_for_view = _stored_results_to_parsed_results(data.get("results") or {}, data)
         detected_cves = _build_detected_cve_rows(
             ai_plan,
-            mapping_result
+            mapping_result,
+            parsed_for_view,
         )
 
         return render_template(
             "results.html",
             scan=data,
-            results=_stored_results_to_parsed_results(data.get("results") or {}, data),
+            results=parsed_for_view,
             mapping=data.get("mapping") or {},
             ai_plan=ai_plan,
             detected_cves=detected_cves,
+            cve_reference_count=len({str(row.get("cve_id")) for row in detected_cves if row.get("cve_id")}),
             selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
             attack_plan=data.get("attack_plan"),
             validation_results=data.get("validation_results"),

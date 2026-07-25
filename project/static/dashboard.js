@@ -222,11 +222,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("viewAllCvesNavBtn")
     ?.addEventListener("click", () => {
-      if (typeof openCveModal === "function") {
-        openCveModal();
-      } else {
-        window.location.hash = "#scan-vuln";
-      }
+      document.getElementById("cve-review")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
 
   document.getElementById("downloadReportNavBtn")
@@ -682,9 +678,13 @@ function appendMetasploitRun(run) {
     visual.insertAdjacentHTML("afterbegin", `
       <article class="msf-result-card">
         <div class="msf-result-head"><span class="state ${run.session_created || run.validation_outcome === 'vulnerable' ? 'confirmed' : 'potential'}">${escapeHtml(state)}</span><time>${escapeHtml(run.timestamp || 'Now')}</time></div>
-        <h3>${escapeHtml(actionForCard.module_name || 'Metasploit action')}</h3>
+        <h3>${escapeHtml(actionForCard.title || actionForCard.module_name || 'Metasploit action')}</h3>
         <p class="mono">${escapeHtml(actionForCard.target || '-')}:${escapeHtml(actionForCard.port || '-')}</p>
-        <p>${escapeHtml(run.summary || 'Action completed.')}</p>
+        <p><strong>Outcome:</strong> ${escapeHtml(run.evidence_summary || run.summary || 'Action completed.')}</p>
+        <p><strong>Access gained:</strong> ${run.session_created ? 'Yes — target-verified session opened' : 'No — safe check or no session opened'}</p>
+        <p><strong>Next step:</strong> ${run.validation_outcome === 'vulnerable' && !run.session_created ? 'Approve the matching controlled exploit action if it is in scope.' : (run.session_created ? 'Continue with authorised CALDERA post-exploitation.' : 'Review evidence; do not claim exploitation success.')}</p>
+        ${(run.evidence_items || []).length ? `<ul class="msf-evidence-list">${run.evidence_items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
+        <details><summary>Technical module name</summary><code>${escapeHtml(actionForCard.module_type || '-')}/${escapeHtml(actionForCard.module_name || '-')}</code></details>
       </article>`);
   }
   document.getElementById("flowExploitation")?.classList.add("complete");
@@ -829,16 +829,18 @@ async function runCaldera() {
             <td><strong>${escapeHtml(t.status)}</strong></td>
             <td class="small">${escapeHtml(t.timestamp || "-")}</td>
             <td class="small">
-              <details>
-                <summary>${escapeHtml(t.evidence_summary || "View execution evidence")}</summary>
-                <p><strong>Command executed</strong></p>
-                <pre class="small mono">${escapeHtml(t.command || "No command returned by CALDERA.")}</pre>
-                <p><strong>Parsed evidence</strong></p>
+              <div class="caldera-readable-result">
+                <strong>${escapeHtml(t.evidence_summary || (t.status === 'success' ? 'Technique completed successfully.' : 'Technique did not produce confirmed evidence.'))}</strong>
                 ${formatEvidenceList(t.parsed_evidence)}
-                <p><strong>Raw stdout</strong></p>
-                <pre class="small mono">${escapeHtml(t.stdout || t.output || "Execution completed but no evidence returned.")}</pre>
-                ${t.stderr ? `<p><strong>Raw stderr</strong></p><pre class="small mono">${escapeHtml(t.stderr)}</pre>` : ""}
-              </details>
+                <details>
+                  <summary>Technical command and raw output</summary>
+                  <p><strong>Command executed</strong></p>
+                  <pre class="small mono">${escapeHtml(t.command || "No command returned by CALDERA.")}</pre>
+                  <p><strong>Raw stdout</strong></p>
+                  <pre class="small mono">${escapeHtml(t.stdout || t.output || "Execution completed but no evidence returned.")}</pre>
+                  ${t.stderr ? `<p><strong>Raw stderr</strong></p><pre class="small mono">${escapeHtml(t.stderr)}</pre>` : ""}
+                </details>
+              </div>
             </td>
           </tr>
         `).join("");
@@ -992,61 +994,583 @@ function downloadReport() {
   URL.revokeObjectURL(url);
 }
 
+function getSmbTarget() {
+  const ctx = typeof getDashboardContext === "function"
+    ? getDashboardContext()
+    : window.DASHBOARD_CONTEXT;
 
-// Results workspace tabs
-(function initResultsWorkspaceTabs() {
-  const tabs = Array.from(document.querySelectorAll('[data-dashboard-tab]'));
-  const panes = Array.from(document.querySelectorAll('[data-dashboard-pane]'));
-  if (!tabs.length || !panes.length) return;
+  return ctx?.target || "";
+}
 
-  function activate(name, updateHash = true) {
-    const valid = panes.some((pane) => pane.dataset.dashboardPane === name);
-    const target = valid ? name : 'overview';
-    tabs.forEach((tab) => {
-      const active = tab.dataset.dashboardTab === target;
-      tab.classList.toggle('is-active', active);
-      tab.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-    panes.forEach((pane) => pane.classList.toggle('is-active', pane.dataset.dashboardPane === target));
-    if (updateHash) history.replaceState(null, '', `#${target}`);
-    window.scrollTo({ top: Math.max(0, document.querySelector('.results-tabs').offsetTop - 14), behavior: 'smooth' });
+async function smbApiPost(path, body = {}) {
+  const csrf = window.DASHBOARD_SECURITY?.csrfToken || "";
+
+  const res = await fetch(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(csrf ? { "X-CSRFToken": csrf } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  return res.json();
+}
+
+function showSmbResults() {
+  document.getElementById("smbResults").style.display = "block";
+  document.getElementById("smbFingerprintBtn").style.display = "";
+  document.getElementById("smbHydraBtn").style.display = "";
+  document.getElementById("smbFileOpsBtn").style.display = "";
+  document.getElementById("smbChainBtn").style.display = "";
+}
+
+
+// ── PROPOSE ──
+document.getElementById("smbProposeBtn")?.addEventListener("click", async () => {
+  const list = document.getElementById("smbActionsList");
+  const target = getSmbTarget();
+
+  if (!target) {
+    list.innerHTML =
+      "<p class='muted'>No target in scan context. Run a scan first.</p>";
+    return;
   }
 
-  tabs.forEach((tab) => tab.addEventListener('click', () => activate(tab.dataset.dashboardTab)));
-  document.querySelectorAll('[data-dashboard-tab-link]').forEach((link) => {
-    link.addEventListener('click', (event) => {
-      event.preventDefault();
-      activate(link.dataset.dashboardTabLink);
+  list.innerHTML =
+    "<p class='muted'>Checking scan results for SMB services...</p>";
+
+  const data = await smbApiPost("/pentest/smb/propose");
+
+  if (!data.ok || !data.actions?.length) {
+    list.innerHTML = `
+      <p class="muted">
+        ${data.error || "No SMB services detected. Ensure port 445 is open."}
+      </p>
+    `;
+    return;
+  }
+
+  showSmbResults();
+
+  list.innerHTML = data.actions.map((action) => `
+    <div
+      class="action-card"
+      style="
+        padding: 8px;
+        margin: 4px 0;
+        border-left: 3px solid ${
+          action.risk === "high"
+            ? "red"
+            : action.risk === "medium"
+              ? "orange"
+              : "#4a9"
+        };
+        background: #1e1e1e;
+      "
+    >
+      <strong>${escapeHtml(action.title)}</strong>
+      <span class="state ${escapeHtml(action.risk)}">
+        ${escapeHtml(action.risk?.toUpperCase())}
+      </span>
+      <p class="small muted">${escapeHtml(action.description)}</p>
+    </div>
+  `).join("");
+
+  window._smbActions = data.actions;
+});
+
+
+// ── FINGERPRINT ──
+document
+  .getElementById("smbFingerprintBtn")
+  ?.addEventListener("click", async () => {
+    const pre = document.getElementById("smbFingerprintOutput");
+
+    pre.textContent = "Running nmap SMB scripts...";
+
+    const data = await smbApiPost("/pentest/smb/fingerprint", {
+      target: getSmbTarget(),
+    });
+
+    showSmbResults();
+
+    pre.textContent =
+      data.raw_output || JSON.stringify(data, null, 2);
+
+    if (data.port_open === false) {
+      pre.textContent +=
+        "\n\n[!] PORT 445 IS CLOSED — SMB exploitation not possible.";
+    }
+  });
+
+
+// ── HYDRA ──
+document.getElementById("smbHydraBtn")?.addEventListener("click", async () => {
+  const pre = document.getElementById("smbHydraOutput");
+
+  pre.textContent = "Running Hydra against smb2:// ...";
+
+  const data = await smbApiPost("/pentest/smb/hydra", {
+    target: getSmbTarget(),
+  });
+
+  showSmbResults();
+
+  pre.textContent =
+    data.raw_output || JSON.stringify(data, null, 2);
+
+  const credDiv = document.getElementById("smbCredentialsFound");
+  const credSpan = document.getElementById("smbCredsDisplay");
+
+  if (data.password_found) {
+    credDiv.style.display = "block";
+    credSpan.style.color = "";
+
+    credSpan.textContent =
+      `${data.username || "smbtest"} : ${data.password_found}`;
+
+    window._smbPassword = data.password_found;
+    window._smbUsername = data.username || "smbtest";
+  } else {
+    credDiv.style.display = "block";
+    credSpan.textContent = "No credentials found.";
+    credSpan.style.color = "red";
+  }
+});
+
+
+// ── FILE OPERATIONS ──
+document
+  .getElementById("smbFileOpsBtn")
+  ?.addEventListener("click", async () => {
+    const password =
+      window._smbPassword || prompt("Enter SMB password:");
+
+    if (!password) {
+      return;
+    }
+
+    const username = window._smbUsername || "smbtest";
+
+    document.getElementById("smbBeforeFiles").textContent = "Running...";
+    document.getElementById("smbAfterFiles").textContent = "...";
+
+    const data = await smbApiPost("/pentest/smb/file-ops", {
+      target: getSmbTarget(),
+      username,
+      password,
+    });
+
+    showSmbResults();
+
+    document.getElementById("smbBeforeFiles").textContent =
+      data.before_raw ||
+      data.before_files?.join("\n") ||
+      "(no files)";
+
+    document.getElementById("smbAfterFiles").textContent =
+      data.after_raw ||
+      data.after_files?.join("\n") ||
+      "(no files)";
+
+    document.getElementById("smbOpsTableBody").innerHTML =
+      (data.operations || []).map((operation) => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(operation.action)}</strong>
+          </td>
+
+          <td class="mono">
+            ${escapeHtml(operation.file)}
+          </td>
+
+          <td>
+            <span class="state ${
+              operation.success ? "confirmed" : "failed"
+            }">
+              ${operation.success ? "OK" : "FAIL"}
+            </span>
+          </td>
+
+          <td class="small">
+            ${escapeHtml(
+              operation.output ||
+              (
+                operation.original_preview
+                  ? "Original: " +
+                    operation.original_preview.substring(0, 60) +
+                    "..."
+                  : ""
+              )
+            )}
+          </td>
+        </tr>
+      `).join("");
+
+    document.getElementById("smbSummary").textContent =
+      data.summary || "";
+  });
+
+
+// ── FULL CHAIN ──
+let _smbChainPollTimer = null;
+
+document.getElementById("smbChainBtn")?.addEventListener("click", async () => {
+  const password =
+    window._smbPassword ||
+    prompt("Enter SMB password (or leave blank for Hydra):") ||
+    "";
+
+  const username =
+    window._smbUsername || "smbtest";
+
+  const progress =
+    document.getElementById("smbChainProgress");
+
+  progress.style.display = "block";
+
+  document.getElementById("smbChainStatus").textContent =
+    "starting...";
+
+  document.getElementById("smbChainSteps").innerHTML = "";
+
+  const data = await smbApiPost("/pentest/smb/chain", {
+    target: getSmbTarget(),
+    username,
+    password,
+  });
+
+  if (!data.ok || !data.run_id) {
+    document.getElementById("smbChainStatus").textContent =
+      "Failed to start: " + (data.error || "unknown");
+    return;
+  }
+
+  if (_smbChainPollTimer) {
+    clearInterval(_smbChainPollTimer);
+  }
+
+  _smbChainPollTimer = setInterval(async () => {
+    const response = await fetch(
+      `/pentest/smb/chain/status/${data.run_id}`
+    );
+
+    const statusData = await response.json();
+
+    document.getElementById("smbChainStatus").textContent =
+      statusData.status || "unknown";
+
+    const stepsDiv =
+      document.getElementById("smbChainSteps");
+
+    stepsDiv.innerHTML =
+      (statusData.steps || []).map((step) => `
+        <div
+          style="
+            padding: 4px 8px;
+            margin: 2px 0;
+            background: #1e1e1e;
+            border-left: 3px solid ${
+              step.status === "success"
+                ? "#4a9"
+                : step.status === "failed"
+                  ? "red"
+                  : "orange"
+            };
+          "
+        >
+          <strong>${escapeHtml(step.title)}</strong>
+
+          <span class="small">
+            [${escapeHtml(step.status)}]
+          </span>
+
+          ${
+            step.result
+              ? `
+                <span class="small mono">
+                  — ${escapeHtml(step.result)}
+                </span>
+              `
+              : ""
+          }
+
+          ${
+            step.password_found
+              ? `
+                <span class="good small">
+                  — Password:
+                  ${escapeHtml(step.username || "")}:${escapeHtml(
+                    step.password_found || step.password || ""
+                  )}
+                </span>
+              `
+              : ""
+          }
+
+          ${
+            step.summary
+              ? `
+                <p class="small muted">
+                  ${escapeHtml(step.summary)}
+                </p>
+              `
+              : ""
+          }
+
+          ${
+            step.added_files
+              ? `
+                <p class="small">
+                  + Added:
+                  ${escapeHtml(
+                    step.added_files.join(", ") || "none"
+                  )}
+                </p>
+              `
+              : ""
+          }
+
+          ${
+            step.removed_files
+              ? `
+                <p class="small">
+                  - Removed:
+                  ${escapeHtml(
+                    step.removed_files.join(", ") || "none"
+                  )}
+                </p>
+              `
+              : ""
+          }
+        </div>
+      `).join("") || stepsDiv.innerHTML;
+
+    if (
+      statusData.status === "completed" ||
+      statusData.status === "failed"
+    ) {
+      clearInterval(_smbChainPollTimer);
+      _smbChainPollTimer = null;
+
+      document.getElementById("smbChainStatus").textContent =
+        statusData.status === "completed"
+          ? "✓ CHAIN COMPLETE"
+          : "✗ CHAIN FAILED";
+
+      const fileOperationsStep =
+        (statusData.steps || []).find(
+          (step) => step.stage === "file_operations"
+        );
+
+      if (fileOperationsStep) {
+        document.getElementById("smbBeforeFiles").textContent =
+          (fileOperationsStep.before_files || []).join("\n");
+
+        document.getElementById("smbAfterFiles").textContent =
+          (fileOperationsStep.after_files || []).join("\n");
+
+        document.getElementById("smbOpsTableBody").innerHTML =
+          (fileOperationsStep.operations || []).map((operation) => `
+            <tr>
+              <td>
+                <strong>${escapeHtml(operation.action)}</strong>
+              </td>
+
+              <td class="mono">
+                ${escapeHtml(operation.file)}
+              </td>
+
+              <td>
+                <span class="state ${
+                  operation.success ? "confirmed" : "failed"
+                }">
+                  ${operation.success ? "OK" : "FAIL"}
+                </span>
+              </td>
+
+              <td class="small">
+                ${escapeHtml(operation.output || "")}
+              </td>
+            </tr>
+          `).join("");
+
+        document.getElementById("smbSummary").textContent =
+          fileOperationsStep.summary || "";
+
+        showSmbResults();
+      }
+    }
+  }, 2000);
+});
+
+
+function escapeHtml(value) {
+  if (!value) {
+    return "";
+  }
+
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+
+// ── RESULTS WORKSPACE TABS ──
+(function initResultsWorkspaceTabs() {
+  const tabs = Array.from(
+    document.querySelectorAll("[data-dashboard-tab]")
+  );
+
+  const panes = Array.from(
+    document.querySelectorAll("[data-dashboard-pane]")
+  );
+
+  if (!tabs.length || !panes.length) {
+    return;
+  }
+
+  function activate(name, updateHash = true) {
+    const valid = panes.some(
+      (pane) => pane.dataset.dashboardPane === name
+    );
+
+    const target = valid ? name : "overview";
+
+    tabs.forEach((tab) => {
+      const active =
+        tab.dataset.dashboardTab === target;
+
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute(
+        "aria-selected",
+        active ? "true" : "false"
+      );
+    });
+
+    panes.forEach((pane) => {
+      pane.classList.toggle(
+        "is-active",
+        pane.dataset.dashboardPane === target
+      );
+    });
+
+    if (updateHash) {
+      history.replaceState(null, "", `#${target}`);
+    }
+
+    const tabBar =
+      document.querySelector(".results-tabs");
+
+    if (tabBar) {
+      window.scrollTo({
+        top: Math.max(0, tabBar.offsetTop - 14),
+        behavior: "smooth",
+      });
+    }
+  }
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      activate(tab.dataset.dashboardTab);
     });
   });
-  activate((location.hash || '').replace('#', '') || 'overview', false);
+
+  document
+    .querySelectorAll("[data-dashboard-tab-link]")
+    .forEach((link) => {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        activate(link.dataset.dashboardTabLink);
+      });
+    });
+
+  activate(
+    (location.hash || "").replace("#", "") || "overview",
+    false
+  );
 })();
 
 
+// ── PAGE INITIALISATION ──
 document.addEventListener("DOMContentLoaded", function () {
-  const pdfBtn = document.getElementById("downloadPdfReportBtn");
+  const pdfBtn =
+    document.getElementById("downloadPdfReportBtn");
+
   if (pdfBtn) {
     pdfBtn.addEventListener("click", function () {
-      window.location.href = getEndpoint("reportExportPdf", "/report/export/pdf");
-      document.getElementById("flowReport")?.classList.add("complete");
+      window.location.href = getEndpoint(
+        "reportExportPdf",
+        "/report/export/pdf"
+      );
+
+      document
+        .getElementById("flowReport")
+        ?.classList.add("complete");
     });
   }
 
-  const fab = document.getElementById("aiFab");
-  const drawer = document.getElementById("aiChatDrawer");
-  const close = document.getElementById("aiChatClose");
-  const setOpen = (open) => {
-    if (!fab || !drawer) return;
-    drawer.classList.toggle("is-open", open);
-    drawer.setAttribute("aria-hidden", open ? "false" : "true");
-    fab.setAttribute("aria-expanded", open ? "true" : "false");
-    if (open) setTimeout(() => document.getElementById("aiChatInput")?.focus(), 120);
-  };
-  fab?.addEventListener("click", () => setOpen(!drawer?.classList.contains("is-open")));
-  close?.addEventListener("click", () => setOpen(false));
-  document.addEventListener("keydown", e => { if (e.key === "Escape") setOpen(false); });
+  const fab =
+    document.getElementById("aiFab");
 
-  if (document.querySelector("#operationBox .operation-result, #operationBox table")) {
-    document.getElementById("flowPostExploit")?.classList.add("complete");
+  const drawer =
+    document.getElementById("aiChatDrawer");
+
+  const close =
+    document.getElementById("aiChatClose");
+
+  const setOpen = (open) => {
+    if (!fab || !drawer) {
+      return;
+    }
+
+    drawer.classList.toggle("is-open", open);
+
+    drawer.setAttribute(
+      "aria-hidden",
+      open ? "false" : "true"
+    );
+
+    fab.setAttribute(
+      "aria-expanded",
+      open ? "true" : "false"
+    );
+
+    if (open) {
+      setTimeout(() => {
+        document
+          .getElementById("aiChatInput")
+          ?.focus();
+      }, 120);
+    }
+  };
+
+  fab?.addEventListener("click", () => {
+    setOpen(
+      !drawer?.classList.contains("is-open")
+    );
+  });
+
+  close?.addEventListener("click", () => {
+    setOpen(false);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      setOpen(false);
+    }
+  });
+
+  if (
+    document.querySelector(
+      "#operationBox .operation-result, #operationBox table"
+    )
+  ) {
+    document
+      .getElementById("flowPostExploit")
+      ?.classList.add("complete");
   }
 });

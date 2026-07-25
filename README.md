@@ -350,3 +350,21 @@ Then run it without `--dry-run` to remove logs, generated reports, raw scan evid
 ## License
 
 No licence file is currently included. Unless the repository owner states otherwise, no permission to copy, modify, or redistribute the code is granted.
+
+## CVSS 3.1 and CVSS 4.0 display
+
+The CVE catalogue preserves published CVSS 3.1 and CVSS 4.0 metrics independently. The CVE Review lets the operator view CVSS 3.1, CVSS 4.0, or both. Missing metrics are displayed as `Not published`; the application does not convert scores between CVSS versions. Published vectors are recomputed when the CVSS verification library is available and the result is shown as verified or unverified.
+
+### CVE review layout
+
+The CVE Review is separated into three tables so applicability, severity and technical evidence are not mixed together:
+
+1. **Table 1 — CVE References:** Identifier, affected service, why it matched, CVE publisher, and verification links.
+2. **Table 2 — Severity & Triage:** Identifier, affected service, CVSS 3.1, severity, CVSS 4.0, severity, score source, vector, and vector-verification status. The 3.1 / 4.0 / Both selector changes both display and ranking. Missing metrics remain `Not published`.
+3. **Table 3 — Information Dump:** Full matching basis, observed evidence, structured affected data, CVSS details, classification, and source references retained for analyst review.
+
+The CVE publisher shown in Table 1 is taken from the CVE record CNA metadata when available. CVSS source provenance remains separate in Table 2.
+
+## Operator-configurable recon controls (2026-07-25)
+
+The scanner UI now separates TCP and UDP coverage from evidence-tool selection. Each protocol supports Full, Essentials, or Custom ports. Advanced controls expose per-batch timeout, bounded retry-on-failure, ports per batch, and optional bounded parallel batch execution. The selected settings are stored with scan metadata and included in report policy details. Technique-mapping logic is unchanged.

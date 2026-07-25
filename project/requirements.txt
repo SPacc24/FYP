@@ -9,3 +9,6 @@ weasyprint==62.3
 reportlab==4.2.2
 
 responses==0.25.3
+cvss==3.6
+packaging==26.2
+semver==3.0.4

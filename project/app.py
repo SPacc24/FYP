@@ -1,4 +1,3 @@
-"""Main Flask entry point for AutoPenTest."""
 
 from __future__ import annotations
 
@@ -117,6 +116,15 @@ if __name__ == "__main__":
             pass
 
     port = int(os.getenv("PORT", "5000"))
-    host = os.getenv("APP_HOST", "127.0.0.1")
+
+    # Bind to all interfaces by default so the dashboard is reachable
+    # from other laptops during the demo.
+    host = os.getenv("APP_HOST", "0.0.0.0")
+
     _validate_runtime_security(host)
-    app.run(host=host, port=port, debug=getattr(Config, "DEBUG", False))
+
+    app.run(
+        host=host,
+        port=port,
+        debug=getattr(Config, "DEBUG", False),
+    )

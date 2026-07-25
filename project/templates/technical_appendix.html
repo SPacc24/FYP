@@ -31,6 +31,27 @@
       </div>
     </section>
 
+    {% set cfg = results.scan_options|default(scan.scan_options|default({})) %}
+    {% set pcfg = cfg.port_selection|default({}) %}
+    {% set tcp = pcfg.tcp|default({}) %}
+    {% set udp = pcfg.udp|default({}) %}
+    {% set adv = cfg.advanced_settings|default({}) %}
+    <section class="appendix-box">
+      <div class="appendix-box-head">
+        <span class="label">Operator Configuration</span>
+        <h2>Effective Scan Configuration</h2>
+        <p class="muted">The normalized settings actually used by the scanner for this run.</p>
+      </div>
+      <div class="appendix-chip-grid">
+        <article class="appendix-chip"><span class="label">TCP</span><strong>{{ tcp.display|default(tcp.mode|default('Not recorded')) }}</strong></article>
+        <article class="appendix-chip"><span class="label">UDP</span><strong>{{ udp.display|default(udp.mode|default('Not recorded')) }}</strong></article>
+        <article class="appendix-chip"><span class="label">Ports / batch</span><strong>{{ adv.ports_per_batch|default('Not recorded') }}</strong></article>
+        <article class="appendix-chip"><span class="label">Timeout</span><strong>{% if adv.command_timeout_seconds is defined %}{{ adv.command_timeout_seconds }} s{% else %}Not recorded{% endif %}</strong></article>
+        <article class="appendix-chip"><span class="label">Retry</span><strong>{% if adv.retry_failed_batches %}Enabled · {{ adv.retry_count|default(0) }} max{% else %}Disabled{% endif %}</strong></article>
+        <article class="appendix-chip"><span class="label">Parallel</span><strong>{% if adv.parallel_scanning %}Enabled · {{ adv.parallel_workers|default(1) }} workers{% else %}Disabled{% endif %}</strong></article>
+      </div>
+    </section>
+
     <section class="appendix-box">
       <div class="appendix-box-head">
         <span class="label">Execution History</span>
@@ -94,7 +115,7 @@
                   <td>{{ service.service }}</td>
                   <td>{{ service.product }}</td>
                   <td>{{ service.version }}</td>
-                  <td class="small soft-wrap">{{ service.evidence or service.source or 'N/A' }}</td>
+                  <td class="small soft-wrap">{% if service.evidence_sources %}{% for source in service.evidence_sources %}{{ source|replace('_',' ')|title }}{% if not loop.last %} · {% endif %}{% endfor %}{% elif service.evidence %}{{ service.evidence }}{% elif service.source %}{{ service.source }}{% else %}Not labelled{% endif %}</td>
                 </tr>
               {% endfor %}
             </tbody>

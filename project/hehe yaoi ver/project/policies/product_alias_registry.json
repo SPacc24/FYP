@@ -1,0 +1,12 @@
+{
+  "vsftpd": {"detect": ["\\bvsftpd\\b"], "affected_products": ["vsftpd"], "desc_phrases": ["\\bvsftpd\\b"], "blocked": ["sftpgo"]},
+  "proftpd": {"detect": ["\\bproftpd\\b"], "affected_products": ["proftpd", "proftpd server"], "desc_phrases": ["\\bproftpd\\b"], "blocked": []},
+  "openssh": {"detect": ["\\bopenssh\\b"], "affected_products": ["openssh"], "desc_phrases": ["\\bopenssh\\b"], "blocked": ["tectia", "rundeck", "jenkins", "pam_usb", "usbview", "smartos"]},
+  "apache_http_server": {"detect": ["\\bapache\\s+httpd\\b", "\\bapache\\s+http\\s+server\\b", "\\bhttp_server\\b"], "affected_products": ["apache http server", "apache httpd", "http server", "httpd"], "desc_phrases": ["\\bapache\\s+http\\s+server\\b", "\\bapache\\s+httpd\\b", "\\bhttpd\\b"], "blocked": ["archiva", "cassandra", "jmeter", "struts", "tomcat", "trafficserver", "solr", "ofbiz", "hive", "ignite", "wicket", "couchdb", "openmeetings", "uhttpd"]},
+  "isc_bind": {"detect": ["\\bisc\\s+bind\\b", "\\bbind\\s*9\\b", "\\bbind\\b"], "affected_products": ["bind", "bind9", "isc bind"], "desc_phrases": ["\\bisc\\s+bind\\b", "\\bbind\\s*9\\b"], "blocked": ["binding", "blink", "xbl"]},
+  "samba": {"detect": ["\\bsamba\\b", "\\bsmbd\\b"], "affected_products": ["samba", "smbd"], "desc_phrases": ["\\bsamba\\b"], "blocked": ["sambar"]},
+  "mysql": {"detect": ["\\bmysql\\b"], "affected_products": ["mysql server", "mysql"], "desc_phrases": [], "blocked": ["workbench", "open dental", "drobo", "arcms", "puppet", "scms", "phpmyadmin", "mariadb"]},
+  "postgresql": {"detect": ["\\bpostgresql\\b", "\\bpostgresql\\s+db\\b"], "affected_products": ["postgresql", "postgresql server"], "desc_phrases": ["\\bpostgresql\\b"], "blocked": ["libpq", "cpanel"]},
+  "unrealircd": {"detect": ["\\bunrealircd\\b"], "affected_products": ["unrealircd"], "desc_phrases": ["\\bunrealircd\\b"], "blocked": []},
+  "distcc": {"detect": ["\\bdistccd\\b", "\\bdistcc\\b"], "affected_products": ["distcc", "distccd"], "desc_phrases": ["\\bdistcc\\b", "\\bdistccd\\b"], "blocked": []}
+}

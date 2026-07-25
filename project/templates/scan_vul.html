@@ -2,281 +2,320 @@
   <div class="flow-card-header stage-head-with-actions">
     <div>
       <span class="label">Assessment Stage 1</span>
-      <h2>Scan Findings & Vulnerability Mapping</h2>
+      <h2>CVE &amp; Vulnerability Review</h2>
+      <p class="small muted">CVE applicability, published severity, and full matching evidence are shown directly in the assessment workspace.</p>
     </div>
     <div class="actions action-row stage-actions">
-      <button class="button secondary" id="viewAllCvesBtn" type="button">Open CVE Review</button>
       <a class="button" href="/download/pdf/{{ scan.scan_id }}">Download PDF Report</a>
       <a class="button ghost" href="/download/handoff/{{ scan.scan_id }}">Download Handoff JSON</a>
     </div>
   </div>
 
-  {% if results %}
-    <details class="details-block" open>
-      <summary>View Scan Findings</summary>
+  <div id="cve-review" tabindex="-1">
+{% set mitre_source = results.mitre_source if results and results.mitre_source is defined else {} %}
+<div class="mini-panel">
+  <p class="small">
+    CVE source: {{ mitre_source.source if mitre_source and mitre_source.source else 'Official CVE source status unavailable' }}.
+    Indexed records: {{ mitre_source.records_indexed if mitre_source and mitre_source.records_indexed is defined else 'N/A' }}.
+  </p>
+  <p class="small muted">
+    CVSS 3.1 and CVSS 4.0 are preserved as separate published metrics. Missing metrics are shown as “Not published”; scores are never converted between versions.
+  </p>
+</div>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Port</th>
-              <th>State</th>
-              <th>Service</th>
-              <th>Version</th>
-              <th>Product</th>
-              <th>Extra</th>
-            </tr>
-          </thead>
+<h3 class="top-gap">Table 1 — CVE References</h3>
+<p class="small muted">Reference and applicability view: what CVE record was associated with the observed service, why it matched, and where to verify the published record.</p>
+<div class="table-wrap">
+  <table id="cveReferenceTable">
+    <thead>
+      <tr>
+        <th>Identifier</th>
+        <th>Affected Service</th>
+        <th>Why It Matched</th>
+        <th>Published By</th>
+        <th>Links</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if detected_cves %}
+        {% for cve in detected_cves %}
+          <tr class="cve-reference-row">
+            <td class="mono"><a href="{{ cve.official_cve_url }}" target="_blank" rel="noopener">{{ cve.cve_id }}</a></td>
+            <td class="small">{{ cve.service_port }}</td>
+            <td class="small">{{ cve.match_evidence }}</td>
+            <td class="small">{{ cve.published_by }}</td>
+            <td>
+              <a class="button tiny" href="{{ cve.official_cve_url }}" target="_blank" rel="noopener">CVE.org</a>
+              {% if cve.nvd_url %}<a class="button tiny" href="{{ cve.nvd_url }}" target="_blank" rel="noopener">NVD</a>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="5" class="small muted">No CVE references matched the observed service evidence.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
 
-          <tbody>
-            {% for port in results.ports if results.ports %}
-              <tr>
-                <td class="mono">{{ port.port }}</td>
-                <td>
-                  <span class="state {{ port.state|lower }}">
-                    {{ port.state }}
-                  </span>
-                </td>
-                <td>{{ port.service }}</td>
-                <td>{{ port.version }}</td>
-                <td>{{ port.product }}</td>
-                <td class="small">{{ port.extrainfo }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </details>
-  {% else %}
-    <p class="muted">No scan data available yet.</p>
-  {% endif %}
+<div class="stage-head-with-actions top-gap">
+  <div>
+    <h3>Table 2 — Severity &amp; Triage</h3>
+    <p class="small muted">Published CVSS metrics only. Choose which standard to view; the same selection also controls severity filtering and score ranking.</p>
+  </div>
+</div>
 
-  <details class="details-block" open>
-    <summary>View Vulnerability Mapping</summary>
+<div class="cvss-control-panel" aria-label="CVSS severity view controls">
+  <div class="cvss-control-copy">
+    <span class="label">CVSS VIEW</span>
+    <strong>Display and sort by</strong>
+  </div>
+  <input type="hidden" id="cveCvssView" value="both">
+  <div class="cvss-view-switch" role="group" aria-label="Select CVSS version">
+    <button type="button" data-cvss-view="3.1" aria-pressed="false">CVSS 3.1</button>
+    <button type="button" data-cvss-view="4.0" aria-pressed="false">CVSS 4.0</button>
+    <button type="button" data-cvss-view="both" class="active" aria-pressed="true">Both</button>
+  </div>
+  <div class="cvss-active-view small" id="cvssActiveView">Showing both CVSS 3.1 and CVSS 4.0 · sorted by highest published score</div>
+</div>
 
-    {% if mapping and mapping.vulnerabilities %}
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Port</th>
-              <th>Service</th>
-              <th>CVE</th>
-              <th>Severity</th>
-              <th>Score</th>
-              <th>Description</th>
-            </tr>
-          </thead>
+<div class="cve-filter-row small top-gap">
+  <input id="cveSearch" placeholder="Search CVE, service, product" />
+  <select id="cveFilterSeverity">
+    <option value="all">All severities</option>
+    <option value="critical">Critical</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+    <option value="none">None</option>
+  </select>
+</div>
 
-          <tbody>
-            {% for item in mapping.vulnerabilities %}
-              <tr>
-                <td class="mono">{{ item.port }}</td>
-                <td>{{ item.service }}</td>
+<div class="table-wrap top-gap">
+  <table id="cveTable">
+    <thead>
+      <tr>
+        <th>Identifier</th>
+        <th>Affected Service</th>
+        <th class="cvss31-col">CVSS 3.1</th>
+        <th class="cvss31-col">Severity</th>
+        <th class="cvss40-col">CVSS 4.0</th>
+        <th class="cvss40-col">Severity</th>
+        <th>Score Source</th>
+        <th>Vector</th>
+        <th>Verified</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if detected_cves %}
+        {% for cve in detected_cves %}
+          <tr class="cve-row"
+              data-score31="{{ cve.cvss_31_score if cve.cvss_31_score is not none else '' }}"
+              data-severity31="{{ cve.cvss_31_severity|lower if cve.cvss_31_score is not none else 'unscored' }}"
+              data-score40="{{ cve.cvss_40_score if cve.cvss_40_score is not none else '' }}"
+              data-severity40="{{ cve.cvss_40_severity|lower if cve.cvss_40_score is not none else 'unscored' }}">
+            <td class="mono"><a href="{{ cve.official_cve_url }}" target="_blank" rel="noopener">{{ cve.cve_id }}</a></td>
+            <td class="small">{{ cve.service_port }}</td>
+            <td class="cvss31-col">
+              {% if cve.cvss_31_score is not none %}<strong>{{ '%.1f'|format(cve.cvss_31_score) }}</strong>{% else %}<span class="muted">Not published</span>{% endif %}
+            </td>
+            <td class="cvss31-col">
+              {% if cve.cvss_31_score is not none %}<span class="severity {{ cve.cvss_31_severity|lower }}">{{ cve.cvss_31_severity }}</span>{% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="cvss40-col">
+              {% if cve.cvss_40_score is not none %}<strong>{{ '%.1f'|format(cve.cvss_40_score) }}</strong>{% else %}<span class="muted">Not published</span>{% endif %}
+            </td>
+            <td class="cvss40-col">
+              {% if cve.cvss_40_score is not none %}<span class="severity {{ cve.cvss_40_severity|lower }}">{{ cve.cvss_40_severity }}</span>{% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="small">
+              <div class="metric31-detail">3.1: {{ cve.cvss_31_source if cve.cvss_31_source else 'Not published' }}</div>
+              <div class="metric40-detail">4.0: {{ cve.cvss_40_source if cve.cvss_40_source else 'Not published' }}</div>
+            </td>
+            <td class="small mono">
+              <div class="metric31-detail">3.1: {{ cve.cvss_31_vector if cve.cvss_31_vector else 'Not published' }}</div>
+              <div class="metric40-detail">4.0: {{ cve.cvss_40_vector if cve.cvss_40_vector else 'Not published' }}</div>
+            </td>
+            <td class="small">
+              <div class="metric31-detail">3.1: {% if cve.cvss_31_score is none %}Not published{% elif cve.cvss_31_verified %}Verified{% else %}Not verified{% endif %}</div>
+              <div class="metric40-detail">4.0: {% if cve.cvss_40_score is none %}Not published{% elif cve.cvss_40_verified %}Verified{% else %}Not verified{% endif %}</div>
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="9" class="small muted">No CVE vulnerabilities matched the observed service evidence.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
 
-                <td>
-                  {% if item.cve_ids %}
-                    {{ item.cve_ids | join(', ') }}
-                  {% else %}
-                    None
-                  {% endif %}
-                </td>
-
-                <td>
-                  <span class="severity {{ item.severity|lower }}">
-                    {{ item.severity }}
-                  </span>
-                </td>
-
-                <td>{{ item.priority_score }}</td>
-                <td>{{ item.title }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <p class="muted">No vulnerability matches yet.</p>
-    {% endif %}
-  </details>
-
-  <div id="cveModal" class="modal" aria-hidden="true">
-    <div class="modal-backdrop" onclick="closeCveModal()"></div>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cveModalTitle">
-      <div class="modal-head">
-        <h2 id="cveModalTitle">CVE Findings</h2>
-        <button id="closeCveModal" class="icon-btn" type="button">Close</button>
-      </div>
-
-      <div class="modal-body">
-      {% set cve_matches = results.cve_matches if results and results.cve_matches is defined else [] %}
-      {% set candidate_groups = results.candidate_cve_groups if results and results.candidate_cve_groups is defined else [] %}
-      {% set mitre_source = results.mitre_source if results and results.mitre_source is defined else {} %}
-
-      <div class="mini-panel">
-        <p class="small">
-          Source:
-          {{ mitre_source.source if mitre_source and mitre_source.source else 'Official CVE source status unavailable' }}.
-          Indexed records:
-          {{ mitre_source.records_indexed if mitre_source and mitre_source.records_indexed is defined else 'N/A' }}.
-        </p>
-        {% if not cve_matches and candidate_groups %}
-          <p class="muted small">
-            No confirmed CVE findings were linked, but candidate references were retained for analyst review.
-          </p>
-        {% elif not cve_matches %}
-          <p class="muted small">
-            No confirmed CVE findings were linked from the collected product/version evidence.
-          </p>
-        {% endif %}
-      </div>
-
-      <div class="cve-filter-row small">
-        <input id="cveSearch" placeholder="Search CVE ID or keyword" />
-        <select id="cveFilterSeverity">
-          <option value="all">All severities</option>
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-      </div>
-
-      <div class="table-wrap top-gap">
-        <table id="cveTable">
-          <thead>
-            <tr>
-              <th>CVE ID</th>
-              <th>Severity</th>
-              <th>Confidence</th>
-              <th>Service/Port</th>
-              <th>Linked Techniques</th>
-              <th>Description</th>
-              <th>Links</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% if detected_cves %}
-              {% for cve in detected_cves %}
-                <tr class="cve-row">
-                  <td class="mono">
-                    <a href="{{ cve.official_cve_url }}" target="_blank">
-                      {{ cve.cve_id }}
-                    </a>
-                  </td>
-
-                  <td>
-                    <span class="severity {{ cve.severity|lower }}">
-                      {{ cve.severity }}
-                    </span>
-                  </td>
-
-                  <td>{{ cve.confidence }}</td>
-
-                  <td class="mono">{{ cve.service_port }}</td>
-
-                  <td>
-                    {% if cve.linked_techniques %}
-                      {% for tech in cve.linked_techniques %}
-                        {% if tech.mitre_url %}
-                          <a class="mono" href="{{ tech.mitre_url }}" target="_blank">
-                            {{ tech.id }}
-                          </a>
-                        {% else %}
-                          <span class="mono">{{ tech.id }}</span>
-                        {% endif %}
-                        {% if not loop.last %}, {% endif %}
-                      {% endfor %}
-                    {% else %}
-                      <span class="muted">No linked technique</span>
-                    {% endif %}
-                  </td>
-
-                  <td class="small">{{ cve.description }}</td>
-
-                  <td>
-                    <a class="button tiny" href="{{ cve.official_cve_url }}" target="_blank">
-                      CVE.org
-                    </a>
-
-                    {% if cve.nvd_url %}
-                      <a class="button tiny" href="{{ cve.nvd_url }}" target="_blank">
-                        NVD
-                      </a>
-                    {% endif %}
-                  </td>
-                </tr>
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td colspan="7" class="small muted">
-                  No CVEs detected or linked to mapped techniques.
-                </td>
-              </tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
-      </div>
-    </div>
+<details class="details-block top-gap" id="cve-information-dump">
+  <summary>Table 3 — Information Dump</summary>
+  <p class="small muted">Full technical context retained for analyst review. This section intentionally prioritises traceability over compact presentation.</p>
+  <div class="table-wrap">
+  <table id="cveInfoTable">
+    <thead>
+      <tr>
+        <th>Identifier</th>
+        <th>Observed Target / Service</th>
+        <th>CVE State</th>
+        <th>Description</th>
+        <th>Matching Data</th>
+        <th>Observed Evidence</th>
+        <th>Published Affected Data</th>
+        <th class="cvss31-col">CVSS 3.1 Detail</th>
+        <th class="cvss40-col">CVSS 4.0 Detail</th>
+        <th>References</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if detected_cves %}
+        {% for cve in detected_cves %}
+          <tr class="cve-info-row">
+            <td class="mono">{{ cve.cve_id }}</td>
+            <td class="small">
+              {% if cve.observed_hosts %}<div><b>Host:</b> {{ cve.observed_hosts|join(', ') }}</div>{% endif %}
+              <div><b>Service:</b> {{ cve.service_port }}</div>
+              {% if cve.observed_products %}<div><b>Product:</b> {{ cve.observed_products|join(', ') }}</div>{% endif %}
+              {% if cve.observed_versions %}<div><b>Version:</b> {{ cve.observed_versions|join(', ') }}</div>{% endif %}
+            </td>
+            <td class="small">{{ cve.classification }}</td>
+            <td class="small">{{ cve.description }}</td>
+            <td class="small">
+              <div><b>Why matched:</b> {{ cve.match_evidence }}</div>
+              {% if cve.raw_match_basis %}<div><b>Raw match basis:</b> {{ cve.raw_match_basis }}</div>{% endif %}
+              {% if cve.product_match_basis %}<div><b>Product basis:</b> {{ cve.product_match_basis }}</div>{% endif %}
+              {% if cve.match_reason %}<div><b>Reason:</b> {{ cve.match_reason }}</div>{% endif %}
+              {% if cve.matched_product_tokens %}<div><b>Product tokens:</b> {{ cve.matched_product_tokens|join(', ') }}</div>{% endif %}
+              {% if cve.matched_version_tokens %}<div><b>Version tokens:</b> {{ cve.matched_version_tokens|join(', ') }}</div>{% endif %}
+            </td>
+            <td class="small">
+              {% if cve.observed_endpoints %}<div><b>Endpoints:</b> {{ cve.observed_endpoints|join(', ') }}</div>{% endif %}
+              {% if cve.evidence_sources %}<div><b>Sources:</b> {{ cve.evidence_sources|join(', ') }}</div>{% else %}<span class="muted">No additional evidence-source labels retained.</span>{% endif %}
+            </td>
+            <td class="small">
+              <div><b>Publisher:</b> {{ cve.published_by }}</div>
+              {% if cve.affected_vendors %}<div><b>Vendors:</b> {{ cve.affected_vendors|join(', ') }}</div>{% endif %}
+              {% if cve.affected_products %}<div><b>Products:</b> {{ cve.affected_products|join(', ') }}</div>{% endif %}
+              {% if cve.affected_versions %}<div><b>Versions/ranges:</b> {{ cve.affected_versions|join(', ') }}</div>{% endif %}
+              {% if cve.affected_cpes %}<div><b>CPEs:</b> {{ cve.affected_cpes|join(', ') }}</div>{% endif %}
+              {% if cve.affected_entries %}
+                <details><summary>Structured affected entries</summary><pre class="small mono">{{ cve.affected_entries|tojson(indent=2) }}</pre></details>
+              {% endif %}
+            </td>
+            <td class="small cvss31-col">
+              {% if cve.cvss_31_score is not none %}
+                <div><b>Score:</b> {{ '%.1f'|format(cve.cvss_31_score) }}</div>
+                <div><b>Severity:</b> {{ cve.cvss_31_severity }}</div>
+                <div><b>Source:</b> {{ cve.cvss_31_source }}</div>{% if cve.cvss_31_source_raw and cve.cvss_31_source_raw != cve.cvss_31_source %}<div class="mono muted"><b>Raw source ID:</b> {{ cve.cvss_31_source_raw }}</div>{% endif %}
+                <div class="mono"><b>Vector:</b> {{ cve.cvss_31_vector }}</div>
+                <div><b>Verification:</b> {{ cve.cvss_31_verification }}</div>
+              {% else %}<span class="muted">Not published</span>{% endif %}
+            </td>
+            <td class="small cvss40-col">
+              {% if cve.cvss_40_score is not none %}
+                <div><b>Score:</b> {{ '%.1f'|format(cve.cvss_40_score) }}</div>
+                <div><b>Severity:</b> {{ cve.cvss_40_severity }}</div>
+                <div><b>Source:</b> {{ cve.cvss_40_source }}</div>{% if cve.cvss_40_source_raw and cve.cvss_40_source_raw != cve.cvss_40_source %}<div class="mono muted"><b>Raw source ID:</b> {{ cve.cvss_40_source_raw }}</div>{% endif %}
+                <div class="mono"><b>Vector:</b> {{ cve.cvss_40_vector }}</div>
+                <div><b>Verification:</b> {{ cve.cvss_40_verification }}</div>
+              {% else %}<span class="muted">Not published</span>{% endif %}
+            </td>
+            <td class="small">
+              <div><a href="{{ cve.official_cve_url }}" target="_blank" rel="noopener">CVE.org</a></div>
+              {% if cve.nvd_url %}<div><a href="{{ cve.nvd_url }}" target="_blank" rel="noopener">NVD</a></div>{% endif %}
+              {% for ref in cve.references %}<div><a href="{{ ref }}" target="_blank" rel="noopener">{{ ref }}</a></div>{% endfor %}
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="10" class="small muted">No CVE information is available for this assessment.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+</details>
   </div>
 
   <script>
-    function openCveModal() {
-      const modal = document.getElementById('cveModal');
-      if (!modal) return;
-
-      modal.classList.add('open');
-      modal.setAttribute('aria-hidden', 'false');
-      applyFilter();
-    }
-
-    function closeCveModal() {
-      const modal = document.getElementById('cveModal');
-      if (!modal) return;
-
-      modal.classList.remove('open');
-      modal.setAttribute('aria-hidden', 'true');
-    }
-
     const search = document.getElementById('cveSearch');
-    const filter = document.getElementById('cveFilterSeverity');
+    const severityFilter = document.getElementById('cveFilterSeverity');
+    const cvssView = document.getElementById('cveCvssView');
+    const cvssActiveView = document.getElementById('cvssActiveView');
 
     function getRows() {
       return Array.from(document.querySelectorAll('#cveTable tbody tr.cve-row'));
     }
 
-    function applyFilter() {
+    function numericScore(row, version) {
+      const raw = version === '4.0' ? row.dataset.score40 : row.dataset.score31;
+      const value = Number.parseFloat(raw || '');
+      return Number.isFinite(value) ? value : -1;
+    }
+
+    function activeScore(row, view) {
+      if (view === '3.1') return numericScore(row, '3.1');
+      if (view === '4.0') return numericScore(row, '4.0');
+      return Math.max(numericScore(row, '3.1'), numericScore(row, '4.0'));
+    }
+
+    function matchesSeverity(row, view, selected) {
+      if (selected === 'all') return true;
+      const s31 = row.dataset.severity31 || 'unscored';
+      const s40 = row.dataset.severity40 || 'unscored';
+      if (view === '3.1') return s31 === selected;
+      if (view === '4.0') return s40 === selected;
+      return s31 === selected || s40 === selected;
+    }
+
+    function applyCveView() {
       const q = (search?.value || '').trim().toLowerCase();
-      const selectedSeverity = (filter?.value || 'all').trim().toLowerCase();
+      const selectedSeverity = (severityFilter?.value || 'all').toLowerCase();
+      const view = cvssView?.value || 'both';
+      if (cvssActiveView) {
+        cvssActiveView.textContent = view === '3.1'
+          ? 'Showing CVSS 3.1 only · sorted by CVSS 3.1 score'
+          : view === '4.0'
+            ? 'Showing CVSS 4.0 only · sorted by CVSS 4.0 score'
+            : 'Showing both CVSS 3.1 and CVSS 4.0 · sorted by highest published score';
+      }
 
-      getRows().forEach(row => {
-        const rowText = row.innerText.toLowerCase();
+      document.querySelectorAll('.cvss31-col').forEach(el => { el.style.display = view === '4.0' ? 'none' : ''; });
+      document.querySelectorAll('.cvss40-col').forEach(el => { el.style.display = view === '3.1' ? 'none' : ''; });
+      document.querySelectorAll('.metric31-detail').forEach(el => { el.style.display = view === '4.0' ? 'none' : ''; });
+      document.querySelectorAll('.metric40-detail').forEach(el => { el.style.display = view === '3.1' ? 'none' : ''; });
 
-        const severityCell = row.querySelector('span.severity');
-        const rowSeverity = (severityCell?.innerText || '')
-          .trim()
-          .toLowerCase();
+      const tbody = document.querySelector('#cveTable tbody');
+      const rows = getRows();
+      rows.sort((a, b) => {
+        const scoreDifference = activeScore(b, view) - activeScore(a, view);
+        if (scoreDifference !== 0) return scoreDifference;
+        return a.innerText.localeCompare(b.innerText);
+      });
+      rows.forEach(row => {
+        const matchesSearch = !q || row.innerText.toLowerCase().includes(q);
+        const severityMatches = matchesSeverity(row, view, selectedSeverity);
+        row.style.display = matchesSearch && severityMatches ? '' : 'none';
+        tbody?.appendChild(row);
+      });
 
-        const matchesSearch = !q || rowText.includes(q);
-        const matchesSeverity =
-          selectedSeverity === 'all' || rowSeverity === selectedSeverity;
-
-        row.style.display = matchesSearch && matchesSeverity ? '' : 'none';
+      document.querySelectorAll('.cve-reference-row, .cve-info-row').forEach(row => {
+        row.style.display = !q || row.innerText.toLowerCase().includes(q) ? '' : 'none';
       });
     }
 
-    document.getElementById('closeCveModal')?.addEventListener('click', closeCveModal);
-    document.getElementById('viewAllCvesBtn')?.addEventListener('click', openCveModal);
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeCveModal();
+    search?.addEventListener('input', applyCveView);
+    severityFilter?.addEventListener('change', applyCveView);
+    document.querySelectorAll('[data-cvss-view]').forEach(button => {
+      button.addEventListener('click', () => {
+        const selected = button.dataset.cvssView || 'both';
+        if (cvssView) cvssView.value = selected;
+        document.querySelectorAll('[data-cvss-view]').forEach(candidate => {
+          candidate.classList.toggle('active', candidate === button);
+          candidate.setAttribute('aria-pressed', candidate === button ? 'true' : 'false');
+        });
+        applyCveView();
+      });
     });
-
-    search?.addEventListener('input', applyFilter);
-    filter?.addEventListener('change', applyFilter);
-
-    window.openCveModal = openCveModal;
-    window.closeCveModal = closeCveModal;
+    applyCveView();
   </script>
 </section>

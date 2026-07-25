@@ -2,7 +2,8 @@
 from __future__ import annotations
 import json, os, re, ipaddress, contextvars, threading, logging, time, random, socket
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from storage import scan_store
 from config import Config
 from .targets import expand_target_input, is_private_ip
@@ -12,7 +13,7 @@ from .fingerprint_validator import validate_service_fingerprint
 from .acl_mapper import detect_firewall_acl
 from .ssh_crypto_intel import collect_ssh_cryptography
 from .mitre_cve import OFFICIAL_CVE_SOURCE, search_with_held as mitre_search_with_held, status as mitre_status
-from .scan_profiles import normalise_scan_options, is_tool_enabled
+from .scan_profiles import normalise_scan_options, is_tool_enabled, selected_ports
 from .objectives import infer_objectives, evidence_gaps_for_service
 from .passive_intel import (
     build_passive_summary, build_relationship_graph, candidate_domains, collect_certificate_transparency,
@@ -274,6 +275,112 @@ def run_cmd(cmd: list[str], output_file: Path | None = None, timeout: int = 300,
             level = 'INFO' if diagnosis.startswith('No open ports discovered') else 'WARN'
             scan_store.log(sid, f'{exe} diagnostic: {diagnosis}', level)
     return result
+
+
+def _chunk_ports(ports: Iterable[int], batch_size: int) -> list[list[int]]:
+    """Split a selected port iterable into deterministic bounded batches."""
+    size = max(1, int(batch_size))
+    batches: list[list[int]] = []
+    current: list[int] = []
+    for value in ports:
+        port = int(value)
+        if port < 1 or port > 65535:
+            continue
+        current.append(port)
+        if len(current) >= size:
+            batches.append(current)
+            current = []
+    if current:
+        batches.append(current)
+    return batches
+
+
+def _run_cmd_with_retry(
+    scan_id: str,
+    cmd: list[str],
+    output_file: Path,
+    timeout_seconds: int,
+    retry_failed_batches: bool,
+    retry_count: int,
+) -> dict[str, Any]:
+    """Run one discovery command with bounded command-level retries.
+
+    This is deliberately separate from Nmap's packet retransmission setting.
+    A retry happens only when the command itself fails/times out, never merely
+    because a port is closed or no open ports were observed.
+    """
+    token = _CURRENT_SCAN_ID.set(scan_id)
+    try:
+        attempts = 1 + (max(0, int(retry_count)) if retry_failed_batches else 0)
+        last: dict[str, Any] = {}
+        for attempt in range(1, attempts + 1):
+            last = run_cmd(cmd, output_file, int(timeout_seconds), True)
+            last['attempts'] = attempt
+            if last.get('success'):
+                return last
+            if attempt < attempts:
+                scan_store.log(
+                    scan_id,
+                    f'Discovery batch failed on attempt {attempt}/{attempts}; retrying within operator limit.',
+                    'WARN',
+                )
+        return last
+    finally:
+        _CURRENT_SCAN_ID.reset(token)
+
+
+def _run_port_batch_wave(
+    scan_id: str,
+    jobs: list[tuple[int, list[int], Path, list[str]]],
+    *,
+    timeout_seconds: int,
+    retry_failed_batches: bool,
+    retry_count: int,
+    parallel_workers: int,
+) -> list[tuple[int, list[int], Path, dict[str, Any]]]:
+    """Execute one sequential/parallel wave and return results in batch order."""
+    if not jobs:
+        return []
+    workers = max(1, min(int(parallel_workers), len(jobs)))
+    if workers == 1:
+        return [
+            (index, ports, path, _run_cmd_with_retry(
+                scan_id, cmd, path, timeout_seconds, retry_failed_batches, retry_count
+            ))
+            for index, ports, path, cmd in jobs
+        ]
+
+    completed: list[tuple[int, list[int], Path, dict[str, Any]]] = []
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix='autopentest-port-batch') as executor:
+        future_map = {
+            executor.submit(
+                _run_cmd_with_retry,
+                scan_id,
+                cmd,
+                path,
+                timeout_seconds,
+                retry_failed_batches,
+                retry_count,
+            ): (index, ports, path)
+            for index, ports, path, cmd in jobs
+        }
+        for future in as_completed(future_map):
+            index, ports, path = future_map[future]
+            try:
+                result = future.result()
+            except Exception as exc:
+                result = {
+                    'success': False,
+                    'returncode': -1,
+                    'error': str(exc),
+                    'stdout': '',
+                    'stderr': str(exc),
+                    'output_file': str(path),
+                }
+                scan_store.log(scan_id, f'Parallel discovery batch {index} failed: {exc}', 'WARN')
+            completed.append((index, ports, path, result))
+    return sorted(completed, key=lambda item: item[0])
+
 
 def _publish_partial(scan_id: str, **kwargs: Any) -> None:
     current = scan_store.get(scan_id) or {}
@@ -1757,6 +1864,20 @@ def _apply_service_fingerprints(
             additional_evidence=list(row.get('native_fingerprint_evidence') or []),
         )
         fingerprint_dict = fingerprint.to_dict()
+        # Keep canonical fields and add compatibility aliases used by the
+        # results UI, diagnostics scripts, and older downstream consumers.
+        fingerprint_dict.update({
+            'host': fingerprint.target,
+            'service': row.get('service', ''),
+            'product': fingerprint.primary_product,
+            'version': fingerprint.primary_version,
+            'confidence': fingerprint.confidence_score,
+            'reason': (
+                'eligible_for_confirmed_cve_matching'
+                if fingerprint.recommended_for_cve
+                else 'candidate_enrichment_only'
+            ),
+        })
         fingerprints.append(fingerprint_dict)
         row['service_fingerprint'] = fingerprint_dict
         row['consensus_product'] = fingerprint.primary_product
@@ -1765,6 +1886,14 @@ def _apply_service_fingerprints(
         row['confidence_badge'] = _confidence_badge(fingerprint.confidence_score)
         row['contradictions'] = list(fingerprint.contradictions)
         row['recommended_for_cve'] = fingerprint.recommended_for_cve
+        # Never discard a product/version recovered from corroborating scripts or
+        # native protocol evidence merely because it has not crossed the strict
+        # confirmation threshold.  It remains candidate evidence and is labelled
+        # as such downstream.
+        if fingerprint.primary_product and not str(row.get('product') or '').strip():
+            row['product'] = fingerprint.primary_product
+        if fingerprint.primary_version and not str(row.get('version') or '').strip():
+            row['version'] = fingerprint.primary_version
         if fingerprint.recommended_for_cve:
             if fingerprint.primary_product:
                 row['product'] = fingerprint.primary_product
@@ -1790,6 +1919,10 @@ NOT_APPLICABLE_TO_CONTEXT = 'Not Applicable to Observed Context'
 DUPLICATE_SERVICE_REFERENCE = 'Duplicate Service Reference'
 
 EXACT_CVE_BASIS_TOKENS = (
+    'structured_exact_version',
+    'structured_range_lower_endpoint',
+    'structured_range_inclusive_upper_endpoint',
+    'exact_application_cpe',
     'exact_structured_version',
     'exact_observed_version_in_record_text',
     'exact_cpe_match',
@@ -1842,6 +1975,8 @@ def _classify_cve_match(service: dict[str, Any], match: dict[str, Any]) -> tuple
     product = str(service.get('product') or '')
     service_name = str(service.get('service') or '')
     cve_id = str(match.get('cve_id') or '')
+    if match.get('low_confidence_candidate') or match.get('nvd_candidate'):
+        return RELEVANT_VERSION_INFORMATION, 'Product/version was observed but the fingerprint is not corroborated enough for confirmation; retain as an analyst-review candidate.'
     context_classification, context_reason = _context_gate_for_cve(description, product, service_name)
     if context_classification == NOT_APPLICABLE_TO_CONTEXT:
         return context_classification, context_reason
@@ -1879,6 +2014,15 @@ def _build_cve_row(service: dict[str, Any], match: dict[str, Any], classificatio
         'matched_product_tokens': match.get('matched_product_tokens', []),
         'matched_version_tokens': match.get('matched_version_tokens', []),
         'match_basis': match.get('match_basis',''),
+        'product_match_basis': match.get('product_match_basis',''),
+        'cve_publisher': match.get('cve_publisher') or 'CVE Program CNA',
+        'cve_publisher_id': match.get('cve_publisher_id') or '',
+        'affected_vendors': match.get('affected_vendors') or [],
+        'affected_products': match.get('affected_products') or [],
+        'affected_versions': match.get('affected_versions') or [],
+        'affected_entries': match.get('affected_entries') or [],
+        'affected_cpes': match.get('affected_cpes') or [],
+        'source_cvss_metrics': match.get('cvss_metrics') or {},
         'source_cvss_score': match.get('cvss_score'),
         'source_cvss_severity': match.get('cvss_severity'),
         'source_cvss_vector': match.get('cvss_vector'),
@@ -1947,13 +2091,43 @@ def _match_cves(
 
     for s in services:
         cpe_text = ' '.join(s.get('cpe') or [])
+        product_text = str(s.get('product',''))
+        version_text = str(s.get('version',''))
+        service_text = str(s.get('service',''))
+
+        # Nmap often identifies legacy Windows editions in the product field but
+        # leaves the version column blank. Preserve the observed edition while
+        # deriving the OS version needed for targeted NVD enrichment.
+        edition_text = f"{product_text} {service_text} {cpe_text}".lower()
+        if not version_text.strip():
+            windows_versions = (
+                ('windows xp', '5.1'), ('windows server 2003', '5.2'),
+                ('windows vista', '6.0'), ('windows 7', '6.1'),
+                ('windows 8.1', '6.3'), ('windows 8', '6.2'),
+                ('windows 10', '10.0'), ('windows 11', '10.0'),
+            )
+            for edition, derived in windows_versions:
+                if edition in edition_text:
+                    version_text = derived
+                    break
+
+        edition_is_concrete = any(token in edition_text for token in (
+            'windows xp', 'windows server 2003', 'windows vista',
+            'windows 7', 'windows 8', 'windows 10', 'windows 11'
+        ))
+        effective_confidence = s.get('confidence_score', 0.0)
+        effective_recommended = bool(s.get('recommended_for_cve', False))
+        if edition_is_concrete and version_text:
+            effective_confidence = max(float(effective_confidence or 0.0), 0.85)
+            effective_recommended = True
+
         matches, held_refs = mitre_search_with_held(
-            str(s.get('product','')),
-            str(s.get('version','')),
-            str(s.get('service','')),
+            product_text,
+            version_text,
+            service_text,
             cpe_text,
-            confidence_score=s.get('confidence_score', 0.0),
-            recommended_for_cve=bool(s.get('recommended_for_cve', False)),
+            confidence_score=effective_confidence,
+            recommended_for_cve=effective_recommended,
         )
         if diagnostics is not None:
             for held in held_refs:
@@ -2035,8 +2209,9 @@ def _canonicalise_downstream_mapping(
             canonical_by_endpoint.setdefault(key, []).append({
                 'cve_id': row.get('cve_id'),
                 'classification': classification,
-                'severity': row.get('cvss_severity') or row.get('severity') or '',
-                'cvss_score': row.get('cvss_score'),
+                'severity': row.get('source_cvss_severity') or row.get('cvss_severity') or row.get('severity') or '',
+                'cvss_score': row.get('source_cvss_score') if row.get('source_cvss_score') is not None else row.get('cvss_score'),
+                'cvss_metrics': row.get('source_cvss_metrics') or row.get('cvss_metrics') or {},
                 'match_basis': row.get('match_basis') or row.get('classification_reason') or '',
                 'references': row.get('references') or [],
                 'source': row.get('source') or OFFICIAL_CVE_SOURCE,
@@ -2239,6 +2414,7 @@ def _build_service_summary(services: list[dict[str, Any]], cve_matches: list[dic
             'product': s.get('product'),
             'version': s.get('version'),
             'status': status,
+            'evidence_sources': list(s.get('evidence_sources') or []),
             'evidence_gaps': ', '.join(s.get('missing_information') or []),
             'confidence_score': s.get('confidence_score', 0.0),
             'confidence_badge': s.get('confidence_badge') or _confidence_badge(float(s.get('confidence_score') or 0.0)),
@@ -2660,8 +2836,28 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         scan_store.log(scan_id, f"Pipeline started for target={target_input}")
     except Exception:
         pass
-    scan_options = normalise_scan_options((scan_options or {}).get('profile', 'full'), (scan_options or {}).get('enabled_tools'))
+    incoming_options = dict(scan_options or {})
+    incoming_ports = incoming_options.get('port_selection') or {}
+    incoming_tcp = incoming_ports.get('tcp') or {}
+    incoming_udp = incoming_ports.get('udp') or {}
+    scan_options = normalise_scan_options(
+        incoming_options.get('profile', 'full'),
+        incoming_options.get('enabled_tools'),
+        tcp_port_mode=incoming_tcp.get('mode'),
+        tcp_custom_ports=incoming_tcp.get('custom_spec'),
+        udp_port_mode=incoming_udp.get('mode'),
+        udp_custom_ports=incoming_udp.get('custom_spec'),
+        advanced_settings=incoming_options.get('advanced_settings') or {},
+    )
+    if incoming_options.get('technique_mode'):
+        scan_options['technique_mode'] = incoming_options.get('technique_mode')
     scan_store.update(scan_id, scan_options=scan_options)
+    if scan_options.get('validation_errors'):
+        message = '; '.join(scan_options.get('validation_errors') or [])
+        scan_store.log(scan_id, f'Scan settings rejected before target interaction: {message}', 'ERROR')
+        scan_store.update(scan_id, status=scan_store.STATUS_FAILED, error=message, completed_at=scan_store.now())
+        scan_store.persist(scan_id)
+        return
     def enabled(tool_id: str) -> bool:
         return is_tool_enabled(scan_options, tool_id)
     scan_store.init_tasks(scan_id, TASKS)
@@ -2827,11 +3023,24 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 layer = posture.get('network_layer') or _classify_network_layer(host, environment_intelligence, ports)
                 if layer.get('scan_posture') == 'infrastructure_observed' or posture.get('scan_posture') == 'infrastructure_observed':
                     # Infrastructure links/firewalls/routers: do not top-port sweep. Probe only management ports at near-zero rate.
-                    infra_ports = [str(p) for p in _policy_required(posture, 'tcp_ports')]
+                    operator_sequence = selected_ports(scan_options, 'tcp')
+                    allowed_by_operator = None if isinstance(operator_sequence, range) else set(operator_sequence)
+                    infra_values = [int(p) for p in _policy_required(posture, 'tcp_ports')]
+                    if allowed_by_operator is not None:
+                        infra_values = [p for p in infra_values if p in allowed_by_operator]
+                    infra_ports = [str(p) for p in infra_values]
+                    if not infra_ports:
+                        coverage.append(_coverage('nmap_tcp_infrastructure_fingerprint', scan_store.STATUS_EMPTY, 'Operator port selection', 'No infrastructure-safe TCP ports overlap the operator-selected TCP coverage.', ''))
+                        ports = []
+                        continue
                     requested_tcp_ports_by_host.setdefault(host, set()).update(int(port) for port in infra_ports)
                     p = outfile('nmap_tcp_infrastructure_fingerprint', host, 'xml')
                     cmd = [nmap, '-sS', '-p', ','.join(infra_ports), '--open'] + list(_policy_required(posture, 'nmap_timing')) + ['-oX', str(p), host]
-                    r = run_cmd(cmd, p, 600, True)
+                    advanced = scan_options.get('advanced_settings') or {}
+                    r = _run_cmd_with_retry(
+                        scan_id, cmd, p, int(advanced.get('command_timeout_seconds') or 600),
+                        bool(advanced.get('retry_failed_batches', True)), int(advanced.get('retry_count') or 0)
+                    )
                     rows, parsed_discovery = parse_nmap_capture(p, 'nmap_tcp_infrastructure_fingerprint', host)
                     append_discovery_evidence(host, parsed_discovery, 'tcp')
                     ports = sorted({int(x['port']) for x in rows if x.get('port')})
@@ -2839,88 +3048,123 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                     _add_raw(raw, 'nmap_tcp_infrastructure_fingerprint', host, '', str(p), 'nmap_xml', True)
                     host_environment_context.append({'indicator':'infrastructure_scan_posture','evidence':f'{host} matched {layer.get("role")} ({layer.get("matched_cidr")}).','interpretation':'Target treated as router/firewall/infrastructure; application-layer enumeration suppressed.'})
                 else:
-                    # Full Recon micro-batched TCP discovery. This replaces a single top-100 burst
-                    # with small policy-defined batches while preserving high-value coverage.
+                    # Operator-selected TCP coverage.  The UI chooses Full, Essentials,
+                    # or Custom; policy still supplies the low-noise Nmap posture while
+                    # advanced settings control batching/retries/parallel waves.
+                    advanced = scan_options.get('advanced_settings') or {}
+                    timeout_seconds = int(advanced.get('command_timeout_seconds') or 600)
+                    retry_failed = bool(advanced.get('retry_failed_batches', True))
+                    retry_count = int(advanced.get('retry_count') or 0)
+                    batch_size = max(1, int(advanced.get('ports_per_batch') or 5))
+                    parallel_enabled = bool(advanced.get('parallel_scanning', False))
+                    parallel_workers = int(advanced.get('parallel_workers') or 1) if parallel_enabled else 1
+                    selection = (scan_options.get('port_selection') or {}).get('tcp') or {}
+                    selection_mode = str(selection.get('mode') or 'essentials')
+                    selected_sequence = selected_ports(scan_options, 'tcp')
+                    batches = _chunk_ports(selected_sequence, batch_size)
+                    all_seen: set[int] = set()
                     micro_cfg = policy.get('tcp_micro_batching') or {}
-                    batches = policy.get('tcp_micro_batches') or []
-                    if micro_cfg.get('enabled', True) and batches:
-                        all_seen: set[int] = set()
-                        timing = list(micro_cfg.get('nmap_options') or ['-Pn','-sS','--open','-T2','--max-retries','1','--max-rate','5'])
-                        for batch_index, batch_ports in enumerate(batches, start=1):
-                            clean_batch = sorted({int(x) for x in batch_ports if str(x).isdigit() or isinstance(x, int)})
-                            if not clean_batch:
-                                continue
+                    timing = list(micro_cfg.get('nmap_options') or ['-Pn', '-sS', '--open', '-T2', '--max-retries', '1'])
+
+                    scan_store.log(
+                        scan_id,
+                        f'TCP discovery mode={selection_mode} selected_ports={selection.get("count", len(selection.get("ports") or []))} '
+                        f'batch_size={batch_size} parallel={parallel_enabled} workers={parallel_workers} timeout={timeout_seconds}s',
+                        'INFO',
+                    )
+
+                    wave_width = max(1, parallel_workers)
+                    for wave_start in range(0, len(batches), wave_width):
+                        if acl_pause_requested(host):
+                            coverage.append(_coverage('acl_adaptive_pause', scan_store.STATUS_EMPTY, 'Policy stop condition', f'Additional discovery batches paused for {host} after corroborated ACL behaviour.', ''))
+                            break
+
+                        wave = batches[wave_start:wave_start + wave_width]
+                        jobs: list[tuple[int, list[int], Path, list[str]]] = []
+                        for offset, clean_batch in enumerate(wave):
+                            batch_index = wave_start + offset + 1
                             requested_tcp_ports_by_host.setdefault(host, set()).update(clean_batch)
-                            p = outfile(f'nmap_tcp_microbatch_{batch_index}', host, 'xml')
-                            cmd = [nmap] + timing + ['-p', ','.join(map(str, clean_batch)), '-oX', str(p), host]
-                            r = run_cmd(cmd, p, 600, True)
-                            rows, parsed_discovery = parse_nmap_capture(p, f'nmap_tcp_microbatch_{batch_index}', host)
+                            out = outfile(f'nmap_tcp_batch_{batch_index}', host, 'xml')
+                            cmd = [nmap] + timing + ['-p', ','.join(map(str, clean_batch)), '-oX', str(out), host]
+                            jobs.append((batch_index, clean_batch, out, cmd))
+
+                        wave_results = _run_port_batch_wave(
+                            scan_id,
+                            jobs,
+                            timeout_seconds=timeout_seconds,
+                            retry_failed_batches=retry_failed,
+                            retry_count=retry_count,
+                            parallel_workers=parallel_workers,
+                        )
+
+                        for batch_index, clean_batch, out, r in wave_results:
+                            rows, parsed_discovery = parse_nmap_capture(out, f'nmap_tcp_batch_{batch_index}', host)
                             append_discovery_evidence(host, parsed_discovery, 'tcp')
                             batch_open = sorted({int(x['port']) for x in rows if x.get('port')})
                             all_seen.update(batch_open)
-                            xml_text = Path(p).read_text(encoding='utf-8', errors='ignore') if Path(p).exists() else ''
+                            xml_text = Path(out).read_text(encoding='utf-8', errors='ignore') if Path(out).exists() else ''
                             filtered_count = sum(int(x) for x in re.findall(r'extraports state="filtered" count="(\d+)"', xml_text))
                             closed_count = sum(int(x) for x in re.findall(r'extraports state="closed" count="(\d+)"', xml_text))
-                            combined_out = ' '.join(str(r.get(k) or '') for k in ('stdout','stderr','error'))
+                            combined_out = ' '.join(str(r.get(k) or '') for k in ('stdout', 'stderr', 'error'))
                             retransmission_warning = 'retransmission cap hit' in combined_out.lower() or 'giving up on port' in combined_out.lower()
                             cumulative_ports = sorted(all_seen)
                             profile = _host_profile_from_observations(host, cumulative_ports, environment_intelligence)
-                            stage_indicators = _detect_environment_context_indicators(cumulative_ports, ttl=ttl_value, filtered_count=filtered_count, retransmission_warning=retransmission_warning, host_profile=profile)
+                            stage_indicators = _detect_environment_context_indicators(
+                                cumulative_ports,
+                                ttl=ttl_value,
+                                filtered_count=filtered_count,
+                                retransmission_warning=retransmission_warning,
+                                host_profile=profile,
+                            )
                             acl_indicator = _acl_filtering_indicator(host, filtered_count, closed_count, len(clean_batch))
                             if acl_indicator:
                                 stage_indicators.append(acl_indicator)
-                            coverage.append(_coverage(f'nmap_tcp_microbatch_{batch_index}', _status_from_result(r, bool(batch_open)), f'TCP Service Discovery Batch {batch_index}', f'{len(batch_open)} open TCP port(s) observed from {len(clean_batch)} policy ports; {filtered_count} filtered/no-response.', str(p), r))
-                            _add_raw(raw, f'nmap_tcp_microbatch_{batch_index}', host, '', str(p), 'nmap_xml', True)
+                            coverage.append(_coverage(
+                                f'nmap_tcp_batch_{batch_index}',
+                                _status_from_result(r, bool(batch_open)),
+                                f'TCP Discovery Batch {batch_index}',
+                                f'{len(batch_open)} open TCP port(s) observed from {len(clean_batch)} operator-selected ports; '
+                                f'{filtered_count} filtered/no-response; attempts={r.get("attempts", 1)}.',
+                                str(out),
+                                r,
+                            ))
+                            _add_raw(raw, f'nmap_tcp_batch_{batch_index}', host, '', str(out), 'nmap_xml', True)
                             if stage_indicators:
                                 host_environment_context = stage_indicators
-                            if acl_pause_requested(host):
-                                coverage.append(_coverage('acl_adaptive_pause', scan_store.STATUS_EMPTY, 'Policy stop condition', f'Additional discovery batches paused for {host} after corroborated ACL behaviour.', ''))
-                                break
-                            min_sleep = float(micro_cfg.get('sleep_between_batches_seconds_min') or 0)
-                            max_sleep = float(micro_cfg.get('sleep_between_batches_seconds_max') or min_sleep)
-                            if batch_index < len(batches) and max_sleep > 0:
-                                time.sleep(random.uniform(min_sleep, max_sleep))
-                        ports = sorted(all_seen)
-                        coverage.append(_coverage('nmap_tcp_policy_selected', scan_store.STATUS_SUCCESS if ports else scan_store.STATUS_EMPTY, 'TCP Service Discovery Summary', f'{len(ports)} open TCP port(s) observed through policy-selected micro-batches.', '', {'success': True, 'cmd': 'policy-selected micro-batched TCP discovery'}))
-                    else:
-                        stages = _policy_required(posture, 'tcp_discovery_stages')
-                        max_stages = int(_policy_required(posture, 'max_stages'))
-                        for stage_index, topn in enumerate(stages[:max_stages], start=1):
-                            requested_top_port_counts_by_host.setdefault(host, []).append(int(topn))
-                            p = outfile(f'nmap_tcp_top{topn}', host, 'xml')
-                            timing = list(_policy_required(posture, 'nmap_timing'))
-                            r = run_cmd([nmap,'-sS','--top-ports',str(topn),'--open'] + timing + ['-oX',str(p),host], p, 600, True)
-                            rows, parsed_discovery = parse_nmap_capture(p, f'nmap_tcp_top{topn}', host)
-                            append_discovery_evidence(host, parsed_discovery, 'tcp')
-                            ports = sorted({int(x['port']) for x in rows if x.get('port')})
-                            coverage.append(_coverage(f'nmap_tcp_top{topn}', _status_from_result(r, bool(ports)), f'TCP discovery - top {topn}', f'{len(ports)} open TCP port(s) observed.', str(p), r))
-                            _add_raw(raw, f'nmap_tcp_top{topn}', host, '', str(p), 'nmap_xml', True)
+
+                        if acl_pause_requested(host):
+                            coverage.append(_coverage('acl_adaptive_pause', scan_store.STATUS_EMPTY, 'Policy stop condition', f'Additional discovery batches paused for {host} after corroborated ACL behaviour.', ''))
+                            break
+
+                        min_sleep = float(micro_cfg.get('sleep_between_batches_seconds_min') or 0)
+                        max_sleep = float(micro_cfg.get('sleep_between_batches_seconds_max') or min_sleep)
+                        if wave_start + wave_width < len(batches) and max_sleep > 0:
+                            time.sleep(random.uniform(min_sleep, max_sleep))
+
+                    ports = sorted(all_seen)
+                    coverage.append(_coverage(
+                        'nmap_tcp_operator_selected',
+                        scan_store.STATUS_SUCCESS if ports else scan_store.STATUS_EMPTY,
+                        'TCP Service Discovery Summary',
+                        f'{len(ports)} open TCP port(s) observed using {selection_mode} coverage; '
+                        f'{selection.get("count", 0)} port(s) selected by operator.',
+                        '',
+                        {'success': True, 'cmd': 'operator-selected batched TCP discovery'},
+                    ))
                 if host_environment_context:
                     environment_context_indicators.extend([{**d,'host':host} for d in host_environment_context])
                     scan_store.log(scan_id, f'Environment context indicators observed on {host}; Full Recon continues high-value validation within policy.', 'INFO')
-                # Targeted legacy/lab-port expansion is never automatic in the quiet baseline.
+                # Port coverage is operator-owned. Do not add hidden policy expansion
+                # ports after a Full/Essentials/Custom selection.
                 expanded_ports = list(ports)
-                targeted_extra = sorted(set(int(x) for x in (_load_recon_policy().get('follow_up_only_ports') or [])) - set(ports))
-                if targeted_extra:
-                    coverage.append(_coverage('nmap_tcp_targeted_expansion', scan_store.STATUS_EMPTY, 'Full Recon coverage', 'Targeted legacy/application port expansion handled by policy-defined micro-batches and high-value validation.', ''))
-                # Full Recon targeted expansion: not a 65k sweep, but it must not
-                # miss enterprise/legacy ports that senior reviewers expect.
-                expansion_ports = [int(x) for x in (_load_recon_policy().get('targeted_expansion_ports') or [])]
-                missing_expansion = sorted(set(expansion_ports) - set(expanded_ports))
-                if missing_expansion and enabled('tcp_discovery') and not acl_pause_requested(host):
-                    requested_tcp_ports_by_host.setdefault(host, set()).update(missing_expansion)
-                    p_exp = outfile('nmap_tcp_targeted_expansion', host, 'xml')
-                    timing_exp = list(_policy_required(_load_recon_policy().get('scan_postures', {}).get('default', {}), 'nmap_timing')) if isinstance(_load_recon_policy().get('scan_postures', {}).get('default', {}), dict) else ['-T2','--max-retries','1']
-                    r_exp = run_cmd([nmap, '-sS', '-p', ','.join(map(str, missing_expansion)), '--open'] + timing_exp + ['-oX', str(p_exp), host], p_exp, 600, True)
-                    rows_exp, parsed_discovery = parse_nmap_capture(p_exp, 'nmap_tcp_targeted_expansion', host)
-                    append_discovery_evidence(host, parsed_discovery, 'tcp')
-                    ports_exp = sorted({int(x['port']) for x in rows_exp if x.get('port')})
-                    if ports_exp:
-                        expanded_ports = sorted(set(expanded_ports) | set(ports_exp))
-                    coverage.append(_coverage('nmap_tcp_targeted_expansion', _status_from_result(r_exp, bool(ports_exp)), 'Targeted high-value TCP expansion', f'{len(ports_exp)} additional high-value TCP port(s) observed; no full 65k sweep performed.', str(p_exp), r_exp))
-                    _add_raw(raw, 'nmap_tcp_targeted_expansion', host, '', str(p_exp), 'nmap_xml', True)
-                coverage.append(_coverage('full_tcp_sweep', scan_store.STATUS_EMPTY, 'Suggested follow-up', 'Full 65k TCP sweep remains deferred; Full Recon uses policy-selected micro-batches plus targeted high-value expansion instead.', ''))
-                open_map[host]=expanded_ports
+                coverage.append(_coverage(
+                    'operator_tcp_coverage',
+                    scan_store.STATUS_SUCCESS if expanded_ports else scan_store.STATUS_EMPTY,
+                    'Operator-selected TCP coverage',
+                    f'No hidden TCP expansion added; {len(expanded_ports)} open port(s) retained from the selected coverage.',
+                    '',
+                ))
+                open_map[host] = expanded_ports
         elif not enabled('tcp_discovery'):
             scan_store.log(scan_id, 'Full TCP discovery was not selected for this scan.', 'INFO')
         _finish(scan_id, task, scan_store.STATUS_SUCCESS if any(open_map.values()) else scan_store.STATUS_EMPTY, f'{sum(len(v) for v in open_map.values())} TCP port(s) observed')
@@ -2958,28 +3202,89 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         _finish(scan_id, task, scan_store.STATUS_SUCCESS if services else scan_store.STATUS_EMPTY, f'{len(services)} service record(s) extracted')
         _publish_partial(scan_id, service_inventory=services)
 
-        # 6 targeted UDP discovery for Full Recon. This is not broad UDP; it is
-        # limited to policy-defined infrastructure/service ports.
+        # 6 operator-selected UDP discovery. Full/Essentials/Custom uses the
+        # same advanced batch, timeout, retry, and parallel controls as TCP.
         task='Low-Impact Service Discovery'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         if enabled('udp_discovery') and nmap:
             for host in live:
                 if acl_pause_requested(host):
                     coverage.append(_coverage('udp_discovery', scan_store.STATUS_EMPTY, 'Policy stop condition', f'UDP follow-up paused for {host} after corroborated ACL behaviour.', ''))
                     continue
-                udp_ports = [int(x) for x in (_load_recon_policy().get('udp_target_ports') or [])]
-                if not udp_ports:
+
+                advanced = scan_options.get('advanced_settings') or {}
+                timeout_seconds = int(advanced.get('command_timeout_seconds') or 600)
+                retry_failed = bool(advanced.get('retry_failed_batches', True))
+                retry_count = int(advanced.get('retry_count') or 0)
+                batch_size = max(1, int(advanced.get('ports_per_batch') or 5))
+                parallel_enabled = bool(advanced.get('parallel_scanning', False))
+                parallel_workers = int(advanced.get('parallel_workers') or 1) if parallel_enabled else 1
+                selection = (scan_options.get('port_selection') or {}).get('udp') or {}
+                selection_mode = str(selection.get('mode') or 'essentials')
+                batches = _chunk_ports(selected_ports(scan_options, 'udp'), batch_size)
+                if not batches:
+                    coverage.append(_coverage('udp_discovery', scan_store.STATUS_EMPTY, 'Operator port selection', 'No UDP ports were selected for discovery.', ''))
                     continue
-                requested_udp_ports_by_host.setdefault(host, set()).update(udp_ports)
-                p_udp = outfile('nmap_udp_targeted', host, 'xml')
-                r_udp = run_cmd([nmap, '-sU', '-p', ','.join(map(str, udp_ports)), '--open', '-T2', '--max-retries', '1', '-oX', str(p_udp), host], p_udp, 900, True)
-                rows_udp, parsed_udp = parse_nmap_capture(p_udp, 'udp_discovery', host, protocol_hint='udp')
-                append_discovery_evidence(host, parsed_udp, 'udp')
-                udp_services.extend(rows_udp)
-                coverage.append(_coverage('udp_discovery', _status_from_result(r_udp, bool(rows_udp)), 'Targeted UDP discovery', f'{len(rows_udp)} UDP service row(s) observed from policy-defined high-value UDP ports.', str(p_udp), r_udp))
-                _add_raw(raw, 'udp_discovery', host, '', str(p_udp), 'nmap_xml', bool(rows_udp))
+
+                scan_store.log(
+                    scan_id,
+                    f'UDP discovery mode={selection_mode} selected_ports={selection.get("count", len(selection.get("ports") or []))} '
+                    f'batch_size={batch_size} parallel={parallel_enabled} workers={parallel_workers} timeout={timeout_seconds}s',
+                    'INFO',
+                )
+                wave_width = max(1, parallel_workers)
+                host_udp_rows: list[dict[str, Any]] = []
+                for wave_start in range(0, len(batches), wave_width):
+                    if acl_pause_requested(host):
+                        coverage.append(_coverage('acl_adaptive_pause_udp', scan_store.STATUS_EMPTY, 'Policy stop condition', f'Additional UDP discovery batches paused for {host} after corroborated ACL behaviour.', ''))
+                        break
+                    wave = batches[wave_start:wave_start + wave_width]
+                    jobs: list[tuple[int, list[int], Path, list[str]]] = []
+                    for offset, clean_batch in enumerate(wave):
+                        batch_index = wave_start + offset + 1
+                        requested_udp_ports_by_host.setdefault(host, set()).update(clean_batch)
+                        out = outfile(f'nmap_udp_batch_{batch_index}', host, 'xml')
+                        cmd = [
+                            nmap, '-Pn', '-sU', '-p', ','.join(map(str, clean_batch)),
+                            '--open', '-T2', '--max-retries', '1', '-oX', str(out), host,
+                        ]
+                        jobs.append((batch_index, clean_batch, out, cmd))
+
+                    for batch_index, clean_batch, out, r_udp in _run_port_batch_wave(
+                        scan_id, jobs, timeout_seconds=timeout_seconds,
+                        retry_failed_batches=retry_failed, retry_count=retry_count,
+                        parallel_workers=parallel_workers,
+                    ):
+                        rows_udp, parsed_udp = parse_nmap_capture(out, f'udp_discovery_batch_{batch_index}', host, protocol_hint='udp')
+                        append_discovery_evidence(host, parsed_udp, 'udp')
+                        host_udp_rows.extend(rows_udp)
+                        coverage.append(_coverage(
+                            f'udp_discovery_batch_{batch_index}',
+                            _status_from_result(r_udp, bool(rows_udp)),
+                            f'UDP Discovery Batch {batch_index}',
+                            f'{len(rows_udp)} UDP service row(s) observed from {len(clean_batch)} operator-selected ports; attempts={r_udp.get("attempts", 1)}.',
+                            str(out),
+                            r_udp,
+                        ))
+                        _add_raw(raw, f'udp_discovery_batch_{batch_index}', host, '', str(out), 'nmap_xml', bool(rows_udp))
+
+                    micro_cfg = _load_recon_policy().get('tcp_micro_batching') or {}
+                    min_sleep = float(micro_cfg.get('sleep_between_batches_seconds_min') or 0)
+                    max_sleep = float(micro_cfg.get('sleep_between_batches_seconds_max') or min_sleep)
+                    if wave_start + wave_width < len(batches) and max_sleep > 0:
+                        time.sleep(random.uniform(min_sleep, max_sleep))
+
+                udp_services.extend(host_udp_rows)
+                coverage.append(_coverage(
+                    'udp_operator_selected',
+                    scan_store.STATUS_SUCCESS if host_udp_rows else scan_store.STATUS_EMPTY,
+                    'UDP Discovery Summary',
+                    f'{len(host_udp_rows)} UDP service row(s) observed using {selection_mode} coverage; '
+                    f'{selection.get("count", 0)} port(s) selected by operator.',
+                    '',
+                ))
             _finish(scan_id, task, scan_store.STATUS_SUCCESS if udp_services else scan_store.STATUS_EMPTY, f'{len(udp_services)} UDP service row(s) observed')
         else:
-            coverage.append(_coverage('udp_discovery', scan_store.STATUS_EMPTY, 'Suggested follow-up', 'Targeted UDP discovery disabled by profile/policy or nmap unavailable.', ''))
+            coverage.append(_coverage('udp_discovery', scan_store.STATUS_EMPTY, 'Suggested follow-up', 'UDP discovery disabled by evidence-tool selection/policy or nmap unavailable.', ''))
             _finish(scan_id, task, scan_store.STATUS_EMPTY, 'UDP discovery deferred')
 
         _publish_partial(

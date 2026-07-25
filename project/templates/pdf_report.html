@@ -7,17 +7,50 @@
 <h1>Reconnaissance Evidence Report - {{ results.target_input or scan.target }}</h1>
 <p class="muted">CVE findings are linked from collected product, version and supporting service evidence. The recon module does not score, rank, prioritise or make execution decisions.</p>
 <h2>Summary</h2>
-<table><tr><th>Hosts</th><th>TCP Services</th><th>UDP Services</th><th>CVE Findings</th><th>Exposure Indicators</th><th>Candidate Groups</th></tr><tr><td>{{ results.hosts|length }}</td><td>{{ results.tcp_service_count }}</td><td>{{ results.udp_service_count }}</td><td>{{ results.cve_matches|length }}</td><td>{{ results.key_exposure_indicators|default(results.security_relevant_observations|default([]))|length }}</td><td>{{ results.candidate_cve_groups|default([])|length }}</td></tr></table>
+{% set pdf_cve_rows = (results.cve_matches|default([])) + (results.relevant_cve_information|default([])) %}
+{% set cve_ns = namespace(ids=[]) %}{% for c in pdf_cve_rows %}{% if c.cve_id and c.cve_id not in cve_ns.ids %}{% set cve_ns.ids = cve_ns.ids + [c.cve_id] %}{% endif %}{% endfor %}
+<table><tr><th>Hosts</th><th>TCP Services</th><th>UDP Services</th><th>CVE References</th><th>Exposure Indicators</th></tr><tr><td>{{ results.hosts|length }}</td><td>{{ results.tcp_service_count }}</td><td>{{ results.udp_service_count }}</td><td>{{ cve_ns.ids|length }}</td><td>{{ results.key_exposure_indicators|default(results.security_relevant_observations|default([]))|length }}</td></tr></table>
+
+{% set cfg = results.scan_options|default(scan.scan_options|default({})) %}{% set pcfg = cfg.port_selection|default({}) %}{% set tcp = pcfg.tcp|default({}) %}{% set udp = pcfg.udp|default({}) %}{% set adv = cfg.advanced_settings|default({}) %}
+<h2>Scan Configuration</h2>
+<table><tr><th>TCP</th><th>UDP</th><th>Ports / Batch</th><th>Timeout</th><th>Retry</th><th>Parallel</th></tr><tr><td>{{ tcp.display|default(tcp.mode|default('Not recorded')) }}</td><td>{{ udp.display|default(udp.mode|default('Not recorded')) }}</td><td>{{ adv.ports_per_batch|default('Not recorded') }}</td><td>{% if adv.command_timeout_seconds is defined %}{{ adv.command_timeout_seconds }} s{% else %}Not recorded{% endif %}</td><td>{% if adv.retry_failed_batches %}Enabled · {{ adv.retry_count|default(0) }} max{% else %}Disabled{% endif %}</td><td>{% if adv.parallel_scanning %}Enabled · {{ adv.parallel_workers|default(1) }} workers{% else %}Disabled{% endif %}</td></tr></table>
 {% if results.pentester_summary %}<h2>Pentester Summary</h2><ul>{% for item in results.pentester_summary %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
 {% if results.mitre_source and results.mitre_source.cvss_metadata_warning %}<p class="muted"><b>CVE metadata notice:</b> {{ results.mitre_source.cvss_metadata_warning }}</p>{% endif %}
 <h2>CVE Findings Supported by Evidence</h2>
 {% if results.cve_matches %}{% for c in results.cve_matches %}<div class="finding"><h3>{{ c.cve_id }} - {{ c.product }} {{ c.version }}</h3><p><b>Finding Type:</b> {{ c.finding_type or 'CVE Finding' }}</p><p><b>Host / Ports:</b> {{ c.host }} / {{ c.observed_ports|default([c.port ~ '/' ~ c.protocol])|join(', ') }}</p><p><b>Vulnerability:</b> {{ c.vulnerability }}</p><p><b>Evidence-Based Outcome:</b> {{ c.attacker_outcome }}</p><p><b>Remediation Direction:</b> {{ c.remediation_direction }}</p><p><b>Evidence Basis:</b> {{ c.classification_reason }}</p></div>{% endfor %}{% else %}<p>No CVE findings were linked from the collected evidence.</p>{% endif %}
+<h2>Published CVSS Severity</h2>
+<p class="muted">CVSS 3.1 and CVSS 4.0 are shown independently. A missing version is reported as Not published; scores are not converted between versions.</p>
+<table>
+<thead><tr><th>CVE ID</th><th>Affected Service</th><th>CVSS 3.1</th><th>Severity</th><th>CVSS 4.0</th><th>Severity</th><th>Published / Verified</th></tr></thead>
+<tbody>
+{% set severity_rows = (results.cve_matches|default([])) + (results.relevant_cve_information|default([])) %}
+{% if severity_rows %}
+{% for c in severity_rows %}
+{% set metrics = c.source_cvss_metrics|default({}) %}
+{% set m31 = metrics.get('3.1', {}) %}
+{% set m40 = metrics.get('4.0', {}) %}
+<tr>
+<td>{{ c.cve_id }}</td>
+<td>{{ c.product or c.service }}{% if c.version %} {{ c.version }}{% endif %} ({{ c.port }}/{{ c.protocol }})</td>
+<td>{% if m31 and m31.get('cvss_score') is not none %}{{ '%.1f'|format(m31.get('cvss_score')) }}<br><span class="small">{{ m31.get('cvss_vector','') }}</span>{% else %}Not published{% endif %}</td>
+<td>{% if m31 and m31.get('cvss_score') is not none %}{{ m31.get('cvss_severity','') }}{% else %}—{% endif %}</td>
+<td>{% if m40 and m40.get('cvss_score') is not none %}{{ '%.1f'|format(m40.get('cvss_score')) }}<br><span class="small">{{ m40.get('cvss_vector','') }}</span>{% else %}Not published{% endif %}</td>
+<td>{% if m40 and m40.get('cvss_score') is not none %}{{ m40.get('cvss_severity','') }}{% else %}—{% endif %}</td>
+<td class="small">
+{% if m31 %}3.1: {% if m31.get('cvss_source') == c.cve_publisher_id %}{{ c.cve_publisher|default('CNA') }} (CNA){% else %}{{ m31.get('cvss_source','Published source') }}{% endif %} — {{ 'vector verified' if m31.get('cvss_verified') else 'not verified' }}<br>{% endif %}
+{% if m40 %}4.0: {% if m40.get('cvss_source') == c.cve_publisher_id %}{{ c.cve_publisher|default('CNA') }} (CNA){% else %}{{ m40.get('cvss_source','Published source') }}{% endif %} — {{ 'vector verified' if m40.get('cvss_verified') else 'not verified' }}{% endif %}
+{% if not m31 and not m40 %}No CVSS score published{% endif %}
+</td>
+</tr>
+{% endfor %}
+{% else %}<tr><td colspan="7">No CVE severity records are available.</td></tr>{% endif %}
+</tbody></table>
 <h2>Key Exposure Indicators</h2>
 <table><thead><tr><th>Host</th><th>Ports</th><th>Service</th><th>Observation</th><th>Evidence</th></tr></thead><tbody>{% for o in results.key_exposure_indicators|default(results.security_relevant_observations|default([])) %}<tr><td>{{ o.host }}</td><td>{% if o.ports %}{{ o.ports|join(', ') }}{% elif o.port %}{{ o.port }}{% if o.protocol %}/{{ o.protocol }}{% endif %}{% endif %}</td><td>{{ o.service }}</td><td>{{ o.observation }}</td><td>{{ o.evidence }}</td></tr>{% endfor %}</tbody></table>
 <h2>Attack Surface Workbench</h2>
 {% for section in results.attack_surface_sections|default([]) %}<h3>{{ section.category }}</h3>{% for s in section.services %}<div class="service"><p><span class="tag">{{ s.service }}</span> — {{ s.product or 'Unidentified product' }}{% if s.version %} {{ s.version }}{% endif %} | {{ s.host }} | {{ s.ports|join(', ') }} | {{ s.state }}</p>{% if s.observations %}<p><b>Exposure Evidence:</b> {% for o in s.observations %}{{ o.observation }}{% if not loop.last %}; {% endif %}{% endfor %}</p>{% endif %}{% if s.confirmed_cves %}<p><b>CVE Findings:</b> {% for c in s.confirmed_cves %}{{ c.cve_id }}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}{% if s.candidate_references %}<p><b>Candidate CVE References Available:</b> {% for g in s.candidate_references %}{{ g.reference_count }} reference{% if g.reference_count != 1 %}s{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}</p>{% endif %}{% if s.web_paths %}<p><b>Discovered Web Paths:</b> {% for path in s.web_paths[:10] %}{{ path.path }} ({{ path.status_code }}){% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}{% if s.evidence_gaps %}<p><b>Evidence Gaps:</b> {{ s.evidence_gaps|join(', ') }}</p>{% endif %}</div>{% endfor %}{% endfor %}
 <h2>Technical Appendix - Service Inventory</h2>
-<table><thead><tr><th>Host</th><th>Port</th><th>Protocol</th><th>Service</th><th>Product</th><th>Version</th><th>Status</th></tr></thead><tbody>{% for s in results.service_summary|default([]) %}<tr><td>{{ s.host }}</td><td>{{ s.port }}</td><td>{{ s.protocol }}</td><td>{{ s.service }}</td><td>{{ s.product }}</td><td>{{ s.version }}</td><td>{{ s.status }}</td></tr>{% endfor %}</tbody></table>
+<table><thead><tr><th>Host</th><th>Port</th><th>Protocol</th><th>Service</th><th>Product</th><th>Version</th><th>Evidence</th></tr></thead><tbody>{% for s in results.service_summary|default([]) %}<tr><td>{{ s.host }}</td><td>{{ s.port }}</td><td>{{ s.protocol }}</td><td>{{ s.service }}</td><td>{{ s.product }}</td><td>{{ s.version }}</td><td>{% if s.evidence_sources %}{% for source in s.evidence_sources %}{{ source|replace('_',' ')|title }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}{{ s.status }}{% endif %}</td></tr>{% endfor %}</tbody></table>
 <h2>Technical Appendix - Evidence Collection Summary</h2>
 <table><thead><tr><th>Check</th><th>Status</th><th>Evidence Summary</th><th>Reference</th></tr></thead><tbody>{% for r in results.tool_coverage|default([]) %}<tr><td>{{ r.tool }}</td><td>{{ r.status }}</td><td>{{ r.evidence_type or r.information_added }}{% if r.note %}<br><span class="small">{{ r.note }}</span>{% endif %}</td><td>{% if r.output_file %}{{ r.output_file.split('/')[-1] }}{% endif %}</td></tr>{% endfor %}</tbody></table>
 </body></html>

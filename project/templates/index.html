@@ -47,6 +47,11 @@
       <i class="bi bi-tools"></i>
       <span>Tools</span>
     </a>
+
+    <a href="#advanced" class="navbar-link">
+      <i class="bi bi-sliders"></i>
+      <span>Advanced</span>
+    </a>
   </div>
 
   <!-- Right Controls -->
@@ -72,10 +77,10 @@
     <div class="hero-top">
 
       <div class="index-head">
-        <p class="eyebrow">FULL / CUSTOM RECON</p>
+        <p class="eyebrow">CONFIGURABLE RECON</p>
         <h1>Attack Surface Discovery</h1>
         <p class="muted">
-          Enter a target and start authorised recon. Full Recon maximises evidence collection without exploitation, brute force, scoring, or teammate-module changes. Custom Recon runs only the selected collectors.
+          Enter a target, choose exact TCP/UDP coverage, select evidence collectors, and tune bounded scan execution. Scanner controls stay inside reconnaissance; technique mapping remains a separate teammate-owned stage.
         </p>
       </div>
 
@@ -121,6 +126,7 @@
 
         <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting Recon...';">
           <input type="hidden" name="_csrf_token" id="csrfTokenInput" value="{{ operator_csrf_token }}" />
+          <input type="hidden" name="profile" value="custom" />
 
           <section class="index-section target-card target-section">
             <label for="target">
@@ -136,20 +142,56 @@
             <section id="strategy" class="index-section recon-strategy-section">
               <div class="section-header">
                 <span class="step-number">2</span>
-                  <span class="label">RECON STRATEGY</span>
+                <span class="label">RECON STRATEGY</span>
               </div>
-              <div class="profile-select">
-                <label class="radio-card active" data-profile-card="full">
-                  <input type="radio" name="profile" value="full" checked>
-                  <b>Full Recon</b>
-                  <span>Performs a comprehensive authorised assessment with service discovery, vulnerability detection, and MITRE ATT&CK mapping.</span>
-                </label>
-                <label class="radio-card" data-profile-card="custom">
-                  <input type="radio" name="profile" value="custom">
-                  <b>Custom Recon</b>
-                  <span>Runs only the reconnaissance modules you select. Invalid or unknown tool IDs are ignored.</span>
-                </label>
+              <h2>Port Coverage</h2>
+              <p class="tool-selection-description">Choose TCP and UDP coverage independently. Custom ranges support values such as <span class="mono">22,80,443,8000-8100</span>.</p>
+
+              <div class="port-strategy-grid">
+                <article class="port-strategy-card">
+                  <div class="port-strategy-head">
+                    <div>
+                      <span class="protocol-pill">TCP</span>
+                      <b>TCP Ports</b>
+                    </div>
+                    <span class="small muted" id="tcpPortSummary">Essentials</span>
+                  </div>
+                  <div class="segmented-control" data-port-mode-group="tcp">
+                    <label><input type="radio" name="tcp_port_mode" value="full"><span>Full</span></label>
+                    <label><input type="radio" name="tcp_port_mode" value="essentials" checked><span>Essentials</span></label>
+                    <label><input type="radio" name="tcp_port_mode" value="custom"><span>Custom</span></label>
+                  </div>
+                  <div class="custom-port-input" id="tcpCustomWrap" hidden>
+                    <label for="tcpCustomPorts">Custom TCP ports</label>
+                    <input id="tcpCustomPorts" type="text" name="tcp_custom_ports" placeholder="22,80,443,8000-8100" disabled>
+                    <div class="port-preview small" id="tcpPortPreview">Enter ports to see the resolved count.</div>
+                  </div>
+                  <p class="small muted port-mode-note" id="tcpModeNote">Essentials uses the reviewed TCP service list from recon policy.</p>
+                </article>
+
+                <article class="port-strategy-card">
+                  <div class="port-strategy-head">
+                    <div>
+                      <span class="protocol-pill">UDP</span>
+                      <b>UDP Ports</b>
+                    </div>
+                    <span class="small muted" id="udpPortSummary">Essentials</span>
+                  </div>
+                  <div class="segmented-control" data-port-mode-group="udp">
+                    <label><input type="radio" name="udp_port_mode" value="full"><span>Full</span></label>
+                    <label><input type="radio" name="udp_port_mode" value="essentials" checked><span>Essentials</span></label>
+                    <label><input type="radio" name="udp_port_mode" value="custom"><span>Custom</span></label>
+                  </div>
+                  <div class="custom-port-input" id="udpCustomWrap" hidden>
+                    <label for="udpCustomPorts">Custom UDP ports</label>
+                    <input id="udpCustomPorts" type="text" name="udp_custom_ports" placeholder="53,67-69,123,137,161" disabled>
+                    <div class="port-preview small" id="udpPortPreview">Enter ports to see the resolved count.</div>
+                  </div>
+                  <p class="small muted port-mode-note" id="udpModeNote">Essentials uses the reviewed UDP service list from recon policy.</p>
+                  <div class="scan-warning compact" id="fullUdpWarning" hidden>Full UDP scans all 65,535 UDP ports. UDP discovery can be substantially slower than TCP because many ports may not respond; use Full only when the authorised scope and available scan window justify it.</div>
+                </article>
               </div>
+              <div class="scan-warning" id="fullPortWarning" hidden>Full-range scanning covers ports 1–65535. Full UDP scans in particular can take substantially longer than Essentials or Custom coverage.</div>
             </section>
 
             <section id="mapping" class="index-section attack-mode-section">
@@ -225,6 +267,58 @@
 
 </section>
 
+            <section id="advanced" class="index-section advanced-settings-section">
+              <div class="section-header">
+                <span class="step-number">5</span>
+                <span class="label">ADVANCED SCAN SETTINGS</span>
+              </div>
+              <div class="advanced-settings-head">
+                <div>
+                  <h2>Execution Controls</h2>
+                  <p class="tool-selection-description">Tune port-discovery execution without changing CVE logic, evidence semantics, or teammate-owned mapping.</p>
+                </div>
+                <button class="btn ghost mini" type="button" id="resetAdvanced">Reset Defaults</button>
+              </div>
+
+              <div class="advanced-grid">
+                <label class="setting-card">
+                  <span>Batch timeout</span>
+                  <div class="setting-input-row"><input type="number" id="commandTimeout" name="command_timeout_seconds" min="30" max="3600" value="600"><span>seconds</span></div>
+                  <small>Maximum time allowed for each TCP/UDP discovery batch.</small>
+                </label>
+
+                <label class="setting-card">
+                  <span>Ports per batch</span>
+                  <div class="setting-input-row"><input type="number" id="portsPerBatch" name="ports_per_batch" min="1" max="2048" value="5"><span>ports</span></div>
+                  <small>Controls how many selected ports are included in one Nmap command.</small>
+                </label>
+
+                <div class="setting-card">
+                  <label class="switch-row" for="retryFailed">
+                    <span><b>Retry failed batches</b><small>Retry only command failures/timeouts, not closed ports.</small></span>
+                    <input type="checkbox" id="retryFailed" name="retry_failed_batches" checked>
+                  </label>
+                  <label class="setting-input-row sub-setting" for="retryCount">
+                    <span>Retries</span>
+                    <input type="number" id="retryCount" name="retry_count" min="0" max="3" value="1">
+                  </label>
+                </div>
+
+                <div class="setting-card">
+                  <label class="switch-row" for="parallelScanning">
+                    <span><b>Parallel port batches</b><small>Run multiple independent discovery batches at once.</small></span>
+                    <input type="checkbox" id="parallelScanning" name="parallel_scanning">
+                  </label>
+                  <label class="setting-input-row sub-setting" for="parallelWorkers">
+                    <span>Workers</span>
+                    <input type="number" id="parallelWorkers" name="parallel_workers" min="1" max="8" value="2" disabled>
+                  </label>
+                </div>
+              </div>
+              <div class="scan-warning compact" id="parallelScanWarning" hidden>Parallel scanning increases speed but also increases simultaneous network activity and visibility. Use a worker count appropriate to the authorised environment.</div>
+              <p class="small muted">Policy stop conditions still override operator settings. Parallel execution is disabled by default.</p>
+            </section>
+
             <section class="index-section">
               <span class="label">What the recon module will produce</span>
               <div class="recon-output-grid">
@@ -263,27 +357,131 @@
   </main>
   <footer class="footer">
   <p>
-    Automated Penetration Testing · Group 6 · Full / Custom Recon Build
+    Automated Penetration Testing · Group 6 · Configurable Recon Build
   </p>
 </footer>
 
   <script>
-  function applyProfile(profile){
-    document.querySelectorAll('[data-profile-card]').forEach(c => c.classList.toggle('active', c.dataset.profileCard === profile));
-    if(profile === 'custom') return;
+  const portModeCopy = {
+    tcp: {
+      full: ['Full 1-65535', 'Full TCP coverage scans every TCP port from 1 through 65535.'],
+      essentials: ['Essentials', 'Essentials uses the reviewed TCP service list from recon policy.'],
+      custom: ['Custom', 'Only the TCP ports/ranges entered below will be scanned.']
+    },
+    udp: {
+      full: ['Full 1-65535', 'Full UDP coverage scans every UDP port from 1 through 65535 and may take substantially longer.'],
+      essentials: ['Essentials', 'Essentials uses the reviewed UDP service list from recon policy.'],
+      custom: ['Custom', 'Only the UDP ports/ranges entered below will be scanned.']
+    }
+  };
+
+  function resolvePortSpec(spec) {
+    const ports = new Set();
+    const text = (spec || '').trim();
+    if (!text) return {count: 0, error: ''};
+    for (const rawPart of text.split(',')) {
+      const part = rawPart.trim();
+      if (!part) continue;
+      if (/^\d+$/.test(part)) {
+        const port = Number(part);
+        if (port < 1 || port > 65535) return {count: 0, error: `Port ${port} is outside 1-65535.`};
+        ports.add(port);
+        continue;
+      }
+      const match = part.match(/^(\d+)\s*-\s*(\d+)$/);
+      if (!match) return {count: 0, error: `Invalid entry: ${part}`};
+      const start = Number(match[1]);
+      const end = Number(match[2]);
+      if (start < 1 || end > 65535 || start > end) return {count: 0, error: `Invalid range: ${part}`};
+      for (let port = start; port <= end; port += 1) ports.add(port);
+    }
+    return {count: ports.size, error: ''};
+  }
+
+  function updatePortPreview(protocol) {
+    const input = document.getElementById(`${protocol}CustomPorts`);
+    const preview = document.getElementById(`${protocol}PortPreview`);
+    if (!input || !preview) return;
+    const result = resolvePortSpec(input.value);
+    preview.classList.toggle('invalid', Boolean(result.error));
+    preview.classList.toggle('valid', !result.error && result.count > 0);
+    preview.textContent = result.error
+      ? result.error
+      : result.count > 0
+        ? `Resolved: ${result.count.toLocaleString()} unique ${protocol.toUpperCase()} port${result.count === 1 ? '' : 's'}.`
+        : 'Enter ports to see the resolved count.';
+  }
+
+  function applyPortMode(protocol) {
+    const selected = document.querySelector(`input[name="${protocol}_port_mode"]:checked`)?.value || 'essentials';
+    const wrap = document.getElementById(`${protocol}CustomWrap`);
+    const input = document.getElementById(`${protocol}CustomPorts`);
+    const summary = document.getElementById(`${protocol}PortSummary`);
+    const note = document.getElementById(`${protocol}ModeNote`);
+    if (wrap) wrap.hidden = selected !== 'custom';
+    if (input) {
+      input.disabled = selected !== 'custom';
+      input.required = selected === 'custom';
+    }
+    if (summary) summary.textContent = portModeCopy[protocol][selected][0];
+    updatePortPreview(protocol);
+    if (note) note.textContent = portModeCopy[protocol][selected][1];
+    document.querySelectorAll(`[data-port-mode-group="${protocol}"] label`).forEach(label => {
+      label.classList.toggle('active', label.querySelector('input')?.value === selected);
+    });
+    const fullWarning = document.getElementById('fullPortWarning');
+    if (fullWarning) {
+      const tcpFull = document.querySelector('input[name="tcp_port_mode"]:checked')?.value === 'full';
+      const udpFull = document.querySelector('input[name="udp_port_mode"]:checked')?.value === 'full';
+      fullWarning.hidden = !(tcpFull || udpFull);
+    }
+    const udpWarning = document.getElementById('fullUdpWarning');
+    if (udpWarning) udpWarning.hidden = document.querySelector('input[name="udp_port_mode"]:checked')?.value !== 'full';
+  }
+
+  ['tcp','udp'].forEach(protocol => {
+    document.querySelectorAll(`input[name="${protocol}_port_mode"]`).forEach(radio => {
+      radio.addEventListener('change', () => applyPortMode(protocol));
+    });
+    document.getElementById(`${protocol}CustomPorts`)?.addEventListener('input', () => updatePortPreview(protocol));
+    applyPortMode(protocol);
+  });
+
+  document.getElementById('selectAll')?.addEventListener('click', () => {
+    document.querySelectorAll('.tool-toggle input[type="checkbox"]').forEach(cb => cb.checked = true);
+  });
+  document.getElementById('selectFull')?.addEventListener('click', () => {
     document.querySelectorAll('.tool-toggle').forEach(row => {
       const cb = row.querySelector('input[type="checkbox"]');
-      if(cb) cb.checked = row.dataset.full === '1';
+      if (cb) cb.checked = row.dataset.full === '1';
     });
+  });
+
+  const retryFailed = document.getElementById('retryFailed');
+  const retryCount = document.getElementById('retryCount');
+  const parallelScanning = document.getElementById('parallelScanning');
+  const parallelWorkers = document.getElementById('parallelWorkers');
+  function syncAdvancedState() {
+    if (retryCount) retryCount.disabled = !retryFailed?.checked;
+    if (parallelWorkers) parallelWorkers.disabled = !parallelScanning?.checked;
+    const parallelWarning = document.getElementById('parallelScanWarning');
+    if (parallelWarning) parallelWarning.hidden = !parallelScanning?.checked;
   }
-  document.querySelectorAll('input[name="profile"]').forEach(r => r.addEventListener('change', e => applyProfile(e.target.value)));
-  document.querySelectorAll('.tool-toggle input').forEach(cb => cb.addEventListener('change', () => {
-    const customRadio = document.querySelector('input[name="profile"][value="custom"]');
-    if (customRadio) customRadio.checked = true;
-    applyProfile('custom');
-}));
-  document.getElementById('selectAll')?.addEventListener('click', () => {document.querySelector('input[value="custom"]').checked=true;applyProfile('custom');document.querySelectorAll('.tool-toggle input').forEach(cb=>cb.checked=true);});
-  document.getElementById('selectFull')?.addEventListener('click', () => {document.querySelector('input[name="profile"][value="full"]').checked=true;applyProfile('full');});
+  retryFailed?.addEventListener('change', syncAdvancedState);
+  parallelScanning?.addEventListener('change', syncAdvancedState);
+  syncAdvancedState();
+
+  document.getElementById('resetAdvanced')?.addEventListener('click', () => {
+    const timeout = document.getElementById('commandTimeout');
+    const batch = document.getElementById('portsPerBatch');
+    if (timeout) timeout.value = '600';
+    if (batch) batch.value = '5';
+    if (retryFailed) retryFailed.checked = true;
+    if (retryCount) retryCount.value = '1';
+    if (parallelScanning) parallelScanning.checked = false;
+    if (parallelWorkers) parallelWorkers.value = '2';
+    syncAdvancedState();
+  });
 
   document.getElementById('operatorUnlockBtn')?.addEventListener('click', async () => {
     const input = document.getElementById('operatorTokenInput');

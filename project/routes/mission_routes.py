@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from flask import jsonify, render_template, request
+from flask import jsonify, render_template, request, session
 
 from automation.mission_service import get_mission_service
 from automation.playbook_loader import list_playbooks
+from core.services import metasploit_service
+from core.helpers import _active_attack_advice, _active_metasploit_results, _save_active_scan_fields
 
 
 def _body() -> dict[str, Any]:
@@ -128,25 +130,31 @@ def register_routes(app):
         body = _body()
         playbook_id = str(body.get("playbook_id") or "").strip() or None
         risk_posture = str(body.get("risk_posture") or "").strip() or None
-        scan_id = str(body.get("scan_id") or "").strip()
+        scan_id = str(body.get("scan_id") or session.get("scan_id") or "").strip()
         notes = str(body.get("notes") or "")
         scope = body.get("scope") if isinstance(body.get("scope"), dict) else {}
         parsed = body.get("parsed_results") if isinstance(body.get("parsed_results"), dict) else None
         if not parsed and scan_id:
             parsed = _load_scan_results(scan_id)
 
-        # Minimal empty surface if none provided (demo interior loop)
+        # Do not create a misleading empty mission. A playbook needs the active scan.
         if not parsed:
             hosts = body.get("hosts")
             ports = body.get("ports")
-            if isinstance(ports, list):
+            if isinstance(ports, list) and ports:
                 parsed = {
-                    "target": str(body.get("target") or "0.0.0.0"),
+                    "target": str(body.get("target") or ""),
+                    "target_ip": str(body.get("target") or ""),
                     "ports": ports,
                     "hosts": hosts or [],
                 }
-            elif isinstance(hosts, list):
+            elif isinstance(hosts, list) and hosts:
                 parsed = {"hosts": hosts, "target": str(body.get("target") or "")}
+            else:
+                return jsonify({
+                    "ok": False,
+                    "error": "No active scan evidence was found. Open Results from a completed scan, then start the mission again."
+                }), 400
 
         try:
             mission = svc().start(
@@ -202,6 +210,76 @@ def register_routes(app):
                 approved=bool(approved),
                 operator_note=note,
             )
+
+            # Explicit approval is the execution gate.  For a Metasploit catalog
+            # action, resolve the matching current-scan action and execute it now,
+            # then feed the result back into the mission closed loop.
+            if approved:
+                queue_item = next(
+                    (item for item in (mission.get("action_queue") or [])
+                     if str(item.get("queue_id") or item.get("id") or "") == queue_id),
+                    None,
+                )
+                catalog_key = str((queue_item or {}).get("catalog_key") or "")
+                if catalog_key.startswith("msf_"):
+                    parsed = mission.get("parsed_results_snapshot") or _load_scan_results(str(mission.get("scan_id") or ""))
+                    if parsed:
+                        previous = _active_metasploit_results()
+                        proposed = metasploit_service.propose_actions(
+                            parsed_results=parsed,
+                            attack_advice=_active_attack_advice(),
+                            previous_results=previous,
+                        )
+                        candidate = next(
+                            (
+                                action for action in (proposed.get("actions") or [])
+                                if action.get("policy_key") == catalog_key
+                                and str(action.get("target") or "") == str((queue_item or {}).get("target") or "")
+                                and int(action.get("port") or 0) == int((queue_item or {}).get("port") or 0)
+                            ),
+                            None,
+                        )
+                        if candidate:
+                            run = metasploit_service.run_action(
+                                action_id=candidate["action_id"],
+                                parsed_results=parsed,
+                                attack_advice=_active_attack_advice(),
+                                approved=True,
+                                previous_results=previous,
+                            )
+                            runs = list(previous.get("runs", [])) if isinstance(previous, dict) else []
+                            if run.get("ok"):
+                                runs.append(run)
+                                msf_state = {
+                                    "ok": True,
+                                    "mode": "metasploit_rpc",
+                                    "target": run.get("action", {}).get("target"),
+                                    "runs": runs[-20:],
+                                    "last_summary": run.get("summary"),
+                                }
+                                session["metasploit_results"] = msf_state
+                                _save_active_scan_fields(metasploit_results=msf_state)
+                                outcome = "success" if run.get("execution_succeeded") else ("partial" if run.get("module_completed") else "failed")
+                                mission = svc().record_outcome(
+                                    mission_id,
+                                    action_queue_id=queue_id,
+                                    catalog_key=catalog_key,
+                                    outcome=outcome,
+                                    detail=str(run.get("summary") or "")[:500],
+                                    set_flags=["foothold_proved"] if run.get("session_created") else None,
+                                )
+                                mission["last_execution"] = run
+                            else:
+                                mission = svc().record_outcome(
+                                    mission_id,
+                                    action_queue_id=queue_id,
+                                    catalog_key=catalog_key,
+                                    outcome="failed",
+                                    detail=str(run.get("error") or "Approved Metasploit action failed")[:500],
+                                )
+                                mission["last_execution"] = run
+                        else:
+                            mission["execution_notice"] = "Approved, but no current Metasploit action matched this exact target and port. Refresh the mission from the latest scan."
         except KeyError as exc:
             msg = str(exc)
             if mission_id in msg or msg == f"'{mission_id}'":

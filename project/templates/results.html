@@ -49,17 +49,22 @@
         reportExportPdf: "{{ url_for('export_report_pdf') }}",
         missionStart: "{{ url_for('api_mission_start') }}",
         missionList: "{{ url_for('api_mission_list') }}",
-        missionGet: "{{ url_for('api_mission_get', mission_id='__ID__') }}".replace('__ID__', ''),
-        missionAdvance: "{{ url_for('api_mission_advance', mission_id='__ID__') }}".replace('__ID__', ''),
-        missionContinue: "{{ url_for('api_mission_continue', mission_id='__ID__') }}".replace('__ID__', ''),
-        missionApprove: "{{ url_for('api_mission_approve', mission_id='__ID__') }}".replace('__ID__', ''),
-        missionValidateSafe: "{{ url_for('api_mission_validate_safe', mission_id='__ID__') }}".replace('__ID__', ''),
-        missionAbort: "{{ url_for('api_mission_abort', mission_id='__ID__') }}".replace('__ID__', ''),
+        missionGet: "/api/mission/",
+        missionAdvance: "/api/mission/",
+        missionContinue: "/api/mission/",
+        missionApprove: "/api/mission/",
+        missionValidateSafe: "/api/mission/",
+        missionAbort: "/api/mission/",
         missionPlaybooks: "{{ url_for('api_mission_playbooks') }}"
       };
 
       window.DASHBOARD_SECURITY = {
         csrfToken: "{{ operator_csrf_token|default('') }}"
+      };
+
+      window.DASHBOARD_CONTEXT = {
+        scanId: "{{ scan.scan_id if scan and scan.scan_id else session.get('scan_id', '') }}",
+        target: "{{ scan.target_ip if scan and scan.target_ip else session.get('target_ip', '') }}"
       };
     </script>
 
@@ -90,15 +95,40 @@
         <small>Discovered during recon</small>
       </article>
       <article class="overview-card">
-        <span class="overview-label">CVE findings</span>
-        <strong>{{ results.cve_matches|length if results and results.cve_matches is defined else 0 }}</strong>
-        <small>Evidence-backed matches</small>
+        <span class="overview-label">CVE references</span>
+        <strong>{{ cve_reference_count|default(0) }}</strong>
+        <small>Unique CVE IDs in review</small>
       </article>
       <article class="overview-card">
         <span class="overview-label">Mode</span>
         <strong>{{ active_mode|upper }}</strong>
         <small>Technique planning mode</small>
       </article>
+    </section>
+
+    {% set scan_cfg = results.scan_options|default(scan.scan_options|default({})) %}
+    {% set port_cfg = scan_cfg.port_selection|default({}) %}
+    {% set tcp_cfg = port_cfg.tcp|default({}) %}
+    {% set udp_cfg = port_cfg.udp|default({}) %}
+    {% set adv_cfg = scan_cfg.advanced_settings|default({}) %}
+    <section class="scan-config-summary" aria-label="Effective scan configuration">
+      <div class="scan-config-summary-head">
+        <div>
+          <span class="label">SCAN CONFIGURATION</span>
+          <h2>Effective Recon Settings</h2>
+        </div>
+        <span class="small muted">Saved with this scan for auditability</span>
+      </div>
+      <div class="scan-config-grid">
+        <div><span>Target</span><strong>{{ scan.target_ip if scan and scan.target_ip else scan.target|default(results.target_input|default('Unknown')) }}</strong></div>
+        <div><span>TCP strategy</span><strong>{{ tcp_cfg.display|default(tcp_cfg.mode|default('Not recorded')) }}</strong></div>
+        <div><span>UDP strategy</span><strong>{{ udp_cfg.display|default(udp_cfg.mode|default('Not recorded')) }}</strong></div>
+        <div><span>Ports / batch</span><strong>{{ adv_cfg.ports_per_batch|default('Not recorded') }}</strong></div>
+        <div><span>Batch timeout</span><strong>{% if adv_cfg.command_timeout_seconds is defined %}{{ adv_cfg.command_timeout_seconds }} s{% else %}Not recorded{% endif %}</strong></div>
+        <div><span>Failed-batch retry</span><strong>{% if adv_cfg.retry_failed_batches %}Enabled · {{ adv_cfg.retry_count|default(0) }} max{% else %}Disabled{% endif %}</strong></div>
+        <div><span>Parallel scanning</span><strong>{% if adv_cfg.parallel_scanning %}Enabled · {{ adv_cfg.parallel_workers|default(1) }} workers{% else %}Disabled{% endif %}</strong></div>
+        <div><span>Evidence tools</span><strong>{{ scan_cfg.enabled_tool_labels|default([])|length }} selected</strong></div>
+      </div>
     </section>
 
 
@@ -266,5 +296,6 @@
       document.getElementById("recordModal").setAttribute("aria-hidden", "true");
     }
   </script>
+<div class="nvd-attribution" style="margin:18px auto;max-width:1200px;padding:10px 14px;font-size:.82rem;opacity:.72;text-align:center;">This product uses the NVD API but is not endorsed or certified by the NVD.</div>
 </body>
 </html>

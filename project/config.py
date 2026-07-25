@@ -64,6 +64,10 @@ class Config:
     ENABLE_HYDRA = os.getenv('ENABLE_HYDRA', '0') == '1'
     GOBUSTER_WORDLIST = os.getenv('GOBUSTER_WORDLIST', '/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt')
     HYDRA_CREDENTIAL_FILE = os.getenv('HYDRA_CREDENTIAL_FILE', '')
+    ENABLE_LAB_CREDENTIAL_AUDIT = os.getenv('ENABLE_LAB_CREDENTIAL_AUDIT', '0') == '1'
+    LAB_CREDENTIAL_AUDIT_FILE = os.getenv('LAB_CREDENTIAL_AUDIT_FILE', '')
+    LAB_CREDENTIAL_AUDIT_MAX_ATTEMPTS = min(int(os.getenv('LAB_CREDENTIAL_AUDIT_MAX_ATTEMPTS', '8')), 10)
+    LAB_CREDENTIAL_AUDIT_DELAY_SECONDS = max(float(os.getenv('LAB_CREDENTIAL_AUDIT_DELAY_SECONDS', '1.5')), 1.0)
     MITRE_CVE_REPO = os.getenv('MITRE_CVE_REPO', 'https://github.com/CVEProject/cvelistV5.git')
 
     PIVOT_CHISEL_BINARY = os.getenv('PIVOT_CHISEL_BINARY', '/usr/bin/chisel')
@@ -99,7 +103,7 @@ class Config:
     )
 
     LAB_WEB_EXPLOIT_PARAMETER = os.getenv(
-        "LAB_WEB_EXPLOIT_PARAMETER",
+        "LAB_WEB_EXPzLOIT_PARAMETER",
         "host",
     )
 
@@ -112,3 +116,22 @@ class Config:
         "LAB_WEB_EXPLOIT_PLATFORM",
         "linux",
     ).lower()
+
+    # --- Controlled SMB lab configuration ---
+    ENABLE_SMB_EXPLOITATION = (
+        os.getenv("ENABLE_SMB_EXPLOITATION", "0") == "1"
+    )
+
+    SMB_DEFAULT_USERNAME = os.getenv(
+        "SMB_DEFAULT_USERNAME",
+        "smbtest",
+    )
+
+    SMB_DEFAULT_SHARE = os.getenv(
+        "SMB_DEFAULT_SHARE",
+        "PrivEscLab",
+    )
+
+    SMB_HYDRA_TIMEOUT = int(
+        os.getenv("SMB_HYDRA_TIMEOUT", "90")
+    )

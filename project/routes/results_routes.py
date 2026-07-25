@@ -28,6 +28,53 @@ from core.helpers import (
 from core.services import db
 
 
+
+
+def _append_scan_cve_rows(rows, parsed_results):
+    """Expose strict and NVD candidate CVEs in the Results modal."""
+    output = list(rows or [])
+    seen = {str(item.get("cve_id")) for item in output if isinstance(item, dict)}
+    candidates = list(parsed_results.get("cve_matches") or []) + list(parsed_results.get("relevant_cve_information") or [])
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        cve_id = str(item.get("cve_id") or "").strip()
+        if not cve_id or cve_id in seen:
+            continue
+        seen.add(cve_id)
+        severity = item.get("source_cvss_severity") or item.get("severity") or "Unknown"
+        output.append({
+            "cve_id": cve_id,
+            "severity": severity,
+            "confidence": item.get("classification") or "Candidate / Needs validation",
+            "service_port": f"{item.get('service', 'Unknown')}/{item.get('port', 'Unknown')}",
+            "description": item.get("vulnerability") or item.get("description") or "Official CVE candidate linked to the observed product/version.",
+            "official_cve_url": f"https://www.cve.org/CVERecord?id={cve_id}",
+            "nvd_url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+            "linked_techniques": [],
+        })
+    return output
+
+
+def _fallback_result_remediations(parsed_results):
+    text = str(parsed_results or {}).lower()
+    fixes = []
+    if any(x in text for x in ("microsoft-ds", "netbios-ssn", "smb", "445", "139")):
+        fixes.extend([
+            "Disable SMBv1 where possible and apply supported Microsoft security updates.",
+            "Restrict ports 139 and 445 to trusted network segments.",
+            "Require SMB signing and strong unique credentials.",
+        ])
+    if any(x in text for x in ("ms-wbt-server", "rdp", "3389")):
+        fixes.append("Restrict RDP to approved management paths and enable NLA/MFA where supported.")
+    if any(x in text for x in ("winrm", "5985", "wsman")):
+        fixes.append("Restrict WinRM to administration hosts and prefer HTTPS transport.")
+    if "windows xp" in text:
+        fixes.insert(0, "Replace the unsupported Windows XP system with a supported operating system.")
+    fixes.append("Re-test after remediation and compare against the current scan baseline.")
+    return [{"type":"baseline","technique_id":"HARDENING","technique_name":"Service hardening","tactic":"remediation","summary":"Generated from current scan evidence.","fixes":list(dict.fromkeys(fixes))}]
+
+
 def register_routes(app):
     @app.route("/results")
     def results():
@@ -42,24 +89,23 @@ def register_routes(app):
                 ai_plan = data.get("ai_plan") or {}
                 mapping_result = data.get("mapping") or {}
 
-                detected_cves = _build_detected_cve_rows(
-                    ai_plan,
-                    mapping_result
-                )
+                parsed_for_view = _stored_results_to_parsed_results(data.get("results") or {}, data)
+                detected_cves = _build_detected_cve_rows(ai_plan, mapping_result, parsed_for_view)
 
                 return render_template(
                     "results.html",
                     scan=data,
-                    results=_stored_results_to_parsed_results(data.get("results") or {}, data),
+                    results=parsed_for_view,
                     mapping=data.get("mapping") or {},
                     ai_plan=ai_plan,
                     detected_cves=detected_cves,
+                    cve_reference_count=len({str(row.get("cve_id")) for row in detected_cves if row.get("cve_id")}),
                     selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
                     attack_plan=data.get("attack_plan"),
                     validation_results=data.get("validation_results"),
                     operation_results=data.get("operation_results"),
                     risk=data.get("risk"),
-                    remediations=data.get("remediations") or [],
+                    remediations=data.get("remediations") or _fallback_result_remediations(parsed_for_view),
                 )
 
         scan = {
@@ -96,10 +142,7 @@ def register_routes(app):
 
         ai_plan = session.get("ai_plan", {})
 
-        detected_cves = _build_detected_cve_rows(
-            ai_plan,
-            mapping_results
-        )
+        detected_cves = _build_detected_cve_rows(ai_plan, mapping_results, parsed_results or {})
 
         return render_template(
             "results.html",
@@ -111,6 +154,7 @@ def register_routes(app):
             mapping=mapping_results,
             ai_plan=ai_plan,
             detected_cves=detected_cves,
+            cve_reference_count=len({str(row.get("cve_id")) for row in detected_cves if row.get("cve_id")}),
             selected_mode=session.get("technique_mode", "hybrid"),
             attack_plan=session.get("attack_plan"),
             validation_results=session.get("validation_results"),

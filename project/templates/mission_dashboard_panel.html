@@ -194,14 +194,23 @@
           const qid = this.dataset.qid;
           const approved = this.dataset.approved === 'true';
           try {
-            const resp = await fetch(`${endpoints.missionApprove || '/api/mission'}/${activeMissionId}/approve`, {
+            const headers = {'Content-Type':'application/json'};
+            const csrf = window.DASHBOARD_SECURITY?.csrfToken || '';
+            if (csrf) headers['X-CSRF-Token'] = csrf;
+            const resp = await fetch(`${endpoints.missionApprove || '/api/mission/'}${activeMissionId}/approve`, {
               method: 'POST',
-              headers: {'Content-Type':'application/json'},
+              headers,
               body: JSON.stringify({action_queue_id: qid, approved: approved})
             });
-            const data = await resp.json();
-            if (data.ok) renderMission(data.mission);
-          } catch(e) { console.error('approve error', e); }
+            const raw = await resp.text();
+            let data = {};
+            try { data = JSON.parse(raw); } catch (_) {}
+            if (!resp.ok || !data.ok) {
+              alert(data.error || `Approval failed (HTTP ${resp.status}).`);
+              return;
+            }
+            renderMission(data.mission);
+          } catch(e) { console.error('approve error', e); alert(`Approval failed: ${e.message || e}`); }
         };
       });
     }
@@ -209,7 +218,7 @@
     async function refreshMission() {
       if (!activeMissionId) return;
       try {
-        const resp = await fetch(`${endpoints.missionGet || '/api/mission'}/${activeMissionId}`);
+        const resp = await fetch(`${endpoints.missionGet || '/api/mission/'}${activeMissionId}`);
         if (!resp.ok) { activeMissionId = null; return; }
         const data = await resp.json();
         if (data.ok && data.mission) renderMission(data.mission);

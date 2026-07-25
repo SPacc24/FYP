@@ -1,0 +1,28 @@
+{
+  "description": "Authorised engagement guardrails. Replace this demo policy with a signed Rules of Engagement allow-list before any company pilot.",
+  "engagement_id": "FYP-DEMO-RECON",
+  "engagement_name": "AutoPenTest private cyber-range recon demonstration",
+  "engagement_start_utc": "",
+  "engagement_expiry_utc": "",
+  "scope_controls": {
+    "allowed_networks": [],
+    "denied_networks": [
+      "0.0.0.0/32",
+      "255.255.255.255/32"
+    ],
+    "allow_private_lab_targets_without_signed_roe": true,
+    "allow_public_targets": false,
+    "max_targets_per_scan": 256
+  },
+  "approvals": {
+    "require_reviewer_approval": false,
+    "require_manager_approval": false,
+    "reviewer_approval_record": "",
+    "manager_approval_record": ""
+  },
+  "data_handling": {
+    "hash_evidence_files": true,
+    "store_raw_outputs": true,
+    "redact_secrets_in_reports": true
+  }
+}

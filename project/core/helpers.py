@@ -1,5 +1,6 @@
 # HELPERS
 import logging
+import re
 import socket
 
 from flask import session
@@ -241,6 +242,62 @@ def _save_active_scan_fields(**fields):
         log.warning("Could not persist active scan fields for %s: %s", scan_id, exc)
 
 
+def _fallback_remediations(parsed_results: dict, mapping_results: dict) -> list[dict]:
+    """Create useful remediation guidance even when CALDERA has not run."""
+    rows: list[dict] = []
+    seen: set[tuple] = set()
+    cves = parsed_results.get("cve_matches") or []
+    for finding in cves:
+        if not isinstance(finding, dict):
+            continue
+        host = finding.get("host") or parsed_results.get("target_ip") or "Unknown"
+        port = finding.get("port") or "N/A"
+        cve_id = finding.get("cve_id") or "Vulnerability finding"
+        key = (host, str(port), cve_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        fix = finding.get("remediation_direction") or (
+            f"Apply the vendor security update for {cve_id}, verify the affected service version, "
+            "and rerun the safe validation check."
+        )
+        rows.append({
+            "type": "vulnerability",
+            "severity": finding.get("source_cvss_severity") or finding.get("severity") or "High",
+            "title": cve_id,
+            "affected_host": host,
+            "affected_port": port,
+            "summary": finding.get("vulnerability") or finding.get("description") or "Review and remediate the matched vulnerability.",
+            "fixes": [fix],
+        })
+
+    for port in parsed_results.get("ports") or []:
+        if not isinstance(port, dict) or str(port.get("state", "")).lower() != "open":
+            continue
+        service = str(port.get("service") or "unknown")
+        number = port.get("port") or "N/A"
+        key = ("service", str(number), service)
+        if key in seen:
+            continue
+        seen.add(key)
+        fixes = ["Restrict access to authorised management hosts and network segments."]
+        lowered = service.lower()
+        if lowered in {"microsoft-ds", "netbios-ssn", "smb"}:
+            fixes = ["Disable SMBv1 where possible, apply current Windows patches, require SMB signing, and restrict ports 139/445 at firewalls."]
+        elif lowered in {"msrpc", "epmap"}:
+            fixes = ["Restrict RPC exposure to trusted administration networks and apply supported operating-system security updates."]
+        rows.append({
+            "type": "vulnerability",
+            "severity": "Medium",
+            "title": f"Exposed {service} service",
+            "affected_host": parsed_results.get("target_ip") or "Unknown",
+            "affected_port": number,
+            "summary": f"{service} is reachable on port {number} and should be reviewed against business need.",
+            "fixes": fixes,
+        })
+    return rows[:20]
+
+
 def _build_active_report_context(data: dict | None = None) -> dict:
     """
     Build the same report inputs for the inline API, full report page, and
@@ -274,6 +331,8 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         }
     risk = active.get("risk") or session.get("risk_score", {})
     remediations = active.get("remediations") or session.get("remediations", [])
+    if not remediations:
+        remediations = _fallback_remediations(parsed_results, mapping_results if isinstance(mapping_results, dict) else {})
 
     try:
         missions = get_mission_service().list_missions(limit=10)
@@ -519,112 +578,266 @@ def _official_cve_url(cve_id):
     return f"https://www.cve.org/CVERecord?id={cve_id}"
 
 
-def _build_detected_cve_rows(ai_plan=None, mapping_result=None):
-    cve_lookup = {}
+def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=None):
+    """Build the user-facing CVE/CVSS review from scanner-owned evidence.
 
-    # 1. First: build from mapping.vulnerabilities directly
-    for vuln in (mapping_result or {}).get("vulnerabilities", []):
-        cve_ids = vuln.get("cve_ids", []) or []
+    Mapping/AI data may contribute linked ATT&CK context, but CVSS metadata and
+    match evidence are taken from canonical scanner CVE rows whenever present.
+    """
+    cve_lookup: dict[str, dict] = {}
 
-        for cve_id in cve_ids:
-            if not cve_id:
-                continue
+    def humanise_match_basis(basis: str, fallback: str = "") -> str:
+        raw = str(basis or "").strip()
+        if not raw:
+            return fallback or "Published affected data matched the observed service evidence."
+        name, _, detail = raw.partition(":")
+        labels = {
+            "structured_exact_version": "Observed version exactly matches a published affected version",
+            "structured_affected_range": "Observed version falls within a published affected range using the record's declared version scheme",
+            "structured_range_lower_endpoint": "Observed version exactly matches the published lower endpoint of an affected range",
+            "structured_range_inclusive_upper_endpoint": "Observed version exactly matches the published inclusive upper endpoint of an affected range",
+            "structured_default_status_affected": "The matched product record explicitly defines otherwise-unlisted versions as affected",
+            "exact_application_cpe": "Observed application CPE and version exactly match a published affected application CPE",
+            "exact_structured_version": "Exact observed version is explicitly listed as affected",
+            "exact_cpe_match": "Observed application CPE matches a published affected CPE",
+            "exact_observed_version_in_record_text": "Observed version is explicitly referenced in the CVE record",
+            "structured_same_product_range": "Observed version falls within a published affected version range",
+            "structured_min_version": "Observed version matches a published affected branch or version range",
+            "named_branch_before": "Observed version is earlier than the published upper bound in the matching product branch",
+            "explicit_same_product_text_range": "Observed version falls within an explicit affected range in the CVE record",
+            "wildcard_version_match": "The CVE record marks the matched product branch as affected without a narrower version bound",
+        }
+        text = labels.get(name, raw.replace("_", " ").strip().capitalize())
+        if detail:
+            text += f": {detail}"
+        return text
 
-            cve_matches = vuln.get("cve_matches", []) or []
-            matching_cve = next(
-                (c for c in cve_matches if c.get("cve_id") == cve_id),
-                {}
+    def ensure(cve_id: str) -> dict:
+        row = cve_lookup.setdefault(cve_id, {
+            "cve_id": cve_id,
+            "severity": "Unknown",
+            "classification": "Candidate",
+            "affected_services": [],
+            "service_port": "Unknown",
+            "description": "No CVE description available.",
+            "match_evidence": "Published CVE reference linked to observed evidence.",
+            "raw_match_basis": "",
+            "match_reason": "",
+            "product_match_basis": "",
+            "cvss_metrics": {},
+            "cve_publisher": "CVE Program CNA",
+            "cve_publisher_id": "",
+            "observed_hosts": [],
+            "observed_products": [],
+            "observed_versions": [],
+            "observed_endpoints": [],
+            "evidence_sources": [],
+            "matched_product_tokens": [],
+            "matched_version_tokens": [],
+            "affected_vendors": [],
+            "affected_products": [],
+            "affected_versions": [],
+            "affected_entries": [],
+            "affected_cpes": [],
+            "references": [],
+            "official_cve_url": _official_cve_url(cve_id),
+            "nvd_url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+            "linked_techniques": [],
+        })
+        return row
+
+    def add_service(row: dict, service: str, product: str, version: str, port, protocol: str = "tcp") -> None:
+        identity = " ".join(x for x in (str(product or "").strip(), str(version or "").strip()) if x).strip()
+        if not identity:
+            identity = str(service or "Unknown")
+        endpoint = f"{port}/{protocol}" if port not in (None, "") else "port unknown"
+        label = f"{identity} ({endpoint})"
+        if label not in row["affected_services"]:
+            row["affected_services"].append(label)
+        row["service_port"] = ", ".join(row["affected_services"])
+
+    def humanise_metric_source(row: dict, metric: dict) -> str:
+        source = str(metric.get("cvss_source") or "").strip()
+        role = str(metric.get("cvss_provider_role") or "").strip().upper()
+        publisher = str(row.get("cve_publisher") or "").strip()
+        publisher_id = str(row.get("cve_publisher_id") or "").strip().lower()
+        source_lower = source.lower()
+        publisher_display = publisher
+        for vendor in row.get("affected_vendors") or []:
+            vendor_text = str(vendor or "").strip()
+            if publisher and vendor_text and publisher.lower() in vendor_text.lower():
+                publisher_display = vendor_text
+                break
+        if publisher_display and publisher_display.islower():
+            publisher_display = publisher_display.replace("_", " ").title()
+
+        if not source:
+            return "Not published"
+        if source_lower in {"nvd", "nvd@nist.gov"} or "nist.gov" in source_lower:
+            return "NVD"
+        if publisher_id and source_lower == publisher_id:
+            return f"{publisher_display} ({role})" if publisher_display and role else (publisher_display or role or source)
+        # CVE records commonly identify providers by UUID. Keep the raw UUID in
+        # Table 3/backend data, but do not make operators decode it in triage.
+        if re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", source_lower):
+            if publisher_display and role == "CNA":
+                return f"{publisher_display} (CNA)"
+            return f"{role} provider" if role else "Published provider"
+        if publisher and source_lower == publisher.lower():
+            return f"{publisher_display} ({role})" if role else publisher_display
+        return f"{source} ({role})" if role and role not in source.upper() else source
+
+    def flatten_metrics(row: dict) -> None:
+        metrics = row.get("cvss_metrics") or {}
+        for version, prefix in (("3.1", "cvss_31"), ("4.0", "cvss_40")):
+            metric = metrics.get(version) if isinstance(metrics, dict) else None
+            metric = metric if isinstance(metric, dict) else {}
+            row[f"{prefix}_score"] = metric.get("cvss_score")
+            row[f"{prefix}_severity"] = metric.get("cvss_severity") or "Not published"
+            row[f"{prefix}_vector"] = metric.get("cvss_vector") or ""
+            row[f"{prefix}_source_raw"] = metric.get("cvss_source") or ""
+            row[f"{prefix}_source"] = humanise_metric_source(row, metric) if metric else ""
+            row[f"{prefix}_verified"] = bool(metric.get("cvss_verified"))
+            row[f"{prefix}_verification"] = metric.get("cvss_verification") or (
+                "Not published" if not metric else "Published metric retained"
             )
 
-            if cve_id not in cve_lookup:
-                cve_lookup[cve_id] = {
-                    "cve_id": cve_id,
-                    "severity": (
-                        matching_cve.get("severity")
-                        or vuln.get("severity")
-                        or "Unknown"
-                    ),
-                    "confidence": "Candidate / Needs validation",
-                    "service_port": f"{vuln.get('service', 'Unknown')}/{vuln.get('port', 'Unknown')}",
-                    "description": (
-                        matching_cve.get("reason")
-                        or matching_cve.get("title")
-                        or vuln.get("title")
-                        or "No CVE description available."
-                    ),
-                    "official_cve_url": _official_cve_url(cve_id),
-                    "nvd_url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
-                    "linked_techniques": [],
-                }
+        available = []
+        for version in ("3.1", "4.0"):
+            metric = metrics.get(version, {}) if isinstance(metrics, dict) else {}
+            try:
+                available.append((float(metric.get("cvss_score")), str(metric.get("cvss_severity") or "Unknown")))
+            except (TypeError, ValueError):
+                pass
+        if available:
+            row["severity"] = max(available, key=lambda item: item[0])[1].title()
 
+        publishers = []
+        verified = []
+        for version in ("3.1", "4.0"):
+            metric = metrics.get(version, {}) if isinstance(metrics, dict) else {}
+            if not metric:
+                continue
+            source = str(metric.get("cvss_source") or "Published source")
+            role = str(metric.get("cvss_provider_role") or "").strip()
+            publisher = f"CVSS {version}: {source}" + (f" ({role})" if role else "")
+            if publisher not in publishers:
+                publishers.append(publisher)
+            if metric.get("cvss_verified"):
+                verified.append(f"CVSS {version}: vector recomputed, matches")
+            else:
+                verified.append(f"CVSS {version}: not independently verified")
+        # Table 1 publication provenance belongs to the CVE record/CNA, not
+        # to the CVSS metric.  CVSS publisher/source stays separate for Table 2.
+        publisher_name = str(row.get("cve_publisher") or "CVE Program CNA").strip()
+        for vendor in row.get("affected_vendors") or []:
+            vendor_text = str(vendor or "").strip()
+            if publisher_name and vendor_text and publisher_name.lower() in vendor_text.lower():
+                publisher_name = vendor_text
+                break
+        if publisher_name.islower():
+            publisher_name = publisher_name.replace("_", " ").title()
+        row["published_by"] = publisher_name
+        row["score_sources"] = "; ".join(publishers) if publishers else "Not published"
+        row["verified_by"] = "; ".join(verified) if verified else "Not published"
+
+    # Mapping contributes technique relationships and a fallback service label.
+    for vuln in (mapping_result or {}).get("vulnerabilities", []):
+        for cve_id in vuln.get("cve_ids", []) or []:
+            if not cve_id:
+                continue
+            row = ensure(str(cve_id))
+            add_service(row, vuln.get("service", "Unknown"), "", "", vuln.get("port"), vuln.get("protocol", "tcp"))
+            for match in vuln.get("cve_matches", []) or []:
+                if str(match.get("cve_id") or "") == str(cve_id) and match.get("cvss_metrics"):
+                    row["cvss_metrics"] = match.get("cvss_metrics") or {}
+                    raw_basis = str(match.get("match_basis") or "")
+                    row["raw_match_basis"] = raw_basis or row.get("raw_match_basis", "")
+                    row["match_evidence"] = humanise_match_basis(raw_basis, row["match_evidence"])
             for tech in vuln.get("attack_techniques", []) or []:
                 technique_id = tech.get("id")
-                if technique_id:
-                    already_added = any(
-                        item.get("id") == technique_id
-                        for item in cve_lookup[cve_id]["linked_techniques"]
-                    )
+                if technique_id and not any(item.get("id") == technique_id for item in row["linked_techniques"]):
+                    row["linked_techniques"].append({
+                        "id": technique_id,
+                        "name": tech.get("name", ""),
+                        "mitre_url": f"https://attack.mitre.org/techniques/{technique_id.replace('.', '/')}/",
+                    })
 
-                    if not already_added:
-                        cve_lookup[cve_id]["linked_techniques"].append({
-                            "id": technique_id,
-                            "name": tech.get("name", ""),
-                            "mitre_url": (
-                                f"https://attack.mitre.org/techniques/{technique_id.replace('.', '/')}/"
-                            ),
-                        })
+    # Scanner results are canonical for CVE identity, applicability evidence and CVSS.
+    parsed_results = parsed_results or {}
+    scanner_rows = list(parsed_results.get("cve_matches") or []) + list(parsed_results.get("relevant_cve_information") or [])
+    for finding in scanner_rows:
+        if not isinstance(finding, dict):
+            continue
+        cve_id = str(finding.get("cve_id") or "").strip()
+        if not cve_id:
+            continue
+        row = ensure(cve_id)
+        row["classification"] = str(finding.get("classification") or "Candidate")
+        row["description"] = finding.get("vulnerability") or finding.get("description") or row["description"]
+        raw_basis = str(finding.get("match_basis") or "").strip()
+        row["raw_match_basis"] = raw_basis or row.get("raw_match_basis", "")
+        row["match_evidence"] = humanise_match_basis(
+            raw_basis,
+            finding.get("classification_reason") or finding.get("match_reason") or row["match_evidence"],
+        )
+        row["match_reason"] = finding.get("classification_reason") or finding.get("match_reason") or row.get("match_reason", "")
+        row["product_match_basis"] = finding.get("product_match_basis") or row.get("product_match_basis", "")
+        row["cvss_metrics"] = finding.get("source_cvss_metrics") or finding.get("cvss_metrics") or row["cvss_metrics"]
+        row["cve_publisher"] = finding.get("cve_publisher") or row.get("cve_publisher") or "CVE Program CNA"
+        row["cve_publisher_id"] = finding.get("cve_publisher_id") or row.get("cve_publisher_id", "")
 
-    # 2. Second: enrich from ai_plan.allowed_techniques if available
+        for key in ("affected_vendors", "affected_products", "affected_versions", "affected_entries", "affected_cpes", "matched_product_tokens", "matched_version_tokens", "references", "evidence_sources"):
+            values = finding.get(key) or []
+            if not isinstance(values, list):
+                values = [values]
+            for value in values:
+                if value not in row[key]:
+                    row[key].append(value)
+
+        host = str(finding.get("host") or "").strip()
+        product = str(finding.get("product") or "").strip()
+        version = str(finding.get("version") or "").strip()
+        port = finding.get("port")
+        protocol = str(finding.get("protocol") or "tcp")
+        endpoint = f"{port}/{protocol}" if port not in (None, "") else ""
+        for key, value in (("observed_hosts", host), ("observed_products", product), ("observed_versions", version), ("observed_endpoints", endpoint)):
+            if value and value not in row[key]:
+                row[key].append(value)
+
+        add_service(
+            row,
+            finding.get("service", "Unknown"),
+            finding.get("product", ""),
+            finding.get("version", ""),
+            finding.get("port"),
+            finding.get("protocol", "tcp"),
+        )
+
+    # AI may enrich linked technique context only; it must not invent CVSS data.
     for tech in (ai_plan or {}).get("allowed_techniques", []):
         technique_id = tech.get("id") or tech.get("technique_id")
         technique_name = tech.get("name") or tech.get("technique_name", "")
         mitre_url = tech.get("mitre_url", "")
-
         for cve in tech.get("linked_cves", []) or []:
-            cve_id = cve.get("id")
-            if not cve_id:
+            cve_id = str(cve.get("id") or "").strip()
+            if not cve_id or cve_id not in cve_lookup:
                 continue
+            row = cve_lookup[cve_id]
+            if technique_id and not any(item.get("id") == technique_id for item in row["linked_techniques"]):
+                row["linked_techniques"].append({"id": technique_id, "name": technique_name, "mitre_url": mitre_url})
 
-            if cve_id not in cve_lookup:
-                nvd = cve.get("nvd", {}) or {}
-                cvss = nvd.get("cvss", {}) or {}
-                mapped_findings = cve.get("mapped_findings", [])
-                first_finding = mapped_findings[0] if mapped_findings else {}
+    for row in cve_lookup.values():
+        flatten_metrics(row)
 
-                cve_lookup[cve_id] = {
-                    "cve_id": cve_id,
-                    "severity": (
-                        cvss.get("severity")
-                        or first_finding.get("severity")
-                        or "Unknown"
-                    ),
-                    "confidence": "Official CVE linked",
-                    "service_port": f"{first_finding.get('service', 'Unknown')}/{first_finding.get('port', 'Unknown')}",
-                    "description": (
-                        nvd.get("description")
-                        or first_finding.get("description")
-                        or first_finding.get("title")
-                        or "No CVE description available."
-                    ),
-                    "official_cve_url": _official_cve_url(cve_id),
-                    "nvd_url": nvd.get(
-                        "nvd_url",
-                        f"https://nvd.nist.gov/vuln/detail/{cve_id}"
-                    ),
-                    "linked_techniques": [],
-                }
+    def sort_key(row: dict):
+        scores = [row.get("cvss_31_score"), row.get("cvss_40_score")]
+        numeric = []
+        for score in scores:
+            try:
+                numeric.append(float(score))
+            except (TypeError, ValueError):
+                pass
+        return (-max(numeric) if numeric else 1.0, row.get("cve_id", ""))
 
-            if technique_id:
-                already_added = any(
-                    item.get("id") == technique_id
-                    for item in cve_lookup[cve_id]["linked_techniques"]
-                )
-
-                if not already_added:
-                    cve_lookup[cve_id]["linked_techniques"].append({
-                        "id": technique_id,
-                        "name": technique_name,
-                        "mitre_url": mitre_url,
-                    })
-
-    return list(cve_lookup.values())
+    return sorted(cve_lookup.values(), key=sort_key)
