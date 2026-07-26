@@ -9,12 +9,12 @@ ENUMERATOR = (ROOT / 'project' / 'scanners' / 'enumerator.py').read_text(encodin
 def test_cve_review_has_exact_three_table_roles():
     assert 'Table 1 — CVE References' in TEMPLATE
     assert 'Table 2 — Severity &amp; Triage' in TEMPLATE
-    assert 'Table 3 — Information Dump' in TEMPLATE
+    assert 'Table 3 — Scan Findings' in TEMPLATE
 
 
 def test_table_one_is_reference_only():
     block = TEMPLATE.split('Table 1 — CVE References', 1)[1].split('Table 2 — Severity &amp; Triage', 1)[0]
-    for heading in ('Identifier', 'Affected Service', 'Why It Matched', 'Published By', 'Links'):
+    for heading in ('Identifier', 'Affected Service', 'Why It Matched', 'Published Prerequisites', 'Published By', 'Links'):
         assert f'<th>{heading}</th>' in block
     assert '<th>Status</th>' not in block
     assert '<th>Verification</th>' not in block
@@ -23,8 +23,8 @@ def test_table_one_is_reference_only():
 
 
 def test_table_two_separates_score_source_vector_and_verification():
-    block = TEMPLATE.split('Table 2 — Severity &amp; Triage', 1)[1].split('Table 3 — Information Dump', 1)[0]
-    for heading in ('Identifier', 'Affected Service', 'Score Source', 'Vector', 'Verified'):
+    block = TEMPLATE.split('Table 2 — Severity &amp; Triage', 1)[1].split('Table 3 — Scan Findings', 1)[0]
+    for heading in ('Identifier', 'Affected Service', 'Score Source', 'Vector', 'CVSS Integrity'):
         assert f'<th>{heading}</th>' in block
     assert '<th class="cvss31-col">CVSS 3.1</th>' in block
     assert '<th class="cvss40-col">CVSS 4.0</th>' in block
@@ -44,4 +44,6 @@ def test_tables_live_on_main_page_not_cve_popup():
     assert 'View Vulnerability Mapping' not in TEMPLATE
     assert 'id="cve-review"' in TEMPLATE
     assert 'class="cve-reference-row"' in TEMPLATE
-    assert 'class="cve-info-row"' in TEMPLATE
+    assert 'class="scan-finding-row"' in TEMPLATE
+    assert 'Coverage &amp; Assurance' in TEMPLATE
+    assert 'Information Dump' not in TEMPLATE

@@ -116,6 +116,63 @@ def parse_host_scripts(host: ET.Element) -> list[dict[str, Any]]:
     return scripts
 
 
+
+
+def parse_os_identities(host: ET.Element) -> list[dict[str, Any]]:
+    """Preserve every host-level OS observation from Nmap for fallback consumers."""
+    identities: list[dict[str, Any]] = []
+    for osmatch in host.findall("os/osmatch"):
+        name = osmatch.get("name", "")
+        match_accuracy = osmatch.get("accuracy", "")
+        classes = osmatch.findall("osclass") or [None]
+        for osclass in classes:
+            cpes = [] if osclass is None else [_text(cpe) for cpe in osclass.findall("cpe") if _text(cpe)]
+            identities.append({
+                "scope": "host_os",
+                "name": name,
+                "vendor": "" if osclass is None else osclass.get("vendor", ""),
+                "family": "" if osclass is None else osclass.get("osfamily", ""),
+                "generation": "" if osclass is None else osclass.get("osgen", ""),
+                "device_type": "" if osclass is None else osclass.get("type", ""),
+                "accuracy": ("" if osclass is None else osclass.get("accuracy", "")) or match_accuracy,
+                "cpe": cpes,
+                "source": "nmap_os_detection",
+            })
+
+    for script in parse_host_scripts(host):
+        if str(script.get("id") or "").lower() != "smb-os-discovery":
+            continue
+        elems = script.get("elements") or {}
+        os_name = str(elems.get("os") or elems.get("OS") or "").strip()
+        if os_name:
+            identities.append({
+                "scope": "host_os",
+                "name": os_name,
+                "product": os_name,
+                "source": "smb-os-discovery",
+                "accuracy": "script",
+                "cpe": [],
+            })
+
+    for service in host.findall("ports/port/service"):
+        ostype = service.get("ostype", "")
+        product = service.get("product", "")
+        os_cpes = [
+            _text(cpe) for cpe in service.findall("cpe")
+            if _text(cpe).startswith(("cpe:/o:", "cpe:2.3:o:"))
+        ]
+        if ostype or os_cpes:
+            identities.append({
+                "scope": "host_os",
+                "name": product if product and ostype and ostype.lower() in product.lower() else ostype,
+                "product": product if product and ostype and ostype.lower() in product.lower() else ostype,
+                "cpe": os_cpes,
+                "source": "nmap_service_identity",
+                "accuracy": "service",
+            })
+    return identities
+
+
 def parse_cpe(service: ET.Element | None) -> list[str]:
     if service is None:
         return []
@@ -214,6 +271,7 @@ def parse_nmap_xml(xml_file: str | Path) -> dict[str, Any]:
             "status": _attr(status, "state", "unknown"),
             "status_reason": _attr(status, "reason"),
             "os": parse_os_info(host),
+            "os_identities": parse_os_identities(host),
             "host_scripts": parse_host_scripts(host),
             "open_ports": [p for p in port_findings if p["state"] == "open"],
             "filtered_ports": [p for p in port_findings if p["state"] == "filtered"],

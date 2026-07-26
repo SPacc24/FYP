@@ -1,7 +1,7 @@
 # HELPERS
 import logging
-import re
 import socket
+import re
 
 from flask import session
 
@@ -598,6 +598,7 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
             "structured_range_inclusive_upper_endpoint": "Observed version exactly matches the published inclusive upper endpoint of an affected range",
             "structured_default_status_affected": "The matched product record explicitly defines otherwise-unlisted versions as affected",
             "exact_application_cpe": "Observed application CPE and version exactly match a published affected application CPE",
+            "exact_os_cpe": "Observed operating-system CPE and version exactly match a published affected OS CPE",
             "exact_structured_version": "Exact observed version is explicitly listed as affected",
             "exact_cpe_match": "Observed application CPE matches a published affected CPE",
             "exact_observed_version_in_record_text": "Observed version is explicitly referenced in the CVE record",
@@ -616,7 +617,7 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
         row = cve_lookup.setdefault(cve_id, {
             "cve_id": cve_id,
             "severity": "Unknown",
-            "classification": "Candidate",
+            "classification": "CVE Reference",
             "affected_services": [],
             "service_port": "Unknown",
             "description": "No CVE description available.",
@@ -632,6 +633,11 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
             "observed_versions": [],
             "observed_endpoints": [],
             "evidence_sources": [],
+            "evidence_references": [],
+            "match_scopes": [],
+            "affected_assets": [],
+            "patch_states": [],
+            "identity_qualities": [],
             "matched_product_tokens": [],
             "matched_version_tokens": [],
             "affected_vendors": [],
@@ -639,9 +645,11 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
             "affected_versions": [],
             "affected_entries": [],
             "affected_cpes": [],
+            "applicability_context": {},
             "references": [],
             "official_cve_url": _official_cve_url(cve_id),
             "nvd_url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+            "nvd_cvss_enrichment": {},
             "linked_techniques": [],
         })
         return row
@@ -650,42 +658,45 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
         identity = " ".join(x for x in (str(product or "").strip(), str(version or "").strip()) if x).strip()
         if not identity:
             identity = str(service or "Unknown")
-        endpoint = f"{port}/{protocol}" if port not in (None, "") else "port unknown"
+        if str(port).lower() == "host" or str(protocol).lower() == "host":
+            endpoint = "host operating system"
+        else:
+            endpoint = f"{port}/{protocol}" if port not in (None, "") else "port unknown"
         label = f"{identity} ({endpoint})"
         if label not in row["affected_services"]:
             row["affected_services"].append(label)
         row["service_port"] = ", ".join(row["affected_services"])
 
-    def humanise_metric_source(row: dict, metric: dict) -> str:
-        source = str(metric.get("cvss_source") or "").strip()
-        role = str(metric.get("cvss_provider_role") or "").strip().upper()
-        publisher = str(row.get("cve_publisher") or "").strip()
-        publisher_id = str(row.get("cve_publisher_id") or "").strip().lower()
-        source_lower = source.lower()
-        publisher_display = publisher
-        for vendor in row.get("affected_vendors") or []:
-            vendor_text = str(vendor or "").strip()
-            if publisher and vendor_text and publisher.lower() in vendor_text.lower():
-                publisher_display = vendor_text
-                break
-        if publisher_display and publisher_display.islower():
-            publisher_display = publisher_display.replace("_", " ").title()
+    def humanise_publisher(row: dict) -> str:
+        raw = str(row.get("cve_publisher") or "CVE Program CNA").strip()
+        raw_norm = re.sub(r"[^a-z0-9]+", "", raw.lower())
+        vendors = [str(v).strip() for v in row.get("affected_vendors") or [] if str(v).strip()]
+        for vendor in vendors:
+            vendor_norm = re.sub(r"[^a-z0-9]+", "", vendor.lower())
+            if raw_norm and (raw_norm == vendor_norm or raw_norm in vendor_norm or vendor_norm in raw_norm):
+                return vendor
+        return raw
 
-        if not source:
-            return "Not published"
-        if source_lower in {"nvd", "nvd@nist.gov"} or "nist.gov" in source_lower:
-            return "NVD"
-        if publisher_id and source_lower == publisher_id:
-            return f"{publisher_display} ({role})" if publisher_display and role else (publisher_display or role or source)
-        # CVE records commonly identify providers by UUID. Keep the raw UUID in
-        # Table 3/backend data, but do not make operators decode it in triage.
-        if re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", source_lower):
-            if publisher_display and role == "CNA":
-                return f"{publisher_display} (CNA)"
-            return f"{role} provider" if role else "Published provider"
-        if publisher and source_lower == publisher.lower():
-            return f"{publisher_display} ({role})" if role else publisher_display
-        return f"{source} ({role})" if role and role not in source.upper() else source
+    def humanise_metric_source(metric: dict, row: dict) -> str:
+        if not metric:
+            return ""
+        provider_name = str(metric.get("cvss_provider_name") or "").strip()
+        role = str(metric.get("cvss_provider_role") or "").strip().upper()
+        raw = str(metric.get("cvss_source") or "").strip()
+        raw_lower = raw.lower()
+        if provider_name:
+            label = provider_name
+        elif raw_lower == "nvd" or "nist.gov" in raw_lower:
+            label = "NVD"
+        elif raw and raw == str(row.get("cve_publisher_id") or ""):
+            label = humanise_publisher(row)
+        elif re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}", raw):
+            label = f"{role} provider" if role else "Published provider"
+        else:
+            label = raw or (f"{role} provider" if role else "Published source")
+        if role and role not in {"NVD"} and role.lower() not in label.lower() and not label.lower().endswith("provider"):
+            label = f"{label} ({role})"
+        return label
 
     def flatten_metrics(row: dict) -> None:
         metrics = row.get("cvss_metrics") or {}
@@ -696,7 +707,7 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
             row[f"{prefix}_severity"] = metric.get("cvss_severity") or "Not published"
             row[f"{prefix}_vector"] = metric.get("cvss_vector") or ""
             row[f"{prefix}_source_raw"] = metric.get("cvss_source") or ""
-            row[f"{prefix}_source"] = humanise_metric_source(row, metric) if metric else ""
+            row[f"{prefix}_source"] = humanise_metric_source(metric, row)
             row[f"{prefix}_verified"] = bool(metric.get("cvss_verified"))
             row[f"{prefix}_verification"] = metric.get("cvss_verification") or (
                 "Not published" if not metric else "Published metric retained"
@@ -718,9 +729,8 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
             metric = metrics.get(version, {}) if isinstance(metrics, dict) else {}
             if not metric:
                 continue
-            source = str(metric.get("cvss_source") or "Published source")
-            role = str(metric.get("cvss_provider_role") or "").strip()
-            publisher = f"CVSS {version}: {source}" + (f" ({role})" if role else "")
+            source = humanise_metric_source(metric, row) or "Published source"
+            publisher = f"CVSS {version}: {source}"
             if publisher not in publishers:
                 publishers.append(publisher)
             if metric.get("cvss_verified"):
@@ -729,15 +739,7 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
                 verified.append(f"CVSS {version}: not independently verified")
         # Table 1 publication provenance belongs to the CVE record/CNA, not
         # to the CVSS metric.  CVSS publisher/source stays separate for Table 2.
-        publisher_name = str(row.get("cve_publisher") or "CVE Program CNA").strip()
-        for vendor in row.get("affected_vendors") or []:
-            vendor_text = str(vendor or "").strip()
-            if publisher_name and vendor_text and publisher_name.lower() in vendor_text.lower():
-                publisher_name = vendor_text
-                break
-        if publisher_name.islower():
-            publisher_name = publisher_name.replace("_", " ").title()
-        row["published_by"] = publisher_name
+        row["published_by"] = humanise_publisher(row)
         row["score_sources"] = "; ".join(publishers) if publishers else "Not published"
         row["verified_by"] = "; ".join(verified) if verified else "Not published"
 
@@ -773,27 +775,40 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
         if not cve_id:
             continue
         row = ensure(cve_id)
-        row["classification"] = str(finding.get("classification") or "Candidate")
+        row["classification"] = str(finding.get("classification") or "CVE Reference")
         row["description"] = finding.get("vulnerability") or finding.get("description") or row["description"]
         raw_basis = str(finding.get("match_basis") or "").strip()
         row["raw_match_basis"] = raw_basis or row.get("raw_match_basis", "")
-        row["match_evidence"] = humanise_match_basis(
+        row["match_evidence"] = finding.get("display_match_reason") or humanise_match_basis(
             raw_basis,
             finding.get("classification_reason") or finding.get("match_reason") or row["match_evidence"],
         )
         row["match_reason"] = finding.get("classification_reason") or finding.get("match_reason") or row.get("match_reason", "")
         row["product_match_basis"] = finding.get("product_match_basis") or row.get("product_match_basis", "")
-        row["cvss_metrics"] = finding.get("source_cvss_metrics") or finding.get("cvss_metrics") or row["cvss_metrics"]
+        row["cvss_metrics"] = finding.get("effective_cvss_metrics") or finding.get("source_cvss_metrics") or finding.get("cvss_metrics") or row["cvss_metrics"]
+        row["cve_program_cvss_metrics"] = finding.get("cve_program_cvss_metrics") or finding.get("source_cvss_metrics") or {}
+        row["nvd_cvss_metrics"] = finding.get("nvd_cvss_metrics") or {}
+        row["nvd_cvss_enrichment"] = finding.get("nvd_cvss_enrichment") or row.get("nvd_cvss_enrichment") or {}
+        row["applicability_context"] = finding.get("applicability_context") or row.get("applicability_context") or {}
         row["cve_publisher"] = finding.get("cve_publisher") or row.get("cve_publisher") or "CVE Program CNA"
         row["cve_publisher_id"] = finding.get("cve_publisher_id") or row.get("cve_publisher_id", "")
 
-        for key in ("affected_vendors", "affected_products", "affected_versions", "affected_entries", "affected_cpes", "matched_product_tokens", "matched_version_tokens", "references", "evidence_sources"):
+        for key in ("affected_vendors", "affected_products", "affected_versions", "affected_entries", "affected_cpes", "matched_product_tokens", "matched_version_tokens", "references", "evidence_sources", "evidence_references"):
             values = finding.get(key) or []
             if not isinstance(values, list):
                 values = [values]
             for value in values:
                 if value not in row[key]:
                     row[key].append(value)
+
+        for key, value in (
+            ("match_scopes", str(finding.get("match_scope") or "application_service")),
+            ("affected_assets", str(finding.get("affected_asset") or "")),
+            ("patch_states", str(finding.get("patch_state") or "")),
+            ("identity_qualities", str(finding.get("identity_quality") or "")),
+        ):
+            if value and value not in row[key]:
+                row[key].append(value)
 
         host = str(finding.get("host") or "").strip()
         product = str(finding.get("product") or "").strip()

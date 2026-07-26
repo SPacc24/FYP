@@ -5,20 +5,12 @@
   ],
   "stop_conditions": {
     "high_density_after_top20": 999,
-    "windows_like_min_ports_to_stop": [
-      135,
-      139,
-      445
-    ],
     "sufficient_services_after_top50": 999,
-    "max_automatic_stages_for_windows_like": 1,
     "top100_is_follow_up": false,
     "stop_on_high_density_in_full": false
   },
   "ttl_hints": {
-    "network_device_min": 200,
-    "windows_family_min": 100,
-    "linux_unix_min": 40
+    "network_device_min": 200
   },
   "critical_banner_ports": [
     21,
@@ -81,8 +73,9 @@
   ],
   "cve_policy": {
     "classification_basis": "condition_type_only",
-    "context_dependent_as_candidate": true,
-    "allow_hardcoded_cve_ids": false
+    "allow_hardcoded_cve_ids": false,
+    "applicability_source": "structured_cve_program_affected_data",
+    "validation_ownership": "downstream_validation"
   },
   "scan_postures": {
     "infrastructure_observed": {
@@ -97,18 +90,6 @@
         "10",
         "--scan-delay",
         "500ms"
-      ],
-      "max_stages": 1,
-      "allow_service_objectives": false
-    },
-    "windows_like_observed": {
-      "tcp_discovery_stages": [
-        100
-      ],
-      "nmap_timing": [
-        "-T2",
-        "--max-retries",
-        "1"
       ],
       "max_stages": 1,
       "allow_service_objectives": false
@@ -146,6 +127,13 @@
     "tcp_discovery",
     "udp_discovery",
     "service_fingerprint",
+    "nmap_os_identity",
+    "smb_host_identity",
+    "netbios_identity",
+    "msrpc_metadata",
+    "ntlm_http_identity",
+    "ntlm_rdp_identity",
+    "ntlm_mssql_identity",
     "httpx",
     "html_form_parser",
     "targeted_web_discovery",
@@ -383,7 +371,6 @@
     "nmap_options": [
       "-Pn",
       "-sS",
-      "--open",
       "-T2",
       "--max-retries",
       "1",
@@ -508,7 +495,7 @@
     "p0f_duration_seconds": 30,
     "note": "Interface must be explicitly approved by Rules of Engagement or supplied by environment variable. Collector is listen-only."
   },
-  "active_reachability_probe": false,
+  "active_reachability_probe": true,
   "skip_active_host_discovery_for_single_target": true,
   "single_target_availability_strategy": "assume_live_after_scope_validation",
   "targeted_expansion_strategy": "handled_by_micro_batches_no_second_burst",
@@ -611,5 +598,42 @@
     "ports_per_batch": 5,
     "parallel_scanning": false,
     "parallel_workers": 2
+  },
+  "version_evidence_recovery": {
+    "enabled": true,
+    "nmap_version_intensity": 2,
+    "max_ports_per_host": 64,
+    "description": "Targeted service-version re-probe for already-open TCP endpoints whose version is missing or range-valued. No new ports are added."
+  },
+  "host_discovery_controls": {
+    "description": "Operator-controlled reachability evidence. Service discovery may still use -Pn so ICMP failure never suppresses authorised port discovery.",
+    "allowed": {
+      "arp_discovery": true,
+      "icmp_echo": true,
+      "nmap_host_discovery": true,
+      "reverse_dns": true,
+      "route_trace": true
+    },
+    "defaults": {
+      "arp_discovery": true,
+      "icmp_echo": true,
+      "nmap_host_discovery": false,
+      "reverse_dns": false,
+      "route_trace": false,
+      "icmp_attempts": 1,
+      "icmp_timeout_seconds": 2,
+      "route_max_hops": 8,
+      "assume_single_target_live": true
+    }
+  },
+  "service_identity_defaults": {
+    "tcp_discovery_enabled": true,
+    "udp_discovery_enabled": true,
+    "service_fingerprinting_enabled": true,
+    "version_intensity": 0,
+    "banner_script": true,
+    "recovery_attempts": 1,
+    "follow_protocol_advertised_endpoints": false,
+    "advertised_endpoint_limit": 8
   }
 }

@@ -1,4 +1,6 @@
 import os
+import copy
+import re
 
 from flask import (
     jsonify,
@@ -26,6 +28,26 @@ from core.helpers import (
 )
 
 from core.services import db
+
+
+
+def _sanitise_client_evidence_paths(value):
+    """Hide local project storage prefixes on client-facing appendix pages."""
+    if not isinstance(value, str):
+        return value
+    pattern = re.compile(r'/(?:[^\s"\']+/)*storage/(?:scans|results)/([^\s"\']+)')
+    return pattern.sub(lambda match: f'evidence/{os.path.basename(match.group(1))}', value)
+
+
+def _client_safe_scan_record(data):
+    safe = copy.deepcopy(data or {})
+    for entry in safe.get('command_log') or []:
+        if not isinstance(entry, dict):
+            continue
+        for key in ('command', 'output', 'output_file', 'result'):
+            if key in entry:
+                entry[key] = _sanitise_client_evidence_paths(entry.get(key))
+    return safe
 
 
 
@@ -99,7 +121,6 @@ def register_routes(app):
                     mapping=data.get("mapping") or {},
                     ai_plan=ai_plan,
                     detected_cves=detected_cves,
-                    cve_reference_count=len({str(row.get("cve_id")) for row in detected_cves if row.get("cve_id")}),
                     selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
                     attack_plan=data.get("attack_plan"),
                     validation_results=data.get("validation_results"),
@@ -154,7 +175,6 @@ def register_routes(app):
             mapping=mapping_results,
             ai_plan=ai_plan,
             detected_cves=detected_cves,
-            cve_reference_count=len({str(row.get("cve_id")) for row in detected_cves if row.get("cve_id")}),
             selected_mode=session.get("technique_mode", "hybrid"),
             attack_plan=session.get("attack_plan"),
             validation_results=session.get("validation_results"),
@@ -185,10 +205,11 @@ def register_routes(app):
         mapping_results = data.get("mapping") or session.get("mapping_results", [])
 
         data["scan_id"] = scan_id
+        safe_scan = _client_safe_scan_record(data)
 
         return render_template(
             "technical_appendix.html",
-            scan=data,
+            scan=safe_scan,
             results=results,
             mapping=mapping_results,
             mitre_status=mitre_status(),

@@ -15,6 +15,7 @@ from .scoring_policy import ScoringPolicyError, validate_published_metric
 NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 CACHE_DIR = Path("storage/nvd_cache")
 CACHE_FILE = CACHE_DIR / "service_queries.json"
+CVE_METRIC_CACHE_FILE = CACHE_DIR / "cve_metric_queries.json"
 DEFAULT_TTL_SECONDS = 7 * 24 * 60 * 60
 DEFAULT_DELAY_SECONDS = 6.5
 DEFAULT_TIMEOUT_SECONDS = 20
@@ -115,8 +116,10 @@ def _metrics(cve: dict[str, Any]) -> dict[str, dict[str, Any]]:
                     "cvss_verified": False,
                     "cvss_verification": f"Published metric could not be independently verified: {exc}",
                 }
-            metric["cvss_source"] = row.get("source") or "NVD"
+            raw_source = str(row.get("source") or "NVD")
+            metric["cvss_source"] = raw_source
             metric["cvss_provider_role"] = row.get("type") or "NVD"
+            metric["cvss_provider_name"] = "NVD" if ("nist.gov" in raw_source.lower() or raw_source.lower() == "nvd") else ""
             output[version] = metric
             break
     return output
@@ -168,38 +171,21 @@ def _cpe_matches(cve: dict[str, Any], observed_cpe: str) -> bool:
 
 
 def _normalise_query_identity(product: str, version: str, service: str) -> tuple[str, str, str]:
-    """Reduce noisy Nmap identities to stable NVD search terms.
+    """Normalise only formatting/protocol suffix noise from an observed identity.
 
-    Nmap commonly emits values such as ``Microsoft Windows 7 - 10
-    microsoft-ds``.  Passing that literal string to NVD returns no results,
-    even when the detected OS/version is useful.  This function keeps the
-    observation auditable while producing a conservative query identity.
+    No OS edition, release, or build is derived in code.  NVD is used only for
+    exact-CVE metric enrichment in the scanner pipeline; this helper remains
+    conservative for compatibility with standalone callers.
     """
     raw_product = " ".join(str(product or "").split())
     raw_version = " ".join(str(version or "").split())
     raw_service = " ".join(str(service or "").split())
-    text = f"{raw_product} {raw_service}".lower()
-
-    windows = (
-        ("windows xp", "Microsoft Windows XP", "5.1"),
-        ("windows server 2003", "Microsoft Windows Server 2003", "5.2"),
-        ("windows vista", "Microsoft Windows Vista", "6.0"),
-        ("windows 7", "Microsoft Windows 7", "6.1"),
-        ("windows 8.1", "Microsoft Windows 8.1", "6.3"),
-        ("windows 8", "Microsoft Windows 8", "6.2"),
-        ("windows 10", "Microsoft Windows 10", "10.0"),
-        ("windows 11", "Microsoft Windows 11", "10.0"),
-    )
-    for token, canonical, derived_version in windows:
-        if token in text:
-            return canonical, raw_version or derived_version, raw_service
-
-    # Remove protocol suffixes frequently appended to an OS/product identity.
     cleaned = raw_product
     for suffix in (" microsoft-ds", " netbios-ssn", " ms-wbt-server", " wsman", " httpapi"):
         if cleaned.lower().endswith(suffix):
             cleaned = cleaned[: -len(suffix)].strip()
     return cleaned, raw_version, raw_service
+
 
 def _keyword(product: str, version: str, service: str) -> str:
     product = " ".join(product.split())
@@ -313,14 +299,98 @@ def search(product: str, version: str, service: str, cpe: str = "") -> tuple[tup
     return tuple(rows), tuple(diagnostics)
 
 
+
+def _load_metric_cache() -> dict[str, Any]:
+    try:
+        if CVE_METRIC_CACHE_FILE.exists():
+            data = json.loads(CVE_METRIC_CACHE_FILE.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        pass
+    return {}
+
+
+def _save_metric_cache(cache: dict[str, Any]) -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = CVE_METRIC_CACHE_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cache, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(CVE_METRIC_CACHE_FILE)
+
+
+def lookup_cve_metrics(cve_id: str) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Fetch optional NVD CVSS enrichment for one canonical CVE ID.
+
+    The CVE Program record remains the source of applicability.  This helper
+    only fills published CVSS versions that are missing from the canonical
+    CVE record and never creates or changes a CVE match.
+    """
+    cve_id = str(cve_id or "").strip().upper()
+    if not cve_id.startswith("CVE-"):
+        return {}, {"reason": "invalid_cve_id", "matcher_status": "held"}
+    if not enabled():
+        return {}, {"reason": "nvd_enrichment_disabled", "matcher_status": "disabled", "cve_id": cve_id}
+
+    cache = _load_metric_cache()
+    cached = cache.get(cve_id) if isinstance(cache.get(cve_id), dict) else None
+    now = time.time()
+    if cached and now - float(cached.get("cached_at") or 0) < _cache_ttl():
+        return dict(cached.get("metrics") or {}), {
+            "reason": "nvd_cve_metric_enrichment",
+            "matcher_status": "available",
+            "cve_id": cve_id,
+            "cache": "hit",
+            "versions": sorted((cached.get("metrics") or {}).keys()),
+        }
+
+    data, diagnostic = _request({"cveId": cve_id})
+    if data is None:
+        if cached:
+            return dict(cached.get("metrics") or {}), {**diagnostic, "cve_id": cve_id, "cache_fallback": True}
+        return {}, {**diagnostic, "cve_id": cve_id}
+
+    metrics: dict[str, dict[str, Any]] = {}
+    for wrapper in data.get("vulnerabilities") or []:
+        cve = wrapper.get("cve") or {}
+        if str(cve.get("id") or "").upper() != cve_id:
+            continue
+        metrics = _metrics(cve)
+        break
+
+    cache[cve_id] = {"cached_at": now, "metrics": metrics}
+    _save_metric_cache(cache)
+    return metrics, {
+        "reason": "nvd_cve_metric_enrichment",
+        "matcher_status": "available",
+        "cve_id": cve_id,
+        "cache": "miss",
+        "versions": sorted(metrics.keys()),
+    }
+
 def status() -> dict[str, Any]:
     cache = _load_cache()
+    metric_cache = _load_metric_cache()
+    timestamps = []
+    for source in (cache, metric_cache):
+        for item in source.values():
+            if isinstance(item, dict):
+                try:
+                    ts = float(item.get("cached_at") or 0)
+                except (TypeError, ValueError):
+                    ts = 0
+                if ts > 0:
+                    timestamps.append(ts)
+    latest = max(timestamps) if timestamps else 0.0
+    now = time.time()
     return {
         "enabled": enabled(),
         "api_url": NVD_API_URL,
         "api_key_configured": bool(os.getenv("NVD_API_KEY", "").strip()),
         "cache_file": str(CACHE_FILE),
+        "cve_metric_cache_file": str(CVE_METRIC_CACHE_FILE),
         "cached_queries": len(cache),
+        "cached_cve_metric_queries": len(metric_cache),
+        "last_successful_cache_at_epoch": latest or None,
+        "cache_age_seconds": int(max(0, now - latest)) if latest else None,
         "request_delay_seconds": _delay_seconds(),
         "cache_ttl_seconds": _cache_ttl(),
         "attribution": ATTRIBUTION,

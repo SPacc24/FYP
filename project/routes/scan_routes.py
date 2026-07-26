@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import threading
@@ -16,7 +17,7 @@ from flask import (
 
 from scanners.enumerator import TASKS, run_pipeline
 from scanners.mitre_cve import status as mitre_status
-from scanners.scan_profiles import TOOL_OPTIONS, normalise_scan_options
+from scanners.scan_profiles import TOOL_OPTIONS, collector_ui_context, normalise_scan_options
 from storage import scan_store
 
 from core.helpers import (
@@ -31,7 +32,23 @@ log = logging.getLogger(__name__)
 def register_routes(app):
     @app.route("/")
     def index():
-        return render_template("index.html", tool_options=TOOL_OPTIONS)
+        ui = collector_ui_context()
+        initial_scan_options = {}
+        clone_scan_id = (request.args.get("clone_scan") or "").strip()
+        if clone_scan_id:
+            previous = scan_store.load(clone_scan_id) or {}
+            initial_scan_options = previous.get("scan_options") or {}
+        return render_template(
+            "index.html",
+            tool_options=TOOL_OPTIONS,
+            collector_catalog=ui.get("catalog") or [],
+            collector_groups=ui.get("groups") or [],
+            collection_presets=ui.get("presets") or {},
+            collector_policy_status=ui.get("policy_status"),
+            collector_policy_sha256=ui.get("policy_sha256"),
+            initial_scan_options=initial_scan_options,
+            clone_scan_id=clone_scan_id,
+        )
 
     @app.route("/scan", methods=["POST"])
     def scan():
@@ -57,9 +74,24 @@ def register_routes(app):
         if technique_mode not in {"auto", "hybrid", "manual"}:
             technique_mode = "hybrid"
 
+        def _json_form(name):
+            raw = (request.form.get(name) or "").strip()
+            if not raw:
+                return {}
+            try:
+                value = json.loads(raw)
+            except (TypeError, ValueError):
+                return {}
+            return value if isinstance(value, dict) else {}
+
+        collector_plan = _json_form("collector_plan_json")
+        host_discovery_settings = _json_form("host_discovery_json")
+        service_identity_settings = _json_form("service_identity_json")
+        collection_preset = (request.form.get("collection_preset") or "custom").strip().lower()
+
         scan_options = normalise_scan_options(
             profile,
-            enabled_tools if profile == "custom" or enabled_tools else None,
+            enabled_tools if (not collector_plan and (profile == "custom" or enabled_tools)) else None,
             tcp_port_mode=request.form.get("tcp_port_mode"),
             tcp_custom_ports=request.form.get("tcp_custom_ports"),
             udp_port_mode=request.form.get("udp_port_mode"),
@@ -72,6 +104,10 @@ def register_routes(app):
                 "parallel_scanning": "parallel_scanning" in request.form,
                 "parallel_workers": request.form.get("parallel_workers"),
             },
+            collection_preset=collection_preset,
+            collector_plan=collector_plan or None,
+            host_discovery_settings=host_discovery_settings or None,
+            service_identity_settings=service_identity_settings or None,
         )
         if scan_options.get("validation_errors"):
             return render_template(
@@ -231,7 +267,6 @@ def register_routes(app):
             mapping=data.get("mapping") or {},
             ai_plan=ai_plan,
             detected_cves=detected_cves,
-            cve_reference_count=len({str(row.get("cve_id")) for row in detected_cves if row.get("cve_id")}),
             selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
             attack_plan=data.get("attack_plan"),
             validation_results=data.get("validation_results"),

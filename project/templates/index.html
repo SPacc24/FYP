@@ -124,7 +124,7 @@
     <div class="index-layout">
       <div class="index-form-column">
 
-        <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting Recon...';">
+        <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="syncPlanInputs();document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting Recon...';">
           <input type="hidden" name="_csrf_token" id="csrfTokenInput" value="{{ operator_csrf_token }}" />
           <input type="hidden" name="profile" value="custom" />
 
@@ -164,7 +164,6 @@
                   <div class="custom-port-input" id="tcpCustomWrap" hidden>
                     <label for="tcpCustomPorts">Custom TCP ports</label>
                     <input id="tcpCustomPorts" type="text" name="tcp_custom_ports" placeholder="22,80,443,8000-8100" disabled>
-                    <div class="port-preview small" id="tcpPortPreview">Enter ports to see the resolved count.</div>
                   </div>
                   <p class="small muted port-mode-note" id="tcpModeNote">Essentials uses the reviewed TCP service list from recon policy.</p>
                 </article>
@@ -185,10 +184,8 @@
                   <div class="custom-port-input" id="udpCustomWrap" hidden>
                     <label for="udpCustomPorts">Custom UDP ports</label>
                     <input id="udpCustomPorts" type="text" name="udp_custom_ports" placeholder="53,67-69,123,137,161" disabled>
-                    <div class="port-preview small" id="udpPortPreview">Enter ports to see the resolved count.</div>
                   </div>
                   <p class="small muted port-mode-note" id="udpModeNote">Essentials uses the reviewed UDP service list from recon policy.</p>
-                  <div class="scan-warning compact" id="fullUdpWarning" hidden>Full UDP scans all 65,535 UDP ports. UDP discovery can be substantially slower than TCP because many ports may not respond; use Full only when the authorised scope and available scan window justify it.</div>
                 </article>
               </div>
               <div class="scan-warning" id="fullPortWarning" hidden>Full-range scanning covers ports 1–65535. Full UDP scans in particular can take substantially longer than Essentials or Custom coverage.</div>
@@ -210,66 +207,187 @@
             </section>
           </div>
 
-           <section id="tools" class="tool-picker index-section">
+            <input type="hidden" name="collector_plan_json" id="collectorPlanJson" value="{}">
+            <input type="hidden" name="host_discovery_json" id="hostDiscoveryJson" value="{}">
+            <input type="hidden" name="service_identity_json" id="serviceIdentityJson" value="{}">
 
-  <div class="tool-picker-head">
-    <div>
-      <div class="section-header">
-        <span class="step-number">4</span>
-        <span class="label">TOOL SELECTION</span>
-      </div>
+            <section id="host-discovery" class="index-section collection-section">
+              <div class="section-header">
+                <span class="step-number">4</span>
+                <span class="label">HOST DISCOVERY</span>
+              </div>
+              <div class="advanced-settings-head">
+                <div>
+                  <h2>Reachability &amp; Environment Evidence</h2>
+                  <p class="tool-selection-description">Choose exactly which host-level evidence is attempted. Service discovery can still use <span class="mono">-Pn</span>, so an ICMP failure never hides an authorised target.</p>
+                </div>
+              </div>
+              <div class="collector-status-strip">
+                <span><b>Policy:</b> {{ collector_policy_status or 'unknown' }}</span>
+                {% if clone_scan_id %}<span class="status-chip">Settings cloned from {{ clone_scan_id }}</span>{% endif %}
+              </div>
+              <div class="advanced-grid host-discovery-grid">
+                <div class="setting-card">
+                  <label class="switch-row" for="hostArpDiscovery"><span><b>ARP discovery</b><small>Scoped ARP reachability for local/private authorised targets only.</small></span><input type="checkbox" id="hostArpDiscovery" checked></label>
+                </div>
+                <div class="setting-card">
+                  <label class="switch-row" for="hostIcmpEcho"><span><b>ICMP Echo</b><small>Collect reachability, latency and TTL evidence independently from Nmap -Pn.</small></span><input type="checkbox" id="hostIcmpEcho" checked></label>
+                  <div class="setting-pair-grid">
+                    <label><span>Attempts</span><input type="number" id="hostIcmpAttempts" min="1" max="4" value="1"></label>
+                    <label><span>Timeout</span><input type="number" id="hostIcmpTimeout" min="1" max="10" value="2"><small>sec</small></label>
+                  </div>
+                </div>
+                <div class="setting-card">
+                  <label class="switch-row" for="hostNmapDiscovery"><span><b>Nmap host discovery</b><small>Run an explicit <span class="mono">-sn</span> availability check before service discovery.</small></span><input type="checkbox" id="hostNmapDiscovery"></label>
+                </div>
+                <div class="setting-card">
+                  <label class="switch-row" for="hostReverseDns"><span><b>Reverse DNS / PTR</b><small>Run a bounded PTR lookup for each authorised host.</small></span><input type="checkbox" id="hostReverseDns"></label>
+                </div>
+                <div class="setting-card">
+                  <label class="switch-row" for="hostRouteTrace"><span><b>Route trace</b><small>Run a bounded traceroute/tracepath only when explicitly selected.</small></span><input type="checkbox" id="hostRouteTrace"></label>
+                  <label class="setting-input-row sub-setting" for="hostRouteMaxHops"><span>Max hops</span><input type="number" id="hostRouteMaxHops" min="1" max="30" value="8"></label>
+                </div>
+                <div class="setting-card">
+                  <label class="switch-row" for="hostAssumeLive"><span><b>Continue authorised single target with -Pn</b><small>If reachability evidence is inconclusive, keep the target in service discovery rather than declaring it down.</small></span><input type="checkbox" id="hostAssumeLive" checked></label>
+                </div>
+              </div>
+            </section>
 
-      <h2>Evidence Collection Tools</h2>
+            <section id="identity" class="index-section collection-section">
+              <div class="section-header">
+                <span class="step-number">5</span>
+                <span class="label">SERVICE IDENTIFICATION</span>
+              </div>
+              <div class="advanced-settings-head">
+                <div>
+                  <h2>Discovery &amp; Fingerprint Controls</h2>
+                  <p class="tool-selection-description">Control the core scanner stages separately from optional evidence collectors. Version recovery only re-probes endpoints already observed open.</p>
+                </div>
+              </div>
+              <div class="advanced-grid">
+                <div class="setting-card">
+                  <label class="switch-row" for="coreTcpDiscovery"><span><b>TCP discovery</b><small>Use the exact TCP scope selected above.</small></span><input type="checkbox" id="coreTcpDiscovery" checked></label>
+                  <label class="switch-row" for="coreUdpDiscovery"><span><b>UDP discovery</b><small>Use the exact UDP scope selected above.</small></span><input type="checkbox" id="coreUdpDiscovery" checked></label>
+                </div>
+                <div class="setting-card">
+                  <label class="switch-row" for="coreServiceFingerprint"><span><b>Service fingerprinting</b><small>Collect product/version/CPE evidence from observed open TCP endpoints.</small></span><input type="checkbox" id="coreServiceFingerprint" checked></label>
+                  <label class="setting-input-row sub-setting" for="coreVersionIntensity"><span>Nmap version intensity</span><input type="number" id="coreVersionIntensity" min="0" max="9" value="0"></label>
+                  <label class="switch-row sub-setting" for="coreBannerScript"><span><b>Banner script</b><small>Include the bounded Nmap banner script during fingerprinting.</small></span><input type="checkbox" id="coreBannerScript" checked></label>
+                </div>
+                <div class="setting-card">
+                  <label class="switch-row" for="coreVersionRecovery"><span><b>Targeted version recovery</b><small>Re-query only already-open endpoints whose version is missing or range-valued.</small></span><input type="checkbox" id="coreVersionRecovery" checked></label>
+                  <div class="setting-pair-grid">
+                    <label><span>Intensity</span><input type="number" id="coreRecoveryIntensity" min="0" max="9" value="2"></label>
+                    <label><span>Max endpoints</span><input type="number" id="coreRecoveryMaxPorts" min="1" max="256" value="64"></label>
+                  </div>
+                  <label class="setting-input-row sub-setting" for="coreRecoveryAttempts"><span>Recovery passes</span><input type="number" id="coreRecoveryAttempts" min="1" max="2" value="1"></label>
+                </div>
+                <div class="setting-card">
+                  <label class="switch-row" for="coreFollowAdvertised"><span><b>Follow protocol-advertised endpoints</b><small>Off by default. When enabled, verify a bounded number of TCP endpoints explicitly advertised by an already-observed protocol such as MSRPC. This is recorded as explicit scope expansion and never happens silently.</small></span><input type="checkbox" id="coreFollowAdvertised"></label>
+                  <label class="setting-input-row sub-setting" for="coreAdvertisedLimit"><span>Maximum advertised endpoints</span><input type="number" id="coreAdvertisedLimit" min="1" max="32" value="8"></label>
+                </div>
+              </div>
+            </section>
 
-      <p class="tool-selection-description">
-        Choose the evidence collection tools to include in this assessment.
-      </p>
-    </div>
+            <section id="tools" class="tool-picker index-section collection-section">
+              <div class="tool-picker-head evidence-plan-head">
+                <div>
+                  <div class="section-header">
+                    <span class="step-number">6</span>
+                    <span class="label">EVIDENCE COLLECTION PLAN</span>
+                  </div>
+                  <h2>Service-Aware Evidence Collectors</h2>
+                  <p class="tool-selection-description">Choose what evidence you want collected. <b>Auto</b> means execute only when observed service evidence makes the collector applicable. Policy remains the hard upper limit.</p>
+                </div>
+              </div>
 
-    <div class="tool-picker-actions">
-      <button class="btn ghost mini" type="button" id="selectAll">
-        Enable All
-      </button>
+              <div class="collection-preset-grid" role="radiogroup" aria-label="Evidence collection preset">
+                {% for preset_id, preset in collection_presets.items() %}
+                <label class="preset-card">
+                  <input type="radio" name="collection_preset" value="{{ preset_id }}" {% if preset_id == 'recommended' %}checked{% endif %}>
+                  <span><b>{{ preset.label }}</b><small>{{ preset.description }}</small></span>
+                </label>
+                {% endfor %}
+              </div>
 
-      <button class="btn ghost mini" type="button" id="selectFull">
-        Full Defaults
-      </button>
-    </div>
+              <div class="collector-plan-toolbar">
+                <div class="collector-plan-counts" aria-live="polite">
+                  <span>Requested <b id="collectorRequestedCount">0</b></span>
+                  <span>Policy permitted <b id="collectorPermittedCount">0</b></span>
+                  <span>Policy blocked <b id="collectorBlockedCount">0</b></span>
+                  <span>Requested unavailable <b id="collectorUnavailableCount">0</b></span>
+                </div>
+                <div class="tool-picker-actions wrap-actions">
+                  <button class="btn ghost mini" type="button" id="enableAllCollectors">Enable permitted</button>
+                  <button class="btn ghost mini" type="button" id="disableAllCollectors">Disable all</button>
+                  <select id="savedPlanSelect" class="mini-select" aria-label="Saved evidence plans"><option value="">Saved plans…</option></select>
+                  <button class="btn ghost mini" type="button" id="savePlanBtn">Save Plan</button>
+                  <button class="btn ghost mini" type="button" id="loadPlanBtn">Load</button>
+                  <button class="btn ghost mini" type="button" id="exportPlanBtn">Export</button>
+                  <button class="btn ghost mini" type="button" id="importPlanBtn">Import</button>
+                  <input id="importPlanFile" type="file" accept="application/json,.json" hidden>
+                </div>
+              </div>
 
-  </div>
+              {% for group in collector_groups %}
+                {% set group_tools = collector_catalog|selectattr('group','equalto',group.id)|list %}
+                {% if group_tools %}
+                <section class="collector-group" data-collector-group="{{ group.id }}">
+                  <div class="collector-group-head">
+                    <div><h3>{{ group.label }}</h3><p class="small muted">{{ group.description }}</p></div>
+                    <label class="group-toggle"><span>Enable category</span><input type="checkbox" data-group-toggle="{{ group.id }}" checked></label>
+                  </div>
+                  <div class="tool-grid collector-grid">
+                    {% for tool in group_tools %}
+                    <article class="tool-toggle collector-card {% if tool.policy_blocked %}policy-blocked{% endif %}{% if tool.runtime_available is defined and not tool.runtime_available %} runtime-unavailable{% endif %}" data-collector-id="{{ tool.id }}" data-group="{{ group.id }}" data-recommended="{{ '1' if tool.recommended else '0' }}" data-minimal="{{ '1' if tool.minimal else '0' }}" data-policy-blocked="{{ '1' if tool.policy_blocked else '0' }}" data-runtime-available="{{ '1' if tool.runtime_available|default(true) else '0' }}" data-scope="{{ tool.scope }}">
+                      <div class="collector-card-main">
+                        <label class="collector-enable-row">
+                          <input class="collector-enable" type="checkbox" name="tools" value="{{ tool.id }}" {% if tool.recommended and not tool.policy_blocked %}checked{% endif %} {% if tool.policy_blocked %}disabled{% endif %}>
+                          <span><b>{{ tool.label }}</b><small><span class="tool-category">{{ tool.interaction|replace('_',' ')|title }}</span><span class="tool-purpose">{{ tool.purpose }}</span></small></span>
+                        </label>
+                        <div class="collector-mode-wrap">
+                          {% if tool.policy_blocked %}
+                            <span class="policy-lock">Policy blocked</span>
+                            <small>{{ tool.policy_reason }}</small>
+                          {% else %}
+                            <label>Execution
+                              <select class="collector-mode">
+                                {% for mode in tool.allowed_modes %}<option value="{{ mode }}">{{ mode|replace('_',' ')|title }}{% if mode == 'auto' %} when applicable{% endif %}</option>{% endfor %}
+                              </select>
+                            </label>
+                            {% if tool.runtime_available is defined and not tool.runtime_available %}<span class="runtime-unavailable-badge">Tool unavailable now</span><small>{{ tool.runtime_unavailable_reason or ('Required runtime: ' ~ tool.runtime_dependencies or tool.runtime_requirement) }}</small>{% elif tool.nse_preflight is defined and not tool.nse_preflight.known and tool.nse_scripts %}<small>Required NSE scripts: {{ tool.nse_scripts|join(', ') }} · local script directory could not be preflighted; runtime will verify execution.</small>{% endif %}
+                          {% endif %}
+                        </div>
+                      </div>
+                      {% if tool.settings %}
+                      <details class="collector-config">
+                        <summary>Configure collector</summary>
+                        <div class="collector-setting-grid">
+                        {% for key, spec in tool.settings.items() %}
+                          <label><span>{{ spec.label }}</span>
+                            {% if spec.type == 'int' %}
+                              <input class="collector-setting" data-setting-key="{{ key }}" type="number" min="{{ spec.min }}" max="{{ spec.max }}" value="{{ spec.default }}">{% if spec.policy_max is defined %}<small>Policy maximum: {{ spec.policy_max }}</small>{% endif %}
+                            {% else %}
+                              <input class="collector-setting" data-setting-key="{{ key }}" type="text" value="{{ spec.default }}" maxlength="{{ spec.max_length|default(256) }}">
+                            {% endif %}
+                          </label>
+                        {% endfor %}
+                        </div>
+                      </details>
+                      {% endif %}
+                    </article>
+                    {% endfor %}
+                  </div>
+                </section>
+                {% endif %}
+              {% endfor %}
 
-  <p class="muted small">
-    CVE review stays active. These cards control evidence-collection tools only.
-  </p>
-
-  <div class="tool-grid">
-    {% for tool in tool_options %}
-
-    <label class="tool-toggle" data-full="{{ '1' if tool.full else '0' }}">
-      <input
-        type="checkbox"
-        name="tools"
-        value="{{ tool.id }}"
-        {% if tool.full %}checked{% endif %}
-      >
-
-      <span>
-        <b>{{ tool.label }}</b>
-        <small>
-  <span class="tool-category">{{ tool.category }}</span>
-  <span class="tool-purpose">{{ tool.purpose }}</span>
-</small>
-      </span>
-    </label>
-
-    {% endfor %}
-  </div>
-
-</section>
+              <p class="muted small">CVE correlation remains active and is not a collector toggle. A disabled or inapplicable collector must be reported as such; it is never represented as “no evidence” from an executed check.</p>
+            </section>
 
             <section id="advanced" class="index-section advanced-settings-section">
               <div class="section-header">
-                <span class="step-number">5</span>
+                <span class="step-number">7</span>
                 <span class="label">ADVANCED SCAN SETTINGS</span>
               </div>
               <div class="advanced-settings-head">
@@ -315,8 +433,16 @@
                   </label>
                 </div>
               </div>
-              <div class="scan-warning compact" id="parallelScanWarning" hidden>Parallel scanning increases speed but also increases simultaneous network activity and visibility. Use a worker count appropriate to the authorised environment.</div>
               <p class="small muted">Policy stop conditions still override operator settings. Parallel execution is disabled by default.</p>
+            </section>
+
+            <section id="scan-plan-review" class="index-section scan-plan-section">
+              <div class="section-header"><span class="step-number">8</span><span class="label">SCAN PLAN REVIEW</span></div>
+              <div class="advanced-settings-head">
+                <div><h2>Review Effective Intent</h2><p class="tool-selection-description">Preview what the operator requested before packets leave the scanner. Runtime applicability and policy outcomes are still recorded separately.</p></div>
+                <button class="btn ghost mini" type="button" id="reviewScanPlanBtn">Refresh Plan</button>
+              </div>
+              <div id="scanPlanPreview" class="scan-plan-preview"></div>
             </section>
 
             <section class="index-section">
@@ -324,9 +450,10 @@
               <div class="recon-output-grid">
                 <article class="tool-toggle"><span><b>Environment Intelligence</b><small>TTL, route, DNS and initial response behaviour.</small></span></article>
                 <article class="tool-toggle"><span><b>Attack Surface Workbench</b><small>Web, remote access, file sharing, database and infrastructure surfaces.</small></span></article>
-                <article class="tool-toggle"><span><b>Evidence Gap Review</b><small>Missing product, version, CPE and service-context evidence.</small></span></article>
-                <article class="tool-toggle"><span><b>MITRE CVE Correlation</b><small>Official CVE matches based on collected service evidence.</small></span></article>
-                <article class="tool-toggle"><span><b>Exploit-Validation Handoff</b><small>Candidate handoff records for exploitation/AI/CALDERA teammates. No exploitation is performed by recon.</small></span></article>
+                <article class="tool-toggle"><span><b>Host &amp; Platform Identity</b><small>Evidence-derived OS, build, hostname/domain and platform identity without selecting a Windows/Linux/macOS mode.</small></span></article>
+                <article class="tool-toggle"><span><b>Evidence Gap Review</b><small>Missing host OS, product, release/build, version, CPE and service-context evidence.</small></span></article>
+                <article class="tool-toggle"><span><b>Scope-Aware CVE Correlation</b><small>One official CVE correlation engine evaluates observed host-OS and application/service identities in their correct scope.</small></span></article>
+                <article class="tool-toggle"><span><b>Validation Handoff</b><small>Evidence and CVE-reference handoff records for downstream validation teammates. No exploitation is performed by recon.</small></span></article>
               </div>
             </section>
 
@@ -362,6 +489,10 @@
 </footer>
 
   <script>
+  const initialScanOptions = {{ initial_scan_options|default({})|tojson }};
+  const collectorCatalog = {{ collector_catalog|default([])|tojson }};
+  const savedPlanStorageKey = 'autopentest.recon.savedPlans.v1';
+
   const portModeCopy = {
     tcp: {
       full: ['Full 1-65535', 'Full TCP coverage scans every TCP port from 1 through 65535.'],
@@ -375,43 +506,6 @@
     }
   };
 
-  function resolvePortSpec(spec) {
-    const ports = new Set();
-    const text = (spec || '').trim();
-    if (!text) return {count: 0, error: ''};
-    for (const rawPart of text.split(',')) {
-      const part = rawPart.trim();
-      if (!part) continue;
-      if (/^\d+$/.test(part)) {
-        const port = Number(part);
-        if (port < 1 || port > 65535) return {count: 0, error: `Port ${port} is outside 1-65535.`};
-        ports.add(port);
-        continue;
-      }
-      const match = part.match(/^(\d+)\s*-\s*(\d+)$/);
-      if (!match) return {count: 0, error: `Invalid entry: ${part}`};
-      const start = Number(match[1]);
-      const end = Number(match[2]);
-      if (start < 1 || end > 65535 || start > end) return {count: 0, error: `Invalid range: ${part}`};
-      for (let port = start; port <= end; port += 1) ports.add(port);
-    }
-    return {count: ports.size, error: ''};
-  }
-
-  function updatePortPreview(protocol) {
-    const input = document.getElementById(`${protocol}CustomPorts`);
-    const preview = document.getElementById(`${protocol}PortPreview`);
-    if (!input || !preview) return;
-    const result = resolvePortSpec(input.value);
-    preview.classList.toggle('invalid', Boolean(result.error));
-    preview.classList.toggle('valid', !result.error && result.count > 0);
-    preview.textContent = result.error
-      ? result.error
-      : result.count > 0
-        ? `Resolved: ${result.count.toLocaleString()} unique ${protocol.toUpperCase()} port${result.count === 1 ? '' : 's'}.`
-        : 'Enter ports to see the resolved count.';
-  }
-
   function applyPortMode(protocol) {
     const selected = document.querySelector(`input[name="${protocol}_port_mode"]:checked`)?.value || 'essentials';
     const wrap = document.getElementById(`${protocol}CustomWrap`);
@@ -424,7 +518,6 @@
       input.required = selected === 'custom';
     }
     if (summary) summary.textContent = portModeCopy[protocol][selected][0];
-    updatePortPreview(protocol);
     if (note) note.textContent = portModeCopy[protocol][selected][1];
     document.querySelectorAll(`[data-port-mode-group="${protocol}"] label`).forEach(label => {
       label.classList.toggle('active', label.querySelector('input')?.value === selected);
@@ -435,27 +528,299 @@
       const udpFull = document.querySelector('input[name="udp_port_mode"]:checked')?.value === 'full';
       fullWarning.hidden = !(tcpFull || udpFull);
     }
-    const udpWarning = document.getElementById('fullUdpWarning');
-    if (udpWarning) udpWarning.hidden = document.querySelector('input[name="udp_port_mode"]:checked')?.value !== 'full';
   }
 
   ['tcp','udp'].forEach(protocol => {
     document.querySelectorAll(`input[name="${protocol}_port_mode"]`).forEach(radio => {
       radio.addEventListener('change', () => applyPortMode(protocol));
     });
-    document.getElementById(`${protocol}CustomPorts`)?.addEventListener('input', () => updatePortPreview(protocol));
     applyPortMode(protocol);
   });
 
-  document.getElementById('selectAll')?.addEventListener('click', () => {
-    document.querySelectorAll('.tool-toggle input[type="checkbox"]').forEach(cb => cb.checked = true);
-  });
-  document.getElementById('selectFull')?.addEventListener('click', () => {
-    document.querySelectorAll('.tool-toggle').forEach(row => {
-      const cb = row.querySelector('input[type="checkbox"]');
-      if (cb) cb.checked = row.dataset.full === '1';
+  function collectorCards() {
+    return Array.from(document.querySelectorAll('.collector-card[data-collector-id]'));
+  }
+
+  function defaultCollectorMode(card) {
+    return card?.dataset.scope === 'host' ? 'always' : 'auto';
+  }
+
+  function setPresetRadio(value) {
+    const radio = document.querySelector(`input[name="collection_preset"][value="${value}"]`);
+    if (radio) radio.checked = true;
+  }
+
+  function markCustomPlan() {
+    setPresetRadio('custom');
+  }
+
+  function syncCollectorCard(card) {
+    if (!card) return;
+    const enabled = card.querySelector('.collector-enable');
+    const mode = card.querySelector('.collector-mode');
+    const blocked = card.dataset.policyBlocked === '1';
+    if (blocked) {
+      if (enabled) enabled.checked = false;
+      if (mode) mode.value = 'disabled';
+      return;
+    }
+    if (mode) {
+      if (!enabled?.checked) mode.value = 'disabled';
+      else if (mode.value === 'disabled') mode.value = defaultCollectorMode(card);
+      mode.disabled = !enabled?.checked;
+    }
+    card.classList.toggle('collector-disabled', !enabled?.checked);
+  }
+
+  function applyCollectionPreset(preset) {
+    if (preset === 'custom') {
+      updateCollectorCounts();
+      syncPlanInputs();
+      return;
+    }
+    collectorCards().forEach(card => {
+      const blocked = card.dataset.policyBlocked === '1';
+      const enabled = card.querySelector('.collector-enable');
+      if (!enabled || blocked) return;
+      let desired = false;
+      if (preset === 'maximum') desired = true;
+      else if (preset === 'minimal') desired = card.dataset.minimal === '1';
+      else desired = card.dataset.recommended === '1';
+      enabled.checked = desired;
+      syncCollectorCard(card);
     });
+    updateGroupToggles();
+    updateCollectorCounts();
+    syncPlanInputs();
+  }
+
+  function serializeCollectorPlan() {
+    const result = {};
+    collectorCards().forEach(card => {
+      const id = card.dataset.collectorId;
+      const enabled = card.querySelector('.collector-enable');
+      const modeControl = card.querySelector('.collector-mode');
+      const blocked = card.dataset.policyBlocked === '1';
+      const settings = {};
+      card.querySelectorAll('.collector-setting').forEach(input => {
+        const key = input.dataset.settingKey;
+        if (!key) return;
+        settings[key] = input.type === 'number' ? Number(input.value) : input.value;
+      });
+      result[id] = {
+        mode: blocked || !enabled?.checked ? 'disabled' : (modeControl?.value || defaultCollectorMode(card)),
+        settings
+      };
+    });
+    return result;
+  }
+
+  function serializeHostDiscovery() {
+    return {
+      arp_discovery: !!document.getElementById('hostArpDiscovery')?.checked,
+      icmp_echo: !!document.getElementById('hostIcmpEcho')?.checked,
+      nmap_host_discovery: !!document.getElementById('hostNmapDiscovery')?.checked,
+      reverse_dns: !!document.getElementById('hostReverseDns')?.checked,
+      route_trace: !!document.getElementById('hostRouteTrace')?.checked,
+      icmp_attempts: Number(document.getElementById('hostIcmpAttempts')?.value || 1),
+      icmp_timeout_seconds: Number(document.getElementById('hostIcmpTimeout')?.value || 2),
+      route_max_hops: Number(document.getElementById('hostRouteMaxHops')?.value || 8),
+      assume_single_target_live: !!document.getElementById('hostAssumeLive')?.checked
+    };
+  }
+
+  function serializeServiceIdentity() {
+    return {
+      tcp_discovery_enabled: !!document.getElementById('coreTcpDiscovery')?.checked,
+      udp_discovery_enabled: !!document.getElementById('coreUdpDiscovery')?.checked,
+      service_fingerprinting_enabled: !!document.getElementById('coreServiceFingerprint')?.checked,
+      version_intensity: Number(document.getElementById('coreVersionIntensity')?.value || 0),
+      banner_script: !!document.getElementById('coreBannerScript')?.checked,
+      version_recovery: !!document.getElementById('coreVersionRecovery')?.checked,
+      recovery_intensity: Number(document.getElementById('coreRecoveryIntensity')?.value || 2),
+      recovery_max_ports: Number(document.getElementById('coreRecoveryMaxPorts')?.value || 64),
+      recovery_attempts: Number(document.getElementById('coreRecoveryAttempts')?.value || 1),
+      follow_protocol_advertised_endpoints: !!document.getElementById('coreFollowAdvertised')?.checked,
+      advertised_endpoint_limit: Number(document.getElementById('coreAdvertisedLimit')?.value || 8)
+    };
+  }
+
+  function syncPlanInputs() {
+    const collectorInput = document.getElementById('collectorPlanJson');
+    const hostInput = document.getElementById('hostDiscoveryJson');
+    const identityInput = document.getElementById('serviceIdentityJson');
+    if (collectorInput) collectorInput.value = JSON.stringify(serializeCollectorPlan());
+    if (hostInput) hostInput.value = JSON.stringify(serializeHostDiscovery());
+    if (identityInput) identityInput.value = JSON.stringify(serializeServiceIdentity());
+    updateCollectorCounts();
+    renderScanPlanPreview();
+  }
+
+  function updateCollectorCounts() {
+    const cards = collectorCards();
+    const requestedCards = cards.filter(card => card.querySelector('.collector-enable')?.checked);
+    const requested = requestedCards.length;
+    const blocked = cards.filter(card => card.dataset.policyBlocked === '1').length;
+    const permitted = requestedCards.filter(card => card.dataset.policyBlocked !== '1').length;
+    const unavailable = requestedCards.filter(card => card.dataset.policyBlocked !== '1' && card.dataset.runtimeAvailable === '0').length;
+    document.getElementById('collectorRequestedCount').textContent = String(requested);
+    document.getElementById('collectorPermittedCount').textContent = String(permitted);
+    document.getElementById('collectorBlockedCount').textContent = String(blocked);
+    const unavailableEl = document.getElementById('collectorUnavailableCount');
+    if (unavailableEl) unavailableEl.textContent = String(unavailable);
+  }
+
+  function updateGroupToggles() {
+    document.querySelectorAll('[data-group-toggle]').forEach(toggle => {
+      const group = toggle.dataset.groupToggle;
+      const cards = collectorCards().filter(card => card.dataset.group === group && card.dataset.policyBlocked !== '1');
+      toggle.checked = cards.length > 0 && cards.every(card => card.querySelector('.collector-enable')?.checked);
+      toggle.indeterminate = cards.some(card => card.querySelector('.collector-enable')?.checked) && !toggle.checked;
+    });
+  }
+
+  function selectedPortMode(protocol) {
+    return document.querySelector(`input[name="${protocol}_port_mode"]:checked`)?.value || 'essentials';
+  }
+
+  function currentFormConfig() {
+    syncPlanInputs();
+    return {
+      schema: 'autopentest-recon-plan-v1',
+      collection_preset: document.querySelector('input[name="collection_preset"]:checked')?.value || 'custom',
+      collector_plan: serializeCollectorPlan(),
+      host_discovery: serializeHostDiscovery(),
+      service_identity: serializeServiceIdentity(),
+      port_selection: {
+        tcp: {mode: selectedPortMode('tcp'), custom_spec: document.getElementById('tcpCustomPorts')?.value || ''},
+        udp: {mode: selectedPortMode('udp'), custom_spec: document.getElementById('udpCustomPorts')?.value || ''}
+      },
+      advanced_settings: {
+        command_timeout_seconds: Number(document.getElementById('commandTimeout')?.value || 600),
+        retry_failed_batches: !!document.getElementById('retryFailed')?.checked,
+        retry_count: Number(document.getElementById('retryCount')?.value || 1),
+        ports_per_batch: Number(document.getElementById('portsPerBatch')?.value || 5),
+        parallel_scanning: !!document.getElementById('parallelScanning')?.checked,
+        parallel_workers: Number(document.getElementById('parallelWorkers')?.value || 2)
+      }
+    };
+  }
+
+  function applyFormConfig(config) {
+    if (!config || typeof config !== 'object') return;
+    const portSelection = config.port_selection || {};
+    ['tcp','udp'].forEach(protocol => {
+      const selection = portSelection[protocol] || {};
+      const mode = selection.mode || 'essentials';
+      const radio = document.querySelector(`input[name="${protocol}_port_mode"][value="${mode}"]`);
+      if (radio) radio.checked = true;
+      const custom = document.getElementById(`${protocol}CustomPorts`);
+      if (custom) custom.value = selection.custom_spec || '';
+      applyPortMode(protocol);
+    });
+
+    const host = config.host_discovery?.requested || config.host_discovery || {};
+    const hostValues = {
+      hostArpDiscovery: host.arp_discovery, hostIcmpEcho: host.icmp_echo,
+      hostNmapDiscovery: host.nmap_host_discovery, hostReverseDns: host.reverse_dns,
+      hostRouteTrace: host.route_trace, hostAssumeLive: host.assume_single_target_live
+    };
+    Object.entries(hostValues).forEach(([id,value]) => { if (value !== undefined && document.getElementById(id)) document.getElementById(id).checked = !!value; });
+    if (host.icmp_attempts !== undefined) document.getElementById('hostIcmpAttempts').value = host.icmp_attempts;
+    if (host.icmp_timeout_seconds !== undefined) document.getElementById('hostIcmpTimeout').value = host.icmp_timeout_seconds;
+    if (host.route_max_hops !== undefined) document.getElementById('hostRouteMaxHops').value = host.route_max_hops;
+
+    const identity = config.service_identity || {};
+    const identityChecks = {
+      coreTcpDiscovery: identity.tcp_discovery_enabled, coreUdpDiscovery: identity.udp_discovery_enabled,
+      coreServiceFingerprint: identity.service_fingerprinting_enabled, coreBannerScript: identity.banner_script,
+      coreVersionRecovery: identity.version_recovery, coreFollowAdvertised: identity.follow_protocol_advertised_endpoints
+    };
+    Object.entries(identityChecks).forEach(([id,value]) => { if (value !== undefined && document.getElementById(id)) document.getElementById(id).checked = !!value; });
+    const identityNumbers = {coreVersionIntensity:'version_intensity',coreRecoveryIntensity:'recovery_intensity',coreRecoveryMaxPorts:'recovery_max_ports',coreRecoveryAttempts:'recovery_attempts',coreAdvertisedLimit:'advertised_endpoint_limit'};
+    Object.entries(identityNumbers).forEach(([id,key]) => { if (identity[key] !== undefined && document.getElementById(id)) document.getElementById(id).value = identity[key]; });
+
+    const plan = config.collector_plan || {};
+    collectorCards().forEach(card => {
+      const item = plan[card.dataset.collectorId];
+      if (!item || card.dataset.policyBlocked === '1') return;
+      const enabled = card.querySelector('.collector-enable');
+      const mode = card.querySelector('.collector-mode');
+      const requested = item.requested !== undefined ? item.requested : item.mode !== 'disabled';
+      if (enabled) enabled.checked = !!requested;
+      if (mode && item.mode && Array.from(mode.options).some(opt => opt.value === item.mode)) mode.value = item.mode;
+      const settings = item.settings || {};
+      card.querySelectorAll('.collector-setting').forEach(input => {
+        const key = input.dataset.settingKey;
+        if (key && settings[key] !== undefined) input.value = settings[key];
+      });
+      syncCollectorCard(card);
+    });
+
+    const advanced = config.advanced_settings || {};
+    if (advanced.command_timeout_seconds !== undefined) document.getElementById('commandTimeout').value = advanced.command_timeout_seconds;
+    if (advanced.ports_per_batch !== undefined) document.getElementById('portsPerBatch').value = advanced.ports_per_batch;
+    if (advanced.retry_failed_batches !== undefined) document.getElementById('retryFailed').checked = !!advanced.retry_failed_batches;
+    if (advanced.retry_count !== undefined) document.getElementById('retryCount').value = advanced.retry_count;
+    if (advanced.parallel_scanning !== undefined) document.getElementById('parallelScanning').checked = !!advanced.parallel_scanning;
+    if (advanced.parallel_workers !== undefined) document.getElementById('parallelWorkers').value = advanced.parallel_workers;
+    syncAdvancedState();
+    setPresetRadio(config.collection_preset || 'custom');
+    updateGroupToggles(); updateCollectorCounts(); syncPlanInputs();
+  }
+
+  function renderScanPlanPreview() {
+    const wrap = document.getElementById('scanPlanPreview');
+    if (!wrap) return;
+    const host = serializeHostDiscovery();
+    const identity = serializeServiceIdentity();
+    const plan = serializeCollectorPlan();
+    const requested = Object.values(plan).filter(x => x.mode !== 'disabled').length;
+    const blocked = collectorCards().filter(card => card.dataset.policyBlocked === '1').map(card => card.dataset.collectorId);
+    const unavailable = collectorCards().filter(card => card.querySelector('.collector-enable')?.checked && card.dataset.policyBlocked !== '1' && card.dataset.runtimeAvailable === '0').map(card => card.dataset.collectorId);
+    const enabledHost = Object.entries(host).filter(([key,value]) => typeof value === 'boolean' && value).map(([key]) => key.replaceAll('_',' '));
+    const tcpMode = selectedPortMode('tcp');
+    const udpMode = selectedPortMode('udp');
+    const tcpExtra = tcpMode === 'custom' ? ` · ${document.getElementById('tcpCustomPorts')?.value || 'no ports entered'}` : '';
+    const udpExtra = udpMode === 'custom' ? ` · ${document.getElementById('udpCustomPorts')?.value || 'no ports entered'}` : '';
+    wrap.innerHTML = `
+      <div class="scan-plan-grid">
+        <article><span>Target</span><b>${(document.getElementById('target')?.value || 'Not entered').replaceAll('<','&lt;')}</b></article>
+        <article><span>TCP scope</span><b>${tcpMode}${tcpExtra}</b></article>
+        <article><span>UDP scope</span><b>${udpMode}${udpExtra}</b></article>
+        <article><span>Host evidence</span><b>${enabledHost.length ? enabledHost.join(', ') : 'No active host evidence selected'}</b></article>
+        <article><span>Service identity</span><b>Fingerprint ${identity.service_fingerprinting_enabled ? 'on' : 'off'} · intensity ${identity.version_intensity} · recovery ${identity.version_recovery ? 'on' : 'off'}</b></article>
+        <article><span>Collectors</span><b>${requested} requested · ${blocked.length} policy blocked · ${unavailable.length} unavailable now</b></article>
+      </div>`;
+  }
+
+  document.querySelectorAll('input[name="collection_preset"]').forEach(radio => radio.addEventListener('change', () => applyCollectionPreset(radio.value)));
+  collectorCards().forEach(card => {
+    card.querySelector('.collector-enable')?.addEventListener('change', () => { syncCollectorCard(card); markCustomPlan(); updateGroupToggles(); syncPlanInputs(); });
+    card.querySelector('.collector-mode')?.addEventListener('change', () => { const cb=card.querySelector('.collector-enable'); if (cb) cb.checked = card.querySelector('.collector-mode').value !== 'disabled'; markCustomPlan(); syncCollectorCard(card); updateGroupToggles(); syncPlanInputs(); });
+    card.querySelectorAll('.collector-setting').forEach(input => input.addEventListener('change', () => { markCustomPlan(); syncPlanInputs(); }));
+    syncCollectorCard(card);
   });
+  document.querySelectorAll('[data-group-toggle]').forEach(toggle => toggle.addEventListener('change', () => {
+    collectorCards().filter(card => card.dataset.group === toggle.dataset.groupToggle && card.dataset.policyBlocked !== '1').forEach(card => {
+      const cb = card.querySelector('.collector-enable'); if (cb) cb.checked = toggle.checked; syncCollectorCard(card);
+    });
+    markCustomPlan(); updateGroupToggles(); syncPlanInputs();
+  }));
+  document.getElementById('enableAllCollectors')?.addEventListener('click', () => { collectorCards().forEach(card => { if (card.dataset.policyBlocked !== '1') { const cb=card.querySelector('.collector-enable'); if(cb) cb.checked=true; syncCollectorCard(card); }}); markCustomPlan(); updateGroupToggles(); syncPlanInputs(); });
+  document.getElementById('disableAllCollectors')?.addEventListener('click', () => { collectorCards().forEach(card => { const cb=card.querySelector('.collector-enable'); if(cb && !cb.disabled) cb.checked=false; syncCollectorCard(card); }); markCustomPlan(); updateGroupToggles(); syncPlanInputs(); });
+
+  function savedPlans() { try { return JSON.parse(localStorage.getItem(savedPlanStorageKey) || '{}') || {}; } catch (_) { return {}; } }
+  function refreshSavedPlans() { const select=document.getElementById('savedPlanSelect'); if(!select) return; const plans=savedPlans(); select.innerHTML='<option value="">Saved plans…</option>'+Object.keys(plans).sort().map(name=>`<option value="${name.replaceAll('"','&quot;')}">${name}</option>`).join(''); }
+  document.getElementById('savePlanBtn')?.addEventListener('click', () => { const name=prompt('Name this recon plan:'); if(!name?.trim()) return; const plans=savedPlans(); plans[name.trim()]=currentFormConfig(); localStorage.setItem(savedPlanStorageKey, JSON.stringify(plans)); refreshSavedPlans(); document.getElementById('savedPlanSelect').value=name.trim(); });
+  document.getElementById('loadPlanBtn')?.addEventListener('click', () => { const name=document.getElementById('savedPlanSelect')?.value; const plan=savedPlans()[name]; if(plan) applyFormConfig(plan); });
+  document.getElementById('exportPlanBtn')?.addEventListener('click', () => { const blob=new Blob([JSON.stringify(currentFormConfig(), null, 2)], {type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='autopentest-recon-plan.json'; a.click(); URL.revokeObjectURL(url); });
+  document.getElementById('importPlanBtn')?.addEventListener('click', () => document.getElementById('importPlanFile')?.click());
+  document.getElementById('importPlanFile')?.addEventListener('change', async event => { const file=event.target.files?.[0]; if(!file) return; try { const parsed=JSON.parse(await file.text()); if(parsed.schema && parsed.schema !== 'autopentest-recon-plan-v1') throw new Error('Unsupported plan schema'); applyFormConfig(parsed); } catch(err) { alert(`Could not import recon plan: ${err.message}`); } event.target.value=''; });
+  document.getElementById('reviewScanPlanBtn')?.addEventListener('click', syncPlanInputs);
+  document.querySelectorAll('#host-discovery input, #identity input').forEach(input => input.addEventListener('change', syncPlanInputs));
+  document.getElementById('target')?.addEventListener('input', renderScanPlanPreview);
+  document.querySelectorAll('input[name="tcp_port_mode"],input[name="udp_port_mode"],#tcpCustomPorts,#udpCustomPorts').forEach(input => input.addEventListener('change', renderScanPlanPreview));
 
   const retryFailed = document.getElementById('retryFailed');
   const retryCount = document.getElementById('retryCount');
@@ -464,8 +829,6 @@
   function syncAdvancedState() {
     if (retryCount) retryCount.disabled = !retryFailed?.checked;
     if (parallelWorkers) parallelWorkers.disabled = !parallelScanning?.checked;
-    const parallelWarning = document.getElementById('parallelScanWarning');
-    if (parallelWarning) parallelWarning.hidden = !parallelScanning?.checked;
   }
   retryFailed?.addEventListener('change', syncAdvancedState);
   parallelScanning?.addEventListener('change', syncAdvancedState);
@@ -482,6 +845,11 @@
     if (parallelWorkers) parallelWorkers.value = '2';
     syncAdvancedState();
   });
+
+  refreshSavedPlans();
+  updateGroupToggles();
+  if (initialScanOptions && Object.keys(initialScanOptions).length) applyFormConfig(initialScanOptions);
+  else { applyCollectionPreset('recommended'); syncPlanInputs(); }
 
   document.getElementById('operatorUnlockBtn')?.addEventListener('click', async () => {
     const input = document.getElementById('operatorTokenInput');

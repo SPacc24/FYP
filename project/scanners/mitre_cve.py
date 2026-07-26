@@ -6,6 +6,8 @@ import json
 import re
 import subprocess
 from functools import lru_cache
+from datetime import datetime, timezone
+import time
 from pathlib import Path
 from typing import Any
 
@@ -83,6 +85,20 @@ def status() -> dict[str, Any]:
     stale_cvss = INDEX.exists() and records > 0 and cvss_records == 0
     nvd = nvd_client.status()
     local_available = INDEX.exists() and records > 0
+    now = time.time()
+    index_mtime = INDEX.stat().st_mtime if INDEX.exists() else 0.0
+    repo_head_at = ''
+    if REPO_DIR.exists():
+        try:
+            proc = subprocess.run(
+                ['git', '-C', str(REPO_DIR), 'log', '-1', '--format=%cI'],
+                capture_output=True, text=True, timeout=3, check=False,
+            )
+            repo_head_at = (proc.stdout or '').strip()
+        except Exception:
+            repo_head_at = ''
+    index_updated_at = datetime.fromtimestamp(index_mtime, timezone.utc).isoformat() if index_mtime else ''
+    index_age_seconds = int(max(0, now - index_mtime)) if index_mtime else None
     return {
         'source': OFFICIAL_CVE_SOURCE,
         'source_mode': 'local_index' if local_available else ('targeted_nvd_api' if nvd.get('enabled') else 'unavailable'),
@@ -95,6 +111,10 @@ def status() -> dict[str, Any]:
         'records_indexed': records,
         'records_with_cvss_metadata': cvss_records,
         'records_with_cvss_metadata_by_version': by_version,
+        'index_updated_at': index_updated_at,
+        'index_age_seconds': index_age_seconds,
+        'repo_head_at': repo_head_at,
+        'freshness_basis': 'local_index_mtime',
         'cvss_metadata_stale': stale_cvss,
         'cvss_metadata_warning': 'CVE catalogue is available, but no CVSS 3.1/4.0 metadata is present. Rebuild the CVE catalogue.' if stale_cvss else '',
         'index_file': str(INDEX),
@@ -159,66 +179,42 @@ def _major_minor(s: str) -> str:
     return '.'.join(nums[:2]) if len(nums) >= 2 else (nums[0] if nums else '')
 
 
-_WINDOWS_EDITION_VERSIONS: list[tuple[str, str]] = [
-    ('windows server 2022', '10.0'),
-    ('windows server 2019', '10.0'),
-    ('windows server 2016', '10.0'),
-    ('windows server 2012', '6.2'),
-    ('windows server 2008', '6.0'),
-    ('windows server 2003', '5.2'),
-    ('windows 11', '10.0'),
-    ('windows 10', '10.0'),
-    ('windows 8.1', '6.3'),
-    ('windows 8', '6.2'),
-    ('windows 7', '6.1'),
-    ('windows xp', '5.1'),
-    ('windows vista', '6.0'),
-    ('windows 2000', '5.0'),
-]
+def _cpe_values(cpe: str, scope: str = 'application_service') -> list[str]:
+    """Return CPEs appropriate for an observed identity scope.
 
-
-def _derive_os_version(product: str, service: str, cpe: str) -> str:
-    """Infer a numeric OS version when a scanner banner omits one."""
-    text = _norm(' '.join([product or '', service or '', cpe or '']))
-    for edition, version in _WINDOWS_EDITION_VERSIONS:
-        if edition in text:
-            return version
-    # CPE fallback for windows_xp, windows_7, etc.
-    for raw_cpe in re.split(r'[\s,]+', cpe or ''):
-        parts = _cpe_parts(raw_cpe)
-        if not parts:
-            continue
-        _part, vendor, cpe_product, cpe_version = parts
-        if vendor != 'microsoft' or 'windows' not in cpe_product:
-            continue
-        if cpe_version not in {'', '*', '-'}:
-            return cpe_version
-        cpe_product_norm = cpe_product.replace('_', ' ')
-        for edition, version in _WINDOWS_EDITION_VERSIONS:
-            if edition in cpe_product_norm:
-                return version
-    return ''
-
-
-def _application_cpe_values(cpe: str) -> list[str]:
-    """Return only application CPEs (part ``a``) from a mixed CPE string.
-
-    Nmap can attach operating-system CPEs to a service element.  Those describe
-    the host environment, not the application listening on that port, and must
-    never be allowed to become the service product identity.
+    Service/application matching consumes CPE part ``a`` only; host OS matching
+    consumes part ``o`` only.  This preserves the separation that prevents host
+    platform CVEs from contaminating arbitrary network services.
     """
+    wanted_part = 'o' if str(scope or '').lower() == 'host_os' else 'a'
     out: list[str] = []
     for raw in re.split(r'[\s,]+', cpe or ''):
         value = raw.strip()
-        low = value.lower()
-        if low.startswith('cpe:/a:') or low.startswith('cpe:2.3:a:'):
+        parts = _cpe_parts(value)
+        if parts and parts[0] == wanted_part and value not in out:
             out.append(value)
     return out
 
 
-def _concrete_application_cpe_version(cpe: str) -> str:
+def _application_cpe_values(cpe: str) -> list[str]:
+    return _cpe_values(cpe, 'application_service')
+
+
+def _operating_system_cpe_values(cpe: str) -> list[str]:
+    return _cpe_values(cpe, 'host_os')
+
+
+def _cpe_basis_label(scope: str) -> str:
+    if str(scope or '').lower() == 'host_os':
+        return 'exact_os_cpe'
+    if str(scope or '').lower() == 'platform_component':
+        return 'exact_component_cpe'
+    return 'exact_application_cpe'
+
+
+def _concrete_cpe_version(cpe: str, scope: str = 'application_service') -> str:
     versions: set[str] = set()
-    for raw in _application_cpe_values(cpe):
+    for raw in _cpe_values(cpe, scope):
         parts = _cpe_parts(raw)
         if not parts:
             continue
@@ -228,31 +224,46 @@ def _concrete_application_cpe_version(cpe: str) -> str:
     return next(iter(versions)) if len(versions) == 1 else ''
 
 
-def _identity(product: str, service: str, cpe: str) -> tuple[str | None, dict[str, Any]]:
-    app_cpes = _application_cpe_values(cpe)
-    text = _norm(' '.join([product or '', service or '', ' '.join(app_cpes)]))
-    for key, spec in PRODUCTS.items():
-        for pat in spec['detect']:
-            if re.search(pat, text, flags=re.I):
-                return key, spec
+def _concrete_application_cpe_version(cpe: str) -> str:
+    return _concrete_cpe_version(cpe, 'application_service')
 
-    # Dynamic identities are derived only from an observed product name or an
-    # application CPE.  A port name alone and OS/hardware CPEs are insufficient.
+
+def _identity(product: str, service: str, cpe: str, scope: str = 'application_service') -> tuple[str | None, dict[str, Any]]:
+    scoped_cpes = _cpe_values(cpe, scope)
+    text = _norm(' '.join([product or '', service or '', ' '.join(scoped_cpes)]))
+
+    # The maintained alias registry is application/service-oriented. Host OS
+    # identities intentionally bypass it and are derived only from observed OS
+    # product/CPE evidence.
+    if scope != 'host_os':
+        for key, spec in PRODUCTS.items():
+            for pat in spec['detect']:
+                if re.search(pat, text, flags=re.I):
+                    return key, spec
+
     names: set[str] = set()
     product_name = _norm(product)
-    meaningful = {token for token in _tokens(product_name) if token not in GENERIC_TOKENS and not token.isdigit()}
-    if product_name and meaningful:
-        names.add(product_name)
-    for raw_cpe in app_cpes:
+    if product_name:
+        if scope == 'host_os':
+            names.add(product_name)
+        else:
+            meaningful = {token for token in _tokens(product_name) if token not in GENERIC_TOKENS and not token.isdigit()}
+            if meaningful:
+                names.add(product_name)
+    observed_vendors: set[str] = set()
+    for raw_cpe in scoped_cpes:
         parts = _cpe_parts(raw_cpe)
         if not parts:
             continue
         _part, vendor, cpe_product, _version = parts
         cpe_name = _norm(cpe_product)
-        if cpe_name and {token for token in _tokens(cpe_name) if token not in GENERIC_TOKENS and not token.isdigit()}:
-            names.add(cpe_name)
-            if vendor not in {'', '*', '-'}:
-                names.add(_norm(f'{vendor} {cpe_product}'))
+        if vendor not in {'', '*', '-'}:
+            observed_vendors.add(_norm(vendor))
+        if cpe_name:
+            if scope == 'host_os' or {token for token in _tokens(cpe_name) if token not in GENERIC_TOKENS and not token.isdigit()}:
+                names.add(cpe_name)
+                if vendor not in {'', '*', '-'}:
+                    names.add(_norm(f'{vendor} {cpe_product}'))
     if not names:
         return None, {}
     identity = sorted(names, key=lambda value: (-len(value), value))[0]
@@ -262,8 +273,9 @@ def _identity(product: str, service: str, cpe: str) -> tuple[str | None, dict[st
         'desc_phrases': [],
         'blocked': set(),
         'dynamic_exact_identity': True,
+        'identity_scope': scope,
+        'observed_vendors': observed_vendors,
     }
-
 
 def _affected_entries(rec: dict[str, Any]) -> list[dict[str, Any]]:
     entries = rec.get('affected_entries')
@@ -297,26 +309,50 @@ def _record_text(rec: dict[str, Any]) -> str:
     return _norm(' '.join(map(str, vals)))
 
 
-def _product_name_matches(name: str, allowed: set[str]) -> bool:
+def _product_name_matches(name: str, allowed: set[str], scope: str = 'application_service') -> bool:
     n = _norm(name)
     if not n or n in {'n/a', 'na', 'unknown', '*'}:
         return False
-    return any(n == _norm(a) for a in allowed if _norm(a))
+    for raw_allowed in allowed:
+        a = _norm(raw_allowed)
+        if not a:
+            continue
+        if n == a:
+            return True
+        if scope == 'host_os':
+            # Host product strings may include vendor, edition and release
+            # suffixes.  Containment is allowed only when the shorter identity
+            # includes evidence beyond a generic OS family/vendor label.  This
+            # prevents "Microsoft Windows" from silently becoming Windows 10/11
+            # or "Apple macOS" from silently becoming a named macOS release.
+            shorter, longer = (n, a) if len(n) <= len(a) else (a, n)
+            short_tokens = shorter.split()
+            generic_host_tokens = {
+                'microsoft', 'windows', 'apple', 'macos', 'mac', 'os', 'darwin',
+                'linux', 'unix', 'bsd', 'ios', 'operating', 'system',
+            }
+            distinguishing = [token for token in short_tokens if token not in generic_host_tokens]
+            if distinguishing and all(token in longer.split() for token in short_tokens):
+                return True
+    return False
 
 
-def _product_ok_for_record(rec: dict[str, Any], spec: dict[str, Any]) -> tuple[bool, list[str], str]:
+def _product_ok_for_record(rec: dict[str, Any], spec: dict[str, Any], scope: str = 'application_service') -> tuple[bool, list[str], str]:
     """Match only structured CVE affected-product fields.
 
     Description prose is useful to a human but is not an applicability field;
     it must never manufacture a product match.
     """
     allowed = {_norm(x) for x in spec.get('affected_products', set()) if _norm(x)}
+    observed_vendors = {_norm(x) for x in spec.get('observed_vendors', set()) if _norm(x)}
     matched: list[str] = []
     for ent in _affected_entries(rec):
         vendor = _norm(str(ent.get('vendor', '')))
         product = _norm(str(ent.get('product', '')))
+        if scope == 'host_os' and observed_vendors and vendor and vendor not in observed_vendors:
+            continue
         for name in (product, f'{vendor} {product}'.strip()):
-            if _product_name_matches(name, allowed):
+            if _product_name_matches(name, allowed, scope):
                 matched.append(name)
     if matched:
         return True, sorted(set(matched)), 'structured_affected_product'
@@ -527,17 +563,20 @@ def _cpe_parts(value: str) -> tuple[str, str, str, str] | None:
             return parts[2], parts[3], parts[4], parts[5]
     if raw.startswith('cpe:/'):
         parts = raw.split(':')
-        if len(parts) >= 5:
-            return parts[1].lstrip('/'), parts[2], parts[3], parts[4]
+        # CPE 2.2 permits product-only names such as
+        # cpe:/o:microsoft:windows with no explicit version component.
+        if len(parts) >= 4:
+            return parts[1].lstrip('/'), parts[2], parts[3], parts[4] if len(parts) >= 5 else ''
     return None
 
 
-def _cpe_match(rec: dict[str, Any], observed_cpe: str) -> tuple[bool, str]:
+def _cpe_match(rec: dict[str, Any], observed_cpe: str, scope: str = 'application_service') -> tuple[bool, str]:
+    wanted_part = 'o' if scope == 'host_os' else 'a'
     observed: list[tuple[str, tuple[str, str, str, str] | None]] = []
-    for c in _application_cpe_values(observed_cpe):
+    for c in _cpe_values(observed_cpe, scope):
         raw = c.strip().lower()
         parts = _cpe_parts(raw)
-        if parts and parts[0] == 'a':
+        if parts and parts[0] == wanted_part:
             observed.append((raw, parts))
     if not observed:
         return False, ''
@@ -547,7 +586,7 @@ def _cpe_match(rec: dict[str, Any], observed_cpe: str) -> tuple[bool, str]:
         for c in ent.get('cpes') or []:
             raw = str(c).strip().lower()
             parts = _cpe_parts(raw)
-            if parts and parts[0] == 'a':
+            if parts and parts[0] == wanted_part:
                 rec_cpes.append((raw, parts))
     for observed_raw, observed_parts in observed:
         if not observed_parts:
@@ -557,20 +596,17 @@ def _cpe_match(rec: dict[str, Any], observed_cpe: str) -> tuple[bool, str]:
                 continue
             observed_version = observed_parts[3]
             record_version = record_parts[3]
-            # Exact application CPE evidence is an identity/version match, but
-            # still only establishes CVE applicability (Candidate), not target-
-            # specific vulnerability confirmation.
             if observed_version not in {'', '*', '-'} and observed_version == record_version:
                 return True, f'{observed_raw} == {record_raw}'
     return False, ''
 
 
-def _entries_for_exact_application_cpe(rec: dict[str, Any], observed_cpe: str) -> list[dict[str, Any]]:
-    """Return affected entries containing the same concrete application CPE."""
+def _entries_for_exact_cpe(rec: dict[str, Any], observed_cpe: str, scope: str = 'application_service') -> list[dict[str, Any]]:
+    wanted_part = 'o' if scope == 'host_os' else 'a'
     observed_parts = []
-    for raw in _application_cpe_values(observed_cpe):
+    for raw in _cpe_values(observed_cpe, scope):
         parts = _cpe_parts(raw)
-        if parts and parts[0] == 'a' and parts[3] not in {'', '*', '-'}:
+        if parts and parts[0] == wanted_part and parts[3] not in {'', '*', '-'}:
             observed_parts.append(parts)
     if not observed_parts:
         return []
@@ -578,13 +614,26 @@ def _entries_for_exact_application_cpe(rec: dict[str, Any], observed_cpe: str) -
     for ent in _affected_entries(rec):
         for raw in ent.get('cpes') or []:
             parts = _cpe_parts(str(raw))
-            if not parts or parts[0] != 'a':
+            if not parts or parts[0] != wanted_part:
                 continue
             if any(obs[:3] == parts[:3] and obs[3] == parts[3] for obs in observed_parts):
                 matched.append(ent)
                 break
     return matched
 
+
+def _entries_for_exact_application_cpe(rec: dict[str, Any], observed_cpe: str) -> list[dict[str, Any]]:
+    return _entries_for_exact_cpe(rec, observed_cpe, 'application_service')
+
+
+def _entry_match_without_observed_version(entry: dict[str, Any]) -> tuple[bool, str]:
+    """Decide versionless applicability only when structured data is unambiguous."""
+    if str(entry.get('defaultStatus', '') or 'unknown').lower() != 'affected':
+        return False, 'observed_version_missing'
+    rules = [rule for rule in entry.get('versions') or [] if isinstance(rule, dict)]
+    if any(str(rule.get('status', '') or 'unknown').lower() not in {'affected'} for rule in rules):
+        return False, 'observed_version_missing_with_exceptions'
+    return True, 'structured_default_status_affected_without_version_exception'
 
 def _metric_for_version(record: dict[str, Any], version: str) -> dict[str, Any]:
     metrics = record.get('cvss_metrics') or {}
@@ -613,32 +662,32 @@ def _sort_key(row: dict[str, Any]) -> tuple[int, float, str]:
     return (0 if scores else 1, -max(scores) if scores else 0.0, str(row.get('cve_id') or ''))
 
 
-@lru_cache(maxsize=4096)
-def _search_cached(product: str, version: str, service: str, cpe: str = '') -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
+@lru_cache(maxsize=8192)
+def _search_cached(product: str, version: str, service: str, cpe: str = '', scope: str = 'application_service') -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
     if not INDEX.exists():
         return tuple(), ({'reason': 'cve_index_unavailable', 'matcher_status': 'unavailable', 'index_file': str(INDEX)},)
 
-    # Nmap can attach OS CPEs to a service node. Only application CPEs may
-    # participate in application/service CVE identity matching.
-    app_cpe_text = ' '.join(_application_cpe_values(cpe))
-    ident, spec = _identity(product, service, app_cpe_text)
+    scope_value = str(scope or '').lower()
+    scope = scope_value if scope_value in {'host_os', 'platform_component', 'application_service'} else 'application_service'
+    scoped_cpe_text = ' '.join(_cpe_values(cpe, scope))
+    ident, spec = _identity(product, service, scoped_cpe_text, scope)
     if not ident:
-        return tuple(), ({'reason': 'unsupported_product_identity', 'matcher_status': 'held'},)
+        return tuple(), ({'reason': 'unsupported_product_identity', 'matcher_status': 'held', 'identity_scope': scope},)
 
-    cpe_version = _concrete_application_cpe_version(app_cpe_text)
+    cpe_version = _concrete_cpe_version(scoped_cpe_text, scope)
     effective_version = cpe_version or version
     if _is_observed_version_range(effective_version):
         return tuple(), ({
             'reason': 'observed_version_is_range',
             'matcher_status': 'held',
             'observed_version': effective_version,
+            'identity_scope': scope,
         },)
     obs_version = _first_version(effective_version)
-    if not obs_version:
-        return tuple(), ({'reason': 'observed_version_missing', 'matcher_status': 'held'},)
 
     matches: list[dict[str, Any]] = []
     malformed_records = 0
+    version_missing_seen = False
     try:
         with INDEX.open('r', encoding='utf-8', errors='ignore') as f:
             for line in f:
@@ -652,12 +701,12 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '') -> t
                 if str(rec.get('record_state') or 'PUBLISHED').upper() != 'PUBLISHED':
                     continue
 
-                product_ok, product_hits, product_basis = _product_ok_for_record(rec, spec)
-                cpe_ok, cpe_hit = _cpe_match(rec, app_cpe_text)
+                product_ok, product_hits, product_basis = _product_ok_for_record(rec, spec, scope)
+                cpe_ok, cpe_hit = _cpe_match(rec, scoped_cpe_text, scope)
                 if not (cpe_ok or product_ok):
                     continue
 
-                candidate_entries = _entries_for_exact_application_cpe(rec, app_cpe_text) if cpe_ok else []
+                candidate_entries = _entries_for_exact_cpe(rec, scoped_cpe_text, scope) if cpe_ok else []
                 if not candidate_entries:
                     candidate_entries = [
                         ent for ent in _affected_entries(rec)
@@ -668,21 +717,21 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '') -> t
                 matched_version = obs_version
                 basis = ''
                 matched_entry: dict[str, Any] | None = None
-                rejection_reasons: list[str] = []
                 for ent in candidate_entries:
-                    ok, token, why = _entry_version_match(ent, effective_version)
+                    if obs_version:
+                        ok, token, why = _entry_version_match(ent, effective_version)
+                    else:
+                        ok, why = _entry_match_without_observed_version(ent)
+                        token = ''
+                        if not ok:
+                            version_missing_seen = True
                     if ok:
                         version_ok = True
                         matched_version = token or obs_version
-                        basis = f'exact_application_cpe:{cpe_hit};{why}' if cpe_ok else why
+                        prefix = _cpe_basis_label(scope)
+                        basis = f'{prefix}:{cpe_hit};{why}' if cpe_ok else why
                         matched_entry = ent
                         break
-                    if why:
-                        rejection_reasons.append(why)
-
-                # Do not fall back to description prose when structured affected
-                # product/version data exists. Description text is explanatory,
-                # not an applicability constraint.
                 if not version_ok:
                     continue
 
@@ -693,6 +742,7 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '') -> t
                     'description': rec.get('description'),
                     'references': rec.get('references') or [],
                     'source': rec.get('source'),
+                    'identity_scope': scope,
                     'cvss_metrics': metrics,
                     'cvss_score': preferred.get('cvss_score'),
                     'cvss_severity': preferred.get('cvss_severity'),
@@ -700,9 +750,9 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '') -> t
                     'cvss_source': preferred.get('cvss_source'),
                     'cvss_version': preferred.get('cvss_version'),
                     'matched_product_tokens': product_hits or [ident],
-                    'matched_version_tokens': [matched_version],
+                    'matched_version_tokens': [matched_version] if matched_version else [],
                     'match_basis': basis,
-                    'product_match_basis': 'exact_application_cpe' if cpe_ok else product_basis,
+                    'product_match_basis': _cpe_basis_label(scope) if cpe_ok else product_basis,
                     'cve_publisher': rec.get('cve_publisher') or 'CVE Program CNA',
                     'cve_publisher_id': rec.get('cve_publisher_id') or '',
                     'affected_vendors': rec.get('affected_vendors') or [],
@@ -711,6 +761,11 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '') -> t
                     'affected_entries': rec.get('affected_entries') or [],
                     'affected_cpes': rec.get('cpes') or [],
                     'matched_affected_entry': copy.deepcopy(matched_entry) if matched_entry else {},
+                    'structured_requirements': {
+                        'modules': list((matched_entry or {}).get('modules') or []),
+                        'platforms': list((matched_entry or {}).get('platforms') or []),
+                        'package_name': str((matched_entry or {}).get('packageName') or ''),
+                    },
                 }
                 matches.append(row)
     except Exception as exc:
@@ -719,6 +774,7 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '') -> t
             'matcher_status': 'error',
             'error_type': type(exc).__name__,
             'error': str(exc),
+            'identity_scope': scope,
         },)
 
     dedup: list[dict[str, Any]] = []
@@ -729,11 +785,14 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '') -> t
             seen.add(cve_id)
             dedup.append(row)
     diagnostics: list[dict[str, Any]] = []
+    if not obs_version and not dedup and version_missing_seen:
+        diagnostics.append({'reason': 'observed_version_missing', 'matcher_status': 'held', 'identity_scope': scope})
     if malformed_records:
         diagnostics.append({
             'reason': 'index_records_skipped',
             'matcher_status': 'degraded',
             'record_count': malformed_records,
+            'identity_scope': scope,
         })
     return tuple(dedup), tuple(diagnostics)
 
@@ -746,6 +805,7 @@ def search(
     *,
     confidence_score: float | None = None,
     recommended_for_cve: bool | None = None,
+    scope: str = 'application_service',
 ) -> tuple[dict[str, Any], ...]:
     confirmed, _ = search_with_held(
         product,
@@ -754,6 +814,7 @@ def search(
         cpe,
         confidence_score=confidence_score,
         recommended_for_cve=recommended_for_cve,
+        scope=scope,
     )
     return tuple(confirmed)
 
@@ -766,6 +827,7 @@ def search_with_held(
     *,
     confidence_score: float | None = None,
     recommended_for_cve: bool | None = None,
+    scope: str = 'application_service',
 ) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
     """Correlate observed identity against canonical CVE affected data.
 
@@ -796,7 +858,7 @@ def search_with_held(
             'message': 'Canonical CVE applicability matching requires the synchronized CVE List index.',
         }])
 
-    matched, diagnostics = _search_cached(product, version, service, cpe)
+    matched, diagnostics = _search_cached(product, version, service, cpe, scope)
     return (
         tuple(copy.deepcopy(list(matched))),
         tuple(copy.deepcopy(advisory + list(diagnostics))),
@@ -837,7 +899,9 @@ def _extract_metrics_from_node(node: Any, role: str = 'CNA') -> dict[str, dict[s
     if not isinstance(node, dict):
         return {}
     output: dict[str, dict[str, Any]] = {}
-    source = str((node.get('providerMetadata') or {}).get('orgId') or '')
+    provider_meta = node.get('providerMetadata') or {}
+    source = str(provider_meta.get('orgId') or '')
+    provider_name = str(provider_meta.get('shortName') or '')
     metrics = node.get('metrics') or []
     if not isinstance(metrics, list):
         return output
@@ -854,6 +918,7 @@ def _extract_metrics_from_node(node: Any, role: str = 'CNA') -> dict[str, dict[s
                 continue
             metric = _validated_metric(version, data, metric_source, role)
             if metric:
+                metric['cvss_provider_name'] = provider_name
                 output[version] = metric
     return output
 

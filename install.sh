@@ -14,6 +14,7 @@ printf '[*] Installing required Kali enumeration tools...\n'
 $SUDO apt-get install -y --no-install-recommends \
   arp-scan nmap bind9-dnsutils jq gobuster enum4linux-ng smbclient smbmap \
   snmp ldap-utils sslscan mtr-tiny traceroute hydra seclists git \
+  tshark rpcbind nfs-common postgresql-client curl openssl iputils-ping iputils-tracepath \
   python3 python3-venv python3-pip libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libffi-dev shared-mime-info
 
 printf '[*] Installing optional Kali enumeration helpers where available...\n'

@@ -90,7 +90,9 @@ def test_main_page_replaces_old_scan_and_vulnerability_tables():
     assert 'cveModal' not in template
     assert 'Table 1 — CVE References' in template
     assert 'Table 2 — Severity &amp; Triage' in template
-    assert 'Table 3 — Information Dump' in template
+    assert 'Table 3 — Scan Findings' in template
+    assert 'Coverage &amp; Assurance' in template
+    assert 'Information Dump' not in template
 
 
 def test_cvss_selector_controls_columns_and_sort_key():
@@ -99,5 +101,7 @@ def test_cvss_selector_controls_columns_and_sort_key():
     assert 'data-cvss-view="4.0"' in template
     assert 'data-cvss-view="both"' in template
     assert "activeScore(b, view) - activeScore(a, view)" in template
-    assert 'class="small cvss31-col"' in template
-    assert 'class="small cvss40-col"' in template
+    assert 'class="cvss31-col"' in template
+    assert 'class="cvss40-col"' in template
+    assert 'metric31-detail' in template
+    assert 'metric40-detail' in template

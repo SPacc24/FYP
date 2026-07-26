@@ -18,6 +18,7 @@
       </div>
       <div class="results-hero-actions">
         <a class="button secondary" href="/">New Scan</a>
+        {% if scan and scan.scan_id %}<a class="button secondary" href="/?clone_scan={{ scan.scan_id }}">New Scan Using Same Settings</a>{% endif %}
         <a class="button" href="#report-workspace" data-dashboard-tab-link="report">Open Report</a>
       </div>
     </section>
@@ -85,18 +86,18 @@
         <small>{{ results.os if results and results.os is defined else results.get('os', 'Operating system unknown') }}</small>
       </article>
       <article class="overview-card">
-        <span class="overview-label">Risk score</span>
-        <strong>{{ risk.score if risk and risk.score is defined else 'N/A' }}</strong>
-        <small>{{ risk.label if risk and risk.label is defined else 'Not rated' }}</small>
+        <span class="overview-label">Versioned endpoints</span>
+        <strong>{{ results.scan_summary.services.versioned_service_endpoints if results and results.scan_summary is defined and results.scan_summary.services is defined else 0 }}</strong>
+        <small>Evidence-backed service versions</small>
       </article>
       <article class="overview-card">
-        <span class="overview-label">Open services</span>
+        <span class="overview-label">Open service endpoints</span>
         <strong>{{ results.ports|length if results and results.ports is defined else 0 }}</strong>
         <small>Discovered during recon</small>
       </article>
       <article class="overview-card">
         <span class="overview-label">CVE references</span>
-        <strong>{{ cve_reference_count|default(0) }}</strong>
+        <strong>{{ results.scan_summary.cve_review.unique_references if results and results.scan_summary is defined and results.scan_summary.cve_review is defined else 0 }}</strong>
         <small>Unique CVE IDs in review</small>
       </article>
       <article class="overview-card">
@@ -106,31 +107,30 @@
       </article>
     </section>
 
-    {% set scan_cfg = results.scan_options|default(scan.scan_options|default({})) %}
-    {% set port_cfg = scan_cfg.port_selection|default({}) %}
-    {% set tcp_cfg = port_cfg.tcp|default({}) %}
-    {% set udp_cfg = port_cfg.udp|default({}) %}
-    {% set adv_cfg = scan_cfg.advanced_settings|default({}) %}
-    <section class="scan-config-summary" aria-label="Effective scan configuration">
-      <div class="scan-config-summary-head">
+    {% set effective_options = results.scan_options|default(scan.scan_options|default({})) %}
+    {% set port_selection = effective_options.get('port_selection', {}) %}
+    {% set tcp_config = port_selection.get('tcp', {}) %}
+    {% set udp_config = port_selection.get('udp', {}) %}
+    {% set advanced_config = effective_options.get('advanced_settings', {}) %}
+    <section class="mini-panel scan-config-panel" aria-label="Effective scan configuration">
+      <div class="stage-head-with-actions">
         <div>
-          <span class="label">SCAN CONFIGURATION</span>
-          <h2>Effective Recon Settings</h2>
+          <span class="label">Scan Configuration</span>
+          <h3>Effective Recon Settings</h3>
+          <p class="small muted">The normalized operator settings saved with this assessment. Coverage below reports what actually executed.</p>
         </div>
-        <span class="small muted">Saved with this scan for auditability</span>
       </div>
-      <div class="scan-config-grid">
-        <div><span>Target</span><strong>{{ scan.target_ip if scan and scan.target_ip else scan.target|default(results.target_input|default('Unknown')) }}</strong></div>
-        <div><span>TCP strategy</span><strong>{{ tcp_cfg.display|default(tcp_cfg.mode|default('Not recorded')) }}</strong></div>
-        <div><span>UDP strategy</span><strong>{{ udp_cfg.display|default(udp_cfg.mode|default('Not recorded')) }}</strong></div>
-        <div><span>Ports / batch</span><strong>{{ adv_cfg.ports_per_batch|default('Not recorded') }}</strong></div>
-        <div><span>Batch timeout</span><strong>{% if adv_cfg.command_timeout_seconds is defined %}{{ adv_cfg.command_timeout_seconds }} s{% else %}Not recorded{% endif %}</strong></div>
-        <div><span>Failed-batch retry</span><strong>{% if adv_cfg.retry_failed_batches %}Enabled · {{ adv_cfg.retry_count|default(0) }} max{% else %}Disabled{% endif %}</strong></div>
-        <div><span>Parallel scanning</span><strong>{% if adv_cfg.parallel_scanning %}Enabled · {{ adv_cfg.parallel_workers|default(1) }} workers{% else %}Disabled{% endif %}</strong></div>
-        <div><span>Evidence tools</span><strong>{{ scan_cfg.enabled_tool_labels|default([])|length }} selected</strong></div>
+      <div class="scan-assurance-grid">
+        <article class="scan-assurance-card"><span class="label">TCP Strategy</span><strong>{{ tcp_config.get('display') or tcp_config.get('mode','Unknown')|title }}</strong><span class="small muted">{{ tcp_config.get('count',0) }} selected port(s)</span></article>
+        <article class="scan-assurance-card"><span class="label">UDP Strategy</span><strong>{{ udp_config.get('display') or udp_config.get('mode','Unknown')|title }}</strong><span class="small muted">{{ udp_config.get('count',0) }} selected port(s)</span></article>
+        <article class="scan-assurance-card"><span class="label">Ports / Batch</span><strong>{{ advanced_config.get('ports_per_batch','N/A') }}</strong><span class="small muted">Discovery batch size</span></article>
+        <article class="scan-assurance-card"><span class="label">Batch Timeout</span><strong>{{ advanced_config.get('command_timeout_seconds','N/A') }} s</strong><span class="small muted">Per command</span></article>
+        <article class="scan-assurance-card"><span class="label">Failed-Batch Retry</span><strong>{{ 'Enabled' if advanced_config.get('retry_failed_batches') else 'Disabled' }}</strong><span class="small muted">Maximum retries: {{ advanced_config.get('retry_count',0) }}</span></article>
+        <article class="scan-assurance-card"><span class="label">Parallel Scanning</span><strong>{{ 'Enabled' if advanced_config.get('parallel_scanning') else 'Disabled' }}</strong><span class="small muted">Worker count: {{ advanced_config.get('parallel_workers',1) }}</span></article>
+        <article class="scan-assurance-card"><span class="label">Evidence Plan</span><strong>{{ effective_options.get('collection_preset_label') or 'Legacy' }}</strong><span class="small muted">Requested {{ effective_options.get('collector_counts',{}).get('requested',0) }} · permitted {{ effective_options.get('collector_counts',{}).get('permitted',0) }} · blocked {{ effective_options.get('collector_counts',{}).get('blocked',0) }}</span></article>
+        <article class="scan-assurance-card"><span class="label">Host Discovery</span><strong>Configured</strong><span class="small muted">ARP {{ 'on' if effective_options.get('host_discovery',{}).get('effective',{}).get('arp_discovery') else 'off' }} · ICMP {{ 'on' if effective_options.get('host_discovery',{}).get('effective',{}).get('icmp_echo') else 'off' }} · Nmap -sn {{ 'on' if effective_options.get('host_discovery',{}).get('effective',{}).get('nmap_host_discovery') else 'off' }}</span></article>
       </div>
     </section>
-
 
     <section class="assessment-flow" aria-label="Assessment workflow">
       <div class="flow-track">

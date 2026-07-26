@@ -3,7 +3,14 @@ from typing import Iterable, Any, Mapping
 import hashlib
 import json
 import re
+import shutil
 from pathlib import Path
+
+from .collector_plan import (
+    COLLECTION_PRESETS, COLLECTOR_GROUPS, CORE_TOOL_IDS, build_collector_catalog,
+    normalise_collection_plan, normalise_host_discovery, normalise_service_identity,
+    nse_script_preflight,
+)
 
 """Recon tool, port, and runtime option normalisation.
 
@@ -19,6 +26,18 @@ scan.
 """
 
 TOOL_OPTIONS = [
+    {'id':'nmap_os_identity','label':'Generic active OS fingerprint','category':'Host Identity','purpose':'Collect bounded Nmap OS match/class/CPE evidence using only operator-authorised ports already covered by discovery.','full':True},
+    {'id':'smb_host_identity','label':'SMB host/OS identity','category':'Host Identity','purpose':'Collect SMB-exposed host, domain/workgroup, OS/CPE, capability and time evidence without share/user enumeration.','full':True},
+    {'id':'netbios_identity','label':'NetBIOS host identity','category':'Host Identity','purpose':'Collect NetBIOS naming identity when NetBIOS is actually observed; no RID/user enumeration.','full':True},
+    {'id':'msrpc_metadata','label':'Microsoft RPC endpoint metadata','category':'Host Identity','purpose':'Collect safe RPC endpoint-mapper metadata; advertised dynamic endpoints are recorded, not silently scanned.','full':True},
+    {'id':'ntlm_http_identity','label':'HTTP / WinRM NTLM host identity','category':'Host Identity','purpose':'Collect NTLM-negotiated computer/domain/product-version metadata without successful authentication.','full':True},
+    {'id':'ntlm_rdp_identity','label':'RDP NTLM host identity','category':'Host Identity','purpose':'Collect RDP NTLM computer/domain/product-version metadata without successful authentication.','full':True},
+    {'id':'ntlm_mssql_identity','label':'MSSQL NTLM host identity','category':'Host Identity','purpose':'Collect SQL NTLM computer/domain/product-version metadata separately from SQL Server application version.','full':True},
+    {'id':'ntlm_smtp_identity','label':'SMTP NTLM host identity','category':'Host Identity','purpose':'Collect NTLM host metadata only when an applicable SMTP service exposes it.','full':False},
+    {'id':'ntlm_imap_identity','label':'IMAP NTLM host identity','category':'Host Identity','purpose':'Collect NTLM host metadata only when an applicable IMAP service exposes it.','full':False},
+    {'id':'ntlm_pop3_identity','label':'POP3 NTLM host identity','category':'Host Identity','purpose':'Collect NTLM host metadata only when an applicable POP3 service exposes it.','full':False},
+    {'id':'ntlm_nntp_identity','label':'NNTP NTLM host identity','category':'Host Identity','purpose':'Collect NTLM host metadata only when an applicable NNTP service exposes it.','full':False},
+    {'id':'ntlm_telnet_identity','label':'Telnet NTLM host identity','category':'Host Identity','purpose':'Collect NTLM host metadata only when an applicable Telnet service exposes it.','full':False},
     {'id':'passive_dns','label':'Passive DNS intelligence','category':'Passive','purpose':'Collect approved DNS record evidence including MX/TXT/SRV/NS/CNAME without authentication or exploitation.','full':True},
     {'id':'passive_tls','label':'Passive TLS certificate intelligence','category':'Passive','purpose':'Collect TLS certificate, SAN, issuer and negotiated TLS evidence from observed TLS endpoints.','full':True},
     {'id':'passive_fingerprinting','label':'Passive enterprise fingerprinting','category':'Passive','purpose':'Infer email, authentication, VPN, CDN, reverse proxy, cloud and technology hints from already collected DNS/TLS/HTTP evidence.','full':True},
@@ -63,9 +82,10 @@ TOOL_OPTIONS = [
     {'id':'kubernetes_exposure','label':'Kubernetes exposure check','category':'Modern Active','purpose':'Check unauthenticated Kubernetes metadata endpoints only.','full':True},
     {'id':'container_exposure','label':'Container/registry exposure check','category':'Modern Active','purpose':'Check Docker/Podman/registry metadata endpoints only.','full':True},
     {'id':'vpn_validation','label':'VPN portal marker validation','category':'Modern Active','purpose':'Validate VPN portal markers without authentication.','full':True},
+    {'id':'native_protocol_enrichment','label':'Native protocol metadata enrichment','category':'Information Gathering','purpose':'Collect one bounded product/version/capability interaction for supported observed services.','full':True},
 ]
 
-VALID_TOOL_IDS = {tool['id'] for tool in TOOL_OPTIONS}
+VALID_TOOL_IDS = {tool['id'] for tool in TOOL_OPTIONS} | set(CORE_TOOL_IDS)
 PROFILE_LABELS = {'full':'Full Recon','custom':'Operator Configured'}
 PORT_MODES = {'full', 'essentials', 'custom'}
 MIN_PORT = 1
@@ -236,6 +256,10 @@ def normalise_scan_options(
     udp_port_mode: str | None = None,
     udp_custom_ports: str | None = None,
     advanced_settings: Mapping[str, Any] | None = None,
+    collection_preset: str | None = None,
+    collector_plan: Mapping[str, Any] | None = None,
+    host_discovery_settings: Mapping[str, Any] | None = None,
+    service_identity_settings: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     profile_key = (profile or 'full').lower()
     if profile_key in {'adaptive', 'fast'}:
@@ -244,21 +268,33 @@ def normalise_scan_options(
         profile_key = 'full'
 
     policy, policy_status, policy_hash = _load_profile_policy()
-    if profile_key == 'custom':
-        requested = {str(x) for x in (enabled_tools or []) if str(x) in VALID_TOOL_IDS}
-    elif enabled_tools is not None:
-        requested = {str(x) for x in enabled_tools if str(x) in VALID_TOOL_IDS}
-    else:
-        configured = (
-            policy.get('full_recon_enabled_tools')
-            or policy.get('default_enabled_tools')
-            or [tool['id'] for tool in TOOL_OPTIONS if tool.get('full')]
-        ) if policy_status == 'loaded' else []
-        requested = set(configured)
 
-    selected_list, conflicts = _resolve_enabled_tools(policy, requested)
-    selected = set(selected_list)
+    catalog = build_collector_catalog(TOOL_OPTIONS, policy)
+    preset_key = str(collection_preset or ('custom' if profile_key == 'custom' and enabled_tools is not None else 'recommended')).lower()
+    legacy_enabled = enabled_tools if collector_plan is None and enabled_tools is not None else None
+    normalised_plan, evidence_enabled, conflicts = normalise_collection_plan(
+        TOOL_OPTIONS, policy, preset_key, collector_plan, legacy_enabled
+    )
+    host_discovery = normalise_host_discovery(policy, host_discovery_settings)
+    service_identity = normalise_service_identity(policy, service_identity_settings)
+
+    selected = set(evidence_enabled)
+    # Core discovery stages are not evidence collectors. They are controlled by
+    # their own structured settings and are never shown as ordinary tool cards.
+    selected.add('environment_characterisation')
+    if service_identity.get('tcp_discovery_enabled'):
+        selected.add('tcp_discovery')
+    if service_identity.get('udp_discovery_enabled'):
+        selected.add('udp_discovery')
+    if service_identity.get('service_fingerprinting_enabled'):
+        selected.add('service_fingerprint')
     disabled = VALID_TOOL_IDS - selected
+    collector_counts = {
+        'requested': sum(1 for item in normalised_plan.values() if item.get('requested')),
+        'permitted': sum(1 for item in normalised_plan.values() if item.get('effective_enabled')),
+        'blocked': sum(1 for item in normalised_plan.values() if item.get('requested') and item.get('policy_state') == 'blocked'),
+        'catalog_total': len(normalised_plan),
+    }
 
     tcp_selection, tcp_errors = _normalise_port_selection(
         policy, 'tcp', tcp_port_mode, tcp_custom_ports
@@ -306,6 +342,13 @@ def normalise_scan_options(
         'profile': profile_key,
         'profile_label': PROFILE_LABELS[profile_key],
         'strategy': 'operator_configurable_tcp_udp_recon',
+        'collection_preset': preset_key if preset_key in COLLECTION_PRESETS else 'recommended',
+        'collection_preset_label': COLLECTION_PRESETS.get(preset_key, COLLECTION_PRESETS['recommended'])['label'],
+        'collector_plan': normalised_plan,
+        'collector_catalog': catalog,
+        'collector_counts': collector_counts,
+        'host_discovery': host_discovery,
+        'service_identity': service_identity,
         'enabled_tools': sorted(selected),
         'enabled_tool_labels': [tool['label'] for tool in TOOL_OPTIONS if tool['id'] in selected],
         'disabled_tool_labels': [tool['label'] for tool in TOOL_OPTIONS if tool['id'] in disabled],
@@ -343,3 +386,39 @@ def is_tool_enabled(options: dict[str, Any] | None, tool_id: str) -> bool:
     if not options:
         options = normalise_scan_options('full')
     return tool_id in set(options.get('enabled_tools') or [])
+
+
+def collector_ui_context() -> dict[str, Any]:
+    """Return policy-aware collector metadata for the starting page.
+
+    Runtime binary availability is advisory only: a collector can remain part
+    of a saved plan, while the UI tells the operator before launch that the
+    current scanner host cannot execute it. The runtime still records the
+    authoritative lifecycle outcome.
+    """
+    policy, status, policy_hash = _load_profile_policy()
+    catalog = build_collector_catalog(TOOL_OPTIONS, policy)
+    for item in catalog:
+        binary = str(item.get('binary') or '').strip()
+        binary_available = True if not binary else bool(shutil.which(binary))
+        nse_state = nse_script_preflight(item.get('nse_scripts') or [])
+        item['nse_preflight'] = nse_state
+        item['runtime_available'] = bool(binary_available and nse_state.get('available', True))
+        item['runtime_requirement'] = binary
+        dependencies = [binary] if binary else []
+        if item.get('nse_scripts'):
+            dependencies.append('NSE: ' + ', '.join(item.get('nse_scripts') or []))
+        item['runtime_dependencies'] = '; '.join(dependencies)
+        if binary_available and nse_state.get('known') and nse_state.get('missing'):
+            item['runtime_unavailable_reason'] = 'Missing Nmap NSE script(s): ' + ', '.join(nse_state.get('missing') or [])
+        elif not binary_available and binary:
+            item['runtime_unavailable_reason'] = f'Missing binary: {binary}'
+        else:
+            item['runtime_unavailable_reason'] = ''
+    return {
+        'catalog': catalog,
+        'groups': list(COLLECTOR_GROUPS),
+        'presets': dict(COLLECTION_PRESETS),
+        'policy_status': status,
+        'policy_sha256': policy_hash,
+    }
