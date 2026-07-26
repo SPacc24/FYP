@@ -487,15 +487,25 @@ def generate_pdf_report(
     if remediations is None:
         remediations = []
 
-    report_text = build_report_summary(
-        scan, mapping, operation, risk, remediations, validation, pivot, missions
-    )
+    # report_text = build_report_summary(
+    #        scan, mapping, operation, risk, remediations, validation, pivot, missions
+    # )
+     
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     try:
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER
         from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import mm
+        from reportlab.platypus import (
+            PageBreak,
+            Paragraph,
+            SimpleDocTemplate,
+            Spacer,
+            Table,
+            TableStyle,
+        )
         from xml.sax.saxutils import escape
 
         path = REPORT_DIR / f"autopentest_report_{stamp}.pdf"
@@ -508,18 +518,753 @@ def generate_pdf_report(
             bottomMargin=16 * mm,
         )
         styles = getSampleStyleSheet()
-        body = styles["BodyText"]
-        body.fontSize = 9
-        body.leading = 12
+
+        title_style = ParagraphStyle(
+            "ReportTitle",
+            parent=styles["Title"],
+            fontName="Helvetica-Bold",
+            fontSize=24,
+            leading=30,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor("#6D5DFC"),
+            spaceAfter=8,
+        )
+
+        subtitle_style = ParagraphStyle(
+            "ReportSubtitle",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=10,
+            leading=14,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor("#666666"),
+            spaceAfter=20,
+        )
+
+        section_style = ParagraphStyle(
+            "SectionHeading",
+            parent=styles["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=14,
+            leading=18,
+            textColor=colors.HexColor("#2E2559"),
+            spaceBefore=14,
+            spaceAfter=8,
+        )
+
+        body = ParagraphStyle(
+            "ReportBody",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=9,
+            leading=13,
+            textColor=colors.HexColor("#222222"),
+            spaceAfter=3,
+        )
+
         story: list[Any] = []
-        for line in report_text.splitlines():
-            if not line.strip():
-                story.append(Spacer(1, 4))
-                continue
-            story.append(Paragraph(escape(line).replace(" ", "&nbsp;"), body))
+        story.append(Spacer(1, 35))
+
+        story.append(Paragraph("AutoPenTest", title_style))
+        story.append(Paragraph("Automated Penetration Testing Report", subtitle_style))
+
+        story.append(
+            Paragraph(
+                f"<b>Generated:</b> {datetime.now().strftime('%d %B %Y %H:%M')}",
+                subtitle_style,
+            )
+        )
+
+        if scan_id:
+            story.append(
+                Paragraph(
+                    f"<b>Scan ID:</b> {escape(scan_id)}",
+                    subtitle_style,
+                )
+            )
+
+        story.append(Spacer(1, 30))
+        info_data = [
+            ["Target", _safe_text(scan.get("target_ip", "Unknown"))],
+            ["Operating System", _safe_text(scan.get("os", "Unknown"))],
+            ["Report Generated", datetime.now().strftime("%d %B %Y %H:%M")],
+        ]
+
+        info_table = Table(info_data, colWidths=[55 * mm, 105 * mm])
+
+        info_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F3F0FF")),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ])
+        )
+
+        story.append(info_table)
+        story.append(PageBreak())
+
+        story.append(Paragraph("Executive Summary", section_style))
+        story.append(Spacer(1, 6))
+
+        story.append(
+            Paragraph(
+                "This report summarises the findings from the automated penetration testing assessment, "
+                "including discovered services, identified vulnerabilities, MITRE ATT&CK mappings, "
+                "adversary emulation results, and remediation recommendations.",
+                body,
+            )
+        )
+
+        story.append(Spacer(1, 12))
+
+        # =========================================================
+        # HELPER FOR SAFE, WRAPPING TABLE CELLS
+        # =========================================================
+        def pdf_cell(value):
+            """
+            Convert any value into a ReportLab Paragraph.
+
+            Paragraph cells wrap automatically instead of overflowing
+            into neighbouring columns.
+            """
+            return Paragraph(
+                escape(_safe_text(value)),
+                body,
+            )
+
+
+        # =========================================================
+        # OPEN SERVICES
+        # =========================================================
+        story.append(Paragraph("Open Services", section_style))
+        story.append(Spacer(1, 6))
+
+        ports = scan.get("ports", []) or []
+
+        if ports:
+            port_data = [
+                ["Port", "Protocol", "State", "Service", "Product", "Version"]
+            ]
+
+            for port in ports:
+                port_data.append([
+                    pdf_cell(port.get("port", "N/A")),
+                    pdf_cell(
+                        _safe_text(port.get("protocol", "tcp")).upper()
+                    ),
+                    pdf_cell(port.get("state", "unknown")),
+                    pdf_cell(port.get("service", "unknown")),
+                    pdf_cell(port.get("product", "")),
+                    pdf_cell(port.get("version", "")),
+                ])
+
+            port_table = Table(
+                port_data,
+                colWidths=[
+                    15 * mm,
+                    19 * mm,
+                    18 * mm,
+                    30 * mm,
+                    48 * mm,
+                    30 * mm,
+                ],
+                repeatRows=1,
+            )
+
+            port_table.setStyle(
+                TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E2559")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FAFAFA")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ])
+            )
+
+            story.append(port_table)
+
+        else:
+            story.append(
+                Paragraph(
+                    "No open or reported services were found.",
+                    body,
+                )
+            )
+
+        story.append(Spacer(1, 14))
+
+
+        # =========================================================
+        # VULNERABILITY FINDINGS
+        # =========================================================
+        story.append(Paragraph("Vulnerability Findings", section_style))
+        story.append(Spacer(1, 6))
+
+        vulnerabilities = mapping.get("vulnerabilities", []) or []
+
+        if vulnerabilities:
+            vulnerability_data = [
+                ["Severity", "Host", "Port", "Service", "Finding"]
+            ]
+
+            for vulnerability in vulnerabilities:
+                vulnerability_data.append([
+                    pdf_cell(
+                        _safe_text(
+                            vulnerability.get("severity", "Unknown")
+                        ).title()
+                    ),
+                    pdf_cell(vulnerability.get("host", "Unknown")),
+                    pdf_cell(vulnerability.get("port", "N/A")),
+                    pdf_cell(vulnerability.get("service", "unknown")),
+                    pdf_cell(
+                        vulnerability.get("title", "Untitled finding")
+                    ),
+                ])
+
+            vulnerability_table = Table(
+                vulnerability_data,
+                colWidths=[
+                    21 * mm,
+                    29 * mm,
+                    15 * mm,
+                    27 * mm,
+                    68 * mm,
+                ],
+                repeatRows=1,
+            )
+
+            vulnerability_style = [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E2559")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+
+            for row_number, vulnerability in enumerate(
+                vulnerabilities,
+                start=1,
+            ):
+                severity = str(
+                    vulnerability.get("severity", "")
+                ).lower()
+
+                if severity == "critical":
+                    background = colors.HexColor("#FDE8E8")
+                elif severity == "high":
+                    background = colors.HexColor("#FFF0E0")
+                elif severity == "medium":
+                    background = colors.HexColor("#FFF8D8")
+                elif severity == "low":
+                    background = colors.HexColor("#E8F5E9")
+                else:
+                    background = colors.HexColor("#F5F5F5")
+
+                vulnerability_style.append(
+                    (
+                        "BACKGROUND",
+                        (0, row_number),
+                        (-1, row_number),
+                        background,
+                    )
+                )
+
+            vulnerability_table.setStyle(
+                TableStyle(vulnerability_style)
+            )
+
+            story.append(vulnerability_table)
+
+        else:
+            story.append(
+                Paragraph(
+                    "No vulnerability findings were mapped.",
+                    body,
+                )
+            )
+
+        story.append(Spacer(1, 14))
+
+
+        # =========================================================
+        # MITRE ATT&CK MAPPING
+        # =========================================================
+        story.append(Paragraph("MITRE ATT&CK Mapping", section_style))
+        story.append(Spacer(1, 6))
+
+        plan = mapping.get("caldera_plan", {}) or {}
+        techniques = plan.get("selected_techniques", []) or []
+
+        if techniques:
+            mitre_data = [
+                ["Technique ID", "Technique", "Stage", "Severity"]
+            ]
+
+            for technique in techniques:
+                mitre_data.append([
+                    pdf_cell(technique.get("id", "N/A")),
+                    pdf_cell(technique.get("name", "Unknown technique")),
+                    pdf_cell(
+                        technique.get(
+                            "attack_path_stage",
+                            "N/A",
+                        )
+                    ),
+                    pdf_cell(
+                        technique.get(
+                            "max_severity",
+                            "N/A",
+                        )
+                    ),
+                ])
+
+            mitre_table = Table(
+                mitre_data,
+                colWidths=[
+                    27 * mm,
+                    63 * mm,
+                    48 * mm,
+                    22 * mm,
+                ],
+                repeatRows=1,
+            )
+
+            mitre_table.setStyle(
+                TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E2559")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FAFAFA")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ])
+            )
+
+            story.append(mitre_table)
+
+        else:
+            story.append(
+                Paragraph(
+                    "No MITRE ATT&CK techniques were selected.",
+                    body,
+                )
+            )
+
+        story.append(Spacer(1, 14))
+
+
+        # =========================================================
+        # CALDERA OPERATION RESULTS
+        # =========================================================
+        story.append(
+            Paragraph(
+                "CALDERA Operation Results",
+                section_style,
+            )
+        )
+        story.append(Spacer(1, 6))
+
+        if operation:
+            operation_data = [
+                [
+                    "Operation ID",
+                    pdf_cell(operation.get("operation_id", "N/A")),
+                ],
+                [
+                    "Operation Name",
+                    pdf_cell(operation.get("operation_name", "N/A")),
+                ],
+                [
+                    "State",
+                    pdf_cell(operation.get("state", "N/A")),
+                ],
+                [
+                    "Techniques Executed",
+                    pdf_cell(operation.get("total", 0)),
+                ],
+                [
+                    "Successful",
+                    pdf_cell(operation.get("success_count", 0)),
+                ],
+                [
+                    "Failed",
+                    pdf_cell(operation.get("fail_count", 0)),
+                ],
+                [
+                    "Timed Out",
+                    pdf_cell(operation.get("timed_out", False)),
+                ],
+            ]
+
+            operation_table = Table(
+                operation_data,
+                colWidths=[
+                    45 * mm,
+                    115 * mm,
+                ],
+            )
+
+            operation_table.setStyle(
+                TableStyle([
+                    ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F3F0FF")),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ])
+            )
+
+            story.append(operation_table)
+
+            techniques_run = operation.get("techniques_run", []) or []
+
+            if techniques_run:
+                story.append(Spacer(1, 10))
+
+                execution_data = [
+                    ["Technique ID", "Technique", "Tactic", "Status"]
+                ]
+
+                for technique in techniques_run:
+                    execution_data.append([
+                        pdf_cell(
+                            technique.get("technique_id", "N/A")
+                        ),
+                        pdf_cell(
+                            technique.get("technique_name", "")
+                        ),
+                        pdf_cell(
+                            technique.get("tactic", "unknown")
+                        ),
+                        pdf_cell(
+                            _safe_text(
+                                technique.get("status", "unknown")
+                            ).title()
+                        ),
+                    ])
+
+                execution_table = Table(
+                    execution_data,
+                    colWidths=[
+                        27 * mm,
+                        66 * mm,
+                        39 * mm,
+                        28 * mm,
+                    ],
+                    repeatRows=1,
+                )
+
+                execution_table.setStyle(
+                    TableStyle([
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E2559")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, -1), 8),
+                        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
+                        ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FAFAFA")),
+                        ("TOPPADDING", (0, 0), (-1, -1), 6),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ])
+                )
+
+                story.append(execution_table)
+
+        else:
+            story.append(
+                Paragraph(
+                    "No CALDERA operation has been executed yet.",
+                    body,
+                )
+            )
+
+        story.append(Spacer(1, 14))
+
+
+        # =========================================================
+        # RISK SUMMARY
+        # =========================================================
+        story.append(Paragraph("Risk Summary", section_style))
+        story.append(Spacer(1, 6))
+
+        risk_score = _safe_text(risk.get("score", "N/A"))
+        risk_label = _safe_text(
+            risk.get("label", "N/A")
+        ).title()
+
+        risk_data = [
+            [
+                "Overall Risk Score",
+                pdf_cell(f"{risk_score} / 10"),
+            ],
+            [
+                "Risk Level",
+                pdf_cell(risk_label),
+            ],
+        ]
+
+        risk_table = Table(
+            risk_data,
+            colWidths=[
+                45 * mm,
+                115 * mm,
+            ],
+        )
+
+        risk_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F3F0FF")),
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTNAME", (1, 0), (1, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ])
+        )
+
+        story.append(risk_table)
+        story.append(Spacer(1, 14))
+
+
+        # =========================================================
+        # LAB EXPLOITABILITY VALIDATION
+        # =========================================================
+        story.append(
+            Paragraph(
+                "Lab Exploitability Validation",
+                section_style,
+            )
+        )
+        story.append(Spacer(1, 6))
+
+        validation = validation or {}
+
+        validation_data = [
+            [
+                "Mode",
+                pdf_cell(validation.get("mode", "N/A")),
+            ],
+            [
+                "Target",
+                pdf_cell(validation.get("target", "N/A")),
+            ],
+            [
+                "Checks Executed",
+                pdf_cell(validation.get("total_checked", 0)),
+            ],
+            [
+                "Confirmed",
+                pdf_cell(validation.get("confirmed", 0)),
+            ],
+            [
+                "Potential",
+                pdf_cell(validation.get("potential", 0)),
+            ],
+            [
+                "Failed",
+                pdf_cell(validation.get("failed", 0)),
+            ],
+        ]
+
+        validation_table = Table(
+            validation_data,
+            colWidths=[
+                45 * mm,
+                115 * mm,
+            ],
+        )
+
+        validation_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F3F0FF")),
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ])
+        )
+
+        story.append(validation_table)
+        story.append(Spacer(1, 14))
+
+
+        # =========================================================
+        # PIVOT ASSESSMENT
+        # =========================================================
+        story.append(Paragraph("Pivot Assessment", section_style))
+        story.append(Spacer(1, 6))
+
+        pivot = pivot or {}
+
+        pivot_data = [
+            [
+                "Status",
+                pdf_cell(pivot.get("status", "N/A")),
+            ],
+            [
+                "Entry Host",
+                pdf_cell(pivot.get("entry_host", "N/A")),
+            ],
+            [
+                "Pivot Possible",
+                pdf_cell(pivot.get("pivot_possible", False)),
+            ],
+            [
+                "Reachable Targets",
+                pdf_cell(pivot.get("candidate_count", 0)),
+            ],
+        ]
+
+        pivot_table = Table(
+            pivot_data,
+            colWidths=[
+                45 * mm,
+                115 * mm,
+            ],
+        )
+
+        pivot_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F3F0FF")),
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ])
+        )
+
+        story.append(pivot_table)
+        story.append(Spacer(1, 14))
+
+
+        # =========================================================
+        # REMEDIATION RECOMMENDATIONS
+        # =========================================================
+        story.append(
+            Paragraph(
+                "Remediation Recommendations",
+                section_style,
+            )
+        )
+        story.append(Spacer(1, 6))
+
+        if remediations:
+            remediation_data = [
+                ["Type", "Recommendation"]
+            ]
+
+            for item in remediations:
+                fixes = item.get("fixes", []) or []
+
+                if fixes:
+                    fixes_text = "<br/>".join(
+                        f"• {escape(_safe_text(fix))}"
+                        for fix in fixes[:3]
+                    )
+                else:
+                    fixes_text = "No recommendation provided."
+
+                remediation_data.append([
+                    pdf_cell(
+                        _safe_text(
+                            item.get("type", "General")
+                        ).title()
+                    ),
+                    Paragraph(
+                        fixes_text,
+                        body,
+                    ),
+                ])
+
+            remediation_table = Table(
+                remediation_data,
+                colWidths=[
+                    35 * mm,
+                    125 * mm,
+                ],
+                repeatRows=1,
+            )
+
+            remediation_table.setStyle(
+                TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E2559")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
+                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FAFAFA")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 7),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ])
+            )
+
+            story.append(remediation_table)
+
+        else:
+            story.append(
+                Paragraph(
+                    "No remediation recommendations available.",
+                    body,
+                )
+            )
+
+        story.append(Spacer(1, 14))
+
+        
         doc.build(story)
         return str(path)
+    
     except Exception:
+        report_text = build_report_summary(
+            scan,
+            mapping,
+            operation,
+            risk,
+            remediations,
+            validation,
+            pivot,
+            missions,
+        )
+
         path = REPORT_DIR / f"autopentest_report_{stamp}.txt"
         path.write_text(report_text, encoding="utf-8")
         return str(path)
