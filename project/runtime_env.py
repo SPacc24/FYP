@@ -32,7 +32,7 @@ SECRET_FACTORIES: tuple[tuple[str, Callable[[], str]], ...] = (
 
 DEFAULT_VALUES: tuple[tuple[str, str], ...] = (
     ("DEBUG", "false"),
-    ("APP_HOST", "127.0.0.1"),
+    ("APP_HOST", "0.0.0.0"),
     ("OLLAMA_URL", "http://localhost:11434/api/generate"),
     ("OLLAMA_MODEL", "llama3.2:1b"),
     ("OLLAMA_TIMEOUT", "180"),

@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+UBUNTU_IP="${1:-}"
+WIN10_IP="${2:-}"
+
+if [[ -z "$UBUNTU_IP" || -z "$WIN10_IP" ]]; then
+    echo "Usage: $0 <ubuntu-ip> <win10-ip>"
+    exit 2
+fi
+
+KALI_IP="$(
+    ip route get "$UBUNTU_IP" 2>/dev/null |
+    awk '/src/ {
+        for (i = 1; i <= NF; i++) {
+            if ($i == "src") {
+                print $(i + 1)
+                exit
+            }
+        }
+    }'
+)"
+
+if [[ -z "$KALI_IP" ]]; then
+    echo "Unable to determine the Kali source IP for $UBUNTU_IP."
+    exit 1
+fi
+
+same_24() {
+    [[ "${1%.*}" == "${2%.*}" ]]
+}
+
+echo "=== AutoPenTest Chain Diagnostics ==="
+echo "Kali:   $KALI_IP"
+echo "Ubuntu: $UBUNTU_IP"
+echo "Win10:  $WIN10_IP"
+echo
+
+echo "[1/5] Basic reachability"
+
+if ping -c 1 -W 2 "$UBUNTU_IP" >/dev/null 2>&1; then
+    echo "  Ubuntu ICMP: reachable"
+else
+    echo "  Ubuntu ICMP: no reply"
+fi
+
+if ping -c 1 -W 2 "$WIN10_IP" >/dev/null 2>&1; then
+    echo "  Win10 ICMP: reachable"
+else
+    echo "  Win10 ICMP: no reply"
+fi
+
+echo
+echo "[2/5] Ubuntu web-service check"
+
+if timeout 5 bash -c "</dev/tcp/$UBUNTU_IP/80" 2>/dev/null; then
+    echo "  TCP/80: open"
+
+    if curl -fsSIL --max-time 5 "http://$UBUNTU_IP/" |
+        sed -n '1,5p'; then
+        echo "  HTTP: responded"
+    else
+        echo "  HTTP: TCP connected, but no valid HTTP response"
+    fi
+else
+    echo "  TCP/80: closed, filtered, or unreachable"
+fi
+
+echo
+echo "[3/5] Python web-validation proposal"
+
+UBUNTU_IP="$UBUNTU_IP" python3 <<'PY'
+import os
+from pprint import pprint
+
+from exploitation.web_validator import WebValidationService
+
+target = os.environ["UBUNTU_IP"]
+
+service = WebValidationService(
+    enabled=True,
+    timeout=5,
+    max_response_bytes=65536,
+    max_redirects=2,
+    operating_system="linux",
+)
+
+scan_data = {
+    "hosts": [
+        {
+            "address": {"primary": target},
+            "port_findings": [
+                {
+                    "port": 80,
+                    "protocol": "tcp",
+                    "state": "open",
+                    "service": "http",
+                }
+            ],
+        }
+    ]
+}
+
+try:
+    result = service.propose_actions(scan_data)
+except Exception as exc:
+    print(f"  Validator exception: {type(exc).__name__}: {exc}")
+    raise SystemExit(1)
+
+actions = result.get("actions") or []
+
+print(f"  Proposed actions: {len(actions)}")
+
+if not actions:
+    print("  Returned result:")
+    pprint(result)
+PY
+
+echo
+echo "[4/5] Pivot requirement"
+
+if same_24 "$KALI_IP" "$UBUNTU_IP" &&
+   same_24 "$KALI_IP" "$WIN10_IP"; then
+    echo "  Pivot not required: all hosts appear to share the same /24."
+    echo "  Kali can test Win10 connectivity directly."
+else
+    echo "  Hosts do not all appear to share the same /24."
+    echo "  A routed or pivoted path may be required."
+fi
+
+echo
+echo "[5/5] Windows SMB connectivity"
+
+if timeout 5 bash -c "</dev/tcp/$WIN10_IP/445" 2>/dev/null; then
+    echo "  TCP/445: reachable"
+else
+    echo "  TCP/445: closed, filtered, or unreachable"
+fi
+
+echo
+echo "=== Diagnostics complete ==="

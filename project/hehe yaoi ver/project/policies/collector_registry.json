@@ -1,0 +1,279 @@
+{
+  "nmap_syn_top_ports": {
+    "noise": "low-medium",
+    "automatic": true,
+    "evidence": [
+      "open_tcp_ports"
+    ]
+  },
+  "nmap_banner_intensity0": {
+    "noise": "low-medium",
+    "automatic": true,
+    "evidence": [
+      "product",
+      "version",
+      "cpe"
+    ]
+  },
+  "http_headers_title": {
+    "noise": "low",
+    "automatic": true,
+    "evidence": [
+      "headers",
+      "title",
+      "server"
+    ]
+  },
+  "httpx_technology_probe": {
+    "noise": "low",
+    "automatic": true,
+    "evidence": [
+      "title",
+      "technology_hints",
+      "status"
+    ]
+  },
+  "credential_validation": {
+    "noise": "high",
+    "automatic": false,
+    "handoff_only": true
+  },
+  "directory_discovery": {
+    "noise": "high",
+    "automatic": false,
+    "handoff_only": true
+  },
+  "broad_smb_enumeration": {
+    "noise": "medium-high",
+    "automatic": false,
+    "handoff_only": true
+  },
+  "sql_injection_validation": {
+    "noise": "high",
+    "automatic": false,
+    "handoff_only": true
+  },
+  "command_injection_validation": {
+    "noise": "high",
+    "automatic": false,
+    "handoff_only": true
+  },
+  "ssh_auth_methods": {
+    "noise": "low-medium",
+    "automatic": true,
+    "evidence": [
+      "ssh_auth_methods",
+      "password_auth_indicator"
+    ],
+    "nmap_scripts": [
+      "ssh-auth-methods"
+    ],
+    "ports": [
+      22
+    ],
+    "description": "Collect SSH authentication methods without login attempts."
+  },
+  "ftp_anonymous_status": {
+    "noise": "low",
+    "automatic": true,
+    "evidence": [
+      "ftp_banner",
+      "anonymous_ftp_indicator",
+      "ftp_system_status"
+    ],
+    "nmap_scripts": [
+      "ftp-anon",
+      "ftp-syst"
+    ],
+    "ports": [
+      21,
+      2121
+    ],
+    "description": "Collect FTP anonymous access and system status evidence without brute force."
+  },
+  "smb_protocol_security": {
+    "noise": "medium",
+    "automatic": true,
+    "evidence": [
+      "smb_protocols",
+      "smb_signing_indicator",
+      "smb_dialect_hints"
+    ],
+    "nmap_scripts": [
+      "smb2-security-mode",
+      "smb-protocols"
+    ],
+    "ports": [
+      445
+    ],
+    "description": "Collect SMB dialect/signing evidence only; no share/user enumeration."
+  },
+  "winrm_wsman_probe": {
+    "noise": "low",
+    "automatic": true,
+    "evidence": [
+      "winrm_listener",
+      "auth_header_hints"
+    ],
+    "http_paths": [
+      "/wsman"
+    ],
+    "ports": [
+      5985,
+      5986
+    ],
+    "description": "Collect WinRM listener/auth header evidence without authentication attempts."
+  },
+  "html_form_parser": {
+    "noise": "low",
+    "automatic": true,
+    "evidence": [
+      "forms",
+      "inputs",
+      "login_surfaces",
+      "upload_surfaces"
+    ],
+    "description": "Parse already-requested or single-page web HTML for handoff readiness; no attack payloads."
+  },
+  "targeted_web_discovery": {
+    "noise": "low",
+    "automatic": true,
+    "evidence": [
+      "robots",
+      "sitemap",
+      "security_txt",
+      "known_admin_markers"
+    ],
+    "description": "Policy-limited known-path discovery; no wordlist brute force."
+  },
+  "api_discovery": {
+    "noise": "low",
+    "automatic": true,
+    "evidence": [
+      "openapi",
+      "swagger",
+      "graphql"
+    ],
+    "description": "API documentation/schema discovery without payloads."
+  },
+  "ldap_rootdse": {
+    "noise": "low-medium",
+    "automatic": false,
+    "evidence": [
+      "naming_contexts",
+      "domain_hints"
+    ],
+    "nmap_scripts": [
+      "ldap-rootdse"
+    ],
+    "ports": [
+      389,
+      636,
+      3268,
+      3269
+    ],
+    "description": "LDAP RootDSE evidence without authentication."
+  },
+  "kerberos_info": {
+    "noise": "low-medium",
+    "automatic": false,
+    "evidence": [
+      "realm",
+      "kdc_hints"
+    ],
+    "nmap_scripts": [
+      "krb5-info"
+    ],
+    "ports": [
+      88
+    ],
+    "description": "Kerberos information evidence without credentials."
+  },
+  "tls_cipher_validation": {
+    "noise": "low-medium",
+    "automatic": true,
+    "evidence": [
+      "tls_versions",
+      "cipher_suites"
+    ],
+    "nmap_scripts": [
+      "ssl-enum-ciphers"
+    ],
+    "ports": [
+      443,
+      636,
+      989,
+      990,
+      993,
+      995,
+      8443,
+      9443,
+      5986,
+      2376,
+      6443
+    ],
+    "description": "TLS cipher/protocol evidence."
+  },
+  "rdp_negotiation": {
+    "noise": "low-medium",
+    "automatic": false,
+    "evidence": [
+      "rdp_encryption",
+      "nla_indicator"
+    ],
+    "nmap_scripts": [
+      "rdp-enum-encryption"
+    ],
+    "ports": [
+      3389
+    ],
+    "description": "RDP encryption/NLA hints without authentication."
+  },
+  "kubernetes_exposure": {
+    "noise": "low",
+    "automatic": true,
+    "evidence": [
+      "kubernetes_version",
+      "api_metadata"
+    ],
+    "ports": [
+      6443,
+      8001,
+      10250,
+      10255
+    ],
+    "description": "Kubernetes metadata endpoint checks only."
+  },
+  "container_exposure": {
+    "noise": "low",
+    "automatic": true,
+    "evidence": [
+      "docker_version",
+      "registry_api"
+    ],
+    "ports": [
+      2375,
+      2376,
+      5000
+    ],
+    "description": "Container/registry metadata checks only."
+  },
+  "vpn_validation": {
+    "noise": "low",
+    "automatic": true,
+    "evidence": [
+      "vpn_portal_markers"
+    ],
+    "description": "VPN portal marker checks without authentication."
+  },
+  "nuclei_safe": {
+    "noise": "low-medium",
+    "automatic": false,
+    "handoff_only": false,
+    "evidence": [
+      "safe_fingerprint",
+      "safe_misconfiguration"
+    ],
+    "description": "Nuclei info/low safe templates only; intrusive/exploit/auth tags excluded."
+  }
+}

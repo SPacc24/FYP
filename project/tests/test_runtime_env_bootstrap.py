@@ -21,7 +21,7 @@ def test_env_bootstrap_generates_missing_secrets_and_preserves_existing(tmp_path
     assert values["METASPLOIT_RPC_PASS"] == "already-set"
     assert values["OPERATOR_TOKEN"]
     assert values["PROOF_OF_ACCESS_SECRET"]
-    assert values["APP_HOST"] == "127.0.0.1"
+    assert values["APP_HOST"] == "0.0.0.0"
 
     second_result = ensure_env_file(env_path)
     second_values = read_env_values(env_path)

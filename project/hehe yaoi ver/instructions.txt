@@ -1,0 +1,24 @@
+Quick reference
+---------------
+
+1. Create or refresh local configuration:
+
+   python project/scripts/bootstrap_env.py
+
+2. Show generated local secrets in a trusted terminal:
+
+   python project/scripts/bootstrap_env.py --show-secrets
+
+3. Set `ENABLE_METASPLOIT=1` in `project/.env`.
+
+4. Start RPC with the generated password:
+
+   msfrpcd -U msf -P <METASPLOIT_RPC_PASS> -a 127.0.0.1 -p 55552
+
+5. Start or restart the dashboard:
+
+   bash start.sh
+
+The application does not expose arbitrary Metasploit module execution. It maps
+active scan evidence to the server-side allowlist in
+`project/exploitation/metasploit_allowlist.py`.

@@ -2397,3 +2397,301 @@ html {
 .validation-quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}.validation-quick-grid article{padding:16px;border-radius:15px;border:1px solid rgba(148,163,184,.15);background:rgba(15,23,42,.62)}.validation-quick-grid span,.validation-quick-grid small{display:block;color:var(--muted)}.validation-quick-grid strong{display:block;font-size:2rem;margin:3px 0}.metasploit-result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:16px 0}.msf-result-card{padding:16px;border:1px solid rgba(148,163,184,.15);border-radius:15px;background:linear-gradient(180deg,rgba(15,23,42,.78),rgba(3,8,15,.6))}.msf-result-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.msf-result-head time{color:var(--muted);font-size:.72rem}.msf-result-card h3{margin:12px 0 5px;font-size:1rem}.msf-result-card p{margin:5px 0;overflow-wrap:anywhere}
 @media(max-width:760px){.ai-fab{right:14px;bottom:14px}.ai-chat-drawer{right:14px;bottom:82px}.validation-quick-grid,.debrief-stats{grid-template-columns:1fr}.assessment-flow{padding:14px}}
 
+
+/* Operator-readable Metasploit evidence cards */
+.msf-evidence-list { margin:.65rem 0 0; padding-left:1.15rem; line-height:1.5; }
+.msf-evidence-list li { margin:.25rem 0; overflow-wrap:anywhere; }
+.msf-result-card details { margin-top:.65rem; font-size:.78rem; color:var(--muted); }
+.msf-result-card code { display:block; margin-top:.35rem; white-space:normal; overflow-wrap:anywhere; }
+#missionEventLog { max-height:320px; overflow:auto; overflow-wrap:anywhere; word-break:break-word; }
+#missionEventLog > div { min-width:0; }
+
+/* CVE review: three-table layout */
+#cve-review #cveReferenceTable {
+  min-width: 980px;
+}
+
+#cve-review #cveTable {
+  min-width: 1450px;
+}
+
+#cve-review #cveInfoTable {
+  min-width: 1900px;
+}
+
+#cve-review #cveInfoTable pre {
+  max-width: 520px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+#cve-review .cve-filter-row {
+  grid-template-columns: minmax(240px, 1fr) 150px 170px;
+}
+
+@media (max-width: 820px) {
+  #cve-review .cve-filter-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Configurable scanner controls — operator port strategy + bounded execution */
+.port-strategy-grid,
+.advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.port-strategy-card,
+.setting-card {
+  border: 1px solid var(--line, rgba(148, 163, 184, .22));
+  background: rgba(15, 23, 42, .34);
+  border-radius: 16px;
+  padding: 1rem;
+  min-width: 0;
+}
+
+.port-strategy-head,
+.advanced-settings-head,
+.switch-row,
+.setting-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8rem;
+}
+
+.port-strategy-head > div {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+}
+
+.protocol-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  padding: .28rem .48rem;
+  border-radius: 999px;
+  border: 1px solid var(--line, rgba(148, 163, 184, .22));
+  font-family: "JetBrains Mono", monospace;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .45rem;
+  margin-top: .9rem;
+}
+
+.segmented-control label {
+  cursor: pointer;
+  min-width: 0;
+}
+
+.segmented-control input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented-control span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: .55rem .65rem;
+  border: 1px solid var(--line, rgba(148, 163, 184, .25));
+  border-radius: 10px;
+  font-size: .82rem;
+  font-weight: 700;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+
+.segmented-control label:hover span {
+  transform: translateY(-1px);
+}
+
+.segmented-control label.active span,
+.segmented-control label:has(input:checked) span {
+  border-color: var(--accent, #60a5fa);
+  background: rgba(96, 165, 250, .14);
+}
+
+.custom-port-input {
+  margin-top: .85rem;
+}
+
+.custom-port-input label {
+  display: block;
+  margin-bottom: .4rem;
+  font-size: .76rem;
+  font-weight: 700;
+}
+
+.custom-port-input input,
+.setting-input-row input {
+  width: 100%;
+}
+
+.port-mode-note {
+  margin: .75rem 0 0;
+}
+
+.scan-warning {
+  margin-top: 1rem;
+  padding: .8rem .95rem;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, .38);
+  background: rgba(245, 158, 11, .09);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
+.advanced-settings-head h2 {
+  margin-bottom: .25rem;
+}
+
+.setting-card > span,
+.setting-card .switch-row b {
+  font-size: .85rem;
+  font-weight: 700;
+}
+
+.setting-card > small,
+.switch-row small {
+  display: block;
+  margin-top: .4rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.setting-input-row {
+  margin-top: .65rem;
+  justify-content: flex-start;
+}
+
+.setting-input-row input {
+  max-width: 130px;
+}
+
+.setting-input-row > span:last-child {
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.switch-row {
+  cursor: pointer;
+}
+
+.switch-row > span {
+  min-width: 0;
+}
+
+.switch-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.sub-setting {
+  padding-top: .65rem;
+  border-top: 1px solid var(--line, rgba(148, 163, 184, .18));
+}
+
+/* Prominent CVSS display filter */
+.cvss-view-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(3, auto);
+  gap: .35rem;
+  padding: .3rem;
+  border: 1px solid var(--line, rgba(148, 163, 184, .22));
+  border-radius: 12px;
+  background: rgba(15, 23, 42, .34);
+}
+
+.cvss-view-switch button {
+  border: 0;
+  border-radius: 9px;
+  padding: .52rem .75rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.cvss-view-switch button.active {
+  background: rgba(96, 165, 250, .16);
+  box-shadow: inset 0 0 0 1px var(--accent, #60a5fa);
+}
+
+@media (max-width: 900px) {
+  .port-strategy-grid,
+  .advanced-grid {
+    grid-template-columns: 1fr;
+  }
+  .advanced-settings-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+#cve-review .cve-filter-row {
+  grid-template-columns: minmax(240px, 1fr) minmax(250px, auto) 170px;
+  align-items: center;
+}
+
+
+/* 2026-07-25 final scanner/CVSS polish */
+.cvss-control-panel {
+  display: grid;
+  grid-template-columns: minmax(150px, .55fr) auto minmax(260px, 1fr);
+  gap: 1rem;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(96,165,250,.45);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(37,99,235,.13), rgba(15,23,42,.45));
+  box-shadow: inset 0 0 0 1px rgba(96,165,250,.08);
+}
+.cvss-control-copy { display:flex; flex-direction:column; gap:.2rem; }
+.cvss-control-copy strong { font-size:1rem; }
+.cvss-active-view { color: var(--muted, #94a3b8); line-height:1.45; }
+#cve-review .cve-filter-row { grid-template-columns: minmax(260px, 1fr) 180px; }
+.scan-config-summary {
+  margin: 1rem 0 1.25rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line, rgba(148,163,184,.22));
+  border-radius: 16px;
+  background: rgba(15,23,42,.28);
+}
+.scan-config-summary-head { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; margin-bottom:.85rem; }
+.scan-config-summary-head h2 { margin:.2rem 0 0; font-size:1.1rem; }
+.scan-config-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.65rem; }
+.scan-config-grid > div { padding:.72rem .8rem; border:1px solid rgba(148,163,184,.16); border-radius:12px; background:rgba(2,6,23,.22); min-width:0; }
+.scan-config-grid span { display:block; color:var(--muted,#94a3b8); font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.28rem; }
+.scan-config-grid strong { display:block; overflow-wrap:anywhere; }
+.port-preview { margin-top:.45rem; min-height:1.25rem; color:var(--muted,#94a3b8); }
+.port-preview.valid { color:#86efac; }
+.port-preview.invalid { color:#fca5a5; }
+.scan-warning.compact { margin-top:.75rem; padding:.7rem .85rem; }
+@media (max-width: 1000px) {
+  .scan-config-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .cvss-control-panel { grid-template-columns:1fr; align-items:start; }
+}
+@media (max-width: 620px) {
+  .scan-config-grid { grid-template-columns:1fr; }
+  .scan-config-summary-head { align-items:flex-start; flex-direction:column; }
+  .cvss-view-switch { width:100%; grid-template-columns:repeat(3,1fr); }
+}

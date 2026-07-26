@@ -30,6 +30,22 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}_{secrets.token_hex(8)}"
 
 
+def _module_applicable_to_row(mod, row: PortEvidence) -> bool:
+    """Suppress clearly incompatible modules and enforce their canonical port."""
+    key = str(getattr(mod, "key", "") or "").lower()
+    product = str(getattr(row, "product", "") or "").lower()
+    port = int(getattr(row, "port", 0) or 0)
+    if "ms17_010" in key and port != 445:
+        return False
+    if "psexec" in key and port != 445:
+        return False
+    if ("windows xp" in product or "server 2003" in product) and any(
+        token in key for token in ("smbghost", "zerologon", "printnightmare", "bluekeep")
+    ):
+        return False
+    return True
+
+
 class PlaybookEngine:
     """Stateful mission runner driven entirely by declarative playbooks."""
 
@@ -574,6 +590,8 @@ class PlaybookEngine:
         for row in rows:
             if "auxiliary" in include_types or "exploit" in include_types:
                 for mod in catalog.matching_msf_modules(row):
+                    if not _module_applicable_to_row(mod, row):
+                        continue
                     if mod.module_type.lower() not in include_types:
                         continue
                     if mission.get("risk_posture") == "safe-only" and mod.module_type == "exploit":
@@ -650,6 +668,8 @@ class PlaybookEngine:
 
         for row in rows:
             for mod in catalog.matching_msf_modules(row):
+                if not _module_applicable_to_row(mod, row):
+                    continue
                 if mod.module_type.lower() not in module_types:
                     continue
                 if risks and str(mod.risk).lower() not in risks:

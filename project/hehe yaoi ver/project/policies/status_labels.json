@@ -1,0 +1,7 @@
+{
+  "queued": "Queued",
+  "running": "Currently Performing",
+  "success": "Completed",
+  "empty": "Completed - No Evidence Observed",
+  "failed": "Evidence Incomplete"
+}

@@ -1,0 +1,240 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="container">
+    <h2 class="section-title">🔄 Pivot Assessment</h2>
+    <p class="muted">
+        Tunnel through the compromised web server to reach internal VLANs.
+        Run these phases in order.
+    </p>
+
+    <!-- Phase 1: Setup Pivot -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Phase 1: Setup Pivot Tunnel</h3>
+        </div>
+        <div class="card-body">
+            <p>Start the Chisel SOCKS proxy on Kali and generate the deploy command.</p>
+            <div class="split-row">
+                <div>
+                    <label>Chisel Port</label>
+                    <input type="number" id="chiselPort" value="8080" class="input-small">
+                    <label>SOCKS Port</label>
+                    <input type="number" id="socksPort" value="1080" class="input-small">
+                    <label>Platform</label>
+                    <select id="platform" class="input-small">
+                        <option value="linux">Linux</option>
+                        <option value="windows">Windows</option>
+                    </select>
+                </div>
+                <button class="button primary" id="startPivotBtn">🚀 Start Pivot</button>
+            </div>
+            <div id="pivotSetupResult" class="result-box" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- Client Command -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Deploy on Compromised Host</h3>
+        </div>
+        <div class="card-body">
+            <p>Run this command on the web server (via your reverse shell):</p>
+            <pre id="clientCommand" class="code-block">Waiting for pivot setup...</pre>
+            <button class="button secondary" id="copyClientCmdBtn" style="display:none;">📋 Copy Command</button>
+        </div>
+    </div>
+
+    <!-- Phase 2: Internal Scan -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Phase 2: Scan Internal Network</h3>
+        </div>
+        <div class="card-body">
+            <div class="split-row">
+                <div>
+                    <label>Target Range</label>
+                    <select id="scanRange" class="input-small">
+                        <option value="10.10.20.0/24">USERS VLAN (10.10.20.0/24)</option>
+                        <option value="10.10.10.0/24">ADMIN VLAN (10.10.10.0/24)</option>
+                        <option value="172.16.0.0/24">External FW (172.16.0.0/24)</option>
+                        <option value="172.16.1.0/24">Internal FW (172.16.1.0/24)</option>
+                    </select>
+                    <label>Ports</label>
+                    <input type="text" id="scanPorts" value="21,22,80,445,3389,5985,5986" class="input-small">
+                </div>
+                <button class="button primary" id="scanInternalBtn">🔍 Scan</button>
+            </div>
+            <div id="scanResults" class="result-box" style="display:none;"></div>
+
+            <table id="internalHostsTable" style="display:none;" class="table-wrap">
+                <thead>
+                    <tr><th>IP</th><th>OS</th><th>Open Ports</th><th>Type</th><th>Actions</th></tr>
+                </thead>
+                <tbody id="internalHostsBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Phase 3: Lateral Movement -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Phase 3: Lateral Movement</h3>
+        </div>
+        <div class="card-body">
+            <div class="split-row">
+                <div>
+                    <label>Target IP</label>
+                    <input type="text" id="latTarget" placeholder="10.10.20.x" class="input-small">
+                    <label>Technique</label>
+                    <select id="latTechnique" class="input-small">
+                        <option value="ms17_010">MS17-010 EternalBlue</option>
+                        <option value="psexec">PSExec</option>
+                        <option value="smbexec">SMBExec</option>
+                        <option value="wmiexec">WMIExec</option>
+                        <option value="winrm">WinRM</option>
+                        <option value="rdp_brute">RDP Brute-force</option>
+                        <option value="ssh_brute">SSH Brute-force</option>
+                    </select>
+                    <label>Password (for PSExec/SMB etc)</label>
+                    <input type="text" id="latPassword" value="P@ssw0rd" class="input-small">
+                </div>
+                <button class="button primary" id="genLatCmdBtn">⚡ Generate Command</button>
+            </div>
+            <div id="lateralResult" class="result-box" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- Blue Team Log -->
+    <div class="card">
+        <div class="card-header">
+            <h3>🛡️ Blue Team Detection Log</h3>
+        </div>
+        <div class="card-body">
+            <p class="muted">What the blue team will see during each phase:</p>
+            <table class="table-wrap">
+                <thead>
+                    <tr><th>Time</th><th>Phase</th><th>Alert</th><th>Severity</th><th>Blue Team Response</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>T+0:00</td><td>Port Scan</td><td>External FW detects Nmap scan from Kali</td><td><span class="state potential">MEDIUM</span></td><td>Logged</td></tr>
+                    <tr><td>T+1:30</td><td>Web Validation</td><td>Apache logs show POST with arithmetic payload</td><td><span class="state potential">LOW</span></td><td>Flagged</td></tr>
+                    <tr><td>T+2:15</td><td>Web Exploitation</td><td>bash reverse shell outbound to Kali</td><td><span class="state confirmed">CRITICAL</span></td><td>🚨 Blocking source IP</td></tr>
+                    <tr><td>T+3:00</td><td>Pivot Setup</td><td>Outbound Chisel tunnel to Kali:8080</td><td><span class="state confirmed">HIGH</span></td><td>Quarantine web server</td></tr>
+                    <tr><td>T+4:30</td><td>Internal Scan</td><td>USERS VLAN: SMB scanning from web server</td><td><span class="state confirmed">HIGH</span></td><td>Isolate USERS VLAN</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Phase 1: Setup Pivot ──
+document.getElementById('startPivotBtn').addEventListener('click', async () => {
+    const chiselPort = document.getElementById('chiselPort').value;
+    const socksPort = document.getElementById('socksPort').value;
+    const platform = document.getElementById('platform').value;
+
+    const res = await fetch('/pivot/setup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({chisel_port: chiselPort, socks_port: socksPort, platform: platform})
+    });
+    const data = await res.json();
+
+    const resultDiv = document.getElementById('pivotSetupResult');
+    resultDiv.style.display = 'block';
+
+    if (data.ok) {
+        resultDiv.innerHTML = `<span class="state confirmed">✅ Chisel server running</span>`;
+        document.getElementById('clientCommand').textContent = data.client_command;
+        document.getElementById('copyClientCmdBtn').style.display = 'inline-block';
+    } else {
+        resultDiv.innerHTML = `<span class="state failed">❌ ${data.error || 'Setup failed'}</span>`;
+    }
+});
+
+// Copy client command
+document.getElementById('copyClientCmdBtn').addEventListener('click', () => {
+    const cmd = document.getElementById('clientCommand').textContent;
+    navigator.clipboard.writeText(cmd);
+    this.textContent = '✅ Copied!';
+    setTimeout(() => { this.textContent = '📋 Copy Command'; }, 2000);
+});
+
+// ── Phase 2: Scan Internal Network ──
+document.getElementById('scanInternalBtn').addEventListener('click', async () => {
+    const range = document.getElementById('scanRange').value;
+    const ports = document.getElementById('scanPorts').value;
+
+    document.getElementById('scanResults').style.display = 'block';
+    document.getElementById('scanResults').innerHTML = 'Scanning... this may take a minute...';
+
+    const res = await fetch('/pivot/scan', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({range: range, ports: ports, timeout: 90})
+    });
+    const data = await res.json();
+
+    const table = document.getElementById('internalHostsTable');
+    const body = document.getElementById('internalHostsBody');
+    body.innerHTML = '';
+
+    if (data.ok && data.targets && data.targets.length > 0) {
+        document.getElementById('scanResults').innerHTML =
+            `<span class="state confirmed">✅ Found ${data.hosts_found} host(s)</span>`;
+
+        data.targets.forEach(host => {
+            const portsStr = host.open_ports.map(p => `${p.port}/${p.service}`).join(', ');
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="mono">${host.ip}</td>
+                <td>${host.os || '?'}</td>
+                <td class="small">${portsStr}</td>
+                <td>${host.type}</td>
+                <td><button class="button small" onclick="document.getElementById('latTarget').value='${host.ip}'">Select</button></td>
+            `;
+            body.appendChild(tr);
+        });
+        table.style.display = 'table';
+    } else {
+        document.getElementById('scanResults').innerHTML =
+            `<span class="state failed">⚠️ No hosts found in ${range}</span>`;
+        table.style.display = 'none';
+    }
+});
+
+// ── Phase 3: Lateral Movement ──
+document.getElementById('genLatCmdBtn').addEventListener('click', async () => {
+    const target = document.getElementById('latTarget').value;
+    const technique = document.getElementById('latTechnique').value;
+    const password = document.getElementById('latPassword').value;
+
+    if (!target) {
+        alert('Enter a target IP first');
+        return;
+    }
+
+    const res = await fetch('/pivot/lateral/commands', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({target_ip: target, technique: technique, password: password})
+    });
+    const data = await res.json();
+
+    const resultDiv = document.getElementById('lateralResult');
+    resultDiv.style.display = 'block';
+
+    if (data.ok) {
+        resultDiv.innerHTML = `
+            <p><span class="state confirmed">✅ Command generated</span></p>
+            <p class="muted">Run this in a Kali terminal (proxychains routes through pivot):</p>
+            <pre class="code-block">${data.command}</pre>
+            <button class="button secondary" onclick="navigator.clipboard.writeText('${data.command.replace(/'/g, "\\'")}')">📋 Copy</button>
+        `;
+    } else {
+        resultDiv.innerHTML = `<span class="state failed">❌ ${data.error || 'Command generation failed'}</span>`;
+    }
+});
+</script>
+{% endblock %}
