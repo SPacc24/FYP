@@ -10,6 +10,8 @@ from typing import Any
 
 import requests
 
+from .scoring_policy import ScoringPolicyError, validate_published_metric
+
 NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 CACHE_DIR = Path("storage/nvd_cache")
 CACHE_FILE = CACHE_DIR / "service_queries.json"
@@ -17,6 +19,7 @@ DEFAULT_TTL_SECONDS = 7 * 24 * 60 * 60
 DEFAULT_DELAY_SECONDS = 6.5
 DEFAULT_TIMEOUT_SECONDS = 20
 ATTRIBUTION = "This product uses the NVD API but is not endorsed or certified by the NVD."
+CACHE_SCHEMA_VERSION = "cvss-dual-v2"
 
 _lock = threading.Lock()
 _last_request_at = 0.0
@@ -65,7 +68,7 @@ def _save_cache(cache: dict[str, Any]) -> None:
 
 
 def _cache_key(product: str, version: str, service: str, cpe: str) -> str:
-    raw = "|".join((product.strip().lower(), version.strip().lower(), service.strip().lower(), cpe.strip().lower()))
+    raw = "|".join((CACHE_SCHEMA_VERSION, product.strip().lower(), version.strip().lower(), service.strip().lower(), cpe.strip().lower()))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -76,22 +79,53 @@ def _english_description(cve: dict[str, Any]) -> str:
     return ""
 
 
-def _metric(cve: dict[str, Any]) -> dict[str, Any]:
+def _metrics(cve: dict[str, Any]) -> dict[str, dict[str, Any]]:
     metrics = cve.get("metrics") or {}
-    for group in ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+    output: dict[str, dict[str, Any]] = {}
+    groups = (("cvssMetricV31", "3.1"), ("cvssMetricV40", "4.0"))
+    for group, version in groups:
         rows = metrics.get(group) or []
         if not rows:
             continue
-        row = rows[0] or {}
-        data = row.get("cvssData") or {}
-        return {
-            "cvss_score": data.get("baseScore"),
-            "cvss_severity": str(row.get("baseSeverity") or data.get("baseSeverity") or "").upper(),
-            "cvss_vector": data.get("vectorString") or "",
-            "cvss_source": row.get("source") or "NVD",
-            "cvss_version": data.get("version") or "",
-        }
-    return {}
+        # Prefer NVD Primary, then the first published metric.
+        ordered = sorted(rows, key=lambda row: 0 if str((row or {}).get("type") or "").lower() == "primary" else 1)
+        for row in ordered:
+            row = row or {}
+            data = row.get("cvssData") or {}
+            score = data.get("baseScore")
+            vector = data.get("vectorString") or ""
+            severity = row.get("baseSeverity") or data.get("baseSeverity") or ""
+            if score is None or not vector:
+                continue
+            try:
+                metric = validate_published_metric(version, score, severity, vector)
+                metric["cvss_verified"] = True
+                metric["cvss_verification"] = "Vector recomputed; published score matches"
+            except ScoringPolicyError as exc:
+                try:
+                    score_value = float(score)
+                except (TypeError, ValueError):
+                    continue
+                metric = {
+                    "cvss_score": score_value,
+                    "cvss_severity": str(severity or "").upper(),
+                    "cvss_vector": str(vector),
+                    "cvss_version": version,
+                    "cvss_metric_integrity": "published_source_inconsistent",
+                    "cvss_verified": False,
+                    "cvss_verification": f"Published metric could not be independently verified: {exc}",
+                }
+            metric["cvss_source"] = row.get("source") or "NVD"
+            metric["cvss_provider_role"] = row.get("type") or "NVD"
+            output[version] = metric
+            break
+    return output
+
+
+def _metric(cve: dict[str, Any]) -> dict[str, Any]:
+    """Backward-compatible preferred metric (3.1, then 4.0)."""
+    metrics = _metrics(cve)
+    return dict(metrics.get("3.1") or metrics.get("4.0") or {})
 
 
 def _references(cve: dict[str, Any]) -> list[str]:
@@ -250,6 +284,8 @@ def search(product: str, version: str, service: str, cpe: str = "") -> tuple[tup
             continue
         seen.add(cve_id)
         exact_cpe = _cpe_matches(cve, cpe)
+        cvss_metrics = _metrics(cve)
+        preferred_metric = cvss_metrics.get("3.1") or cvss_metrics.get("4.0") or {}
         rows.append({
             "cve_id": cve_id,
             "description": _english_description(cve),
@@ -261,7 +297,8 @@ def search(product: str, version: str, service: str, cpe: str = "") -> tuple[tup
             "match_basis": "nvd_exact_cpe" if exact_cpe else "nvd_keyword_product_version_candidate",
             "product_match_basis": "exact_cpe" if exact_cpe else "keyword_product_version",
             "nvd_candidate": not exact_cpe,
-            **_metric(cve),
+            "cvss_metrics": cvss_metrics,
+            **preferred_metric,
         })
 
     diagnostics: list[dict[str, Any]] = [{

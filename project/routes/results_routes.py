@@ -90,10 +90,7 @@ def register_routes(app):
                 mapping_result = data.get("mapping") or {}
 
                 parsed_for_view = _stored_results_to_parsed_results(data.get("results") or {}, data)
-                detected_cves = _append_scan_cve_rows(
-                    _build_detected_cve_rows(ai_plan, mapping_result),
-                    parsed_for_view,
-                )
+                detected_cves = _build_detected_cve_rows(ai_plan, mapping_result, parsed_for_view)
 
                 return render_template(
                     "results.html",
@@ -102,6 +99,7 @@ def register_routes(app):
                     mapping=data.get("mapping") or {},
                     ai_plan=ai_plan,
                     detected_cves=detected_cves,
+                    cve_reference_count=len({str(row.get("cve_id")) for row in detected_cves if row.get("cve_id")}),
                     selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
                     attack_plan=data.get("attack_plan"),
                     validation_results=data.get("validation_results"),
@@ -144,10 +142,7 @@ def register_routes(app):
 
         ai_plan = session.get("ai_plan", {})
 
-        detected_cves = _append_scan_cve_rows(
-            _build_detected_cve_rows(ai_plan, mapping_results),
-            parsed_results or {},
-        )
+        detected_cves = _build_detected_cve_rows(ai_plan, mapping_results, parsed_results or {})
 
         return render_template(
             "results.html",
@@ -159,6 +154,7 @@ def register_routes(app):
             mapping=mapping_results,
             ai_plan=ai_plan,
             detected_cves=detected_cves,
+            cve_reference_count=len({str(row.get("cve_id")) for row in detected_cves if row.get("cve_id")}),
             selected_mode=session.get("technique_mode", "hybrid"),
             attack_plan=session.get("attack_plan"),
             validation_results=session.get("validation_results"),
