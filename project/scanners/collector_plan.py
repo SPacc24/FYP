@@ -37,6 +37,7 @@ def _timeout_setting(default: int, maximum: int, minimum: int = 1) -> dict[str, 
 # not fixed ports. The runtime still decides applicability from observed evidence.
 COLLECTOR_METADATA: dict[str, dict[str, Any]] = {
     "nmap_os_identity": {"group": "host_identity", "scope": "host", "interaction": "active_bounded", "recommended": True, "binary": "nmap", "settings": {"timeout_seconds": _timeout_setting(240, 240, 30)}},
+    "windows_patch_inventory": {"group": "host_identity", "scope": "host", "interaction": "authenticated_read_only", "recommended": False, "credential_required": True, "settings": {"timeout_seconds": _timeout_setting(45, 120, 10)}},
     "smb_host_identity": {"group": "host_identity", "scope": "service", "families": ["smb", "netbios"], "interaction": "low_active", "recommended": True, "binary": "nmap", "nse_scripts": ["smb-os-discovery", "smb2-capabilities", "smb2-time"], "settings": {"timeout_seconds": _timeout_setting(240, 240, 30)}},
     "netbios_identity": {"group": "host_identity", "scope": "service", "families": ["netbios"], "interaction": "low_active", "recommended": True, "binary": "nmap", "nse_scripts": ["nbstat"], "settings": {"timeout_seconds": _timeout_setting(120, 120, 15)}},
     "msrpc_metadata": {"group": "host_identity", "scope": "service", "families": ["msrpc", "epmap"], "interaction": "low_active", "recommended": True, "binary": "nmap", "nse_scripts": ["msrpc-enum"], "settings": {"timeout_seconds": _timeout_setting(180, 180, 20)}},
@@ -244,14 +245,19 @@ def build_collector_catalog(base_tools: Iterable[Mapping[str, Any]], policy: Map
 
 def preset_ids(catalog: Iterable[Mapping[str, Any]], preset: str) -> set[str]:
     key = preset if preset in COLLECTION_PRESETS else "recommended"
-    ids = {str(item.get("id")) for item in catalog if item.get("id")}
+    rows = [item for item in catalog if item.get("id")]
+    ids = {str(item.get("id")) for item in rows}
+    # Credential-required collectors always require an explicit operator choice.
+    # Even Maximum Evidence must not silently turn an unauthenticated scan into
+    # authenticated collection merely because a credential happens to be cached.
+    credential_required = {str(item.get("id")) for item in rows if item.get("credential_required")}
     if key == "maximum":
-        return ids
+        return ids - credential_required
     if key == "minimal":
-        return ids & MINIMAL_IDS
+        return (ids & MINIMAL_IDS) - credential_required
     if key == "custom":
         return set()
-    return {str(item.get("id")) for item in catalog if item.get("recommended")}
+    return {str(item.get("id")) for item in rows if item.get("recommended") and not item.get("credential_required")}
 
 
 def normalise_collection_plan(
@@ -315,6 +321,7 @@ def normalise_collection_plan(
             "families": list(descriptor.get("families") or []),
             "group": descriptor.get("group"),
             "interaction": descriptor.get("interaction"),
+            "credential_required": bool(descriptor.get("credential_required")),
             "binary": descriptor.get("binary") or "",
             "settings": settings,
         }

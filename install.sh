@@ -31,7 +31,7 @@ python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
 
 printf '[*] Preparing storage directories...\n'
-mkdir -p storage/scans storage/results storage/mitre_cve
+mkdir -p storage/scans storage/results storage/mitre_cve storage/msrc
 
 printf '[*] Creating local runtime configuration...\n'
 python scripts/bootstrap_env.py
@@ -40,6 +40,12 @@ printf '[*] Syncing official CVE List mirror from CVEProject/cvelistV5 if networ
 python scripts/sync_mitre_cve_database.py || {
   printf '[WARN] Official CVE List sync did not complete. The app still runs; run this later:\n'
   printf '       cd project && . .venv/bin/activate && python scripts/sync_mitre_cve_database.py\n'
+}
+
+printf '[*] Caching recent Microsoft Security Update Guide data for Windows remediation checks if network is available...\n'
+python scripts/sync_msrc_security_updates.py --months 3 || {
+  printf '[WARN] Microsoft remediation cache sync did not complete. Targeted lookups can retry during a later scan, or run:\n'
+  printf '       cd project && . .venv/bin/activate && python scripts/sync_msrc_security_updates.py --months 3\n'
 }
 
 printf '\n[+] Install complete. Start the app with:\n'

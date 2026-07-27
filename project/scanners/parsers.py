@@ -130,6 +130,7 @@ def _parse_host_os_identities(host_el: ET.Element, host_ip: str, path: str | Pat
                 "accuracy": str((osclass.get("accuracy") if osclass is not None else "") or match_accuracy).strip(),
                 "cpe": cpes,
                 "source": "nmap_os_detection",
+                "evidence_kind": "probabilistic_fingerprint",
                 "raw_evidence_file": str(path),
             })
     return identities
@@ -288,6 +289,7 @@ def _parse_root(
                     "accuracy": str((row.get("service_attributes") or {}).get("conf") or "").strip(),
                     "cpe": list(row.get("os_cpe") or []),
                     "source": "nmap_service_os_evidence",
+                    "evidence_kind": "service_os_hint",
                     "raw_evidence_file": str(path),
                     "endpoint": f"{row.get('port')}/{row.get('protocol')}",
                 })

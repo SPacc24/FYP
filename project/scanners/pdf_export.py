@@ -182,6 +182,7 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
 
     mitre_source = results.get('mitre_source') or {}
     nvd_source = results.get('nvd_source') or mitre_source.get('nvd_enrichment') or {}
+    msrc_source = results.get('msrc_source') or {}
     story.append(Paragraph('Vulnerability Intelligence - Data Freshness', styles['Heading2']))
     freshness_rows = [
         ['CVE source', mitre_source.get('source', 'Unavailable')],
@@ -194,6 +195,8 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         ['NVD enrichment', 'Enabled' if nvd_source.get('enabled') else 'Disabled / unavailable'],
         ['NVD cached CVE metrics', nvd_source.get('cached_cve_metric_queries', 0)],
         ['NVD cache age', (f"{float(nvd_source.get('cache_age_seconds')) / 3600:.1f} hours" if nvd_source.get('cache_age_seconds') is not None else 'No successful cache timestamp')],
+        ['Microsoft remediation intelligence', ('Available' if msrc_source.get('available') else ('Enabled; cache empty' if msrc_source.get('enabled') else 'Disabled'))],
+        ['MSRC cached month / CVE queries', f"{msrc_source.get('cached_month_documents', 0)} / {msrc_source.get('cached_cve_remediation_queries', 0)}"],
     ]
     freshness_table = Table([[_para(a, styles['Cell']), _para(b, styles['SmallWrap'])] for a, b in freshness_rows], colWidths=[68*mm, 200*mm])
     freshness_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#f3f3f3')),('VALIGN',(0,0),(-1,-1),'TOP')]))
@@ -295,6 +298,50 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         gap_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(Spacer(1,4)); story.append(gap_table)
     story.append(Spacer(1, 8))
+
+    windows_patch_inventory = results.get('windows_patch_inventory') or []
+    if windows_patch_inventory:
+        story.append(Paragraph('Windows Authenticated Patch Evidence', styles['Heading2']))
+        story.append(Paragraph('Read-only Windows build and installed-update evidence. The collector uses an already-approved cached credential; missing KB identifiers alone never establish vulnerability.', styles['Muted']))
+        patch_rows = [[_para(x, styles['Cell']) for x in ['Host','Product','Release','Version','Build / UBR','Installed KBs','Registry','Lifecycle']]]
+        for row in windows_patch_inventory:
+            build = str(row.get('build') or '—')
+            if row.get('ubr'):
+                build += '.' + str(row.get('ubr'))
+            kbs = list(row.get('installed_kbs') or [])
+            kb_text = f"{row.get('hotfix_count', len(kbs))} observed"
+            if kbs:
+                kb_text += '\n' + ', '.join(map(str, kbs[:20])) + (' …' if len(kbs) > 20 else '')
+            patch_rows.append([
+                _para(row.get('host',''), styles['SmallWrap']),
+                _para(row.get('product') or 'Not established', styles['SmallWrap']),
+                _para(row.get('release') or '—', styles['SmallWrap']),
+                _para(row.get('version') or '—', styles['SmallWrap']),
+                _para(build, styles['SmallWrap']),
+                _para(kb_text, styles['SmallWrap']),
+                _para(row.get('registry_evidence_status') or 'not attempted', styles['SmallWrap']),
+                _para(row.get('lifecycle_state') or row.get('status') or 'unknown', styles['SmallWrap']),
+            ])
+        patch_table = Table(patch_rows, repeatRows=1, colWidths=[28*mm,48*mm,24*mm,30*mm,32*mm,60*mm,24*mm,27*mm])
+        patch_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(patch_table)
+        assessments = results.get('windows_patch_assessments') or []
+        if assessments:
+            story.append(Spacer(1,4)); story.append(Paragraph('Microsoft Remediation Assessments', styles['Heading3']))
+            assess_rows = [[_para(x, styles['Cell']) for x in ['Host','CVE','Patch State','Evidence Basis','Observed KB','Fixed Builds']]]
+            for row in assessments:
+                assess_rows.append([
+                    _para(row.get('host',''), styles['SmallWrap']),
+                    _para(row.get('cve_id',''), styles['SmallWrap']),
+                    _para(row.get('patch_state',''), styles['SmallWrap']),
+                    _para(row.get('patch_basis',''), styles['SmallWrap']),
+                    _para(', '.join(map(str,row.get('observed_remediation_kbs') or [])) or '—', styles['SmallWrap']),
+                    _para(', '.join(map(str,row.get('vendor_fixed_builds') or [])) or '—', styles['SmallWrap']),
+                ])
+            assess_table = Table(assess_rows, repeatRows=1, colWidths=[28*mm,25*mm,34*mm,82*mm,38*mm,44*mm])
+            assess_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+            story.append(assess_table)
+        story.append(Spacer(1, 8))
 
     story.append(Paragraph('Platform & Connector Identity', styles['Heading2']))
     story.append(Paragraph('Distinct component layers are retained only when directly observed and remain separate from host OS and primary application identity.', styles['Muted']))

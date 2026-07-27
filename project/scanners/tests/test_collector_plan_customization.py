@@ -17,6 +17,19 @@ PROJECT_DIR = Path(__file__).resolve().parents[2]
 
 
 class CollectorPlanCustomizationTests(unittest.TestCase):
+
+    def test_windows_patch_inventory_requires_explicit_operator_selection(self):
+        maximum = normalise_scan_options('full', collection_preset='maximum')
+        self.assertFalse(maximum['collector_plan']['windows_patch_inventory']['requested'])
+        custom = normalise_scan_options(
+            'custom', collection_preset='custom',
+            collector_plan={'windows_patch_inventory': {'mode': 'always'}},
+        )
+        row = custom['collector_plan']['windows_patch_inventory']
+        self.assertTrue(row['requested'])
+        self.assertTrue(row['effective_enabled'])
+        self.assertTrue(row['credential_required'])
+
     def test_maximum_plan_keeps_policy_block_visible_and_not_effective(self):
         options = normalise_scan_options(
             'full',

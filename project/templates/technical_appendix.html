@@ -61,7 +61,7 @@
       </div>
     </section>
 
-    {% set vuln_status = results.mitre_source|default({}) %}
+    {% set vuln_status = results.mitre_source|default({}) %}{% set msrc_status = results.msrc_source|default({}) %}
     <section class="appendix-box">
       <div class="appendix-box-head">
         <span class="label">Vulnerability Intelligence</span>
@@ -77,6 +77,7 @@
         <tr><th>CVSS 3.1 / 4.0 records</th><td>{{ vuln_status.get('records_with_cvss_metadata_by_version',{}).get('3.1','N/A') }} / {{ vuln_status.get('records_with_cvss_metadata_by_version',{}).get('4.0','N/A') }}</td></tr>
         <tr><th>CVE repository head</th><td>{{ vuln_status.get('repo_head_at') or 'Unknown' }}</td></tr>
         <tr><th>NVD enrichment</th><td>{{ 'Enabled' if vuln_status.get('nvd_enrichment',{}).get('enabled') else 'Disabled' }} · cached CVE metrics {{ vuln_status.get('nvd_enrichment',{}).get('cached_cve_metric_queries',0) }}</td></tr>
+        <tr><th>Microsoft remediation intelligence</th><td>{{ 'Available' if msrc_status.get('available') else ('Enabled; cache empty' if msrc_status.get('enabled') else 'Disabled') }} · cached months {{ msrc_status.get('cached_month_documents',0) }} · cached CVE lookups {{ msrc_status.get('cached_cve_remediation_queries',0) }}</td></tr>
       </tbody></table></div>
     </section>
 
@@ -105,6 +106,17 @@
       </tbody></table></div>
       {% endif %}
     </section>
+
+
+    {% if results.windows_patch_inventory|default([]) %}
+    <section class="appendix-box">
+      <div class="appendix-box-head"><span class="label">Authenticated Evidence</span><h2>Windows Patch Inventory</h2><p class="muted">Read-only WMI plus optional already-available RemoteRegistry evidence. Credentials are not retained in report evidence. Missing KB identifiers alone never establish vulnerability.</p></div>
+      <div class="appendix-table-shell"><table><thead><tr><th>Host</th><th>Product</th><th>Release</th><th>Version</th><th>Build</th><th>UBR</th><th>Installed KB count</th><th>Registry</th><th>Lifecycle</th></tr></thead><tbody>
+      {% for w in results.windows_patch_inventory %}<tr><td>{{ w.host }}</td><td>{{ w.product or '—' }}</td><td>{{ w.release or '—' }}</td><td>{{ w.version or '—' }}</td><td>{{ w.build or '—' }}</td><td>{{ w.ubr or '—' }}</td><td>{{ w.hotfix_count|default(0) }}</td><td>{{ w.registry_evidence_status or 'not attempted' }}</td><td>{{ w.lifecycle_state or w.status }}</td></tr>{% endfor %}
+      </tbody></table></div>
+      {% if results.windows_patch_assessments|default([]) %}<h3>Microsoft Remediation Assessments</h3><div class="appendix-table-shell"><table><thead><tr><th>Host</th><th>CVE</th><th>Patch State</th><th>Basis</th><th>Observed remediation KBs</th><th>Microsoft fixed builds</th></tr></thead><tbody>{% for a in results.windows_patch_assessments %}<tr><td>{{ a.host }}</td><td>{{ a.cve_id }}</td><td>{{ a.patch_state }}</td><td>{{ a.patch_basis }}</td><td>{{ a.observed_remediation_kbs|default([])|join(', ') or '—' }}</td><td>{{ a.vendor_fixed_builds|default([])|join(', ') or '—' }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+    </section>
+    {% endif %}
 
     <section class="appendix-box">
       <div class="appendix-box-head"><span class="label">Data Sources</span><h2>Platform &amp; Connector Identity Evidence</h2><p class="muted">Direct observations of distinct software layers, such as connectors, are kept separate from host OS and primary application identity.</p></div>

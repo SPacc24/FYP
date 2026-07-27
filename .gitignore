@@ -18,6 +18,8 @@ project/storage/scans_readonly*/
 !project/storage/results/.gitkeep
 project/storage/mitre_cve/*
 !project/storage/mitre_cve/.gitkeep
+project/storage/msrc/*
+!project/storage/msrc/.gitkeep
 project/storage/*.db
 project/storage/*.sqlite
 project/storage/*.sqlite3

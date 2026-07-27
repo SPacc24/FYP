@@ -90,6 +90,11 @@ def _concrete_cpe_version(values: Iterable[Any]) -> str:
 
 
 def identity_quality(identity: Mapping[str, Any]) -> str:
+    # Nmap OS detection is explicitly probabilistic.  Never describe one of its
+    # hypotheses as an "exact" release merely because an osclass contains an
+    # osgen/CPE value.  Exactness is reserved for directly asserted evidence.
+    if _text(identity.get("evidence_kind")) == "probabilistic_fingerprint":
+        return "Probabilistic OS fingerprint"
     if _text(identity.get("build")):
         return "Exact build observed"
     if _text(identity.get("release")) and not _looks_like_range(identity.get("release")):
@@ -146,6 +151,7 @@ def normalise_host_identity(identity: Mapping[str, Any]) -> dict[str, Any]:
         "generation": generation,
         "device_type": _text(identity.get("device_type")),
         "accuracy": _text(identity.get("accuracy")),
+        "evidence_kind": _text(identity.get("evidence_kind")),
         "cpe": cpes,
         "hostnames": sorted({_text(x) for x in identity.get("hostnames") or [] if _text(x)}),
         "domains": sorted({_text(x) for x in identity.get("domains") or [] if _text(x)}),
@@ -181,6 +187,14 @@ def merge_host_identity(observations: list[dict[str, Any]], identity: Mapping[st
         for key in ("vendor", "family", "product", "release", "version", "build", "architecture", "generation", "device_type", "accuracy", "endpoint", "raw"):
             if not existing.get(key) and clean.get(key):
                 existing[key] = clean[key]
+        # If duplicate evidence arrives through multiple collectors, retain the
+        # strongest collection semantics rather than whichever row was parsed
+        # first. This is generic provenance reconciliation, not product mapping.
+        if clean.get("evidence_kind") and (
+            not existing.get("evidence_kind")
+            or _identity_authority(clean) < _identity_authority(existing)
+        ):
+            existing["evidence_kind"] = clean["evidence_kind"]
         existing["quality"] = identity_quality(existing)
         return
     observations.append(clean)
@@ -229,6 +243,7 @@ def _script_identity(script: Mapping[str, Any], host: str, source: str, evidence
             "hostnames": [x for x in (computer, fqdn) if x],
             "domains": [x for x in (domain, forest) if x],
             "source": source or script_id,
+            "evidence_kind": "protocol_assertion",
             "evidence_reference": evidence_reference,
             "endpoint": endpoint,
             "raw": output,
@@ -255,6 +270,7 @@ def _script_identity(script: Mapping[str, Any], host: str, source: str, evidence
             "hostnames": [x for x in (computer, dns_computer) if x],
             "domains": [domain] if domain else [],
             "source": source or script_id,
+            "evidence_kind": "protocol_assertion",
             "evidence_reference": evidence_reference,
             "endpoint": endpoint,
             "raw": output,
@@ -274,6 +290,7 @@ def extract_host_identities_from_nmap(parsed: Mapping[str, Any], *, source: str 
             identity = dict(raw_identity)
             identity["host"] = identity.get("host") or host
             identity["source"] = source if identity.get("source") in {None, "", "nmap_os_detection", "nmap_service_os_evidence"} else identity.get("source")
+            identity["evidence_kind"] = identity.get("evidence_kind") or "probabilistic_fingerprint"
             identity["evidence_reference"] = evidence_reference or identity.get("raw_evidence_file")
             identity["hostnames"] = list(host_row.get("hostnames") or [])
             merge_host_identity(observations, identity)
@@ -297,6 +314,7 @@ def extract_host_identities_from_nmap(parsed: Mapping[str, Any], *, source: str 
                     "family": _family_from_text(ostype, *os_values),
                     "cpe": os_values,
                     "source": source,
+                    "evidence_kind": "service_os_hint",
                     "evidence_reference": evidence_reference,
                     "endpoint": endpoint,
                     "hostnames": [attrs.get("hostname")] if isinstance(attrs, Mapping) and attrs.get("hostname") else [],
@@ -318,17 +336,127 @@ def merge_host_identity_map(identity_map: dict[str, list[dict[str, Any]]], ident
         merge_host_identity(bucket, identity)
 
 
+
+def _reported_accuracy(identity: Mapping[str, Any]) -> int | None:
+    value = _text(identity.get("accuracy"))
+    return int(value) if value.isdigit() else None
+
+
+def _identity_authority(identity: Mapping[str, Any]) -> int:
+    """Return evidence authority based on collection semantics, not OS facts.
+
+    Lower values are stronger.  The ordering is generic and contains no target,
+    product-release, build, CVE, or vulnerability-specific knowledge.
+    """
+    kind = _text(identity.get("evidence_kind"))
+    if kind == "authenticated_inventory":
+        return 0
+    if kind == "protocol_assertion":
+        return 1
+    if kind == "service_os_hint":
+        return 2
+    if kind == "probabilistic_fingerprint":
+        return 3
+    # Unknown collector semantics remain usable, but never outrank evidence
+    # explicitly marked as directly observed/authenticated.
+    return 2
+
+
+def _fingerprint_is_ambiguous(identity: Mapping[str, Any]) -> bool:
+    product = _text(identity.get("product") or identity.get("name"))
+    if not product:
+        return True
+    # Ambiguity is detected from the observed fingerprint grammar itself.  This
+    # does not encode any operating-system names, releases, or version map.
+    return bool(re.search(r"\s+or\s+", product, re.I) or _looks_like_range(product))
+
+
+def reconcile_host_identities(identities: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Retain all evidence while selecting only defensible CVE identities.
+
+    Direct evidence outranks probabilistic fingerprints.  When only Nmap-style
+    probabilistic fingerprints exist, only the highest reported-accuracy,
+    unambiguous hypothesis is eligible.  Equal-confidence conflicting guesses
+    remain visible but are not promoted into CVE applicability.
+    """
+    rows = [normalise_host_identity(x) for x in identities or []]
+    if not rows:
+        return []
+
+    by_family: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        family_key = _norm(row.get("family")) or "__unknown__"
+        by_family.setdefault(family_key, []).append(row)
+
+    for family_rows in by_family.values():
+        strongest = min(_identity_authority(row) for row in family_rows)
+        strongest_rows = [row for row in family_rows if _identity_authority(row) == strongest]
+
+        if strongest < 3:
+            # A stronger direct observation exists.  Preserve all weaker rows as
+            # audit evidence, but do not let them expand CVE applicability.
+            for row in family_rows:
+                eligible = _identity_authority(row) == strongest
+                row["cve_eligible"] = eligible
+                row["reconciliation_status"] = "authoritative" if eligible else "supporting_only"
+                row["reconciliation_reason"] = (
+                    "Highest-authority directly observed host identity for this OS family."
+                    if eligible
+                    else "Lower-authority host identity retained as evidence but excluded from CVE applicability."
+                )
+                row["authority_tier"] = _identity_authority(row)
+            continue
+
+        # Only probabilistic fingerprints are available.  Use Nmap's own
+        # reported accuracy ordering; do not invent an internal confidence score.
+        accuracies = [_reported_accuracy(row) for row in strongest_rows]
+        numeric = [value for value in accuracies if value is not None]
+        highest = max(numeric) if numeric else None
+        contenders = [
+            row for row in strongest_rows
+            if highest is None or _reported_accuracy(row) == highest
+        ]
+        unambiguous = [row for row in contenders if not _fingerprint_is_ambiguous(row)]
+        signatures = {_identity_signature(row) for row in unambiguous}
+        uniquely_resolved = len(signatures) == 1
+        chosen_sig = next(iter(signatures)) if uniquely_resolved else None
+
+        for row in family_rows:
+            eligible = bool(chosen_sig and _identity_signature(row) == chosen_sig)
+            row["cve_eligible"] = eligible
+            row["reconciliation_status"] = "fallback_fingerprint" if eligible else "supporting_only"
+            if eligible:
+                row["reconciliation_reason"] = "Highest reported-accuracy unambiguous OS fingerprint; no stronger direct identity was observed."
+            elif row in contenders and _fingerprint_is_ambiguous(row):
+                row["reconciliation_reason"] = "Ambiguous probabilistic OS fingerprint retained as evidence but excluded from CVE applicability."
+            elif row in contenders and not uniquely_resolved:
+                row["reconciliation_reason"] = "Conflicting equal-authority OS fingerprints retained as evidence; no single identity was promoted to CVE applicability."
+            else:
+                row["reconciliation_reason"] = "Lower-ranked probabilistic OS fingerprint retained as evidence but excluded from CVE applicability."
+            row["authority_tier"] = _identity_authority(row)
+
+    return rows
+
+
 def host_identity_inventory(identity_map: Mapping[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for host in sorted(identity_map):
-        identities = [deepcopy(x) for x in identity_map.get(host) or []]
+        identities = reconcile_host_identities(identity_map.get(host) or [])
         identities.sort(key=lambda x: (
+            _identity_authority(x),
+            0 if x.get("cve_eligible") else 1,
             0 if x.get("build") else 1,
             0 if x.get("version") else 1,
-            -int(str(x.get("accuracy") or "0")) if str(x.get("accuracy") or "").isdigit() else 0,
+            -(_reported_accuracy(x) or 0),
             _norm(x.get("product")),
         ))
-        rows.append({"host": host, "identities": identities, "best": identities[0] if identities else {}})
+        cve_identities = [deepcopy(x) for x in identities if x.get("cve_eligible")]
+        rows.append({
+            "host": host,
+            "identities": identities,
+            "cve_identities": cve_identities,
+            "best": cve_identities[0] if cve_identities else (identities[0] if identities else {}),
+        })
     return rows
 
 

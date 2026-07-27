@@ -27,6 +27,7 @@ scan.
 
 TOOL_OPTIONS = [
     {'id':'nmap_os_identity','label':'Generic active OS fingerprint','category':'Host Identity','purpose':'Collect bounded Nmap OS match/class/CPE evidence using only operator-authorised ports already covered by discovery.','full':True},
+    {'id':'windows_patch_inventory','label':'Windows authenticated patch inventory','category':'Host Identity','purpose':'Use an already-approved cached credential for read-only WMI collection of Windows build and installed KB evidence; no brute force, remote shell, service creation, or target modification.','full':False},
     {'id':'smb_host_identity','label':'SMB host/OS identity','category':'Host Identity','purpose':'Collect SMB-exposed host, domain/workgroup, OS/CPE, capability and time evidence without share/user enumeration.','full':True},
     {'id':'netbios_identity','label':'NetBIOS host identity','category':'Host Identity','purpose':'Collect NetBIOS naming identity when NetBIOS is actually observed; no RID/user enumeration.','full':True},
     {'id':'msrpc_metadata','label':'Microsoft RPC endpoint metadata','category':'Host Identity','purpose':'Collect safe RPC endpoint-mapper metadata; advertised dynamic endpoints are recorded, not silently scanned.','full':True},

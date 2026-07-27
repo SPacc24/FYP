@@ -286,6 +286,9 @@
     "postgres_readiness_native": [
       "single PostgreSQL readiness connection",
       "database listener log if configured"
+    ],
+    "windows_patch_inventory": [
+      "authenticated DCOM/WMI read-only queries may appear in Windows RPC/DCOM/WMI and authentication logs"
     ]
   },
   "active_validation_guardrails": {
@@ -635,5 +638,28 @@
     "recovery_attempts": 1,
     "follow_protocol_advertised_endpoints": false,
     "advertised_endpoint_limit": 8
+  },
+  "authenticated_patch_inventory_guardrails": {
+    "description": "Authenticated Windows patch inventory is optional evidence collection only and consumes an already-approved cached credential.",
+    "require_existing_cached_credential": true,
+    "private_or_loopback_ipv4_only": true,
+    "allow_bruteforce": false,
+    "allow_credential_discovery": false,
+    "allow_remote_process_creation": false,
+    "allow_service_creation_or_start": false,
+    "allow_registry_modification": false,
+    "allow_firewall_modification": false,
+    "allow_remote_file_write": false,
+    "allow_powershell_download": false,
+    "default_timeout_seconds": 45,
+    "max_timeout_seconds": 120,
+    "patch_conclusion_rule": "Missing KB alone never proves vulnerability; require direct remediation KB or comparable observed build/revision evidence.",
+    "collection_methods": [
+      "read-only WMI/DCOM queries",
+      "read-only RemoteRegistry query only when the service is already available"
+    ],
+    "allow_remote_registry_service_start": false,
+    "allow_registry_read": true,
+    "read_only_authenticated_queries_only": true
   }
 }

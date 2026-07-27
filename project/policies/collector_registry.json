@@ -9,6 +9,21 @@
     ],
     "description": "Bounded active Nmap OS fingerprinting against operator-authorised ports only."
   },
+  "windows_patch_inventory": {
+    "noise": "low-medium",
+    "automatic": false,
+    "credential_required": true,
+    "evidence": [
+      "windows_product",
+      "windows_version",
+      "windows_build",
+      "windows_ubr",
+      "windows_architecture",
+      "installed_kbs",
+      "patch_inventory_timestamp"
+    ],
+    "description": "Read-only authenticated Windows OS/build and installed security-update inventory using an already-approved cached credential. No credential discovery, remote shell, service creation, registry modification, or target state changes."
+  },
   "smb_host_identity": {
     "noise": "low-medium",
     "automatic": true,

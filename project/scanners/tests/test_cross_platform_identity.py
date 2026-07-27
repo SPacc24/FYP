@@ -14,6 +14,7 @@ from scanners.parsers import parse_nmap_xml
 from scanners.platform_identity import (
     extract_host_identities_from_nmap,
     host_identity_gaps,
+    host_identity_inventory,
     merge_host_identity_map,
     platform_component_inventory,
     normalise_host_identity,
@@ -123,6 +124,89 @@ class CrossPlatformIdentityTests(TestCase):
         self.assertEqual(len(identity_map["192.0.2.23"]), 2)
         gaps = host_identity_gaps(identity_map, ["192.0.2.23"])
         self.assertEqual(gaps, [])
+
+
+    def test_direct_protocol_identity_excludes_conflicting_probabilistic_os_fingerprints_from_cve_scope(self):
+        identity_map: dict[str, list[dict]] = {}
+        merge_host_identity_map(identity_map, [
+            {
+                "host": "192.0.2.230", "product": "Example OS Alpha or Example OS Beta",
+                "family": "ExampleOS", "generation": "Beta", "accuracy": "98",
+                "cpe": ["cpe:2.3:o:example:example_os_beta:2:*:*:*:*:*:*:*"],
+                "evidence_kind": "probabilistic_fingerprint", "source": "os_fingerprint",
+            },
+            {
+                "host": "192.0.2.230", "product": "Example OS Gamma",
+                "family": "ExampleOS", "generation": "Gamma", "accuracy": "97",
+                "cpe": ["cpe:2.3:o:example:example_os_gamma:3:*:*:*:*:*:*:*"],
+                "evidence_kind": "probabilistic_fingerprint", "source": "os_fingerprint",
+            },
+            {
+                "host": "192.0.2.230", "product": "Example OS Delta Enterprise",
+                "family": "ExampleOS", "version": "4.2.100", "build": "4.2.100",
+                "evidence_kind": "protocol_assertion", "source": "protocol_identity",
+            },
+        ])
+        inventory = host_identity_inventory(identity_map)[0]
+        self.assertEqual(len(inventory["identities"]), 3)
+        self.assertEqual(len(inventory["cve_identities"]), 1)
+        self.assertEqual(inventory["cve_identities"][0]["product"], "Example OS Delta Enterprise")
+        fingerprint_rows = [row for row in inventory["identities"] if row.get("evidence_kind") == "probabilistic_fingerprint"]
+        self.assertTrue(fingerprint_rows)
+        self.assertTrue(all(row.get("cve_eligible") is False for row in fingerprint_rows))
+        self.assertTrue(all(row.get("quality") == "Probabilistic OS fingerprint" for row in fingerprint_rows))
+
+    def test_authenticated_inventory_outranks_protocol_identity_without_product_version_mapping(self):
+        identity_map: dict[str, list[dict]] = {}
+        merge_host_identity_map(identity_map, [
+            {
+                "host": "192.0.2.231", "product": "Example OS", "family": "ExampleOS",
+                "build": "5.0.10", "version": "5.0.10",
+                "evidence_kind": "protocol_assertion", "source": "protocol_identity",
+            },
+            {
+                "host": "192.0.2.231", "product": "Example OS Professional", "family": "ExampleOS",
+                "build": "5.0.10", "version": "5.0.10",
+                "evidence_kind": "authenticated_inventory", "source": "authenticated_inventory",
+            },
+        ])
+        inventory = host_identity_inventory(identity_map)[0]
+        self.assertEqual(len(inventory["cve_identities"]), 1)
+        self.assertEqual(inventory["cve_identities"][0]["product"], "Example OS Professional")
+        self.assertEqual(inventory["best"]["evidence_kind"], "authenticated_inventory")
+
+    def test_ambiguous_probabilistic_fingerprint_alone_is_not_promoted_to_cve_identity(self):
+        identity_map: dict[str, list[dict]] = {}
+        merge_host_identity_map(identity_map, [{
+            "host": "192.0.2.232", "product": "Example OS One or Example OS Two",
+            "family": "ExampleOS", "generation": "Two", "accuracy": "99",
+            "cpe": ["cpe:2.3:o:example:example_os_two:2:*:*:*:*:*:*:*"],
+            "evidence_kind": "probabilistic_fingerprint", "source": "os_fingerprint",
+        }])
+        inventory = host_identity_inventory(identity_map)[0]
+        self.assertEqual(inventory["cve_identities"], [])
+        self.assertEqual(inventory["identities"][0]["reconciliation_status"], "supporting_only")
+
+    def test_single_highest_accuracy_unambiguous_fingerprint_can_be_fallback_cve_identity(self):
+        identity_map: dict[str, list[dict]] = {}
+        merge_host_identity_map(identity_map, [
+            {
+                "host": "192.0.2.233", "product": "Example OS Three", "family": "ExampleOS",
+                "generation": "3", "accuracy": "97",
+                "cpe": ["cpe:2.3:o:example:example_os_three:3:*:*:*:*:*:*:*"],
+                "evidence_kind": "probabilistic_fingerprint", "source": "os_fingerprint",
+            },
+            {
+                "host": "192.0.2.233", "product": "Example OS Four", "family": "ExampleOS",
+                "generation": "4", "accuracy": "95",
+                "cpe": ["cpe:2.3:o:example:example_os_four:4:*:*:*:*:*:*:*"],
+                "evidence_kind": "probabilistic_fingerprint", "source": "os_fingerprint",
+            },
+        ])
+        inventory = host_identity_inventory(identity_map)[0]
+        self.assertEqual(len(inventory["cve_identities"]), 1)
+        self.assertEqual(inventory["cve_identities"][0]["product"], "Example OS Three")
+        self.assertEqual(inventory["cve_identities"][0]["reconciliation_status"], "fallback_fingerprint")
 
     def test_component_inventory_only_uses_direct_component_observations(self):
         services = [{

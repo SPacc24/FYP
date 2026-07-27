@@ -137,6 +137,7 @@ def parse_os_identities(host: ET.Element) -> list[dict[str, Any]]:
                 "accuracy": ("" if osclass is None else osclass.get("accuracy", "")) or match_accuracy,
                 "cpe": cpes,
                 "source": "nmap_os_detection",
+                "evidence_kind": "probabilistic_fingerprint",
             })
 
     for script in parse_host_scripts(host):
@@ -168,6 +169,7 @@ def parse_os_identities(host: ET.Element) -> list[dict[str, Any]]:
                 "product": product if product and ostype and ostype.lower() in product.lower() else ostype,
                 "cpe": os_cpes,
                 "source": "nmap_service_identity",
+                "evidence_kind": "service_os_hint",
                 "accuracy": "service",
             })
     return identities

@@ -15,6 +15,9 @@ from .acl_mapper import detect_firewall_acl
 from .ssh_crypto_intel import collect_ssh_cryptography
 from .mitre_cve import OFFICIAL_CVE_SOURCE, search_with_held as mitre_search_with_held, status as mitre_status
 from .nvd_client import lookup_cve_metrics as nvd_lookup_cve_metrics, status as nvd_status
+from .msrc_client import lookup_cve_remediations as msrc_lookup_cve_remediations, status as msrc_status
+from .windows_patch_inventory import collect_windows_patch_inventory, inventory_host_identity, windows_target_applicability
+from .windows_patch_applicability import enrich_windows_patch_states
 from .scan_profiles import normalise_scan_options, is_tool_enabled, selected_ports
 from .collector_plan import setting as collector_setting, nse_script_preflight
 from .platform_identity import (
@@ -791,6 +794,7 @@ TASKS = [
     'Service Identity Fingerprinting',
     'Preliminary Attack Surface Assembly',
     'Protocol-Specific Evidence Collection',
+    'Windows Patch Evidence Collection',
     'Evidence Gap Review',
     'Evidence Normalisation and Merge',
     'MITRE CVE Correlation',
@@ -4091,6 +4095,9 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             'policy_sha256': scan_options.get('effective_policy_sha256'),
         })
     coverage=[]; raw=[]; observations=[]; web=[]; smb=[]; services=[]; udp_services=[]; service_level_checks=[]; environment_intelligence=[]; environment_context_indicators=[]; selected_objectives=[]; evidence_gaps=[]; scope_validation={}; enterprise_review_policy={}; passive_intelligence={}; modern_active_validation={}
+    windows_patch_inventories: list[dict[str, Any]] = []
+    windows_patch_assessments: list[dict[str, Any]] = []
+    msrc_patch_diagnostics: list[dict[str, Any]] = []
     parser_warnings: list[dict[str, Any]] = []
     parser_warning_keys: set[tuple[str, str, str]] = set()
     discovery_evidence: dict[str, dict[str, list[dict[str, Any]]]] = {}
@@ -5536,11 +5543,72 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         fingerprints_path = scan_store.scan_path(f'service_fingerprints_{scan_id}.json')
         fingerprints_path.write_text(json.dumps(service_fingerprints, indent=2, default=str), encoding='utf-8')
         _add_raw(raw, 'service_fingerprint_consensus', '', '', str(fingerprints_path), 'json', True)
+        # Optional authenticated Windows patch evidence. This is scanner-owned,
+        # read-only, and uses only an already-approved cached credential. It is
+        # intentionally not part of the default/recommended collector preset.
+        task='Windows Patch Evidence Collection'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
+        if enabled('windows_patch_inventory'):
+            patch_successes = 0
+            patch_failures = 0
+            timeout_seconds = int(collector_setting(scan_options.get('collector_plan') or {}, 'windows_patch_inventory', 'timeout_seconds', 45) or 45)
+            for host in live:
+                applicability, applicability_reason = windows_target_applicability(host_identity_map.get(str(host)) or host_identity_map.get(host) or [])
+                if applicability == 'not_applicable':
+                    inventory = {
+                        'collector': 'windows_patch_inventory', 'host': str(host), 'ok': False,
+                        'status': 'not_applicable', 'lifecycle_state': 'not_applicable',
+                        'message': applicability_reason, 'mutates_target': False,
+                    }
+                else:
+                    inventory = collect_windows_patch_inventory(host, timeout_seconds=timeout_seconds)
+                    inventory['precollection_applicability'] = applicability
+                    inventory['precollection_applicability_reason'] = applicability_reason
+                windows_patch_inventories.append(inventory)
+                safe_host = re.sub(r'[^A-Za-z0-9_.-]+', '_', str(host))
+                patch_path = scan_store.scan_path(f'windows_patch_inventory_{scan_id}_{safe_host}.json')
+                patch_path.write_text(json.dumps(inventory, indent=2, default=str), encoding='utf-8')
+                _add_raw(raw, 'windows_patch_inventory', host, 'host', str(patch_path), 'json', bool(inventory.get('ok')))
+                identity = inventory_host_identity(inventory, str(patch_path))
+                if identity:
+                    merge_host_identity_map(host_identity_map, [identity])
+                    patch_successes += 1
+                elif str(inventory.get('lifecycle_state') or '') == 'executed_failed':
+                    patch_failures += 1
+                coverage_result = {
+                    'success': str(inventory.get('lifecycle_state') or '') != 'executed_failed',
+                    'returncode': -1 if str(inventory.get('lifecycle_state') or '') == 'executed_failed' else 0,
+                    'command': f'python-native: read-only Impacket WMI patch inventory host={host}',
+                    'stdout': json.dumps(inventory, indent=2, default=str),
+                    'stderr': '',
+                    'error': '',
+                    'output_file': str(patch_path),
+                    'lifecycle_state': inventory.get('lifecycle_state') or ('executed_evidence' if inventory.get('ok') else 'executed_no_evidence'),
+                }
+                coverage.append(_coverage(
+                    'windows_patch_inventory',
+                    scan_store.STATUS_SUCCESS if inventory.get('ok') else (scan_store.STATUS_FAILED if coverage_result['lifecycle_state'] == 'executed_failed' else scan_store.STATUS_EMPTY),
+                    'Authenticated Windows OS build and installed KB evidence',
+                    f"{host}: {inventory.get('message') or inventory.get('status') or 'patch inventory evidence retained'}",
+                    str(patch_path),
+                    coverage_result,
+                ))
+            patch_task_status = scan_store.STATUS_SUCCESS if patch_successes else (scan_store.STATUS_FAILED if patch_failures else scan_store.STATUS_EMPTY)
+            _finish(scan_id, task, patch_task_status, f'{patch_successes} host(s) produced authenticated Windows patch evidence; {patch_failures} execution failure(s).')
+        else:
+            coverage.append(_coverage('windows_patch_inventory', scan_store.STATUS_EMPTY, 'Authenticated Windows OS build and installed KB evidence', 'Collector was not selected by the operator.', '', {'success': True, 'lifecycle_state': 'disabled_operator'}))
+            _finish(scan_id, task, scan_store.STATUS_EMPTY, 'Authenticated Windows patch inventory was not selected by the operator.')
+
+        # Resume the consolidation lifecycle task that the optional authenticated
+        # collector temporarily interrupted.
+        task='Evidence Consolidation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         host_os_inventory = host_identity_inventory(host_identity_map)
         host_os_gaps = host_identity_gaps(host_identity_map, live)
-        flat_host_os_identities = [dict(identity) for row in host_os_inventory for identity in (row.get('identities') or [])]
+        # CVE matching consumes only identities selected by generic evidence
+        # reconciliation. All raw/conflicting observations remain in
+        # host_identity_inventory for audit and reporting.
+        flat_host_os_identities = [dict(identity) for row in host_os_inventory for identity in (row.get('cve_identities') or [])]
         platform_components = platform_component_inventory(all_services)
-        normalised={'hosts':live,'host_identity_inventory':host_os_inventory,'host_identity_gaps':host_os_gaps,'platform_component_identities':platform_components,'services':all_services,'service_fingerprints':service_fingerprints,'cve_skipped_services':cve_skipped_services,'fingerprint_advisories':fingerprint_advisories,'firewall_posture':list(firewall_posture_by_host.values()),'parser_warnings':parser_warnings,'environment_intelligence':environment_intelligence,'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'web':web,'smb':smb,'snmp':snmp,'ssh':ssh_items,'ssh_crypto_profiles':ssh_crypto_profiles,'ldap':ldap_items,'tls':tls_items,'rdp':rdp_items,'credential_validation':credential_validation_items,'service_level_checks':service_level_checks,'security_observations':security_observations,'observed_security_conditions':observed_security_conditions,'observed_security_evidence':observed_security_evidence,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation}
+        normalised={'hosts':live,'host_identity_inventory':host_os_inventory,'host_identity_gaps':host_os_gaps,'platform_component_identities':platform_components,'services':all_services,'service_fingerprints':service_fingerprints,'cve_skipped_services':cve_skipped_services,'fingerprint_advisories':fingerprint_advisories,'firewall_posture':list(firewall_posture_by_host.values()),'parser_warnings':parser_warnings,'environment_intelligence':environment_intelligence,'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'web':web,'smb':smb,'snmp':snmp,'ssh':ssh_items,'ssh_crypto_profiles':ssh_crypto_profiles,'ldap':ldap_items,'tls':tls_items,'rdp':rdp_items,'credential_validation':credential_validation_items,'service_level_checks':service_level_checks,'security_observations':security_observations,'observed_security_conditions':observed_security_conditions,'observed_security_evidence':observed_security_evidence,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation,'windows_patch_inventory':windows_patch_inventories}
         p=scan_store.scan_path(f'normalised_{scan_id}.json'); p.write_text(json.dumps(normalised, indent=2, default=str), encoding='utf-8')
         # Normalised evidence is already written as formatted JSON. Internal formatting helpers are not shown as user-facing recon tools.
         _add_raw(raw,'python_normaliser','','',str(p),'json',True)
@@ -5562,11 +5630,25 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 'index_file': mitre.get('index_file'),
                 'rebuild_command': mitre.get('rebuild_command'),
             })
+        # Microsoft remediation intelligence augments already-canonical Windows
+        # host-OS CVE references only. It never creates a CVE match and never
+        # treats a missing KB alone as proof of vulnerability.
+        if windows_patch_inventories and cve_matches:
+            windows_patch_assessments, msrc_patch_diagnostics = enrich_windows_patch_states(
+                cve_matches,
+                windows_patch_inventories,
+                msrc_lookup_cve_remediations,
+            )
+            if windows_patch_assessments:
+                patch_assessment_path = scan_store.scan_path(f'windows_patch_assessments_{scan_id}.json')
+                patch_assessment_path.write_text(json.dumps(windows_patch_assessments, indent=2, default=str), encoding='utf-8')
+                _add_raw(raw, 'msrc_windows_patch_assessment', '', 'host', str(patch_assessment_path), 'json', True)
+
         nvd_cvss_enrichment_diagnostics: list[dict[str, Any]] = []
         _enrich_missing_cvss_from_nvd(cve_matches, nvd_cvss_enrichment_diagnostics)
         _enrich_missing_cvss_from_nvd(relevant_cve_information, nvd_cvss_enrichment_diagnostics)
         _finish(scan_id, task, scan_store.STATUS_SUCCESS if cve_matches else scan_store.STATUS_EMPTY, f'{len(cve_matches)} official CVE reference item(s) linked from structured observed identities; {len(cve_matcher_diagnostics)} matcher diagnostic item(s) retained.')
-        _publish_partial(scan_id, cve_matches=cve_matches, relevant_cve_information=relevant_cve_information, possible_cve_references=relevant_cve_information, host_identity_inventory=host_os_inventory, host_identity_gaps=host_os_gaps, platform_component_identities=platform_components, cve_skipped_services=cve_skipped_services, cve_matcher_diagnostics=cve_matcher_diagnostics, mitre_source=mitre)
+        _publish_partial(scan_id, cve_matches=cve_matches, relevant_cve_information=relevant_cve_information, possible_cve_references=relevant_cve_information, host_identity_inventory=host_os_inventory, host_identity_gaps=host_os_gaps, platform_component_identities=platform_components, cve_skipped_services=cve_skipped_services, cve_matcher_diagnostics=cve_matcher_diagnostics, mitre_source=mitre, windows_patch_inventory=windows_patch_inventories, windows_patch_assessments=windows_patch_assessments, msrc_patch_diagnostics=msrc_patch_diagnostics, msrc_source=msrc_status())
 
         # 18 Caldera Handoff
         task='Handoff Preparation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
@@ -5676,6 +5758,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         collector_coverage_matrix = _build_collector_coverage_matrix(all_services, scan_options, public_coverage, raw)
         unresolved_identity_queue = _build_unresolved_identity_queue(all_services)
         nvd_source = nvd_status()
+        msrc_source = msrc_status()
 
         scan_summary = _build_scan_summary(
             targets_requested=len(targets),
@@ -5702,7 +5785,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             'diagnostics': cve_matcher_diagnostics,
             'downstream_rule': 'Consume scanner-owned structured CVE references and evidence; do not rematch, suppress, or invent CVE identifiers.',
         }
-        package={'scan_id':scan_id,'target_input':target_input,'scan_options':scan_options,'scan_coverage':scan_coverage,'scan_summary':scan_summary,'hosts':live,'host_identity_inventory':host_os_inventory,'host_identity_gaps':host_os_gaps,'host_os_identities':flat_host_os_identities,'platform_component_identities':platform_components,'fingerprint_advisories':fingerprint_advisories,'scope_validation':scope_validation,'enterprise_readiness':enterprise_readiness,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation,'enumeration_intelligence':enumeration_intelligence,'operational_maturity':operational_maturity,'decision_register':decision_register,'evidence_manifest':evidence_manifest,'mitre_source':mitre,'nvd_source':nvd_source,'tool_coverage':public_coverage,'collector_coverage_matrix':collector_coverage_matrix,'unresolved_identity_queue':unresolved_identity_queue,'service_inventory':all_services,'service_summary':service_summary,'service_workbench':service_workbench,'attack_surface_sections':attack_surface_sections,'cve_matches':cve_matches,'relevant_cve_information':relevant_cve_information,'candidate_cve_groups':candidate_cve_groups,'possible_cve_references':relevant_cve_information,'cve_matcher_diagnostics':cve_matcher_diagnostics,'nvd_cvss_enrichment_diagnostics':nvd_cvss_enrichment_diagnostics,'canonical_cve_contract':canonical_cve_contract,'service_level_checks':service_level_checks,'security_relevant_observations':security_observations,'observed_security_conditions':observed_security_conditions,'observed_security_evidence':observed_security_evidence,'key_exposure_indicators':key_exposure_indicators,'tcp_service_count':len([x for x in all_services if x.get('protocol')=='tcp']),'udp_service_count':len([x for x in all_services if x.get('protocol')=='udp']),'web_inventory':web,'web_summary':web_summary,'smb_inventory':smb,'smb_summary':smb_summary,'raw_evidence_index':raw,'caldera_handoff':caldera_handoff,'environment_summary':_build_environment_summary(environment_intelligence, environment_context_indicators),'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'exploit_validation_candidates':exploit_validation_candidates,'authentication_surface_readiness':authentication_surface_readiness,'web_exploitation_readiness':web_exploitation_readiness,'suggested_follow_up_objectives':follow_up_objectives,'escalation_paused':False}
+        package={'scan_id':scan_id,'target_input':target_input,'scan_options':scan_options,'scan_coverage':scan_coverage,'scan_summary':scan_summary,'hosts':live,'host_identity_inventory':host_os_inventory,'host_identity_gaps':host_os_gaps,'host_os_identities':flat_host_os_identities,'platform_component_identities':platform_components,'fingerprint_advisories':fingerprint_advisories,'scope_validation':scope_validation,'enterprise_readiness':enterprise_readiness,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation,'enumeration_intelligence':enumeration_intelligence,'operational_maturity':operational_maturity,'decision_register':decision_register,'evidence_manifest':evidence_manifest,'mitre_source':mitre,'nvd_source':nvd_source,'msrc_source':msrc_source,'windows_patch_inventory':windows_patch_inventories,'windows_patch_assessments':windows_patch_assessments,'msrc_patch_diagnostics':msrc_patch_diagnostics,'tool_coverage':public_coverage,'collector_coverage_matrix':collector_coverage_matrix,'unresolved_identity_queue':unresolved_identity_queue,'service_inventory':all_services,'service_summary':service_summary,'service_workbench':service_workbench,'attack_surface_sections':attack_surface_sections,'cve_matches':cve_matches,'relevant_cve_information':relevant_cve_information,'candidate_cve_groups':candidate_cve_groups,'possible_cve_references':relevant_cve_information,'cve_matcher_diagnostics':cve_matcher_diagnostics,'nvd_cvss_enrichment_diagnostics':nvd_cvss_enrichment_diagnostics,'canonical_cve_contract':canonical_cve_contract,'service_level_checks':service_level_checks,'security_relevant_observations':security_observations,'observed_security_conditions':observed_security_conditions,'observed_security_evidence':observed_security_evidence,'key_exposure_indicators':key_exposure_indicators,'tcp_service_count':len([x for x in all_services if x.get('protocol')=='tcp']),'udp_service_count':len([x for x in all_services if x.get('protocol')=='udp']),'web_inventory':web,'web_summary':web_summary,'smb_inventory':smb,'smb_summary':smb_summary,'raw_evidence_index':raw,'caldera_handoff':caldera_handoff,'environment_summary':_build_environment_summary(environment_intelligence, environment_context_indicators),'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'exploit_validation_candidates':exploit_validation_candidates,'authentication_surface_readiness':authentication_surface_readiness,'web_exploitation_readiness':web_exploitation_readiness,'suggested_follow_up_objectives':follow_up_objectives,'escalation_paused':False}
         package.update({
             'service_fingerprints': service_fingerprints,
             'cve_skipped_services': cve_skipped_services,
