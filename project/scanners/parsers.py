@@ -62,6 +62,79 @@ def _script_output(script_el: ET.Element) -> str:
     return " ".join(parts)
 
 
+
+
+def _cpe_part(value: str) -> str:
+    raw = str(value or "").strip().lower()
+    if raw.startswith("cpe:2.3:"):
+        parts = raw.split(":")
+        return parts[2] if len(parts) > 2 else ""
+    if raw.startswith("cpe:/"):
+        parts = raw.split(":")
+        return parts[1].lstrip("/") if len(parts) > 1 else ""
+    return ""
+
+
+def _split_cpes(values: list[str]) -> tuple[list[str], list[str], list[str]]:
+    applications: list[str] = []
+    operating_systems: list[str] = []
+    hardware: list[str] = []
+    for value in values:
+        clean = str(value or "").strip()
+        if not clean:
+            continue
+        part = _cpe_part(clean)
+        target = applications if part == "a" else operating_systems if part == "o" else hardware if part == "h" else None
+        if target is not None and clean not in target:
+            target.append(clean)
+    return applications, operating_systems, hardware
+
+
+def _script_fields(script_el: ET.Element) -> dict[str, Any]:
+    """Preserve structured NSE table/elem data without interpreting it."""
+    fields: dict[str, Any] = {}
+    for node in script_el.iter():
+        if node is script_el:
+            continue
+        key = str(node.get("key") or "").strip()
+        text = str(node.text or "").strip()
+        if not key or not text:
+            continue
+        current = fields.get(key)
+        if current is None:
+            fields[key] = text
+        elif isinstance(current, list):
+            if text not in current:
+                current.append(text)
+        elif current != text:
+            fields[key] = [current, text]
+    return fields
+
+
+def _parse_host_os_identities(host_el: ET.Element, host_ip: str, path: str | Path) -> list[dict[str, Any]]:
+    identities: list[dict[str, Any]] = []
+    for osmatch in host_el.findall("os/osmatch"):
+        match_name = str(osmatch.get("name") or "").strip()
+        match_accuracy = str(osmatch.get("accuracy") or "").strip()
+        classes = osmatch.findall("osclass") or [None]
+        for osclass in classes:
+            cpes = [] if osclass is None else [str(x.text or "").strip() for x in osclass.findall("cpe") if str(x.text or "").strip()]
+            identities.append({
+                "scope": "host_os",
+                "host": host_ip,
+                "name": match_name,
+                "vendor": "" if osclass is None else str(osclass.get("vendor") or "").strip(),
+                "family": "" if osclass is None else str(osclass.get("osfamily") or "").strip(),
+                "generation": "" if osclass is None else str(osclass.get("osgen") or "").strip(),
+                "device_type": "" if osclass is None else str(osclass.get("type") or "").strip(),
+                "accuracy": str((osclass.get("accuracy") if osclass is not None else "") or match_accuracy).strip(),
+                "cpe": cpes,
+                "source": "nmap_os_detection",
+                "evidence_kind": "probabilistic_fingerprint",
+                "raw_evidence_file": str(path),
+            })
+    return identities
+
 def _empty_nmap_data(path: str | Path, status: str = "failed") -> dict[str, Any]:
     return {
         "scan_file": str(path),
@@ -76,17 +149,25 @@ def _empty_nmap_data(path: str | Path, status: str = "failed") -> dict[str, Any]
 
 def _service_details(
     service_el: ET.Element | None,
-    scripts: list[dict[str, str]],
-) -> tuple[str, str, str, str, list[str]]:
+    scripts: list[dict[str, Any]],
+) -> tuple[str, str, str, str, list[str], list[str], list[str], dict[str, str]]:
     service_name = service_el.get("name", "unknown") if service_el is not None else "unknown"
     product = service_el.get("product", "") if service_el is not None else ""
     version = service_el.get("version", "") if service_el is not None else ""
     extra = service_el.get("extrainfo", "") if service_el is not None else ""
-    cpes = (
-        [node.text for node in service_el.findall("cpe") if node.text]
+    attrs = {
+        "hostname": service_el.get("hostname", "") if service_el is not None else "",
+        "ostype": service_el.get("ostype", "") if service_el is not None else "",
+        "devicetype": service_el.get("devicetype", "") if service_el is not None else "",
+        "method": service_el.get("method", "") if service_el is not None else "",
+        "conf": service_el.get("conf", "") if service_el is not None else "",
+    }
+    raw_cpes = (
+        [str(node.text or "").strip() for node in service_el.findall("cpe") if str(node.text or "").strip()]
         if service_el is not None
         else []
     )
+    app_cpes, os_cpes, hardware_cpes = _split_cpes(raw_cpes)
 
     script_text = " ".join(str(item.get("output", "")) for item in scripts)
     if product.lower() == "unrealircd" and not version:
@@ -95,10 +176,7 @@ def _service_details(
         )
         if match:
             version = match.group(1)
-    if product.lower() == "unrealircd" and version and not cpes:
-        cpes.append(f"cpe:/a:unrealircd:unrealircd:{version}")
-    return service_name, product, version, extra, cpes
-
+    return service_name, product, version, extra, app_cpes, os_cpes, hardware_cpes, attrs
 
 def _port_row(
     port_el: ET.Element,
@@ -109,10 +187,10 @@ def _port_row(
     state_el = port_el.find("state")
     service_el = port_el.find("service")
     scripts = [
-        {"id": script.get("id", ""), "output": _script_output(script)}
+        {"id": script.get("id", ""), "output": _script_output(script), "fields": _script_fields(script)}
         for script in port_el.findall("script")
     ]
-    service_name, product, version, extra, cpes = _service_details(service_el, scripts)
+    service_name, product, version, extra, cpes, os_cpes, hardware_cpes, service_attrs = _service_details(service_el, scripts)
     try:
         port_number = int(port_el.get("portid") or 0)
     except (TypeError, ValueError):
@@ -130,6 +208,9 @@ def _port_row(
         "version": version,
         "extra": extra,
         "cpe": cpes,
+        "os_cpe": os_cpes,
+        "hardware_cpe": hardware_cpes,
+        "service_attributes": service_attrs,
         "evidence_sources": ["nmap"],
         "raw_evidence_file": str(path),
         "scripts": scripts,
@@ -148,6 +229,11 @@ def _parse_root(
             addr_el = host_el.find("address")
         host_ip = addr_el.get("addr", "") if addr_el is not None else ""
         status_el = host_el.find("status")
+        mac_el = host_el.find("address[@addrtype='mac']")
+        host_scripts = [
+            {"id": script.get("id", ""), "output": _script_output(script), "fields": _script_fields(script)}
+            for script in host_el.findall("hostscript/script")
+        ]
         host_data: dict[str, Any] = {
             "address": host_ip,
             "status": status_el.get("state", "unknown") if status_el is not None else "unknown",
@@ -157,6 +243,10 @@ def _parse_root(
                 for node in host_el.findall("hostnames/hostname")
                 if node.get("name")
             ],
+            "mac": mac_el.get("addr", "") if mac_el is not None else "",
+            "mac_vendor": mac_el.get("vendor", "") if mac_el is not None else "",
+            "scripts": host_scripts,
+            "os_identities": _parse_host_os_identities(host_el, host_ip, path),
             "ports": [],
         }
         for extra_el in host_el.findall("ports/extraports"):
@@ -185,6 +275,22 @@ def _parse_root(
             data["ports"].append(row)
             if row["state"] == "open":
                 data["services"].append(dict(row))
+            if row.get("os_cpe") or (row.get("service_attributes") or {}).get("ostype"):
+                host_data["os_identities"].append({
+                    "scope": "host_os",
+                    "host": host_ip,
+                    "name": str((row.get("service_attributes") or {}).get("ostype") or "").strip(),
+                    "vendor": "",
+                    "family": str((row.get("service_attributes") or {}).get("ostype") or "").strip(),
+                    "generation": "",
+                    "device_type": str((row.get("service_attributes") or {}).get("devicetype") or "").strip(),
+                    "accuracy": str((row.get("service_attributes") or {}).get("conf") or "").strip(),
+                    "cpe": list(row.get("os_cpe") or []),
+                    "source": "nmap_service_os_evidence",
+                    "evidence_kind": "service_os_hint",
+                    "raw_evidence_file": str(path),
+                    "endpoint": f"{row.get('port')}/{row.get('protocol')}",
+                })
         data["hosts"].append(host_data)
     return data
 
@@ -259,19 +365,17 @@ def _manual_port_row(
         if script_match.group("body"):
             body = re.sub(r"<[^>]+>", " ", script_match.group("body"))
             output = " ".join(part for part in (output, body.strip()) if part)
-        scripts.append({"id": _attribute(script_attrs, "id"), "output": output})
+        scripts.append({"id": _attribute(script_attrs, "id"), "output": output, "fields": {}})
 
     product = _attribute(service_attrs, "product")
     version = _attribute(service_attrs, "version")
-    cpes = re.findall(r"<cpe>\s*([^<]+?)\s*</cpe>", segment, re.I | re.S)
+    raw_cpes = re.findall(r"<cpe>\s*([^<]+?)\s*</cpe>", segment, re.I | re.S)
+    cpes, os_cpes, hardware_cpes = _split_cpes(raw_cpes)
     script_text = " ".join(item["output"] for item in scripts)
     if product.lower() == "unrealircd" and not version:
         match = re.search(r"Unreal(?:IRCd)?\s*([0-9]+(?:\.[0-9]+){2,})", script_text, re.I)
         if match:
             version = match.group(1)
-    if product.lower() == "unrealircd" and version and not cpes:
-        cpes.append(f"cpe:/a:unrealircd:unrealircd:{version}")
-
     return {
         "host": host_ip,
         "port": int(portid),
@@ -285,6 +389,15 @@ def _manual_port_row(
         "version": version,
         "extra": _attribute(service_attrs, "extrainfo"),
         "cpe": cpes,
+        "os_cpe": os_cpes,
+        "hardware_cpe": hardware_cpes,
+        "service_attributes": {
+            "hostname": _attribute(service_attrs, "hostname"),
+            "ostype": _attribute(service_attrs, "ostype"),
+            "devicetype": _attribute(service_attrs, "devicetype"),
+            "method": _attribute(service_attrs, "method"),
+            "conf": _attribute(service_attrs, "conf"),
+        },
         "evidence_sources": ["nmap"],
         "raw_evidence_file": str(path),
         "scripts": scripts,
@@ -322,7 +435,7 @@ def _merge_recovered_ports(data: dict[str, Any], recovered: list[dict[str, Any]]
             index[key] = row
         else:
             current = index[key]
-            for field in ("state", "reason", "service", "product", "version", "extra"):
+            for field in ("state", "reason", "service", "product", "version", "extra", "os_cpe", "hardware_cpe", "service_attributes"):
                 if (not current.get(field) or current.get(field) == "unknown") and row.get(field):
                     current[field] = row[field]
     data["services"] = [dict(row) for row in data["ports"] if row.get("state") == "open"]

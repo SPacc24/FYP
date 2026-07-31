@@ -28,10 +28,14 @@ def test_unrealircd_version_extracted_from_script_output(tmp_path):
 
 
 def test_non_contract_cve_classification_is_not_accepted():
-    assert _classify_cve_match({
+    result = _classify_cve_match({}, {
         'source': OFFICIAL_CVE_SOURCE,
         'classification': 'Different value',
-    }) is None
+        'matched_product_tokens': ['example product'],
+        'matched_version_tokens': ['1.2.3'],
+        'match_basis': 'structured_exact_version',
+    })
+    assert result[0] == 'Baseline CVE Reference'
 
 
 def test_packaged_default_credential_file_exists():

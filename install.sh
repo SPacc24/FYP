@@ -14,6 +14,7 @@ printf '[*] Installing required Kali enumeration tools...\n'
 $SUDO apt-get install -y --no-install-recommends \
   arp-scan nmap bind9-dnsutils jq gobuster enum4linux-ng smbclient smbmap \
   snmp ldap-utils sslscan mtr-tiny traceroute hydra seclists git \
+  tshark rpcbind nfs-common postgresql-client curl openssl iputils-ping iputils-tracepath \
   python3 python3-venv python3-pip libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libffi-dev shared-mime-info
 
 printf '[*] Installing optional Kali enumeration helpers where available...\n'
@@ -30,7 +31,7 @@ python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
 
 printf '[*] Preparing storage directories...\n'
-mkdir -p storage/scans storage/results storage/mitre_cve
+mkdir -p storage/scans storage/results storage/mitre_cve storage/msrc storage/msrc_windows storage/nvd_cache
 
 printf '[*] Creating local runtime configuration...\n'
 python scripts/bootstrap_env.py
@@ -39,6 +40,21 @@ printf '[*] Syncing official CVE List mirror from CVEProject/cvelistV5 if networ
 python scripts/sync_mitre_cve_database.py || {
   printf '[WARN] Official CVE List sync did not complete. The app still runs; run this later:\n'
   printf '       cd project && . .venv/bin/activate && python scripts/sync_mitre_cve_database.py\n'
+}
+
+printf '[*] Caching recent Microsoft Security Update Guide data for Windows remediation checks if network is available...\n'
+python scripts/sync_msrc_security_updates.py --months 3 || {
+  printf '[WARN] Microsoft remediation cache sync did not complete. Targeted lookups can retry during a later scan, or run:\n'
+  printf '       cd project && . .venv/bin/activate && python scripts/sync_msrc_security_updates.py --months 3\n'
+}
+
+printf '[*] Building Microsoft Windows advisory history if network is available...\n'
+CURRENT_YEAR="$(date +%Y)"
+MSRC_HISTORY_YEARS="${MSRC_HISTORY_YEARS:-15}"
+MSRC_START_YEAR="$((CURRENT_YEAR - MSRC_HISTORY_YEARS))"
+python scripts/rebuild_msrc_windows_index.py --start-year "$MSRC_START_YEAR" || {
+  printf '[WARN] The Windows advisory applicability index was not built. The scanner still runs with the CVE List index.\n'
+  printf '       Retry later: cd project && . .venv/bin/activate && python scripts/rebuild_msrc_windows_index.py --start-year %s\n' "$MSRC_START_YEAR"
 }
 
 printf '\n[+] Install complete. Start the app with:\n'

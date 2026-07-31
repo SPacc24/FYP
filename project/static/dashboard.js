@@ -222,13 +222,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("viewAllCvesNavBtn")
     ?.addEventListener("click", () => {
-      if (typeof openCveModal === "function") {
-        openCveModal();
-      } else {
-        window.location.hash = "#scan-vuln";
-      }
+      document.getElementById("cve-review")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-
+    
   document.getElementById("downloadReportNavBtn")
     ?.addEventListener("click", () => {
       const reportSection = document.getElementById("report");

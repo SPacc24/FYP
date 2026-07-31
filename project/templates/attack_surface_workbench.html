@@ -19,12 +19,12 @@
                 </div>
                 <div class="service-meta"><b>{{ s.host }}</b><span>{{ s.ports|join(', ') }}</span></div>
               </div>
-              <div class="service-state">{{ 'Candidate References Available' if s.state == 'Candidate CVE References' else s.state }}</div>
+              <div class="service-state">{{ s.state }}</div>
               {% if s.observations %}
                 <div class="service-block"><b>Exposure Evidence</b><ul>{% for o in s.observations %}<li>{{ o.observation }}</li>{% endfor %}</ul></div>
               {% endif %}
-              {% if s.confirmed_cves %}
-                <div class="service-block"><b>CVE Findings</b><ul>{% for c in s.confirmed_cves %}<li>{{ c.cve_id }} - {{ c.finding_type or 'CVE finding' }}</li>{% endfor %}</ul></div>
+              {% if s.cve_findings %}
+                <div class="service-block"><b>CVE Findings</b><ul>{% for c in s.cve_findings %}<li>{{ c.cve_id }} - {{ c.finding_type or 'CVE finding' }}</li>{% endfor %}</ul></div>
               {% endif %}
               {% if s.web_evidence %}
                 <div class="service-block"><b>Web Evidence</b><ul>{% for w in s.web_evidence %}<li>{{ w.title or 'HTTP service' }}{% if w.server_header %} · {{ w.server_header }}{% endif %}{% if w.http_enum %}<br><span class="muted small preline">{{ w.http_enum[:360] }}</span>{% endif %}</li>{% endfor %}</ul></div>
@@ -34,17 +34,6 @@
               {% endif %}
               {% if s.smb_shares %}
                 <div class="service-block"><b>Visible SMB Shares</b><ul>{% for share in s.smb_shares %}<li>{{ share.share }}{% if share.comment %} — {{ share.comment }}{% endif %}</li>{% endfor %}</ul></div>
-              {% endif %}
-              {% if s.candidate_references %}
-                <details class="mini-details">
-                  <summary>Show candidate CVE references</summary>
-                  {% for g in s.candidate_references %}
-                    <p class="muted small">
-                      {{ g.reference_count }} reference{% if g.reference_count != 1 %}s{% endif %}:
-                      {% for r in g.references[:8] %}{{ r.cve_id }}{% if not loop.last %}, {% endif %}{% endfor %}{% if g.reference_count > 8 %}, ...{% endif %}
-                    </p>
-                  {% endfor %}
-                </details>
               {% endif %}
               {% if s.evidence_gaps %}
                 <div class="service-block"><b>Evidence Gaps</b><p class="muted small">{{ s.evidence_gaps|join(', ') }}</p></div>

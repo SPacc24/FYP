@@ -50,7 +50,19 @@ def run_cmd(cmd: list[str], output_file: Path | None = None, timeout: int = 300,
                 output_file.parent.mkdir(parents=True, exist_ok=True)
                 output_file.write_text(text_out, encoding='utf-8', errors='ignore')
             except OSError as exc:
-                return {'success': False, 'status': 'failed', 'command': cmd_str, 'returncode': proc.returncode, 'stdout': stdout, 'stderr': stderr, 'output_file': str(output_file), 'error': f'could not write output file: {exc}'}
+                return {
+                    'success': False,
+                    'status': 'failed',
+                    'command': cmd_str,
+                    'returncode': proc.returncode,
+                    'stdout': stdout,
+                    'stderr': stderr,
+                    'output_file': str(output_file),
+                    'error': f'could not write output file: {exc}',
+                    'completion_reason': 'output_write_error',
+                    'timed_out': False,
+                    'partial_output_retained': bool(stdout or stderr),
+                }
         success = proc.returncode == 0
         return {
             'success': success,
@@ -61,6 +73,9 @@ def run_cmd(cmd: list[str], output_file: Path | None = None, timeout: int = 300,
             'stderr': stderr,
             'output_file': str(output_file or ''),
             'error': '' if success else ((stderr or '').strip() or (stdout or '').strip())[-1000:],
+            'completion_reason': 'completed' if success else 'command_error',
+            'timed_out': False,
+            'partial_output_retained': bool(stdout or stderr or (output_file and output_file.exists())),
         }
     except subprocess.TimeoutExpired as exc:
         stdout = _as_text(exc.stdout)
@@ -71,9 +86,34 @@ def run_cmd(cmd: list[str], output_file: Path | None = None, timeout: int = 300,
                 output_file.write_text(stdout + '\n[TIMEOUT]\n' + stderr, encoding='utf-8', errors='ignore')
             except OSError:
                 pass
-        return {'success': False, 'status': 'failed', 'command': cmd_str, 'returncode': -1, 'stdout': stdout, 'stderr': ('timeout\n' + stderr).strip(), 'output_file': str(output_file or ''), 'error': 'timeout'}
+        return {
+            'success': False,
+            'status': 'failed',
+            'command': cmd_str,
+            'returncode': -1,
+            'stdout': stdout,
+            'stderr': ('timeout\n' + stderr).strip(),
+            'output_file': str(output_file or ''),
+            'error': 'timeout',
+            'completion_reason': 'timeout',
+            'timed_out': True,
+            'partial_output_retained': bool(stdout or stderr or (output_file and output_file.exists())),
+            'lifecycle_state': 'executed_timeout',
+        }
     except FileNotFoundError:
-        return {'success': False, 'status': 'failed', 'command': cmd_str, 'returncode': -1, 'stdout': '', 'stderr': 'binary not found', 'output_file': str(output_file or ''), 'error': 'binary not found'}
+        return {
+            'success': False,
+            'status': 'failed',
+            'command': cmd_str,
+            'returncode': -1,
+            'stdout': '',
+            'stderr': 'binary not found',
+            'output_file': str(output_file or ''),
+            'error': 'binary not found',
+            'completion_reason': 'binary_not_found',
+            'timed_out': False,
+            'partial_output_retained': False,
+        }
 
 
 def completed_empty(result: dict[str, Any], output_file: Path | None = None) -> bool:

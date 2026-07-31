@@ -158,7 +158,7 @@ def detect_firewall_acl(
     ...     "ports": [{"protocol": "tcp", "port": 22, "state": "open"}],
     ...     "extraports": [{"protocol": "udp", "state": "filtered", "count": 12}],
     ... }
-    >>> detect_firewall_acl(result, "192.0.2.20").pattern_type
+    >>> detect_firewall_acl(result, "example-target").pattern_type
     'stateless_udp_block'
     """
     if not isinstance(nmap_results, dict):

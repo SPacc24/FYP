@@ -17,6 +17,8 @@ from pathlib import Path
 
 from storage import scan_store
 
+from . import command_builders
+
 try:
     from typing import Literal
 except ImportError:  # Python 3.7 compatibility
@@ -167,26 +169,14 @@ def generate_output_file(target: str) -> Path:
 
 
 def build_nmap_command(request: ScanRequest, output_file: Path) -> list[str]:
-    command = [
+    return command_builders.nmap_profile_scan(
         resolve_nmap_path(),
-        "-Pn",  # Treat host as online. Better for firewalled Windows targets.
-        "-T",
-        str(request.intensity),
-        "-p",
+        request.target,
         request.ports,
-        "-oX",
-        str(output_file),
-    ]
-
-    if request.profile == "quick":
-        command.extend(["-sV", "--version-light"])
-    elif request.profile == "standard":
-        command.extend(["-sV", "-sC"])
-    elif request.profile == "deep":
-        command.extend(["-sV", "--version-intensity", "5"])
-
-    command.append(request.target)
-    return command
+        request.intensity,
+        request.profile,
+        output_file,
+    )
 
 
 def run_nmap_scan(
