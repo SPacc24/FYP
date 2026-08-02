@@ -48,15 +48,6 @@
         reportView: "{{ url_for('report_view') }}",
         reportExport: "{{ url_for('export_report') }}",
         reportExportPdf: "{{ url_for('export_report_pdf') }}",
-        missionStart: "{{ url_for('api_mission_start') }}",
-        missionList: "{{ url_for('api_mission_list') }}",
-        missionGet: "/api/mission/",
-        missionAdvance: "/api/mission/",
-        missionContinue: "/api/mission/",
-        missionApprove: "/api/mission/",
-        missionValidateSafe: "/api/mission/",
-        missionAbort: "/api/mission/",
-        missionPlaybooks: "{{ url_for('api_mission_playbooks') }}"
       };
 
       window.DASHBOARD_SECURITY = {
@@ -149,7 +140,6 @@
       <button class="results-tab" type="button" data-dashboard-tab="planning">AI Plan</button>
       <button class="results-tab" type="button" data-dashboard-tab="validation">Validation</button>
       <button class="results-tab" type="button" data-dashboard-tab="caldera">CALDERA</button>
-      <button class="results-tab" type="button" data-dashboard-tab="mission">Mission</button>
       <button class="results-tab" type="button" data-dashboard-tab="report">Report</button>
     </nav>
 
@@ -175,10 +165,6 @@
 
       <div class="results-pane" data-dashboard-pane="caldera">
         {% include "caldera_execution.html" %}
-      </div>
-
-      <div class="results-pane" data-dashboard-pane="mission">
-        {% include "mission_dashboard_panel.html" %}
       </div>
 
       <div class="results-pane" data-dashboard-pane="report" id="report-workspace">
