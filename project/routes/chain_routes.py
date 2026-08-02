@@ -4,12 +4,17 @@ from __future__ import annotations
 import secrets
 import threading
 
-from flask import jsonify, request
+
+from flask import jsonify, request, render_template  # add render_template
 
 from core.services import chain_orchestrator
 
 
 def register_routes(app):
+
+    @app.route("/pentest/chain", methods=["GET"])
+    def chain_page():
+            return render_template("chain_run.html")
 
     @app.route("/pentest/chain/run", methods=["POST"])
     def chain_run():
@@ -46,3 +51,4 @@ def register_routes(app):
     @app.route("/pentest/chain/history", methods=["GET"])
     def chain_history():
         return jsonify({"ok": True, "runs": chain_orchestrator.history()})
+
