@@ -63,8 +63,7 @@
       "rdp-enum-encryption"
     ],
     "telnet_readiness": [
-      "telnet-encryption",
-      "telnet-ntlm-info"
+      "telnet-encryption"
     ],
     "snmp_readiness": [
       "snmp-info"
@@ -77,6 +76,41 @@
     ],
     "tomcat_ajp_readiness": [
       "ajp-headers"
+    ],
+    "smb_host_identity": [
+      "smb-os-discovery",
+      "smb2-capabilities",
+      "smb2-time"
+    ],
+    "netbios_identity": [
+      "nbstat"
+    ],
+    "msrpc_metadata": [
+      "msrpc-enum"
+    ],
+    "ntlm_http_identity": [
+      "http-ntlm-info"
+    ],
+    "ntlm_rdp_identity": [
+      "rdp-ntlm-info"
+    ],
+    "ntlm_mssql_identity": [
+      "ms-sql-ntlm-info"
+    ],
+    "ntlm_smtp_identity": [
+      "smtp-ntlm-info"
+    ],
+    "ntlm_imap_identity": [
+      "imap-ntlm-info"
+    ],
+    "ntlm_pop3_identity": [
+      "pop3-ntlm-info"
+    ],
+    "ntlm_nntp_identity": [
+      "nntp-ntlm-info"
+    ],
+    "ntlm_telnet_identity": [
+      "telnet-ntlm-info"
     ]
   },
   "nuclei": {

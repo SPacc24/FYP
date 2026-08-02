@@ -10,7 +10,7 @@
   <div>
     <div class="eyebrow">Reconnaissance in Progress</div>
     <h1>{{ target }}</h1>
-    <p class="muted">Adaptive recon is running. Environment characterisation and low-impact discovery run first; preliminary attack-surface results appear before final CVE correlation and handoff preparation.</p>
+    <p class="muted">Configurable recon is running with the TCP/UDP coverage and evidence collectors selected by the operator. Policy stop conditions remain active throughout the scan.</p>
   </div>
   <a class="btn ghost" href="/">New Scan</a>
 </header>
@@ -43,8 +43,16 @@
         <b id="next">No queued task</b>
       </div>
       <div class="overview-card">
-        <span>Scan Profile</span>
-        <b>{{ scan_options.profile_label if scan_options else 'Full Recon' }}</b>
+        <span>Selected TCP Scope</span>
+        <b>{{ scan_options.port_selection.tcp.display if scan_options and scan_options.port_selection else 'Essentials' }}</b>
+      </div>
+      <div class="overview-card">
+        <span>Selected UDP Scope</span>
+        <b>{{ scan_options.port_selection.udp.display if scan_options and scan_options.port_selection else 'Essentials' }}</b>
+      </div>
+      <div class="overview-card">
+        <span>Execution</span>
+        <b>{% if scan_options and scan_options.advanced_settings and scan_options.advanced_settings.parallel_scanning %}Parallel × {{ scan_options.advanced_settings.parallel_workers }}{% else %}Sequential{% endif %} · {{ scan_options.advanced_settings.ports_per_batch if scan_options and scan_options.advanced_settings else 5 }} ports/batch</b>
       </div>
     </section>
 

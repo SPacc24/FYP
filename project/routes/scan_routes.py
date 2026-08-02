@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import threading
@@ -16,7 +17,7 @@ from flask import (
 
 from scanners.enumerator import TASKS, run_pipeline
 from scanners.mitre_cve import status as mitre_status
-from scanners.scan_profiles import TOOL_OPTIONS, normalise_scan_options
+from scanners.scan_profiles import TOOL_OPTIONS, collector_ui_context, normalise_scan_options
 from storage import scan_store
 
 from core.helpers import (
@@ -31,7 +32,23 @@ log = logging.getLogger(__name__)
 def register_routes(app):
     @app.route("/")
     def index():
-        return render_template("index.html", tool_options=TOOL_OPTIONS)
+        ui = collector_ui_context()
+        initial_scan_options = {}
+        clone_scan_id = (request.args.get("clone_scan") or "").strip()
+        if clone_scan_id:
+            previous = scan_store.load(clone_scan_id) or {}
+            initial_scan_options = previous.get("scan_options") or {}
+        return render_template(
+            "index.html",
+            tool_options=TOOL_OPTIONS,
+            collector_catalog=ui.get("catalog") or [],
+            collector_groups=ui.get("groups") or [],
+            collection_presets=ui.get("presets") or {},
+            collector_policy_status=ui.get("policy_status"),
+            collector_policy_sha256=ui.get("policy_sha256"),
+            initial_scan_options=initial_scan_options,
+            clone_scan_id=clone_scan_id,
+        )
 
     @app.route("/scan", methods=["POST"])
     def scan():
@@ -57,10 +74,46 @@ def register_routes(app):
         if technique_mode not in {"auto", "hybrid", "manual"}:
             technique_mode = "hybrid"
 
+        def _json_form(name):
+            raw = (request.form.get(name) or "").strip()
+            if not raw:
+                return {}
+            try:
+                value = json.loads(raw)
+            except (TypeError, ValueError):
+                return {}
+            return value if isinstance(value, dict) else {}
+
+        collector_plan = _json_form("collector_plan_json")
+        host_discovery_settings = _json_form("host_discovery_json")
+        service_identity_settings = _json_form("service_identity_json")
+        collection_preset = (request.form.get("collection_preset") or "custom").strip().lower()
+
         scan_options = normalise_scan_options(
             profile,
-            enabled_tools if profile == "custom" or enabled_tools else None
+            enabled_tools if (not collector_plan and (profile == "custom" or enabled_tools)) else None,
+            tcp_port_mode=request.form.get("tcp_port_mode"),
+            tcp_custom_ports=request.form.get("tcp_custom_ports"),
+            udp_port_mode=request.form.get("udp_port_mode"),
+            udp_custom_ports=request.form.get("udp_custom_ports"),
+            advanced_settings={
+                "command_timeout_seconds": request.form.get("command_timeout_seconds"),
+                "retry_failed_batches": "retry_failed_batches" in request.form,
+                "retry_count": request.form.get("retry_count"),
+                "ports_per_batch": request.form.get("ports_per_batch"),
+                "parallel_scanning": "parallel_scanning" in request.form,
+                "parallel_workers": request.form.get("parallel_workers"),
+            },
+            collection_preset=collection_preset,
+            collector_plan=collector_plan or None,
+            host_discovery_settings=host_discovery_settings or None,
+            service_identity_settings=service_identity_settings or None,
         )
+        if scan_options.get("validation_errors"):
+            return render_template(
+                "error.html",
+                error_message="; ".join(scan_options["validation_errors"]),
+            ), 400
         scan_options["technique_mode"] = technique_mode
 
         scan_id = scan_store.new_scan(
@@ -71,17 +124,21 @@ def register_routes(app):
         )
 
         log.info(
-            "[scan] new_scan created: %s target=%s profile=%s technique_mode=%s enabled_tools=%s",
+            "[scan] new_scan created: %s target=%s profile=%s technique_mode=%s enabled_tools=%s ports=%s advanced=%s",
             scan_id,
             target,
             profile,
             technique_mode,
             enabled_tools,
+            scan_options.get("port_selection"),
+            scan_options.get("advanced_settings"),
         )
 
         scan_store.log(
             scan_id,
-            f"Scan requested: target={target} profile={profile} technique_mode={technique_mode}"
+            f"Scan requested: target={target} profile={profile} technique_mode={technique_mode} "
+            f"tcp={scan_options.get('port_selection', {}).get('tcp', {}).get('mode')} "
+            f"udp={scan_options.get('port_selection', {}).get('udp', {}).get('mode')}"
         )
 
         # Starting a new assessment should clear old scan state without
@@ -196,15 +253,17 @@ def register_routes(app):
         ai_plan = data.get("ai_plan") or {}
         mapping_result = data.get("mapping") or {}
 
+        parsed_for_view = _stored_results_to_parsed_results(data.get("results") or {}, data)
         detected_cves = _build_detected_cve_rows(
             ai_plan,
-            mapping_result
+            mapping_result,
+            parsed_for_view,
         )
 
         return render_template(
             "results.html",
             scan=data,
-            results=_stored_results_to_parsed_results(data.get("results") or {}, data),
+            results=parsed_for_view,
             mapping=data.get("mapping") or {},
             ai_plan=ai_plan,
             detected_cves=detected_cves,

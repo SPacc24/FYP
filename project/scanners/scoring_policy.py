@@ -13,12 +13,24 @@ class ScoringPolicyError(ValueError):
     """Raised when published CVSS metadata is malformed or internally inconsistent."""
 
 
+class CvssVerifierUnavailableError(ScoringPolicyError):
+    """Raised when an independent verifier required by a CVSS version is absent."""
+
+
+class InvalidCvssVectorError(ScoringPolicyError):
+    """Raised when a published CVSS vector cannot be parsed or calculated."""
+
+
+class PublishedMetricInconsistencyError(ScoringPolicyError):
+    """Raised when a valid vector disagrees with its published score or severity."""
+
+
 _SUPPORTED = ("3.1", "4.0")
 _POLICY = {
     "default_version": "3.1",
     "supported_versions": list(_SUPPORTED),
     "allow_conversion": False,
-    "missing_metric_label": "Not published",
+    "missing_metric_label": "Not present in CVE Program record",
 }
 
 
@@ -60,14 +72,14 @@ def _severity_from_score(score: float) -> str:
 def _parse_vector(vector: str, expected_version: str) -> dict[str, str]:
     prefix = f"CVSS:{expected_version}/"
     if not vector.startswith(prefix):
-        raise ScoringPolicyError(f"CVSS {expected_version} metric must contain a {prefix[:-1]} vector")
+        raise InvalidCvssVectorError(f"CVSS {expected_version} metric must contain a {prefix[:-1]} vector")
     values: dict[str, str] = {}
     for token in vector[len(prefix):].split('/'):
         if ':' not in token:
-            raise ScoringPolicyError(f"Invalid CVSS {expected_version} vector token")
+            raise InvalidCvssVectorError(f"Invalid CVSS {expected_version} vector token")
         key, value = token.split(':', 1)
         if key in values:
-            raise ScoringPolicyError(f"Duplicate CVSS metric: {key}")
+            raise InvalidCvssVectorError(f"Duplicate CVSS metric: {key}")
         values[key] = value
     return values
 
@@ -80,7 +92,7 @@ def _cvss31_base_score(vector: str) -> float:
     values = _parse_vector(vector, "3.1")
     required = {"AV", "AC", "PR", "UI", "S", "C", "I", "A"}
     if not required.issubset(values):
-        raise ScoringPolicyError("Invalid or incomplete CVSS 3.1 vector")
+        raise InvalidCvssVectorError("Invalid or incomplete CVSS 3.1 vector")
 
     av = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.20}
     ac = {"L": 0.77, "H": 0.44}
@@ -90,7 +102,7 @@ def _cvss31_base_score(vector: str) -> float:
     pr = ({"N": 0.85, "L": 0.62, "H": 0.27} if scope == "U"
           else {"N": 0.85, "L": 0.68, "H": 0.50} if scope == "C" else None)
     if pr is None:
-        raise ScoringPolicyError("Invalid CVSS 3.1 Scope metric")
+        raise InvalidCvssVectorError("Invalid CVSS 3.1 Scope metric")
     try:
         iss = 1.0 - ((1.0 - impact_metric[values["C"]]) * (1.0 - impact_metric[values["I"]]) * (1.0 - impact_metric[values["A"]]))
         if scope == "U":
@@ -99,7 +111,7 @@ def _cvss31_base_score(vector: str) -> float:
             impact = 7.52 * (iss - 0.029) - 3.25 * ((iss - 0.02) ** 15)
         exploitability = 8.22 * av[values["AV"]] * ac[values["AC"]] * pr[values["PR"]] * ui[values["UI"]]
     except KeyError as exc:
-        raise ScoringPolicyError(f"Invalid CVSS 3.1 metric value for {exc.args[0]}") from exc
+        raise InvalidCvssVectorError(f"Invalid CVSS 3.1 metric value for {exc.args[0]}") from exc
 
     if impact <= 0:
         return 0.0
@@ -114,11 +126,11 @@ def _calculated_base_score(version: str, vector: str) -> float:
     if version == "4.0":
         _parse_vector(vector, "4.0")
         if CVSS4 is None:
-            raise ScoringPolicyError("CVSS 4.0 verification library is unavailable")
+            raise CvssVerifierUnavailableError("CVSS 4.0 verification library is unavailable")
         try:
             return float(CVSS4(vector).scores()[0])
         except Exception as exc:
-            raise ScoringPolicyError("Invalid or incomplete CVSS 4.0 vector") from exc
+            raise InvalidCvssVectorError("Invalid or incomplete CVSS 4.0 vector") from exc
     raise ScoringPolicyError(f"Unsupported CVSS version: {version}")
 
 
@@ -143,14 +155,14 @@ def validate_published_metric(version: str, score: Any, severity: Any, vector: A
     calculated_score = _calculated_base_score(version, vector_text)
 
     if round(calculated_score, 1) != round(source_score, 1):
-        raise ScoringPolicyError(
+        raise PublishedMetricInconsistencyError(
             f"Published CVSS {version} score {source_score:.1f} does not match vector score {calculated_score:.1f}"
         )
 
     calculated_severity = _severity_from_score(calculated_score)
     source_severity = str(severity or calculated_severity).strip().upper()
     if source_severity != calculated_severity:
-        raise ScoringPolicyError(
+        raise PublishedMetricInconsistencyError(
             f"Published CVSS {version} severity {source_severity} does not match score severity {calculated_severity}"
         )
 
@@ -160,4 +172,76 @@ def validate_published_metric(version: str, score: Any, severity: Any, vector: A
         "cvss_vector": vector_text,
         "cvss_version": version,
         "cvss_metric_integrity": "published_source_exact",
+        "cvss_verified": True,
+        "cvss_verification_status": "verified",
+        "cvss_verification_method": (
+            "internal_cvss31_formula" if version == "3.1" else "python_cvss4_library"
+        ),
     }
+
+
+def cvss_verifier_status() -> dict[str, dict[str, Any]]:
+    """Return independent verifier readiness without validating a CVE record."""
+    return {
+        "3.1": {
+            "available": True,
+            "method": "internal_cvss31_formula",
+        },
+        "4.0": {
+            "available": CVSS4 is not None,
+            "method": "python_cvss4_library",
+        },
+    }
+
+
+def metric_for_version(row: dict[str, Any], version: str) -> dict[str, Any]:
+    """Return exactly one requested CVSS version without cross-version fallback."""
+    selected = normalise_cvss_version(version)
+    for field in ("effective_cvss_metrics", "source_cvss_metrics", "cvss_metrics"):
+        metrics = row.get(field)
+        if not isinstance(metrics, dict):
+            continue
+        metric = metrics.get(selected)
+        if isinstance(metric, dict):
+            return dict(metric)
+    return {}
+
+
+def cvss_sort_key(row: dict[str, Any], version: str) -> tuple[int, float, str]:
+    """Sort by one selected standard only; never compare 3.1 against 4.0."""
+    metric = metric_for_version(row, version)
+    try:
+        score = float(metric.get("cvss_score"))
+    except (TypeError, ValueError):
+        score = None
+    cve_id = str(row.get("cve_id") or "")
+    return (0 if score is not None else 1, -score if score is not None else 0.0, cve_id)
+
+
+def apply_cvss_selection(rows: list[dict[str, Any]], version: str) -> list[dict[str, Any]]:
+    """Attach the selected metric view and return deterministically ordered rows."""
+    selected = normalise_cvss_version(version)
+    for row in rows or []:
+        metric = metric_for_version(row, selected)
+        row["selected_cvss_version"] = selected
+        row["selected_cvss_metric"] = metric
+        row["selected_cvss_score"] = metric.get("cvss_score") if metric else None
+        row["selected_cvss_severity"] = metric.get("cvss_severity") if metric else ""
+        row["selected_cvss_vector"] = metric.get("cvss_vector") if metric else ""
+        row["selected_cvss_source"] = metric.get("cvss_source") if metric else ""
+        row["selected_cvss_status"] = "published" if metric else "not_published"
+        # Backward-compatible single-metric fields are pinned to the selected
+        # standard. Missing 3.1 never falls back to 4.0, and vice versa.
+        row["cvss_score"] = metric.get("cvss_score") if metric else None
+        row["cvss_severity"] = metric.get("cvss_severity") if metric else ""
+        row["cvss_vector"] = metric.get("cvss_vector") if metric else ""
+        row["cvss_source"] = metric.get("cvss_source") if metric else ""
+        row["cvss_version"] = selected
+        if "source_cvss_metrics" in row:
+            row["source_cvss_score"] = metric.get("cvss_score") if metric else None
+            row["source_cvss_severity"] = metric.get("cvss_severity") if metric else ""
+            row["source_cvss_vector"] = metric.get("cvss_vector") if metric else ""
+            row["source_cvss_source"] = metric.get("cvss_source") if metric else ""
+            row["source_cvss_version"] = selected
+    rows.sort(key=lambda item: cvss_sort_key(item, selected))
+    return rows

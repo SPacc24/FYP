@@ -50,6 +50,7 @@ class ServiceFingerprint:
 
 
 _PRODUCT_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("Apache-Coyote", re.compile(r"\b(?:Apache[-\s]+)?Coyote(?:[/\s_-]+([0-9][A-Za-z0-9._+~-]*))?", re.I)),
     ("Apache Tomcat", re.compile(r"\b(?:Apache\s+)?Tomcat(?:[/\s_-]+([0-9][A-Za-z0-9._+~-]*))?", re.I)),
     ("Apache HTTP Server", re.compile(r"\bApache(?:\s+HTTP\s+Server|\s+httpd)?(?:[/\s_-]+v?([0-9][A-Za-z0-9._+~-]*))?", re.I)),
     ("nginx", re.compile(r"\bnginx(?:[/\s_-]+v?([0-9][A-Za-z0-9._+~-]*))?", re.I)),
@@ -81,6 +82,9 @@ _ALIASES = {
     "samba smbd": "Samba",
     "windows server": "Windows Server",
     "microsoft windows server": "Windows Server",
+    "apache coyote": "Apache-Coyote",
+    "apache-coyote": "Apache-Coyote",
+    "coyote": "Apache-Coyote",
     "apache tomcat": "Apache Tomcat",
     "tomcat": "Apache Tomcat",
     "vsftpd": "vsftpd",
@@ -119,6 +123,11 @@ def _clean_version(value: Any) -> str:
 def _canonical_product(value: Any) -> str:
     text = re.sub(r"[_-]+", " ", str(value or "")).strip()
     key = re.sub(r"\s+", " ", text).lower()
+    # Nmap may label a connector as "Tomcat/Coyote JSP engine" while its
+    # reported version belongs to Apache-Coyote. Preserve that software layer
+    # instead of assigning the connector version to the Tomcat application.
+    if "coyote" in key:
+        return "Apache-Coyote"
     if key in _ALIASES:
         return _ALIASES[key]
     for alias, canonical in _ALIASES.items():

@@ -9,7 +9,7 @@ from scanners.scan_profiles import (
     parse_port_spec,
     selected_ports,
 )
-from scanners.enumerator import _chunk_ports, _run_cmd_with_retry
+from scanners.enumerator import _build_scan_summary, _chunk_ports, _run_cmd_with_retry
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 
@@ -98,6 +98,76 @@ class OperatorScanCustomizationTests(unittest.TestCase):
         self.assertTrue(result['success'])
         self.assertEqual(result['attempts'], 2)
         self.assertEqual(mocked.call_count, 2)
+
+
+    def test_scan_summary_uses_executed_evidence_and_keeps_untested_separate(self):
+        summary = _build_scan_summary(
+            targets_requested=1,
+            live_hosts=['192.0.2.10'],
+            scan_options={
+                'port_selection': {
+                    'tcp': {'mode': 'custom', 'count': 4},
+                    'udp': {'mode': 'custom', 'count': 3},
+                }
+            },
+            scanned_tcp_ports_by_host={'192.0.2.10': {80, 443, 445}},
+            scanned_udp_ports_by_host={'192.0.2.10': {53, 161}},
+            discovery_evidence={
+                '192.0.2.10': {
+                    'ports': [
+                        {'port': 80, 'protocol': 'tcp', 'state': 'open'},
+                        {'port': 445, 'protocol': 'tcp', 'state': 'open'},
+                        {'port': 53, 'protocol': 'udp', 'state': 'open'},
+                    ],
+                    'extraports': [
+                        {'protocol': 'tcp', 'state': 'closed', 'count': 1},
+                        {'protocol': 'udp', 'state': 'closed', 'count': 1},
+                    ],
+                }
+            },
+            open_map={'192.0.2.10': [80, 445]},
+            all_services=[
+                {'host': '192.0.2.10', 'port': 80, 'protocol': 'tcp', 'service': 'http', 'product': 'Example HTTP', 'version': '1.2.3'},
+                {'host': '192.0.2.10', 'port': 445, 'protocol': 'tcp', 'service': 'smb', 'product': '', 'version': ''},
+                {'host': '192.0.2.10', 'port': 53, 'protocol': 'udp', 'service': 'domain', 'product': '', 'version': ''},
+            ],
+            public_coverage=[
+                {'status': 'Completed'},
+                {'status': 'No Evidence Observed'},
+                {'status': 'Not Applicable'},
+                {'status': 'Failed - Incomplete'},
+            ],
+            cve_matches=[{'cve_id': 'CVE-2026-0001'}],
+        )
+        self.assertEqual(summary['tcp']['requested'], 4)
+        self.assertEqual(summary['tcp']['scanned'], 3)
+        self.assertEqual(summary['tcp']['untested'], 1)
+        self.assertEqual(summary['tcp']['open'], 2)
+        self.assertEqual(summary['tcp']['closed'], 1)
+        self.assertEqual(summary['udp']['requested'], 3)
+        self.assertEqual(summary['udp']['scanned'], 2)
+        self.assertEqual(summary['udp']['untested'], 1)
+        self.assertEqual(summary['cve_review']['unique_references'], 1)
+        self.assertEqual(summary['services']['versioned_products'], 1)
+        self.assertEqual(summary['evidence_checks']['executed'], 3)
+        self.assertEqual(summary['evidence_checks']['completed_without_error'], 2)
+        self.assertEqual(summary['evidence_checks']['produced_evidence'], 1)
+        self.assertEqual(summary['evidence_checks']['no_evidence'], 1)
+        self.assertEqual(summary['evidence_checks']['failed'], 1)
+        self.assertEqual(summary['evidence_checks']['not_executed'], 1)
+        self.assertEqual(summary['evidence_checks']['not_applicable'], 1)
+        self.assertEqual(summary['evidence_checks']['skipped'], 1)
+        self.assertEqual(summary['services']['versioned_service_endpoints'], 1)
+
+    def test_scan_findings_ui_replaces_information_dump(self):
+        html = (PROJECT_DIR / 'templates' / 'scan_vul.html').read_text(encoding='utf-8')
+        self.assertIn('Table 3 — Scan Findings', html)
+        self.assertIn('Coverage &amp; Assurance', html)
+        self.assertIn('Observed Security Conditions', html)
+        self.assertIn('CVSS Integrity', html)
+        self.assertIn('Selected TCP Scope', html)
+        self.assertIn('scanFindingsSearch', html)
+        self.assertNotIn('Information Dump', html)
 
     def test_index_contains_requested_operator_controls(self):
         html = (PROJECT_DIR / 'templates' / 'index.html').read_text(encoding='utf-8')

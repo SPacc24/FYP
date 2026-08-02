@@ -272,12 +272,12 @@ class ScannerHardeningTests(unittest.TestCase):
         with patch("socket.create_connection", side_effect=socket.timeout("timeout")):
             self.assertIsNone(collect_ssh_cryptography("192.0.2.31", 22, 1))
 
-    def test_mitre_search_stops_before_index_lookup_on_low_confidence(self):
-        with patch.object(
+    def test_mitre_search_keeps_low_confidence_as_advisory_without_suppressing_lookup(self):
+        with patch.object(type(mitre_cve.INDEX), "exists", return_value=True), patch.object(
             mitre_cve,
             "_search_cached",
-            side_effect=AssertionError("index lookup must not run"),
-        ):
+            return_value=((), ()),
+        ) as lookup:
             confirmed, held = mitre_cve.search_with_held(
                 "Apache httpd",
                 "2.4.41",
@@ -286,7 +286,9 @@ class ScannerHardeningTests(unittest.TestCase):
                 recommended_for_cve=False,
             )
         self.assertEqual(confirmed, ())
-        self.assertEqual(held[0]["reason"], "fingerprint_confidence_below_cve_threshold")
+        self.assertEqual(held[0]["reason"], "fingerprint_confidence_advisory")
+        self.assertEqual(held[0]["effect"], "CVE applicability lookup was not suppressed")
+        lookup.assert_called_once()
 
     def test_enumerator_applies_consensus_and_dashboard_badge(self):
         dotenv_stub = types.ModuleType("dotenv")
@@ -319,14 +321,18 @@ class ScannerHardeningTests(unittest.TestCase):
         self.assertEqual(rows[0]["confidence_score"], 0.3)
         self.assertFalse(rows[0]["recommended_for_cve"])
         self.assertEqual(len(fingerprints), 1)
-        summary = enumerator._build_service_summary(rows, [], [])
+        summary = enumerator._build_service_summary(rows, [])
         self.assertEqual(summary[0]["confidence_badge"], "Low (0.30)")
 
     def test_ssh_crypto_collection_requires_existing_profile_selection(self):
         full = normalise_scan_options("full")
         self.assertNotIn("ssh_audit_native", full["enabled_tools"])
         custom = normalise_scan_options("custom", ["ssh_audit_native"])
-        self.assertEqual(custom["enabled_tools"], [])
+        # Core discovery is now configured separately from evidence collectors;
+        # the policy-blocked SSH collector must still never become effective.
+        self.assertNotIn("ssh_audit_native", custom["enabled_tools"])
+        self.assertIn("tcp_discovery", custom["enabled_tools"])
+        self.assertIn("service_fingerprint", custom["enabled_tools"])
         self.assertIn("ssh_audit_native", custom["policy_conflicts"])
         self.assertEqual(custom["policy_resolution"], "explicit_disabled_wins")
         self.assertRegex(custom["effective_policy_sha256"], r"^[0-9a-f]{64}$")
@@ -412,7 +418,7 @@ class ScannerHardeningTests(unittest.TestCase):
         result = enumerator._canonicalise_downstream_mapping(mapping, [{
             "host": "192.0.2.50", "port": 443, "cve_id": canonical_id,
             "cvss_severity": "High", "source": mitre_cve.OFFICIAL_CVE_SOURCE,
-        }], [])
+        }])
         finding = result["vulnerabilities"][0]
         self.assertEqual(finding["cve_ids"], [canonical_id])
         self.assertNotIn(legacy_id, json.dumps(result))

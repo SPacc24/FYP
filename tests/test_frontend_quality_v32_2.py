@@ -14,18 +14,18 @@ def test_running_first_row_shows_target_current_next_profile():
     assert 'Target</span>' in html
     assert 'Current Task</span>' in html
     assert 'Next Task</span>' in html
-    assert 'TCP Coverage</span>' in html
+    assert 'Selected TCP Scope</span>' in html
     assert 'enabled_tool_labels' not in html
 
 def test_report_uses_professional_cve_labels_and_cards():
-    html=read('templates/results.html')
+    html=read('templates/results.html') + read('templates/attack_surface_workbench.html')
     mapping=read('templates/scan_vul.html')
-    assert 'Evidence-linked CVEs' in html
-    assert 'Vulnerability Mapping' in mapping
-    assert all(f'<th>{heading}</th>' in mapping for heading in ['Port', 'Service', 'CVE', 'Severity', 'Score', 'Description'])
+    assert 'CVE Findings' in html
+    assert 'Table 1 — CVE References' in mapping
+    assert all(f'<th>{heading}</th>' in mapping for heading in ['Identifier', 'Affected Service', 'Why It Matched', 'Published By', 'Links'])
     assert 'Candidate References' not in mapping
     assert 'mapping.vulnerabilities' not in mapping
-    assert 'finding-card' in html
+    assert 'service-card' in html
     assert '100% Evidence-Backed' not in html
     assert 'Official CVE Records Indexed' not in html
     assert 'openRecordModal' in html
@@ -51,10 +51,8 @@ def test_no_backend_internal_tools_in_results_template():
 def test_results_partials_do_not_extend_the_scan_form_template():
     results = read('templates/results.html')
     pivot = read('templates/pivot_assessment.html')
-    pivot_page = read('templates/pivot_assessment_page.html')
 
-    assert '{% include "pivot_assessment.html" %}' in results
-    assert '{% include "pivot_assessment.html" %}' in pivot_page
-    assert '{% extends "index.html" %}' not in pivot
-    assert '{% block content %}' not in pivot
-    assert '{% endblock %}' not in pivot
+    assert '{% include "pivot_assessment.html" %}' not in results
+    assert '{% extends "index.html" %}' in pivot
+    assert '{% block content %}' in pivot
+    assert '{% endblock %}' in pivot

@@ -5,20 +5,12 @@
   ],
   "stop_conditions": {
     "high_density_after_top20": 999,
-    "windows_like_min_ports_to_stop": [
-      135,
-      139,
-      445
-    ],
     "sufficient_services_after_top50": 999,
-    "max_automatic_stages_for_windows_like": 1,
     "top100_is_follow_up": false,
     "stop_on_high_density_in_full": false
   },
   "ttl_hints": {
-    "network_device_min": 200,
-    "windows_family_min": 100,
-    "linux_unix_min": 40
+    "network_device_min": 200
   },
   "critical_banner_ports": [
     21,
@@ -81,8 +73,9 @@
   ],
   "cve_policy": {
     "classification_basis": "condition_type_only",
-    "context_dependent_as_candidate": true,
-    "allow_hardcoded_cve_ids": false
+    "allow_hardcoded_cve_ids": false,
+    "applicability_source": "structured_cve_program_affected_data",
+    "validation_ownership": "downstream_validation"
   },
   "scan_postures": {
     "infrastructure_observed": {
@@ -97,18 +90,6 @@
         "10",
         "--scan-delay",
         "500ms"
-      ],
-      "max_stages": 1,
-      "allow_service_objectives": false
-    },
-    "windows_like_observed": {
-      "tcp_discovery_stages": [
-        100
-      ],
-      "nmap_timing": [
-        "-T2",
-        "--max-retries",
-        "1"
       ],
       "max_stages": 1,
       "allow_service_objectives": false
@@ -146,6 +127,13 @@
     "tcp_discovery",
     "udp_discovery",
     "service_fingerprint",
+    "nmap_os_identity",
+    "smb_host_identity",
+    "netbios_identity",
+    "msrpc_metadata",
+    "ntlm_http_identity",
+    "ntlm_rdp_identity",
+    "ntlm_mssql_identity",
     "httpx",
     "html_form_parser",
     "targeted_web_discovery",
@@ -298,6 +286,9 @@
     "postgres_readiness_native": [
       "single PostgreSQL readiness connection",
       "database listener log if configured"
+    ],
+    "windows_patch_inventory": [
+      "local parsing of an operator-exported inventory file; no target connection is generated"
     ]
   },
   "active_validation_guardrails": {
@@ -383,7 +374,6 @@
     "nmap_options": [
       "-Pn",
       "-sS",
-      "--open",
       "-T2",
       "--max-retries",
       "1",
@@ -508,7 +498,7 @@
     "p0f_duration_seconds": 30,
     "note": "Interface must be explicitly approved by Rules of Engagement or supplied by environment variable. Collector is listen-only."
   },
-  "active_reachability_probe": false,
+  "active_reachability_probe": true,
   "skip_active_host_discovery_for_single_target": true,
   "single_target_availability_strategy": "assume_live_after_scope_validation",
   "targeted_expansion_strategy": "handled_by_micro_batches_no_second_burst",
@@ -518,5 +508,169 @@
     "description": "Future scans should reuse unchanged metadata evidence within TTL to reduce repeat probing without reducing first-run coverage."
   },
   "tcp_micro_batch_profile_file": "policies/tcp_port_profiles.json",
-  "tcp_micro_batch_profile": "full"
+  "tcp_micro_batch_profile": "full",
+  "port_profiles": {
+    "description": "Operator-selectable port profiles. Full mode is generated as ports 1-65535 by the scanner; Essentials is policy data, not scanner source code.",
+    "tcp_essentials": [
+      21,
+      22,
+      23,
+      25,
+      53,
+      80,
+      88,
+      110,
+      111,
+      135,
+      137,
+      139,
+      143,
+      389,
+      443,
+      445,
+      464,
+      465,
+      587,
+      593,
+      636,
+      993,
+      995,
+      1433,
+      1521,
+      2049,
+      2375,
+      2376,
+      3268,
+      3269,
+      3306,
+      3389,
+      5000,
+      5357,
+      5432,
+      5900,
+      5985,
+      5986,
+      6379,
+      6443,
+      8009,
+      8080,
+      8081,
+      8180,
+      8443,
+      9000,
+      9200,
+      9389,
+      9443,
+      113,
+      119,
+      179,
+      199,
+      427,
+      548,
+      554,
+      1025,
+      1026,
+      1027,
+      1028,
+      1029,
+      1720,
+      1723,
+      2000,
+      2121,
+      3128,
+      4444,
+      5060,
+      5061,
+      5222,
+      5901,
+      6000,
+      6667,
+      7001,
+      7070,
+      8000,
+      8888,
+      9100,
+      10000,
+      27017,
+      47001
+    ],
+    "udp_essentials": [
+      53,
+      67,
+      68,
+      69,
+      88,
+      111,
+      123,
+      137,
+      138,
+      161,
+      162,
+      389,
+      464,
+      500,
+      514,
+      520,
+      623,
+      1434,
+      1900,
+      2049,
+      4500,
+      5353
+    ]
+  },
+  "operator_advanced_defaults": {
+    "command_timeout_seconds": 600,
+    "retry_failed_batches": true,
+    "retry_count": 1,
+    "ports_per_batch": 5,
+    "parallel_scanning": false,
+    "parallel_workers": 2
+  },
+  "version_evidence_recovery": {
+    "enabled": true,
+    "nmap_version_intensity": 7,
+    "max_ports_per_host": 64,
+    "description": "Targeted service-version re-probe for already-open TCP endpoints whose version is missing or range-valued. No new ports are added."
+  },
+  "host_discovery_controls": {
+    "description": "Operator-controlled reachability evidence. Service discovery may still use -Pn so ICMP failure never suppresses authorised port discovery.",
+    "allowed": {
+      "arp_discovery": true,
+      "icmp_echo": true,
+      "nmap_host_discovery": true,
+      "reverse_dns": true,
+      "route_trace": true
+    },
+    "defaults": {
+      "arp_discovery": true,
+      "icmp_echo": true,
+      "nmap_host_discovery": false,
+      "reverse_dns": false,
+      "route_trace": false,
+      "icmp_attempts": 1,
+      "icmp_timeout_seconds": 2,
+      "route_max_hops": 8,
+      "assume_single_target_live": true
+    }
+  },
+  "service_identity_defaults": {
+    "tcp_discovery_enabled": true,
+    "udp_discovery_enabled": true,
+    "service_fingerprinting_enabled": true,
+    "version_intensity": 7,
+    "banner_script": true,
+    "recovery_attempts": 1,
+    "follow_protocol_advertised_endpoints": false,
+    "advertised_endpoint_limit": 8
+  },
+  "local_patch_inventory_guardrails": {
+    "description": "Windows patch evidence is accepted only from operator-exported local JSON files.",
+    "credential_input_allowed": false,
+    "remote_session_allowed": false,
+    "remote_registry_allowed": false,
+    "wmi_or_dcom_allowed": false,
+    "target_modification_allowed": false,
+    "patch_conclusion_rule": "Missing KB alone never proves vulnerability; require direct remediation KB or comparable observed build/revision evidence."
+  }
 }

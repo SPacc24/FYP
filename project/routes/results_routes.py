@@ -1,4 +1,6 @@
 import os
+import copy
+import re
 
 from flask import (
     jsonify,
@@ -29,26 +31,70 @@ from core.services import db
 
 
 
+def _sanitise_client_evidence_paths(value):
+    """Hide local project storage prefixes on client-facing appendix pages."""
+    if not isinstance(value, str):
+        return value
+    pattern = re.compile(r'/(?:[^\s"\']+/)*storage/(?:scans|results)/([^\s"\']+)')
+    return pattern.sub(lambda match: f'evidence/{os.path.basename(match.group(1))}', value)
+
+
+def _client_safe_scan_record(data):
+    safe = copy.deepcopy(data or {})
+    for entry in safe.get('command_log') or []:
+        if not isinstance(entry, dict):
+            continue
+        for key in ('command', 'output', 'output_file', 'result'):
+            if key in entry:
+                entry[key] = _sanitise_client_evidence_paths(entry.get(key))
+    return safe
+
+
+
 
 def _append_scan_cve_rows(rows, parsed_results):
-    """Expose strict and NVD candidate CVEs in the Results modal."""
+    """Expose only scanner-owned, evidence-backed CVE matches."""
     output = list(rows or [])
-    seen = {str(item.get("cve_id")) for item in output if isinstance(item, dict)}
-    candidates = list(parsed_results.get("cve_matches") or []) + list(parsed_results.get("relevant_cve_information") or [])
-    for item in candidates:
+    seen = {
+        (
+            str(item.get("host") or ""),
+            str(item.get("service_port") or ""),
+            str(item.get("cve_id") or ""),
+        )
+        for item in output
+        if isinstance(item, dict)
+    }
+    for item in parsed_results.get("cve_matches") or []:
         if not isinstance(item, dict):
             continue
         cve_id = str(item.get("cve_id") or "").strip()
-        if not cve_id or cve_id in seen:
+        service_port = f"{item.get('service', 'Unknown')}/{item.get('port', 'host')}"
+        key = (str(item.get("host") or ""), service_port, cve_id)
+        if not cve_id or key in seen:
             continue
-        seen.add(cve_id)
-        severity = item.get("source_cvss_severity") or item.get("severity") or "Unknown"
+        seen.add(key)
+        severity = (
+            item.get("source_cvss_severity")
+            or item.get("cvss_severity")
+            or item.get("severity")
+            or "Unknown"
+        )
         output.append({
             "cve_id": cve_id,
+            "host": item.get("host"),
             "severity": severity,
-            "confidence": item.get("classification") or "Candidate / Needs validation",
-            "service_port": f"{item.get('service', 'Unknown')}/{item.get('port', 'Unknown')}",
-            "description": item.get("vulnerability") or item.get("description") or "Official CVE candidate linked to the observed product/version.",
+            "cvss_score": item.get("source_cvss_score")
+            if item.get("source_cvss_score") is not None
+            else item.get("cvss_score"),
+            "cvss_version": item.get("source_cvss_version")
+            or item.get("cvss_version"),
+            "cvss_vector": item.get("source_cvss_vector")
+            or item.get("cvss_vector"),
+            "match_basis": item.get("match_basis") or "",
+            "service_port": service_port,
+            "description": item.get("vulnerability")
+            or item.get("description")
+            or "Structured CVE record linked to observed identity evidence.",
             "official_cve_url": f"https://www.cve.org/CVERecord?id={cve_id}",
             "nvd_url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
             "linked_techniques": [],
@@ -99,7 +145,6 @@ def register_routes(app):
                     mapping=data.get("mapping") or {},
                     ai_plan=ai_plan,
                     detected_cves=detected_cves,
-                    cve_reference_count=len({str(row.get("cve_id")) for row in detected_cves if row.get("cve_id")}),
                     selected_mode=data.get("technique_mode") or session.get("technique_mode", "hybrid"),
                     attack_plan=data.get("attack_plan"),
                     validation_results=data.get("validation_results"),
@@ -154,7 +199,6 @@ def register_routes(app):
             mapping=mapping_results,
             ai_plan=ai_plan,
             detected_cves=detected_cves,
-            cve_reference_count=len({str(row.get("cve_id")) for row in detected_cves if row.get("cve_id")}),
             selected_mode=session.get("technique_mode", "hybrid"),
             attack_plan=session.get("attack_plan"),
             validation_results=session.get("validation_results"),
@@ -185,10 +229,11 @@ def register_routes(app):
         mapping_results = data.get("mapping") or session.get("mapping_results", [])
 
         data["scan_id"] = scan_id
+        safe_scan = _client_safe_scan_record(data)
 
         return render_template(
             "technical_appendix.html",
-            scan=data,
+            scan=safe_scan,
             results=results,
             mapping=mapping_results,
             mitre_status=mitre_status(),
