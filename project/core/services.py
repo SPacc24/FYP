@@ -65,7 +65,42 @@ smb_exploiter = SmbExploiter(
     enabled=Config.ENABLE_SMB_EXPLOITATION,
 )
 
+# ── Pivot + chain orchestration ─────────────────────────────────────────
 
+from pathlib import Path
+
+from pivot.pivot_engine import PivotEngine
+from core.chain_orchestrator import ChainOrchestrator
+
+pivot_engine = PivotEngine(
+    kali_ip=getattr(Config, "KALI_IP", None) or Config.WEB_CALLBACK_ADVERTISE_HOST,
+)
+
+chain_orchestrator = ChainOrchestrator(
+    web_validation_service=web_validation_service,
+    web_exploiter=web_exploiter,
+    pivot_engine=pivot_engine,
+    smb_exploiter=smb_exploiter,
+)
+
+# Gap 2: when enabled, SMB tooling (nmap/hydra/smbclient) routes through
+# the SOCKS tunnel while a chain run is in the SMB phase.
+if getattr(Config, "PIVOT_SMB_THROUGH_PROXY", False):
+    from exploitation import smb_expliotation as _smb_mod
+
+    _smb_orig_run = _smb_mod._run_command
+    setattr(_smb_mod, "PIVOT_ENABLED", False)
+
+    def _smb_run_pivoted(cmd, timeout=60):
+        if getattr(_smb_mod, "PIVOT_ENABLED", False) and pivot_engine.is_socks_ready():
+            conf = getattr(pivot_engine, "proxychains_config_path", None) \
+                or str(Path(__file__).resolve().parent.parent / "proxychains4.conf")
+            return _smb_orig_run(["proxychains4", "-q", "-f", conf, *cmd], timeout)
+        return _smb_orig_run(cmd, timeout)
+
+    _smb_mod._run_command = _smb_run_pivoted
+    log.info("PIVOT_SMB_THROUGH_PROXY=1 — SMB commands will ride the pivot during chain runs")
+    
 # ── Metasploit services ───────────────────────────────────────────────
 
 metasploit_client = MetasploitRpcClient(
