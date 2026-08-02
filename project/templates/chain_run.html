@@ -22,19 +22,19 @@
 </style>
 </head>
 <body>
-<h1>⚔ Full Kill Chain</h1>
-<p>web validation → reverse shell → chisel pivot → internal scan → SMB lateral. One run_id, live progress, MITRE per step.</p>
+<h1>⚔ Full Kill Chain — Phase 1</h1>
+<p>web validation → reverse shell → chisel pivot → internal scan → credential discovery. Stops at handoff — SMB lateral movement and post-exploitation run separately in Phase 2. One run_id, live progress, MITRE per step.</p>
 
 <div class="card">
   <form id="chainForm">
     <div class="row">
       <div>
-        <label>Web target (inet VM IP)</label>
-        <input name="web_target" value="10.50.138.120" required>
+        <label>Web target (confirm live via recon scan first — do not assume)</label>
+        <input name="web_target" placeholder="e.g. 10.50.138.x — from today's WAN scan" required>
       </div>
       <div>
-        <label>Internal range to scan through pivot</label>
-        <input name="internal_range" value="10.10.10.0/24" required>
+        <label>Internal range to scan through pivot (check which VLAN: server vs Windows client)</label>
+        <input name="internal_range" placeholder="e.g. 10.10.10.0/24 or 10.10.20.0/24" required>
       </div>
     </div>
     <div class="row">

