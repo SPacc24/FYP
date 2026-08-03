@@ -1068,6 +1068,43 @@ document
       );
     }
   });
+
+function showOperatorToast() {
+  let toast = document.getElementById('operatorToast');
+
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'operatorToast';
+    toast.className = 'operator-toast';
+
+    toast.innerHTML = `
+      <i class="bi bi-exclamation-triangle-fill"></i>
+
+      <div>
+        <strong>Operator access required</strong>
+        <span>
+          Activate the operator token before starting reconnaissance.
+        </span>
+      </div>
+    `;
+
+    document.body.appendChild(toast);
+  }
+
+  toast.classList.remove('show');
+
+  // Forces the browser to restart the animation.
+  void toast.offsetWidth;
+
+  toast.classList.add('show');
+
+  clearTimeout(toast.hideTimer);
+
+  toast.hideTimer = setTimeout(() => {
+    toast.classList.remove('show');
+  }, 3500);
+}
+
   /* ==========================================
    Prevent Recon Without Operator Access
    ========================================== */
@@ -1077,36 +1114,37 @@ const startBtn = document.getElementById('startBtn');
 
 scanForm?.addEventListener('submit', event => {
   if (!operatorAccessActive) {
-    event.preventDefault();
+  event.preventDefault();
 
-    updateOperatorStatus(
-      'is-error',
-      'Not Activated',
-      'Activate the operator token before launching reconnaissance.'
-    );
+  updateOperatorStatus(
+    'is-error',
+    'Not Activated',
+    'Activate the operator token before launching reconnaissance.'
+  );
 
-    const status =
-      document.getElementById('operatorUnlockStatus');
+  showOperatorToast();
 
-    status?.classList.add('status-shake');
+  const status = document.getElementById('operatorUnlockStatus');
 
-    setTimeout(() => {
-      status?.classList.remove('status-shake');
-    }, 400);
+  status?.classList.add('status-shake');
 
-    document
-      .querySelector('.hero-operator')
-      ?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
-      });
+  setTimeout(() => {
+    status?.classList.remove('status-shake');
+  }, 400);
 
-    document
-      .getElementById('operatorTokenInput')
-      ?.focus();
+  document
+    .querySelector('.hero-operator')
+    ?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
 
-    return;
-  }
+  document
+    .getElementById('operatorTokenInput')
+    ?.focus();
+
+  return;
+}
 
   syncPlanInputs();
 
@@ -1121,5 +1159,13 @@ scanForm?.addEventListener('submit', event => {
   }
 });
   </script>
+  <div id="toast" class="toast hidden">
+  <i class="bi bi-exclamation-triangle-fill"></i>
+
+  <div>
+    <strong>Operator access required</strong>
+    <span>Activate the Operator Token before starting a reconnaissance scan.</span>
+  </div>
+</div>
 </body>
 </html>
