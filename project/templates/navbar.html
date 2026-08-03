@@ -1,25 +1,96 @@
-<nav class="navbar">
-  <div class="nav-inner">
-    <a class="nav-brand" href="{{ url_for('index') }}">
-      <span class="nav-logo">◆</span>
-      <span>AutoPenTest</span>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoPenTest Results</title>
+
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+  />
+
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='style.css') }}"
+  />
+</head>
+<body>
+
+<!-- ==========================================
+     Main Navigation Bar
+     ========================================== -->
+
+<nav class="main-navbar">
+
+  <!-- Brand -->
+  <a href="{{ url_for('index') }}" class="navbar-brand">
+    <span class="brand-icon">
+      <i class="bi bi-shield-check"></i>
+    </span>
+
+    <span>AutoPenTest</span>
+  </a>
+
+  <!-- Navigation -->
+  <div class="navbar-links">
+
+    <a href="#overview" class="navbar-link">
+      <span>Overview</span>
     </a>
 
-    <div class="nav-links">
-      <a href="#scan-vuln">Scan</a>
-      <a href="#mission-orchestration">Mission</a>
-      <a href="#ai-techniques">AI Planner</a>
-      <a href="#exploitability-validation">Validation</a>
-      <a href="#caldera-execution">Caldera</a>
-      <a href="#execution-results">Execution</a>
-      <a href="#report">Report</a>
-      <a href="/technical-appendix" target="_blank">Technical Appendix</a>
-    </div>
+    <a href="#scan-vuln" class="navbar-link">
+      <span>Findings</span>
+    </a>
 
-    <div class="nav-actions">
-      <a class="nav-action" href="#cve-review" id="viewAllCvesNavBtn">View CVEs</a>
-      <a class="nav-action" href="#report" id="downloadReportNavBtn">Download Report</a>
-      <a class="nav-action ghost" href="{{ url_for('index') }}">New Scan</a>
-    </div>
+    <a href="#ai-techniques" class="navbar-link">
+      <span>AI Planner</span>
+    </a>
+
+    <a href="#exploitability-validation" class="navbar-link">
+      <span>Validation</span>
+    </a>
+
+    <a href="#caldera-execution" class="navbar-link">
+      <span>CALDERA</span>
+    </a>
+
+    <a href="#mission-orchestration" class="navbar-link">
+      <span>Mission</span>
+    </a>
+
+    <a href="#execution-results" class="navbar-link">
+      <span>Execution</span>
+    </a>
+
+    <a href="#report" class="navbar-link">
+      <span>Report</span>
+    </a>
+
+    <a href="/technical-appendix" target="_blank" class="navbar-link">
+      <span>Appendix</span>
+    </a>
+
   </div>
+
+  <!-- Right Controls -->
+  <div class="navbar-controls">
+
+    <!-- Light Mode Placeholder -->
+    <button
+      class="theme-toggle"
+      type="button"
+      title="Light Mode (Coming Soon)"
+      aria-label="Light Mode"
+    >
+      <i class="bi bi-sun-fill"></i>
+    </button>
+
+  </div>
+
 </nav>
+
+<!-- Your results page continues here -->
+
+</body>
+</html>

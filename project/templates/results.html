@@ -181,13 +181,44 @@
         {% include "mission_dashboard_panel.html" %}
       </div>
 
-      <div class="results-pane" data-dashboard-pane="report" id="report-workspace">
+      <div
+        class="results-pane"
+        data-dashboard-pane="report"
+        id="report-workspace"
+      >
         {% include "report.html" %}
-        <section class="panel dashboard-appendix-shell" aria-label="Technical Appendix">
+
+        <section
+          class="panel dashboard-appendix-shell"
+          aria-label="Technical Appendix"
+        >
           <details class="appendix-details">
-            <summary><span>Technical Appendix</span><small>Full service inventory, evidence collection and command records.</small></summary>
-            <p class="muted">Open the appendix when you need detailed analyst evidence. It is kept out of the main workflow to reduce clutter.</p>
-            <a class="button secondary" href="/technical-appendix" target="_blank">Open Technical Appendix</a>
+
+            <summary class="appendix-summary">
+              <span class="appendix-summary-text">
+                <strong>Technical Appendix</strong>
+
+                <small>
+                  Full service inventory, evidence collection and command records.
+                </small>
+              </span>
+            </summary>
+
+            <div class="appendix-content">
+              <p class="muted">
+                Open the appendix when you need detailed analyst evidence.
+                It is kept out of the main workflow to reduce clutter.
+              </p>
+
+              <a
+                class="button secondary"
+                href="/technical-appendix"
+                target="_blank"
+              >
+                Open Technical Appendix
+              </a>
+            </div>
+
           </details>
         </section>
       </div>

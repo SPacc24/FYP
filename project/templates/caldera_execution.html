@@ -4,66 +4,171 @@
     <h2>Agent Readiness and Caldera Execution</h2>
   </div>
 
-  <div class="caldera-grid compact-grid">
-    <div id="calderaStatusBox" class="mini-panel status-card">
+  <div class="caldera-readiness-layout">
+
+    <!-- CALDERA status heading -->
+    <div class="caldera-status-heading caldera-full-row">
+      <h4>CALDERA Status</h4>
+    </div>
+
+    <!-- Full-width readiness status -->
+    <div
+      id="calderaStatusBox"
+      class="mini-panel status-card caldera-status-banner"
+    >
       <p class="muted">Checking Caldera agent status...</p>
     </div>
 
-    <div id="targetDetailsBox" class="mini-panel small-panel">
+    <!-- Target information -->
+    <div
+      id="targetDetailsBox"
+      class="mini-panel small-panel caldera-info-card"
+    >
       <h4>Target Details</h4>
-      <p class="small">
-        Target: <span id="deployTargetText">Unknown</span><br>
-        Source: <span id="deployTargetSourceText">Unknown</span><br>
-        External Target: <span id="deployExternalTargetText">Unknown</span><br>
-        OS: <span id="deployOsText">Unknown</span><br>
-        Platform: <span id="deployPlatformText">Unknown</span><br>
-        Required Shell: <span id="deployShellText">Unknown</span><br>
-        Trusted Agent: <span id="trustedAgentName">-</span><br>
-        Match Type: <span id="targetMatchTypeText">-</span><br>
-        Rejection: <span id="agentRejectionReasonText">-</span><br>
-        Selected PAW: <span id="selectedPawText">-</span>
-      </p>
+
+      <div class="caldera-detail-list">
+        <div>
+          <span>Target</span>
+          <strong id="deployTargetText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>Source</span>
+          <strong id="deployTargetSourceText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>External Target</span>
+          <strong id="deployExternalTargetText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>OS</span>
+          <strong id="deployOsText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>Platform</span>
+          <strong id="deployPlatformText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>Required Shell</span>
+          <strong id="deployShellText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>Trusted Agent</span>
+          <strong id="trustedAgentName">-</strong>
+        </div>
+
+        <div>
+          <span>Match Type</span>
+          <strong id="targetMatchTypeText">-</strong>
+        </div>
+
+        <div>
+          <span>Selected PAW</span>
+          <strong id="selectedPawText">-</strong>
+        </div>
+      </div>
+
+      <div class="caldera-rejection-box">
+        <span>Rejection reason</span>
+        <p id="agentRejectionReasonText">-</p>
+      </div>
     </div>
 
-    <div class="mini-panel small-panel">
-      <h4>Agent Check</h4>
-      <p class="small" id="agentStatusSummary">Waiting for Caldera status.</p>
-      <button class="button secondary top-gap" id="refreshAgentStatusBtn" type="button">Refresh Agent Status</button>
+    <!-- Agent check -->
+    <div class="mini-panel small-panel caldera-agent-card">
+      <div>
+        <span class="label">Agent Check</span>
+        <h4>CALDERA Agent Availability</h4>
+
+        <p class="small" id="agentStatusSummary">
+          Waiting for Caldera status.
+        </p>
+      </div>
+
+      <button
+        class="button secondary"
+        id="refreshAgentStatusBtn"
+        type="button"
+      >
+        Refresh Agent Status
+      </button>
     </div>
 
-    <div id="deployCommandBox" class="command-box deploy-card" style="display:none;">
+    <!-- Deploy command -->
+    <div
+      id="deployCommandBox"
+      class="command-box deploy-card caldera-full-row"
+      style="display:none;"
+    >
       <h4>Deploy Command</h4>
-      <p class="small">Copy-only; run this inside the authorised lab target host when no trusted agent is available.</p>
+
+      <p class="small">
+        Copy-only; run this inside the authorised lab target host when no
+        trusted agent is available.
+      </p>
+
       <p class="small" id="deployCommandMessage"></p>
-      <pre id="deployCommandText" class="deploy-command-text mono"></pre>
-      <button class="button secondary top-gap" id="copyDeployCommandBtn" type="button">
+
+      <pre
+        id="deployCommandText"
+        class="deploy-command-text mono"
+      ></pre>
+
+      <button
+        class="button secondary top-gap"
+        id="copyDeployCommandBtn"
+        type="button"
+      >
         Copy Deploy Command
       </button>
     </div>
 
-    <div id="coverageWarningBox" class="mini-panel" style="display:none;">
+    <!-- Coverage warning -->
+    <div
+      id="coverageWarningBox"
+      class="mini-panel caldera-full-row"
+      style="display:none;"
+    >
       <strong>Coverage</strong>
       <p class="small" id="coverageWarningText"></p>
     </div>
 
-    <div class="actions caldera-actions compact-actions">
-      <button class="button" id="runCalderaBtn" type="button">Run CALDERA</button>
+    <!-- Operation controls -->
+    <div class="caldera-operation-row caldera-full-row">
+      <div id="operationBox" class="mini-panel">
+        <p class="muted">No operation started yet.</p>
+      </div>
+
+      <div class="actions caldera-actions compact-actions">
+        <button class="button" id="runCalderaBtn" type="button">
+          Run CALDERA
+        </button>
+      </div>
     </div>
 
-    <div id="operationBox" class="mini-panel top-gap">
-      <p class="muted">No operation started yet.</p>
-    </div>
   </div>
 </section>
 
-<!-- EXECUTION RESULTS -->
- <section class="flow-card" id="execution-results">
+<!-- ==========================================
+     EXECUTION RESULTS
+     ========================================== -->
+
+<section class="flow-card" id="execution-results">
   <div class="flow-card-header">
     <span class="label">Assessment Stage 5</span>
     <h2>Execution Results</h2>
   </div>
 
-  <div id="executionSummary" class="summary-strip" style="display:none;">
+  <div
+    id="executionSummary"
+    class="summary-strip"
+    style="display:none;"
+  >
     <article>
       <span class="label">Total Techniques</span>
       <strong id="totalTechniques">0</strong>

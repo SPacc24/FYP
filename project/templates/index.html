@@ -11,65 +11,73 @@
 </head>
 
 <body>
- <!-- ==========================================
-     Main Navigation Bar
-     ========================================== -->
+  <div class="index-nav-wrap">
 
-<nav class="main-navbar">
+    <!-- ==========================================
+         Main Navigation Bar
+         ========================================== -->
 
-  <!-- Brand -->
-  <a href="#" class="navbar-brand">
-    <span class="brand-icon">
-      <i class="bi bi-shield-check"></i>
-    </span>
+    <nav class="main-navbar">
 
-    <span>AutoPenTest</span>
-  </a>
+      <a href="#" class="navbar-brand">
+        <span class="brand-icon">
+          <i class="bi bi-shield-check"></i>
+        </span>
 
-  <!-- Navigation -->
-  <div class="navbar-links">
-    <a href="#target" class="navbar-link">
-      <i class="bi bi-bullseye"></i>
-      <span>Target</span>
-    </a>
+        <span>AutoPenTest</span>
+      </a>
 
-    <a href="#strategy" class="navbar-link">
-      <i class="bi bi-radar"></i>
-      <span>Strategy</span>
-    </a>
+      <div class="navbar-links">
+        <a href="#target" class="navbar-link">
+          <i class="bi bi-bullseye"></i>
+          <span>Target</span>
+        </a>
 
-    <a href="#mapping" class="navbar-link">
-      <i class="bi bi-diagram-3"></i>
-      <span>Mapping</span>
-    </a>
+        <a href="#strategy" class="navbar-link">
+          <i class="bi bi-radar"></i>
+          <span>Strategy</span>
+        </a>
 
-    <a href="#tools" class="navbar-link">
-      <i class="bi bi-tools"></i>
-      <span>Tools</span>
-    </a>
+        <a href="#mapping" class="navbar-link">
+          <i class="bi bi-diagram-3"></i>
+          <span>Mapping</span>
+        </a>
 
-    <a href="#advanced" class="navbar-link">
-      <i class="bi bi-sliders"></i>
-      <span>Advanced</span>
-    </a>
+        <a href="#host-discovery" class="navbar-link">
+          <i class="bi bi-broadcast-pin"></i>
+          <span>Discovery</span>
+        </a>
+
+        <a href="#identity" class="navbar-link">
+          <i class="bi bi-pc-display"></i>
+          <span>Identification</span>
+        </a>
+
+        <a href="#tools" class="navbar-link">
+          <i class="bi bi-tools"></i>
+          <span>Tools</span>
+        </a>
+
+        <a href="#advanced" class="navbar-link">
+          <i class="bi bi-sliders"></i>
+          <span>Advanced</span>
+        </a>
+      </div>
+
+      <div class="navbar-controls">
+        <button
+          class="theme-toggle"
+          type="button"
+          title="Light Mode (Coming Soon)"
+          aria-label="Light Mode"
+        >
+          <i class="bi bi-sun-fill"></i>
+        </button>
+      </div>
+
+    </nav>
+
   </div>
-
-  <!-- Right Controls -->
-  <div class="navbar-controls">
-
-    <!-- Light Mode Placeholder -->
-    <button
-      class="theme-toggle"
-      type="button"
-      title="Light Mode (Coming Soon)"
-      aria-label="Light Mode"
-    >
-      <i class="bi bi-sun-fill"></i>
-    </button>
-
-  </div>
-
-</nav>
 
   <main class="shell hero index-shell">
   <section class="hero-card wide-hero index-card">
@@ -108,7 +116,33 @@
             </button>
           </div>
 
-          <p class="muted small" id="operatorUnlockStatus"></p>
+          <div
+            id="operatorUnlockStatus"
+            class="operator-status
+            {% if operator_authenticated %}is-active{% else %}is-inactive{% endif %}"
+          >
+            <i class="bi {% if operator_authenticated %}bi-check-circle-fill{% else %}bi-circle-fill{% endif %}"></i>
+
+            <div>
+              <span class="operator-status-label">Status</span>
+
+              <strong id="operatorStatusText">
+                {% if operator_authenticated %}
+                  Active
+                {% else %}
+                  Not Activated
+                {% endif %}
+              </strong>
+
+              <small id="operatorStatusMessage">
+                {% if operator_authenticated %}
+                  Operator access has been verified.
+                {% else %}
+                  Enter the operator token to unlock reconnaissance.
+                {% endif %}
+              </small>
+            </div>
+          </div>
 
         {% else %}
           <p class="muted small">
@@ -124,7 +158,7 @@
     <div class="index-layout">
       <div class="index-form-column">
 
-        <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="syncPlanInputs();document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting Recon...';">
+        <form action="{{ url_for('scan') }}" method="POST" id="scanForm" >
           <input type="hidden" name="_csrf_token" id="csrfTokenInput" value="{{ operator_csrf_token }}" />
           <input type="hidden" name="profile" value="custom" />
 
@@ -234,7 +268,17 @@
                   <label class="switch-row" for="hostIcmpEcho"><span><b>ICMP Echo</b><small>Collect reachability, latency and TTL evidence independently from Nmap -Pn.</small></span><input type="checkbox" id="hostIcmpEcho" checked></label>
                   <div class="setting-pair-grid">
                     <label><span>Attempts</span><input type="number" id="hostIcmpAttempts" min="1" max="4" value="1"></label>
-                    <label><span>Timeout</span><input type="number" id="hostIcmpTimeout" min="1" max="10" value="2"><small>sec</small></label>
+                    <label> <span>Timeout</span>
+                      <div class="input-unit">
+                        <input
+                            type="number"
+                            id="hostIcmpTimeout"
+                            min="1"
+                            max="10"
+                            value="2"
+                        >
+                        <span class="unit">s</span>
+                      </div></label>
                   </div>
                 </div>
                 <div class="setting-card">
@@ -317,16 +361,64 @@
                   <span>Policy blocked <b id="collectorBlockedCount">0</b></span>
                   <span>Requested unavailable <b id="collectorUnavailableCount">0</b></span>
                 </div>
-                <div class="tool-picker-actions wrap-actions">
-                  <button class="btn ghost mini" type="button" id="enableAllCollectors">Enable permitted</button>
-                  <button class="btn ghost mini" type="button" id="disableAllCollectors">Disable all</button>
-                  <select id="savedPlanSelect" class="mini-select" aria-label="Saved evidence plans"><option value="">Saved plans…</option></select>
-                  <button class="btn ghost mini" type="button" id="savePlanBtn">Save Plan</button>
-                  <button class="btn ghost mini" type="button" id="loadPlanBtn">Load</button>
-                  <button class="btn ghost mini" type="button" id="exportPlanBtn">Export</button>
-                  <button class="btn ghost mini" type="button" id="importPlanBtn">Import</button>
-                  <input id="importPlanFile" type="file" accept="application/json,.json" hidden>
+                <div class="tool-picker-toolbar">
+
+                <div class="toolbar-group">
+                  <span class="toolbar-label">Bulk Actions</span>
+
+                  <div class="toolbar-buttons">
+                    <button class="btn ghost mini" type="button" id="enableAllCollectors">
+                      Enable All
+                    </button>
+
+                    <button class="btn ghost mini" type="button" id="disableAllCollectors">
+                      Disable All
+                    </button>
+                  </div>
                 </div>
+
+                <div class="toolbar-group">
+                  <span class="toolbar-label">Saved Plan</span>
+
+                  <select
+                    id="savedPlanSelect"
+                    class="mini-select"
+                    aria-label="Saved evidence plans"
+                  >
+                    <option value="">Saved Plans...</option>
+                  </select>
+                </div>
+
+                <div class="toolbar-group">
+                  <span class="toolbar-label">Operations</span>
+
+                  <div class="toolbar-buttons">
+                    <button class="btn ghost mini" type="button" id="loadPlanBtn">
+                      Load
+                    </button>
+
+                    <button class="btn ghost mini" type="button" id="savePlanBtn">
+                      Save
+                    </button>
+
+                    <button class="btn ghost mini" type="button" id="importPlanBtn">
+                      Import
+                    </button>
+
+                    <button class="btn ghost mini" type="button" id="exportPlanBtn">
+                      Export
+                    </button>
+                  </div>
+
+                  <input
+                    id="importPlanFile"
+                    type="file"
+                    accept="application/json,.json"
+                    hidden
+                  >
+                </div>
+
+              </div>
               </div>
 
               {% for group in collector_groups %}
@@ -462,7 +554,6 @@
     id="startBtn"
     class="btn"
     type="submit"
-    {% if not operator_authenticated %}disabled{% endif %}
 >
     <i class="bi bi-rocket-takeoff"></i>
 
@@ -851,33 +942,184 @@
   if (initialScanOptions && Object.keys(initialScanOptions).length) applyFormConfig(initialScanOptions);
   else { applyCollectionPreset('recommended'); syncPlanInputs(); }
 
-  document.getElementById('operatorUnlockBtn')?.addEventListener('click', async () => {
+  /* ==========================================
+   Operator Access Status
+   ========================================== */
+
+let operatorAccessActive =
+  {{ 'true' if operator_authenticated else 'false' }};
+
+function updateOperatorStatus(type, title, message) {
+  const status = document.getElementById('operatorUnlockStatus');
+  const statusText = document.getElementById('operatorStatusText');
+  const statusMessage = document.getElementById('operatorStatusMessage');
+  const icon = status?.querySelector('i');
+
+  if (!status) return;
+
+  status.classList.remove(
+    'is-inactive',
+    'is-checking',
+    'is-error',
+    'is-active',
+    'status-shake'
+  );
+
+  status.classList.add(type);
+
+  if (statusText) {
+    statusText.textContent = title;
+  }
+
+  if (statusMessage) {
+    statusMessage.textContent = message;
+  }
+
+  if (icon) {
+    if (type === 'is-active') {
+      icon.className = 'bi bi-check-circle-fill';
+    } else if (type === 'is-error') {
+      icon.className = 'bi bi-x-circle-fill';
+    } else if (type === 'is-checking') {
+      icon.className = 'bi bi-arrow-repeat';
+    } else {
+      icon.className = 'bi bi-circle-fill';
+    }
+  }
+}
+
+document
+  .getElementById('operatorUnlockBtn')
+  ?.addEventListener('click', async () => {
     const input = document.getElementById('operatorTokenInput');
-    const status = document.getElementById('operatorUnlockStatus');
-    const token = input?.value || '';
-    if (status) status.textContent = 'Checking operator token...';
+    const token = input?.value.trim() || '';
+
+    if (!token) {
+      updateOperatorStatus(
+        'is-error',
+        'Not Activated',
+        'Enter an operator token before unlocking.'
+      );
+
+      return;
+    }
+
+    updateOperatorStatus(
+      'is-checking',
+      'Checking',
+      'Verifying the operator token...'
+    );
+
     try {
-      const response = await fetch('{{ url_for("operator_unlock") }}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({operator_token: token})
-      });
+      const response = await fetch(
+        '{{ url_for("operator_unlock") }}',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            operator_token: token
+          })
+        }
+      );
+
       const data = await response.json();
+
       if (!response.ok || !data.ok) {
-        if (status) status.textContent = data.error || 'Operator unlock failed.';
+        operatorAccessActive = false;
+
+        updateOperatorStatus(
+          'is-error',
+          'Activation Failed',
+          data.error || 'The operator token is incorrect.'
+        );
+
         return;
       }
-      if (status) status.textContent = 'Operator session unlocked.';
+
+      operatorAccessActive = true;
+
+      updateOperatorStatus(
+        'is-active',
+        'Active',
+        'Operator access has been verified.'
+      );
+
       if (data.csrf_token) {
-        const csrfInput = document.getElementById('csrfTokenInput');
-        if (csrfInput) csrfInput.value = data.csrf_token;
+        const csrfInput =
+          document.getElementById('csrfTokenInput');
+
+        if (csrfInput) {
+          csrfInput.value = data.csrf_token;
+        }
       }
-      const startBtn = document.getElementById('startBtn');
-      if (startBtn) startBtn.disabled = false;
-    } catch (err) {
-      if (status) status.textContent = 'Could not unlock operator session.';
+
+      if (input) {
+        input.value = '';
+      }
+    } catch (error) {
+      operatorAccessActive = false;
+
+      updateOperatorStatus(
+        'is-error',
+        'Activation Failed',
+        'Could not verify the operator token.'
+      );
     }
   });
+  /* ==========================================
+   Prevent Recon Without Operator Access
+   ========================================== */
+
+const scanForm = document.getElementById('scanForm');
+const startBtn = document.getElementById('startBtn');
+
+scanForm?.addEventListener('submit', event => {
+  if (!operatorAccessActive) {
+    event.preventDefault();
+
+    updateOperatorStatus(
+      'is-error',
+      'Not Activated',
+      'Activate the operator token before launching reconnaissance.'
+    );
+
+    const status =
+      document.getElementById('operatorUnlockStatus');
+
+    status?.classList.add('status-shake');
+
+    setTimeout(() => {
+      status?.classList.remove('status-shake');
+    }, 400);
+
+    document
+      .querySelector('.hero-operator')
+      ?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+
+    document
+      .getElementById('operatorTokenInput')
+      ?.focus();
+
+    return;
+  }
+
+  syncPlanInputs();
+
+  if (startBtn) {
+    startBtn.disabled = true;
+
+    const text = startBtn.querySelector('span');
+
+    if (text) {
+      text.textContent = 'Starting Recon...';
+    }
+  }
+});
   </script>
 </body>
 </html>
