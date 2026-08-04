@@ -2754,3 +2754,70 @@ html {
 }
 .runtime-unavailable { border-style: dashed; }
 .runtime-unavailable-badge { display:inline-flex; align-items:center; gap:.3rem; font-size:.78rem; font-weight:700; padding:.2rem .45rem; border:1px solid currentColor; border-radius:999px; }
+
+/* Phase workflow target/subnet selection */
+.target-selection-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.target-selection-head h2 { margin: 0 0 .35rem; }
+.target-selection-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.target-checkbox-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.target-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: .75rem;
+}
+.target-checkbox-card {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: .9rem 1rem;
+  border: 1px solid var(--border, #334155);
+  border-radius: .75rem;
+  cursor: pointer;
+  background: var(--panel, rgba(15, 23, 42, .55));
+}
+.target-checkbox-card:hover { border-color: var(--accent, #38bdf8); }
+.target-checkbox-card:has(input:checked) {
+  border-color: var(--accent, #38bdf8);
+  box-shadow: 0 0 0 1px var(--accent, #38bdf8);
+}
+.target-checkbox-card input { margin-top: .25rem; flex: 0 0 auto; }
+.target-checkbox-content { display: grid; gap: .2rem; min-width: 0; }
+.target-checkbox-content strong,
+.target-checkbox-content small { overflow-wrap: anywhere; }
+.subnet-candidate-grid { grid-template-columns: 1fr; }
+.form-error { margin: .75rem 0 0; color: #ef4444; font-weight: 700; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 720px) {
+  .target-selection-head { flex-direction: column; }
+}
+.cve-host-group-row th {
+  text-align: left;
+  background: rgba(56, 189, 248, .10);
+  border-top: 2px solid rgba(56, 189, 248, .55);
+  padding: .7rem .8rem;
+}
+.cve-assurance-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .8rem;
+  margin-top: .55rem;
+  padding-top: .45rem;
+  border-top: 1px dashed rgba(148, 163, 184, .35);
+  color: var(--muted, #94a3b8);
+}

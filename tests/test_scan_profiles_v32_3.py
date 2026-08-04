@@ -33,7 +33,7 @@ def test_custom_profile_respects_exact_user_selection():
 
 
 def test_ui_contains_adaptive_port_coverage_controls():
-    index = (ROOT / 'templates' / 'index.html').read_text(encoding='utf-8')
+    index = (ROOT / 'templates' / 'assessment_config.html').read_text(encoding='utf-8')
     assert "Full TCP coverage scans every TCP port" in index
     assert 'Essentials' in index
     assert 'Custom TCP ports' in index

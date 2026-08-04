@@ -170,7 +170,7 @@ class OperatorScanCustomizationTests(unittest.TestCase):
         self.assertNotIn('Information Dump', html)
 
     def test_index_contains_requested_operator_controls(self):
-        html = (PROJECT_DIR / 'templates' / 'index.html').read_text(encoding='utf-8')
+        html = (PROJECT_DIR / 'templates' / 'assessment_config.html').read_text(encoding='utf-8')
         for field in (
             'tcp_port_mode', 'tcp_custom_ports', 'udp_port_mode', 'udp_custom_ports',
             'command_timeout_seconds', 'retry_failed_batches', 'retry_count',

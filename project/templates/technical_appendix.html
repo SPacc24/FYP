@@ -31,6 +31,29 @@
       </div>
     </section>
 
+    {% set mission_workflow = results.workflow|default(scan.workflow|default({})) %}
+    {% set mission_context = mission_workflow.get('network_context', {}) %}
+    {% set mission_targets = mission_workflow.get('assessment_targets', []) %}
+    {% if mission_workflow %}
+    <section class="appendix-box">
+      <div class="appendix-box-head">
+        <span class="label">Continuous Mission</span>
+        <h2>Phase 1 → Phase 2 → Phase 3 Scope</h2>
+        <p class="muted">Route evidence, discovered inventory, and selected assessment targets retained under one scan ID.</p>
+      </div>
+      <div class="appendix-table-shell"><table><tbody>
+        <tr><th>External target</th><td>{{ mission_workflow.get('external_target','Unknown') }}</td></tr>
+        <tr><th>Access method</th><td>{{ mission_workflow.get('access_mode', mission_context.get('access_mode','unknown'))|replace('_',' ')|title }}</td></tr>
+        <tr><th>Selected interface</th><td>{{ mission_context.get('interface','Unknown') }}</td></tr>
+        <tr><th>Scanner source IP</th><td>{{ mission_context.get('scanner_ip','Unknown') }}</td></tr>
+        <tr><th>Route gateway</th><td>{{ mission_context.get('gateway') or 'None / directly connected' }}</td></tr>
+        <tr><th>Selected internal subnet</th><td>{{ mission_workflow.get('internal_subnet','Unknown') }}</td></tr>
+        <tr><th>Phase 2 hosts discovered</th><td>{{ mission_workflow.get('discovered_hosts',[])|length }}</td></tr>
+        <tr><th>Phase 3 targets selected</th><td>{{ mission_targets|join(', ') if mission_targets else mission_workflow.get('assessment_target', results.target_input|default('Unknown')) }}</td></tr>
+      </tbody></table></div>
+    </section>
+    {% endif %}
+
     {% set effective_options = results.scan_options|default(scan.scan_options|default({})) %}
     {% set port_selection = effective_options.get('port_selection', {}) %}
     {% set tcp_config = port_selection.get('tcp', {}) %}

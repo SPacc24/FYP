@@ -32,6 +32,11 @@ STATUS_RUNNING = 'running'
 STATUS_SUCCESS = 'success'
 STATUS_EMPTY = 'empty'
 STATUS_FAILED = 'failed'
+STATUS_EXTERNAL_DISCOVERY = 'external_discovery'
+STATUS_INTERNAL_DISCOVERY = 'internal_discovery'
+STATUS_AWAITING_SUBNET_SELECTION = 'awaiting_subnet_selection'
+STATUS_AWAITING_CONFIGURATION = 'awaiting_assessment_configuration'
+STATUS_ASSESSMENT_RUNNING = 'assessment_running'
 
 LABELS = {
     STATUS_QUEUED: 'Queued',
@@ -39,6 +44,11 @@ LABELS = {
     STATUS_SUCCESS: 'Completed',
     STATUS_EMPTY: 'No Evidence Observed',
     STATUS_FAILED: 'Incomplete',
+    STATUS_EXTERNAL_DISCOVERY: 'External Discovery',
+    STATUS_INTERNAL_DISCOVERY: 'Internal Discovery',
+    STATUS_AWAITING_SUBNET_SELECTION: 'Awaiting Internal Subnet Selection',
+    STATUS_AWAITING_CONFIGURATION: 'Awaiting Assessment Configuration',
+    STATUS_ASSESSMENT_RUNNING: 'Assessment Running',
 }
 
 def now() -> str:
@@ -67,13 +77,50 @@ def new_scan(target: str, source_ip: str = '', user_agent: str = '', scan_option
         }
     return scan_id
 
-def init_tasks(scan_id: str, names: list[str]) -> None:
+def init_tasks(scan_id: str, names: list[str], phase: str = '') -> None:
     with _lock:
         data = _store.get(scan_id)
         if not data: return
-        data['tasks'] = [{'name': n, 'status': STATUS_QUEUED, 'command': '', 'summary': ''} for n in names]
+        data['tasks'] = [
+            {'name': n, 'status': STATUS_QUEUED, 'command': '', 'summary': '', 'phase': phase}
+            for n in names
+        ]
         data['current_task'] = names[0] if names else ''
         data['next_task'] = names[1] if len(names) > 1 else ''
+
+def append_tasks(scan_id: str, names: list[str], phase: str = '') -> None:
+    """Append new phase tasks without removing completed discovery history."""
+    with _lock:
+        data = _store.get(scan_id)
+        if not data:
+            return
+        existing = {str(task.get('name') or '') for task in data.get('tasks', [])}
+        for name in names:
+            if name in existing:
+                continue
+            data.setdefault('tasks', []).append({
+                'name': name,
+                'status': STATUS_QUEUED,
+                'command': '',
+                'summary': '',
+                'phase': phase,
+            })
+            existing.add(name)
+        queued = [task for task in data.get('tasks', []) if task.get('status') == STATUS_QUEUED]
+        if queued:
+            data['current_task'] = queued[0]['name']
+            data['next_task'] = queued[1]['name'] if len(queued) > 1 else ''
+
+def transition_status(scan_id: str, expected: set[str] | list[str] | tuple[str, ...], new_status: str, **kwargs: Any) -> bool:
+    """Atomically move a scan between workflow states."""
+    expected_values = set(expected)
+    with _lock:
+        data = _store.get(scan_id)
+        if not data or str(data.get('status') or '') not in expected_values:
+            return False
+        data['status'] = new_status
+        data.update(kwargs)
+        return True
 
 def set_task(scan_id: str, name: str, status: str, command: str = '', summary: str = '') -> None:
     with _lock:

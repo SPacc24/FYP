@@ -107,6 +107,30 @@
       </article>
     </section>
 
+    {% set mission_workflow = results.workflow|default(scan.workflow|default({})) %}
+    {% if mission_workflow %}
+    {% set mission_hosts = mission_workflow.get('discovered_hosts', []) %}
+    {% set mission_targets = mission_workflow.get('assessment_targets', []) %}
+    {% set mission_context = mission_workflow.get('network_context', {}) %}
+    <section class="mini-panel scan-config-panel" aria-label="Continuous scan mission">
+      <div class="stage-head-with-actions">
+        <div>
+          <span class="label">Continuous Scan Mission</span>
+          <h3>External → Internal → Assessment</h3>
+          <p class="small muted">Phase 1 and Phase 2 discovery evidence are retained with the existing Phase 3 assessment.</p>
+        </div>
+      </div>
+      <div class="scan-assurance-grid">
+        <article class="scan-assurance-card"><span class="label">External Target</span><strong>{{ mission_workflow.get('external_target','Unknown') }}</strong><span class="small muted">Phase 1 reachability target</span></article>
+        <article class="scan-assurance-card"><span class="label">Access Method</span><strong>{{ mission_workflow.get('access_mode', mission_context.get('access_mode','unknown'))|replace('_',' ')|title }}</strong><span class="small muted">Derived from route and interface evidence</span></article>
+        <article class="scan-assurance-card"><span class="label">Selected Interface</span><strong>{{ mission_context.get('interface','Unknown') }}</strong><span class="small muted">Scanner source {{ mission_context.get('scanner_ip','Unknown') }}</span></article>
+        <article class="scan-assurance-card"><span class="label">Internal Subnet</span><strong>{{ mission_workflow.get('internal_subnet','Unknown') }}</strong><span class="small muted">Selected from route-derived candidates</span></article>
+        <article class="scan-assurance-card"><span class="label">Hosts Discovered</span><strong>{{ mission_hosts|length }}</strong><span class="small muted">Phase 2 live-host inventory</span></article>
+        <article class="scan-assurance-card"><span class="label">Assessment Targets</span><strong>{{ mission_targets|length if mission_targets else 1 }}</strong><span class="small muted">{{ mission_targets|join(', ') if mission_targets else mission_workflow.get('assessment_target', results.target_input|default('Unknown')) }}</span></article>
+      </div>
+    </section>
+    {% endif %}
+
     {% set effective_options = results.scan_options|default(scan.scan_options|default({})) %}
     {% set port_selection = effective_options.get('port_selection', {}) %}
     {% set tcp_config = port_selection.get('tcp', {}) %}
@@ -128,7 +152,8 @@
         <article class="scan-assurance-card"><span class="label">Failed-Batch Retry</span><strong>{{ 'Enabled' if advanced_config.get('retry_failed_batches') else 'Disabled' }}</strong><span class="small muted">Maximum retries: {{ advanced_config.get('retry_count',0) }}</span></article>
         <article class="scan-assurance-card"><span class="label">Parallel Scanning</span><strong>{{ 'Enabled' if advanced_config.get('parallel_scanning') else 'Disabled' }}</strong><span class="small muted">Worker count: {{ advanced_config.get('parallel_workers',1) }}</span></article>
         <article class="scan-assurance-card"><span class="label">Evidence Plan</span><strong>{{ effective_options.get('collection_preset_label') or 'Legacy' }}</strong><span class="small muted">Requested {{ effective_options.get('collector_counts',{}).get('requested',0) }} · permitted {{ effective_options.get('collector_counts',{}).get('permitted',0) }} · blocked {{ effective_options.get('collector_counts',{}).get('blocked',0) }}</span></article>
-        <article class="scan-assurance-card"><span class="label">Host Discovery</span><strong>Configured</strong><span class="small muted">ARP {{ 'on' if effective_options.get('host_discovery',{}).get('effective',{}).get('arp_discovery') else 'off' }} · ICMP {{ 'on' if effective_options.get('host_discovery',{}).get('effective',{}).get('icmp_echo') else 'off' }} · Nmap -sn {{ 'on' if effective_options.get('host_discovery',{}).get('effective',{}).get('nmap_host_discovery') else 'off' }}</span></article>
+        {% set hd_exec = results.host_discovery_execution|default({}) %}
+        <article class="scan-assurance-card"><span class="label">Phase 3 Host Evidence</span><strong>Request and execution retained separately</strong><span class="small muted">ARP: {{ 'executed' if hd_exec.get('arp_discovery',{}).get('executed') else ('requested · not executed' if hd_exec.get('arp_discovery',{}).get('requested') else 'not requested') }} · ICMP: {{ 'executed' if hd_exec.get('icmp_echo',{}).get('executed') else ('requested · not executed' if hd_exec.get('icmp_echo',{}).get('requested') else 'not requested') }} · Nmap -sn: {{ 'executed' if hd_exec.get('nmap_host_discovery',{}).get('executed') else ('requested · not executed' if hd_exec.get('nmap_host_discovery',{}).get('requested') else 'not requested') }}</span></article>
       </div>
     </section>
 

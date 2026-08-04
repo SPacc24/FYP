@@ -89,6 +89,7 @@
   </tbody></table></div>
 </section>
 
+{% set ui_cves = detected_cves_grouped|default(detected_cves|default([])) %}
 <h3 class="top-gap">Table 1 — CVE References</h3>
 <p class="small muted">Reference and applicability view: what CVE record was associated with an observed host-OS or service/application identity, why it matched, and where to verify the published record.</p>
 <div class="table-wrap">
@@ -104,12 +105,25 @@
       </tr>
     </thead>
     <tbody>
-      {% if detected_cves %}
-        {% for cve in detected_cves %}
-          <tr class="cve-reference-row">
+      {% if ui_cves %}
+        {% set reference_group = namespace(host='') %}
+        {% for cve in ui_cves %}
+          {% set current_host = cve.target_host|default((cve.observed_hosts|default([])|first)|default('Unattributed')) %}
+          {% if current_host != reference_group.host %}
+          <tr class="cve-host-group-row" data-target-host="{{ current_host }}"><th colspan="6">Target: <span class="mono">{{ current_host }}</span></th></tr>
+          {% set reference_group.host = current_host %}
+          {% endif %}
+          <tr class="cve-reference-row" data-target-host="{{ current_host }}">
             <td class="mono"><a href="{{ cve.official_cve_url }}" target="_blank" rel="noopener">{{ cve.cve_id }}</a></td>
             <td class="small">{{ cve.service_port }}</td>
-            <td class="small">{{ cve.match_evidence }}</td>
+            <td class="small">
+              {{ cve.match_evidence }}
+              <div class="cve-assurance-state">
+                <span><b>Applicability:</b> {{ cve.applicability_state|default('matched')|replace('_',' ')|title }}</span>
+                <span><b>Patch:</b> {{ cve.patch_state_status|default('unknown')|replace('_',' ')|title }}</span>
+                <span><b>Validation:</b> {{ cve.validation_state|default('not_performed')|replace('_',' ')|title }}</span>
+              </div>
+            </td>
             <td class="small">
               {% set ctx = cve.applicability_context or {} %}
               {% set published = ctx.get('published', {}) %}
@@ -173,9 +187,15 @@
       </tr>
     </thead>
     <tbody>
-      {% if detected_cves %}
-        {% for cve in detected_cves %}
-          <tr class="cve-row"
+      {% if ui_cves %}
+        {% set severity_group = namespace(host='') %}
+        {% for cve in ui_cves %}
+          {% set current_host = cve.target_host|default((cve.observed_hosts|default([])|first)|default('Unattributed')) %}
+          {% if current_host != severity_group.host %}
+          <tr class="cve-host-group-row" data-target-host="{{ current_host }}"><th colspan="9">Target: <span class="mono">{{ current_host }}</span></th></tr>
+          {% set severity_group.host = current_host %}
+          {% endif %}
+          <tr class="cve-row" data-target-host="{{ current_host }}"
               data-score31="{{ cve.cvss_31_score if cve.cvss_31_score is not none else '' }}"
               data-severity31="{{ cve.cvss_31_severity|lower if cve.cvss_31_score is not none else 'unscored' }}"
               data-score40="{{ cve.cvss_40_score if cve.cvss_40_score is not none else '' }}"
@@ -478,20 +498,68 @@
 
       const tbody = document.querySelector('#cveTable tbody');
       const rows = getRows();
-      rows.sort((a, b) => {
-        const scoreDifference = activeScore(b, view) - activeScore(a, view);
-        if (scoreDifference !== 0) return scoreDifference;
-        return a.innerText.localeCompare(b.innerText);
-      });
+      const hostOrder = [];
+      const rowsByHost = new Map();
       rows.forEach(row => {
-        const matchesSearch = !q || row.innerText.toLowerCase().includes(q);
-        const severityMatches = matchesSeverity(row, view, selectedSeverity);
-        row.style.display = matchesSearch && severityMatches ? '' : 'none';
-        tbody?.appendChild(row);
+        const host = row.dataset.targetHost || 'Unattributed';
+        if (!rowsByHost.has(host)) {
+          rowsByHost.set(host, []);
+          hostOrder.push(host);
+        }
+        rowsByHost.get(host).push(row);
+      });
+      hostOrder.forEach(host => {
+        const hostRows = rowsByHost.get(host) || [];
+        hostRows.sort((a, b) => {
+          const scoreDifference = activeScore(b, view) - activeScore(a, view);
+          if (scoreDifference !== 0) return scoreDifference;
+          return a.innerText.localeCompare(b.innerText);
+        });
+        let visibleCount = 0;
+        hostRows.forEach(row => {
+          const searchable = `${host} ${row.innerText}`.toLowerCase();
+          const matchesSearch = !q || searchable.includes(q);
+          const severityMatches = matchesSeverity(row, view, selectedSeverity);
+          const visible = matchesSearch && severityMatches;
+          row.style.display = visible ? '' : 'none';
+          if (visible) visibleCount += 1;
+        });
+        const header = Array.from(document.querySelectorAll('#cveTable tbody tr.cve-host-group-row'))
+          .find(candidate => (candidate.dataset.targetHost || 'Unattributed') === host);
+        if (header) {
+          header.style.display = visibleCount ? '' : 'none';
+          tbody?.appendChild(header);
+        }
+        hostRows.forEach(row => tbody?.appendChild(row));
       });
 
-      document.querySelectorAll('.cve-reference-row').forEach(row => {
-        row.style.display = !q || row.innerText.toLowerCase().includes(q) ? '' : 'none';
+      const referenceTable = document.querySelector('#cveReferenceTable tbody');
+      const referenceRows = Array.from(document.querySelectorAll('#cveReferenceTable .cve-reference-row'));
+      const referenceHosts = [];
+      const referenceByHost = new Map();
+      referenceRows.forEach(row => {
+        const host = row.dataset.targetHost || 'Unattributed';
+        if (!referenceByHost.has(host)) {
+          referenceByHost.set(host, []);
+          referenceHosts.push(host);
+        }
+        referenceByHost.get(host).push(row);
+      });
+      referenceHosts.forEach(host => {
+        const hostRows = referenceByHost.get(host) || [];
+        let visibleCount = 0;
+        hostRows.forEach(row => {
+          const visible = !q || `${host} ${row.innerText}`.toLowerCase().includes(q);
+          row.style.display = visible ? '' : 'none';
+          if (visible) visibleCount += 1;
+        });
+        const header = Array.from(document.querySelectorAll('#cveReferenceTable tbody tr.cve-host-group-row'))
+          .find(candidate => (candidate.dataset.targetHost || 'Unattributed') === host);
+        if (header) {
+          header.style.display = visibleCount ? '' : 'none';
+          referenceTable?.appendChild(header);
+        }
+        hostRows.forEach(row => referenceTable?.appendChild(row));
       });
     }
 

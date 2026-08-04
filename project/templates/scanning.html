@@ -1,16 +1,16 @@
 <!doctype html>
 <html>
 <head>
-  <title>Reconnaissance Running</title>
+  <title>AutoPenTest Mission Running</title>
   <link rel="stylesheet" href="/static/style.css?v=324">
 </head>
 <body>
 <main class="shell">
 <header class="topbar">
   <div>
-    <div class="eyebrow">Reconnaissance in Progress</div>
+    <div class="eyebrow">{% if workflow_stage == 'assessment' %}PHASE 3 · ASSESSMENT{% else %}PHASE 1–2 · NETWORK DISCOVERY{% endif %}</div>
     <h1>{{ target }}</h1>
-    <p class="muted">Configurable recon is running with the TCP/UDP coverage and evidence collectors selected by the operator. Policy stop conditions remain active throughout the scan.</p>
+    <p class="muted">{% if workflow_stage == 'assessment' %}The existing configurable assessment is running against the selected discovered host. Existing scanner and teammate-owned stages remain unchanged.{% else %}The scanner is validating external access, deriving the routed internal subnet, and building the Phase 2 host inventory.{% endif %}</p>
   </div>
   <a class="btn ghost" href="/">New Scan</a>
 </header>
@@ -42,6 +42,7 @@
         <span>Next Task</span>
         <b id="next">No queued task</b>
       </div>
+      {% if workflow_stage == 'assessment' %}
       <div class="overview-card">
         <span>Selected TCP Scope</span>
         <b>{{ scan_options.port_selection.tcp.display if scan_options and scan_options.port_selection else 'Essentials' }}</b>
@@ -54,6 +55,16 @@
         <span>Execution</span>
         <b>{% if scan_options and scan_options.advanced_settings and scan_options.advanced_settings.parallel_scanning %}Parallel × {{ scan_options.advanced_settings.parallel_workers }}{% else %}Sequential{% endif %} · {{ scan_options.advanced_settings.ports_per_batch if scan_options and scan_options.advanced_settings else 5 }} ports/batch</b>
       </div>
+      {% else %}
+      <div class="overview-card">
+        <span>Discovered Internal Subnet</span>
+        <b id="internalSubnet">Pending</b>
+      </div>
+      <div class="overview-card">
+        <span>Workflow State</span>
+        <b id="workflowState">External discovery</b>
+      </div>
+      {% endif %}
     </section>
 
     <section class="panel command-panel scan-command-center">
@@ -132,11 +143,29 @@ async function poll(){
  const queuedTasks = allTasks.filter(t => t.status === 'queued');
  const completedTasks = allTasks.filter(t => !['running','queued'].includes(t.status));
  function taskBlock(title, items){
-   return `<div class="task-group"><h3>${title}</h3>` + (items.length ? items.map(t=>`<div class="task ${cls(t.status)}"><span>${escapeHtml(t.name)}</span><b>${labels[t.status]||escapeHtml(t.status)}</b><small>${escapeHtml(t.summary||'')}</small></div>`).join('') : '<p class="muted small">None</p>') + '</div>';
+   return `<div class="task-group"><h3>${title}</h3>` + (items.length ? items.map(t=>{ const phase = t.phase === 'assessment' ? 'Phase 3 · ' : ''; return `<div class="task ${cls(t.status)}"><span>${phase}${escapeHtml(t.name)}</span><b>${labels[t.status]||escapeHtml(t.status)}</b><small>${escapeHtml(t.summary||'')}</small></div>`; }).join('') : '<p class="muted small">None</p>') + '</div>';
  }
  document.getElementById('tasks').innerHTML = taskBlock('Running', activeTasks) + taskBlock('Queued', queuedTasks) + taskBlock('Completed', completedTasks);
  latestCommandLog = (d.command_log || []).slice(-80);
  document.getElementById('log').innerHTML=latestCommandLog.map((entry, idx)=>logRow(entry, idx)).join('') || '<tr><td colspan="4" class="muted">No command has completed yet.</td></tr>';
+ const workflow=(d.workflow && typeof d.workflow === 'object') ? d.workflow : {};
+ const networkContext=(workflow.network_context && typeof workflow.network_context === 'object') ? workflow.network_context : {};
+ const internalSubnet=document.getElementById('internalSubnet');
+ if (internalSubnet) internalSubnet.textContent=workflow.internal_subnet || networkContext.internal_subnet || 'Pending';
+ const workflowState=document.getElementById('workflowState');
+ if (workflowState) workflowState.textContent=String(d.workflow_stage || d.status || 'external discovery').replaceAll('_',' ');
+ if (String(d.status||'') === 'awaiting_subnet_selection') {
+   redirecting = true;
+   document.getElementById('current').textContent='Opening internal subnet selection...';
+   window.location.assign(`/scan/select-subnet/${encodeURIComponent(scanId)}`);
+   return;
+ }
+ if (String(d.status||'') === 'awaiting_assessment_configuration') {
+   redirecting = true;
+   document.getElementById('current').textContent='Opening Phase 3 configuration...';
+   window.location.assign(`/scan/configure/${encodeURIComponent(scanId)}`);
+   return;
+ }
  const res=(d.results && typeof d.results === 'object') ? d.results : {};
  const services=Array.isArray(res.service_inventory) ? res.service_inventory : [];
  const hosts=Array.isArray(res.hosts) ? res.hosts : [];

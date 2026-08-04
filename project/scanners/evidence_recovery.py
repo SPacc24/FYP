@@ -188,7 +188,7 @@ def collector_needed(plan_entry: Mapping[str, Any], service: Mapping[str, Any]) 
 
 
 def recovery_snapshot(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
-    """Summarise unresolved evidence as counts only; no score is invented."""
+    """Summarise unresolved evidence as transparent counts only."""
     counts = {
         "endpoint_state": 0,
         "service_product": 0,
@@ -196,12 +196,21 @@ def recovery_snapshot(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "host_os": 0,
     }
     endpoints = 0
+    unresolved_endpoints = 0
     for row in rows or []:
         endpoints += 1
-        for key in missing_evidence_types(row):
+        missing = missing_evidence_types(row)
+        if missing:
+            unresolved_endpoints += 1
+        for key in missing:
             if key in counts:
                 counts[key] += 1
-    return {"endpoints_considered": endpoints, "missing": counts}
+    return {
+        "endpoints_considered": endpoints,
+        "unresolved_endpoint_count": unresolved_endpoints,
+        "missing_fact_count": sum(counts.values()),
+        "missing": counts,
+    }
 
 
 def merge_endpoint_observations(

@@ -5,13 +5,24 @@
 </style></head>
 <body>
 <h1>Reconnaissance Evidence Report - {{ results.target_input or scan.target }}</h1>
-<p class="muted">CVE references are linked from evidence-derived host operating-system and application/service identities. The recon module does not score, rank, prioritise or make execution decisions.</p>
+<p class="muted">CVE references are linked from evidence-derived host operating-system and application/service identities. The recon module does not create proprietary vulnerability scores or make execution decisions. Published CVSS metrics may be used to order already-matched references.</p>
 {% set assurance = results.scan_summary|default({}) %}
 {% set assurance_targets = assurance.get('targets', {}) %}
 {% set assurance_services = assurance.get('services', {}) %}
 {% set assurance_cves = assurance.get('cve_review', {}) %}
 <h2>Summary</h2>
 <table><tr><th>Targets Reached</th><th>TCP Services</th><th>UDP Services</th><th>Observed Endpoints</th><th>CVE References</th><th>Security Conditions</th></tr><tr><td>{{ assurance_targets.get('reached', results.hosts|length) }}</td><td>{{ results.tcp_service_count }}</td><td>{{ results.udp_service_count }}</td><td>{{ assurance_services.get('observed_endpoints', results.service_inventory|default([])|length) }}</td><td>{{ assurance_cves.get('unique_references', 0) }}</td><td>{{ results.observed_security_conditions|default([])|length }}</td></tr></table>
+{% set mission_workflow = results.workflow|default(scan.workflow|default({})) %}
+{% if mission_workflow %}
+{% set mission_context = mission_workflow.get('network_context', {}) %}
+{% set mission_targets = mission_workflow.get('assessment_targets', []) %}
+<h2>Continuous Scan Mission</h2>
+<table><tbody>
+<tr><th>Phase 1 external target</th><td>{{ mission_workflow.get('external_target','Unknown') }}</td><th>Access method</th><td>{{ mission_workflow.get('access_mode', mission_context.get('access_mode','unknown'))|replace('_',' ')|title }}</td></tr>
+<tr><th>Selected interface / source</th><td>{{ mission_context.get('interface','Unknown') }} / {{ mission_context.get('scanner_ip','Unknown') }}</td><th>Phase 2 internal subnet</th><td>{{ mission_workflow.get('internal_subnet','Unknown') }}</td></tr>
+<tr><th>Hosts discovered</th><td>{{ mission_workflow.get('discovered_hosts',[])|length }}</td><th>Phase 3 assessment targets</th><td>{{ mission_targets|join(', ') if mission_targets else mission_workflow.get('assessment_target', results.target_input|default('Unknown')) }}</td></tr>
+</tbody></table>
+{% endif %}
 {% set effective_options = results.scan_options|default(scan.scan_options|default({})) %}
 {% set port_selection = effective_options.get('port_selection', {}) %}
 {% set tcp_config = port_selection.get('tcp', {}) %}
@@ -51,7 +62,7 @@
 
 <h2>CVE References Supported by Evidence</h2>
 {% set all_cve_references = results.cve_matches|default([]) %}
-{% if all_cve_references %}{% for c in all_cve_references %}<div class="finding"><h3>{{ c.cve_id }} - {{ c.product }} {{ c.version }}</h3><p><b>Finding Type:</b> {{ c.finding_type or 'CVE Finding' }}</p><p><b>Affected Asset:</b> {{ c.affected_asset or c.service or 'Observed identity' }} | <b>Host / Endpoint:</b> {{ c.host }} / {{ c.observed_ports|default([c.port ~ '/' ~ c.protocol])|join(', ') }}</p>{% if c.match_scope == 'host_os' %}<p><b>OS Identity Quality:</b> {{ c.identity_quality or 'Not recorded' }} | <b>Patch State:</b> {{ c.patch_state or 'Not established' }}</p>{% if c.patch_evidence and c.patch_evidence.patch_basis %}<p><b>Patch Evidence Basis:</b> {{ c.patch_evidence.patch_basis }}</p>{% endif %}{% endif %}<p><b>Vulnerability:</b> {{ c.vulnerability }}</p><p><b>Evidence-Based Outcome:</b> {{ c.attacker_outcome }}</p><p><b>Remediation Direction:</b> {{ c.remediation_direction }}</p><p><b>Evidence Basis:</b> {{ c.display_match_reason or c.match_reason or c.match_basis }}</p>{% set ctx = c.applicability_context|default({}) %}{% if ctx and ctx.get('status') != 'not_published' %}<p><b>Published prerequisite context:</b> {{ ctx.get('published') }} — evidence status: {{ ctx.get('status')|replace('_',' ') }}</p>{% endif %}</div>{% endfor %}{% else %}<p>No CVE references were linked from the collected evidence.</p>{% endif %}
+{% if all_cve_references %}{% for c in all_cve_references %}<div class="finding"><h3>{{ c.cve_id }} - {{ c.product }} {{ c.version }}</h3><p><b>Finding Type:</b> {{ c.finding_type or 'CVE Finding' }}</p><p><b>Applicability:</b> {{ c.applicability_state|default('matched')|replace('_',' ')|title }} | <b>Patch State:</b> {{ c.patch_state_status|default(c.patch_state|default('unknown'))|replace('_',' ')|title }} | <b>Validation:</b> {{ c.validation_state|default('not_performed')|replace('_',' ')|title }}</p><p><b>Affected Asset:</b> {{ c.affected_asset or c.service or 'Observed identity' }} | <b>Host / Endpoint:</b> {{ c.host }} / {{ c.observed_ports|default([c.port ~ '/' ~ c.protocol])|join(', ') }}</p>{% if c.match_scope == 'host_os' %}<p><b>OS Identity Quality:</b> {{ c.identity_quality or 'Not recorded' }} | <b>Patch State:</b> {{ c.patch_state or 'Not established' }}</p>{% if c.patch_evidence and c.patch_evidence.patch_basis %}<p><b>Patch Evidence Basis:</b> {{ c.patch_evidence.patch_basis }}</p>{% endif %}{% endif %}<p><b>Vulnerability:</b> {{ c.vulnerability }}</p><p><b>Evidence-Based Outcome:</b> {{ c.attacker_outcome }}</p><p><b>Remediation Direction:</b> {{ c.remediation_direction }}</p><p><b>Evidence Basis:</b> {{ c.display_match_reason or c.match_reason or c.match_basis }}</p>{% set ctx = c.applicability_context|default({}) %}{% if ctx and ctx.get('status') != 'not_published' %}<p><b>Published prerequisite context:</b> {{ ctx.get('published') }} — evidence status: {{ ctx.get('status')|replace('_',' ') }}</p>{% endif %}</div>{% endfor %}{% else %}<p>No CVE references were linked from the collected evidence.</p>{% endif %}
 <h2>Published CVSS Severity</h2>
 <p class="muted">CVSS 3.1 and CVSS 4.0 are shown independently. A missing version is reported as Not published; scores are not converted between versions.</p>
 <table>

@@ -15,7 +15,16 @@ $SUDO apt-get install -y --no-install-recommends \
   arp-scan nmap bind9-dnsutils jq gobuster enum4linux-ng smbclient smbmap \
   snmp ldap-utils sslscan mtr-tiny traceroute hydra seclists git \
   tshark rpcbind nfs-common postgresql-client curl openssl iputils-ping iputils-tracepath \
-  python3 python3-venv python3-pip libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libffi-dev shared-mime-info
+  python3 python3-venv python3-pip libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libffi-dev shared-mime-info libcap2-bin
+
+printf '[*] Preparing scoped ARP discovery capability...\n'
+ARP_SCAN_BIN="$(command -v arp-scan || true)"
+if [ -n "$ARP_SCAN_BIN" ]; then
+  $SUDO setcap cap_net_raw,cap_net_admin=eip "$ARP_SCAN_BIN" || \
+    printf '[WARN] Could not grant packet-socket capability to arp-scan. ARP execution will be reported as unavailable if privileges are insufficient.\n'
+else
+  printf '[WARN] arp-scan was not found after installation.\n'
+fi
 
 printf '[*] Installing optional Kali enumeration helpers where available...\n'
 $SUDO apt-get install -y --no-install-recommends snmp-mibs-downloader || printf '[WARN] snmp-mibs-downloader unavailable; SNMP enumeration still works without downloaded MIB names.\n'

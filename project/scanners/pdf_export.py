@@ -101,7 +101,7 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     story.append(Paragraph(f'Reconnaissance Evidence Report - {_p(target)}', styles['Title']))
     profile = (results.get('scan_options') or scan.get('scan_options') or {}).get('profile_label', 'Scan')
     story.append(Paragraph(f'Scan Configuration: {_p(profile)}', styles['Muted']))
-    story.append(Paragraph('CVE findings are linked from collected product, version, and supporting service evidence. The recon module does not score, rank, prioritise, or make execution decisions.', styles['Muted']))
+    story.append(Paragraph('CVE references are linked from collected product, version, and supporting service evidence. The recon module does not create proprietary vulnerability scores or make execution decisions. Published CVSS metrics may order already-matched references.', styles['Muted']))
     story.append(Spacer(1, 6))
 
     assurance = results.get('scan_summary') or {}
@@ -114,6 +114,24 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
     story.append(t)
     story.append(Spacer(1, 8))
+
+    workflow = results.get('workflow') or scan.get('workflow') or {}
+    if workflow:
+        context = workflow.get('network_context') or {}
+        targets = workflow.get('assessment_targets') or []
+        workflow_rows = [
+            ['External target', workflow.get('external_target') or 'Unknown'],
+            ['Access method', str(workflow.get('access_mode') or context.get('access_mode') or 'unknown').replace('_', ' ').title()],
+            ['Selected interface / source', f"{context.get('interface') or 'Unknown'} / {context.get('scanner_ip') or 'Unknown'}"],
+            ['Internal subnet', workflow.get('internal_subnet') or 'Unknown'],
+            ['Phase 2 hosts discovered', len(workflow.get('discovered_hosts') or [])],
+            ['Phase 3 targets selected', ', '.join(map(str, targets)) or workflow.get('assessment_target') or target],
+        ]
+        story.append(Paragraph('Continuous Scan Mission', styles['Heading2']))
+        workflow_table = Table([[_para(a, styles['Cell']), _para(b, styles['SmallWrap'])] for a, b in workflow_rows], colWidths=[62*mm, 206*mm])
+        workflow_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#f3f3f3')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(workflow_table)
+        story.append(Spacer(1, 8))
 
     policy = results.get('scan_options') or {}
     port_selection = policy.get('port_selection') or {}
@@ -181,9 +199,10 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
             ['UDP recovery', 'Enabled' if recovery.get('udp_enabled') else 'Disabled'],
             ['Initial / recovery version intensity', f"{recovery.get('initial_version_intensity', 'N/A')} / {recovery.get('recovery_intensity', 'N/A')}"],
             ['Configured recovery passes', recovery.get('configured_attempts', 0)],
-            ['Missing evidence before / after', f"{before.get('missing_fact_count', 0)} / {after.get('missing_fact_count', 0)}"],
-            ['Recovery actions recorded', len(recovery.get('history') or [])],
-            ['Remaining unresolved endpoints', len(recovery.get('remaining_unresolved_endpoints') or [])],
+            ['Missing evidence facts before / after', f"{before.get('missing_fact_count', 0)} / {after.get('missing_fact_count', 0)}"],
+            ['Unresolved endpoints before / after', f"{before.get('unresolved_endpoint_count', 0)} / {after.get('unresolved_endpoint_count', 0)}"],
+            ['Recovery commands recorded', len(recovery.get('history') or [])],
+            ['Remaining unresolved endpoint rows', len(recovery.get('remaining_unresolved_endpoints') or [])],
         ]
         recovery_table = Table([[_para(a, styles['Cell']), _para(b, styles['SmallWrap'])] for a, b in recovery_rows], colWidths=[68*mm, 200*mm])
         recovery_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#f3f3f3')),('VALIGN',(0,0),(-1,-1),'TOP')]))
@@ -312,8 +331,9 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         corroboration = evidence.get('corroboration') or {}
         if corroboration:
             lines.append(f"Corroboration: {corroboration.get('source') or 'retained'} · {corroboration.get('basis') or corroboration.get('mode') or ''}".rstrip(' ·'))
-        if evidence.get('patch_state'):
-            lines.append(f"Patch state: {evidence.get('patch_state')}")
+        lines.append(f"Applicability state: {cve.get('applicability_state') or evidence.get('applicability_state') or 'matched'}")
+        lines.append(f"Patch state: {cve.get('patch_state_status') or evidence.get('patch_state_status') or evidence.get('patch_state') or 'unknown'}")
+        lines.append(f"Validation state: {cve.get('validation_state') or evidence.get('validation_state') or 'not_performed'}")
         if evidence.get('kev_listed') is True:
             lines.append('CISA KEV: listed (threat context only)')
         return '\n'.join(lines)

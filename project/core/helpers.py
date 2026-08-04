@@ -637,6 +637,9 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
             "match_scopes": [],
             "affected_assets": [],
             "patch_states": [],
+            "applicability_state": "matched",
+            "patch_state_status": "unknown",
+            "validation_state": "not_performed",
             "identity_qualities": [],
             "matched_product_tokens": [],
             "matched_version_tokens": [],
@@ -792,6 +795,9 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
         row["applicability_context"] = finding.get("applicability_context") or row.get("applicability_context") or {}
         row["cve_publisher"] = finding.get("cve_publisher") or row.get("cve_publisher") or "CVE Program CNA"
         row["cve_publisher_id"] = finding.get("cve_publisher_id") or row.get("cve_publisher_id", "")
+        row["applicability_state"] = str(finding.get("applicability_state") or "matched")
+        row["patch_state_status"] = str(finding.get("patch_state_status") or "unknown")
+        row["validation_state"] = str(finding.get("validation_state") or "not_performed")
 
         for key in ("affected_vendors", "affected_products", "affected_versions", "affected_entries", "affected_cpes", "matched_product_tokens", "matched_version_tokens", "references", "evidence_sources", "evidence_references"):
             values = finding.get(key) or []

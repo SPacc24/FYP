@@ -749,8 +749,12 @@ def _collect_passive_local_inventory(
         coverage.append(_coverage('passive_os_fingerprinting', scan_store.STATUS_EMPTY, 'Passive OS fingerprinting disabled', 'Listen-only p0f fingerprinting disabled by policy.', '', {'success': True, 'lifecycle_state': 'disabled_policy'}))
         return result
     collector_plan = (scan_options or {}).get('collector_plan') or {}
+    workflow_context = (scan_options or {}).get('workflow_context') or {}
+    workflow_iface = str(workflow_context.get('route_interface') or '').strip()
     requested_iface = str(collector_setting(collector_plan, 'passive_packet_inventory', 'interface', '') or '').strip()
-    iface = requested_iface or _default_capture_interface()
+    # Phased missions bind interface-dependent collectors to the Phase 1 route.
+    # Legacy/non-phased scans retain the existing explicit/default behaviour.
+    iface = workflow_iface or requested_iface or _default_capture_interface()
     if not iface:
         msg = 'No approved capture interface configured; set AUTOPENTEST_PASSIVE_INTERFACE to enable listen-only passive inventory.'
         if enabled_fn('passive_packet_inventory'):
@@ -2823,9 +2827,51 @@ def _build_host_cve_row(identity: dict[str, Any], match: dict[str, Any]) -> dict
     }
 
 
+def _generic_patch_state(raw_value: Any) -> str:
+    """Map evidence wording to a stable generic state without product rules."""
+    text = str(raw_value or '').strip().lower()
+    if not text:
+        return 'unknown'
+    if 'supersed' in text:
+        return 'superseded'
+    if 'not applicable' in text:
+        return 'not_applicable'
+    if any(token in text for token in ('remediation observed', 'installed', 'already patched', 'fixed build observed')):
+        return 'installed'
+    if any(token in text for token in ('applicable update not observed', 'missing update', 'unpatched')):
+        return 'missing'
+    return 'unknown'
+
+
+def _generic_validation_state(row: dict[str, Any]) -> str:
+    raw = str(
+        row.get('validation_state')
+        or row.get('validation_status')
+        or row.get('safe_validation_state')
+        or ''
+    ).strip().lower().replace(' ', '_')
+    allowed = {'validated', 'not_validated', 'not_performed', 'unavailable'}
+    if raw in allowed:
+        return raw
+    if row.get('validated') is True or row.get('validation_evidence'):
+        return 'validated'
+    if row.get('validation_attempted') is True:
+        return 'not_validated'
+    if row.get('validation_available') is False:
+        return 'unavailable'
+    return 'not_performed'
+
+
 def _refresh_cve_display_context(rows: list[dict[str, Any]]) -> None:
     """Expose assurance context without changing CVE applicability decisions."""
     for row in rows or []:
+        applicability_state = str(row.get('applicability_state') or 'matched').strip().lower().replace(' ', '_')
+        if applicability_state not in {'matched', 'not_established', 'held'}:
+            applicability_state = 'matched'
+        row['applicability_state'] = applicability_state
+        row['patch_state_status'] = _generic_patch_state(row.get('patch_state'))
+        row['validation_state'] = _generic_validation_state(row)
+
         base = str(row.get('display_match_reason') or row.get('match_reason') or row.get('match_basis') or '').strip()
         notes: list[str] = [base] if base else []
         corroboration = row.get('applicability_corroboration') or {}
@@ -2844,7 +2890,10 @@ def _refresh_cve_display_context(rows: list[dict[str, Any]]) -> None:
         applicability = row.get('applicability_evidence')
         if isinstance(applicability, dict):
             applicability['corroboration'] = copy.deepcopy(row.get('applicability_corroboration') or {})
+            applicability['applicability_state'] = row.get('applicability_state')
             applicability['patch_state'] = str(row.get('patch_state') or '')
+            applicability['patch_state_status'] = row.get('patch_state_status')
+            applicability['validation_state'] = row.get('validation_state')
             applicability['kev_listed'] = bool(row.get('kev_listed') is True)
 
 
@@ -4501,6 +4550,9 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
     )
     if incoming_options.get('technique_mode'):
         scan_options['technique_mode'] = incoming_options.get('technique_mode')
+    workflow_context = incoming_options.get('workflow_context') or {}
+    if isinstance(workflow_context, dict) and workflow_context:
+        scan_options['workflow_context'] = dict(workflow_context)
     scan_store.update(scan_id, scan_options=scan_options)
     if scan_options.get('validation_errors'):
         message = '; '.join(scan_options.get('validation_errors') or [])
@@ -4510,7 +4562,11 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         return
     def enabled(tool_id: str) -> bool:
         return is_tool_enabled(scan_options, tool_id)
-    scan_store.init_tasks(scan_id, TASKS)
+    existing_tasks = (scan_store.get(scan_id) or {}).get('tasks') or []
+    if existing_tasks:
+        scan_store.append_tasks(scan_id, TASKS, phase='assessment')
+    else:
+        scan_store.init_tasks(scan_id, TASKS, phase='assessment')
     if scan_options.get('policy_status') != 'loaded':
         message = f"Recon policy is {scan_options.get('policy_status')}; scan stopped before target interaction."
         scan_store.log(scan_id, message, 'ERROR')
@@ -4726,6 +4782,8 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         task='Host Availability Check'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         live=[]
         live_set: set[str] = set(host_reachability_observed)
+        workflow_context = scan_options.get('workflow_context') or {}
+        workflow_interface = str(workflow_context.get('route_interface') or '').strip()
 
         if host_effective.get('arp_discovery'):
             if not private_all:
@@ -4733,30 +4791,33 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             else:
                 arp_bin = which('arp-scan')
                 if arp_bin:
+                    # The arp-scan executable can carry CAP_NET_RAW/CAP_NET_ADMIN
+                    # independently of the Python process. Execute it and report
+                    # the actual terminal result rather than blocking solely on a
+                    # parent-process raw-socket probe.
                     raw_socket_ready, raw_socket_detail = raw_packet_socket_readiness()
-                    if raw_socket_ready is False:
-                        coverage.append(_coverage(
-                            'arp-scan', scan_store.STATUS_EMPTY, 'Scoped ARP reachability evidence',
-                            raw_socket_detail, '',
-                            {'success': True, 'lifecycle_state': 'insufficient_privilege'},
-                        ))
-                    else:
-                        for host in targets:
-                            p=outfile('arp_scan',host,'txt')
-                            r=run_cmd(command_builders.arp_scan(arp_bin, host),p,60)
-                            text=Path(p).read_text(errors='ignore') if Path(p).exists() else ''
-                            found=set(re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b',text))
-                            if host in found:
-                                live_set.add(host)
-                            command_ok = bool(r.get('success'))
-                            produced = command_ok and host in found
+                    for host in targets:
+                        p=outfile('arp_scan',host,'txt')
+                        r=run_cmd(command_builders.arp_scan(arp_bin, host, interface=workflow_interface),p,60)
+                        text=Path(p).read_text(errors='ignore') if Path(p).exists() else ''
+                        found=set(re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b',text))
+                        if host in found:
+                            live_set.add(host)
+                        command_ok = bool(r.get('success'))
+                        produced = command_ok and host in found
+                        stderr_text = ' '.join(str(r.get(key) or '') for key in ('stderr','error')).lower()
+                        if not command_ok and any(token in stderr_text for token in ('permission denied','operation not permitted','must be root','cap_net_raw')):
+                            r['lifecycle_state'] = 'insufficient_privilege'
+                        else:
                             r['lifecycle_state'] = execution_lifecycle(r, produced)
-                            if not command_ok:
-                                note = f'{host}: ARP collector failed; stderr/exit evidence retained.'
-                            else:
-                                note = f'{host}: {"reply observed" if host in found else "no matching ARP reply retained"}'
-                            coverage.append(_coverage('arp-scan', _status_from_result(r, produced), 'Scoped ARP reachability evidence', note, str(p), r))
-                            _add_raw(raw,'arp-scan',host,'',str(p),'text',bool(text.strip()))
+                        if not command_ok:
+                            note = f'{host}: ARP collector failed; stderr/exit evidence retained.'
+                        else:
+                            note = f'{host}: {"reply observed" if host in found else "no matching ARP reply retained"}'
+                        if raw_socket_ready is False:
+                            note += f' Parent-process readiness note: {raw_socket_detail}'
+                        coverage.append(_coverage('arp-scan', _status_from_result(r, produced), 'Scoped ARP reachability evidence', note, str(p), r))
+                        _add_raw(raw,'arp-scan',host,'',str(p),'text',bool(text.strip()))
                 else:
                     coverage.append(_coverage('arp-scan', scan_store.STATUS_EMPTY, 'Scoped ARP reachability evidence', 'arp-scan binary is not available.', '', {'success': True, 'lifecycle_state': 'tool_unavailable'}))
         else:
@@ -4767,7 +4828,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             nmap=which('nmap')
             if nmap:
                 p=outfile('nmap_host_discovery',target_input,'xml')
-                r=run_cmd(command_builders.nmap_host_discovery(nmap, targets, p),p,600,True)
+                r=run_cmd(command_builders.nmap_host_discovery(nmap, targets, p, interface=workflow_interface),p,600,True)
                 _rows, host_discovery = parse_nmap_capture(p, 'nmap_host_discovery', expect_ports=False)
                 nmap_live = [str(item.get('address')) for item in host_discovery.get('hosts') or [] if item.get('status') == 'up' and item.get('address')]
                 live_set.update(nmap_live)
@@ -6391,6 +6452,35 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         # 19 Report
         task='Report Preparation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         public_coverage = _public_tool_coverage(_sort_coverage(coverage))
+
+        # Preserve operator request, terminal execution, and reason as separate
+        # fields for Phase 3 host-level evidence controls. Phase 2 mandatory
+        # subnet discovery is retained in workflow/command history and is not
+        # confused with this optional Phase 3 configuration.
+        host_discovery_requested = (scan_options.get('host_discovery') or {}).get('effective') or {}
+        host_discovery_tool_map = {
+            'arp_discovery': 'arp-scan',
+            'icmp_echo': 'ping',
+            'nmap_host_discovery': 'nmap_host_discovery',
+            'reverse_dns': 'dig',
+            'route_trace': 'route_trace',
+        }
+        host_discovery_execution: dict[str, Any] = {}
+        for setting_name, tool_name in host_discovery_tool_map.items():
+            rows = [row for row in public_coverage if str(row.get('tool') or '') == tool_name]
+            lifecycle_states = [str(row.get('lifecycle_state') or '') for row in rows]
+            executed = any(state.startswith('executed_') for state in lifecycle_states)
+            produced_evidence = any(state == 'executed_evidence' for state in lifecycle_states)
+            host_discovery_execution[setting_name] = {
+                'tool': tool_name,
+                'requested': bool(host_discovery_requested.get(setting_name)),
+                'executed': executed,
+                'produced_evidence': produced_evidence,
+                'statuses': [str(row.get('status') or '') for row in rows],
+                'lifecycle_states': lifecycle_states,
+                'notes': [str(row.get('note') or '') for row in rows if row.get('note')],
+                'commands': [str(row.get('command') or '') for row in rows if row.get('command')],
+            }
         service_summary = _build_service_summary(all_services, cve_matches)
         web_summary = _summarise_web_inventory(web)
         smb_summary = _summarise_smb_inventory(smb)
@@ -6556,7 +6646,24 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             held_diagnostics=cve_matcher_diagnostics,
             cve_source_available=bool(mitre.get('available')),
         )
-        package={'scan_id':scan_id,'target_input':target_input,'scan_options':scan_options,'scan_coverage':scan_coverage,'scan_summary':scan_summary,'hosts':live,'host_identity_inventory':host_os_inventory,'host_identity_gaps':host_os_gaps,'host_os_identities':flat_host_os_identities,'platform_component_identities':reported_components,'protocol_component_observations':protocol_component_observations,'fingerprint_advisories':fingerprint_advisories,'scope_validation':scope_validation,'enterprise_readiness':enterprise_readiness,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation,'enumeration_intelligence':enumeration_intelligence,'operational_maturity':operational_maturity,'decision_register':decision_register,'evidence_manifest':evidence_manifest,'mitre_source':mitre,'nvd_source':nvd_source,'msrc_source':msrc_source,'kev_source':kev_source,'windows_patch_inventory':windows_patch_inventories,'windows_patch_assessments':windows_patch_assessments,'msrc_patch_diagnostics':msrc_patch_diagnostics,'tool_coverage':public_coverage,'collector_coverage_matrix':collector_coverage_matrix,'unresolved_identity_queue':unresolved_identity_queue,'service_inventory':all_services,'service_summary':service_summary,'service_workbench':service_workbench,'attack_surface_sections':attack_surface_sections,'cve_matches':cve_matches,'cve_matches_by_host':cve_matches_by_host,'cve_findings_by_target':cve_matches_by_host,'baseline_cves':canonical_cve_contract['baseline_cve_references'],'cve_matcher_diagnostics':cve_matcher_diagnostics,'cve_review_completeness':cve_review_completeness,'nvd_cvss_enrichment_diagnostics':nvd_cvss_enrichment_diagnostics,'vulnerability_scoring':{'selection': scan_options.get('cvss_selection') or {'version':'3.1','label':'CVSS 3.1'}, 'stage':'post_match_only', 'verifiers':cvss_scoring_verifiers, 'rule':'CVSS never changes scan execution, evidence recovery, identity, applicability, or CVE count.'},'evidence_recovery':evidence_recovery_summary,'canonical_cve_contract':canonical_cve_contract,'service_level_checks':service_level_checks,'security_relevant_observations':security_observations,'observed_security_conditions':observed_security_conditions,'observed_security_evidence':observed_security_evidence,'key_exposure_indicators':key_exposure_indicators,'tcp_service_count':len([x for x in all_services if x.get('protocol')=='tcp']),'udp_service_count':len([x for x in all_services if x.get('protocol')=='udp']),'web_inventory':web,'web_summary':web_summary,'smb_inventory':smb,'smb_summary':smb_summary,'raw_evidence_index':raw,'caldera_handoff':caldera_handoff,'environment_summary':_build_environment_summary(environment_intelligence, environment_context_indicators),'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'exploit_validation_candidates':exploit_validation_candidates,'authentication_surface_readiness':authentication_surface_readiness,'web_exploitation_readiness':web_exploitation_readiness,'suggested_follow_up_objectives':follow_up_objectives,'escalation_paused':False}
+        current_scan = scan_store.get(scan_id) or {}
+        workflow = dict(current_scan.get('workflow') or {})
+        phase_results = dict(workflow.get('phase_results') or {})
+        assessment_phase = dict(phase_results.get('assessment') or {})
+        assessment_phase.update({
+            'status': 'completed',
+            'targets': list(targets),
+            'target_count': len(targets),
+            'service_count': len(all_services),
+            'cve_count': len(cve_matches),
+        })
+        phase_results['assessment'] = assessment_phase
+        workflow.update({
+            'assessment_targets': list(targets),
+            'assessment_target': target_input,
+            'phase_results': phase_results,
+        })
+        package={'scan_id':scan_id,'target_input':target_input,'workflow':workflow,'phase_results':phase_results,'internal_host_inventory':workflow.get('discovered_hosts') or [],'scan_options':scan_options,'scan_coverage':scan_coverage,'scan_summary':scan_summary,'hosts':live,'host_identity_inventory':host_os_inventory,'host_identity_gaps':host_os_gaps,'host_os_identities':flat_host_os_identities,'platform_component_identities':reported_components,'protocol_component_observations':protocol_component_observations,'fingerprint_advisories':fingerprint_advisories,'scope_validation':scope_validation,'enterprise_readiness':enterprise_readiness,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation,'enumeration_intelligence':enumeration_intelligence,'operational_maturity':operational_maturity,'decision_register':decision_register,'evidence_manifest':evidence_manifest,'mitre_source':mitre,'nvd_source':nvd_source,'msrc_source':msrc_source,'kev_source':kev_source,'windows_patch_inventory':windows_patch_inventories,'windows_patch_assessments':windows_patch_assessments,'msrc_patch_diagnostics':msrc_patch_diagnostics,'tool_coverage':public_coverage,'host_discovery_execution':host_discovery_execution,'collector_coverage_matrix':collector_coverage_matrix,'unresolved_identity_queue':unresolved_identity_queue,'service_inventory':all_services,'service_summary':service_summary,'service_workbench':service_workbench,'attack_surface_sections':attack_surface_sections,'cve_matches':cve_matches,'cve_matches_by_host':cve_matches_by_host,'cve_findings_by_target':cve_matches_by_host,'baseline_cves':canonical_cve_contract['baseline_cve_references'],'cve_matcher_diagnostics':cve_matcher_diagnostics,'cve_review_completeness':cve_review_completeness,'nvd_cvss_enrichment_diagnostics':nvd_cvss_enrichment_diagnostics,'vulnerability_scoring':{'selection': scan_options.get('cvss_selection') or {'version':'3.1','label':'CVSS 3.1'}, 'stage':'post_match_only', 'verifiers':cvss_scoring_verifiers, 'rule':'CVSS never changes scan execution, evidence recovery, identity, applicability, or CVE count.'},'evidence_recovery':evidence_recovery_summary,'canonical_cve_contract':canonical_cve_contract,'service_level_checks':service_level_checks,'security_relevant_observations':security_observations,'observed_security_conditions':observed_security_conditions,'observed_security_evidence':observed_security_evidence,'key_exposure_indicators':key_exposure_indicators,'tcp_service_count':len([x for x in all_services if x.get('protocol')=='tcp']),'udp_service_count':len([x for x in all_services if x.get('protocol')=='udp']),'web_inventory':web,'web_summary':web_summary,'smb_inventory':smb,'smb_summary':smb_summary,'raw_evidence_index':raw,'caldera_handoff':caldera_handoff,'environment_summary':_build_environment_summary(environment_intelligence, environment_context_indicators),'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'exploit_validation_candidates':exploit_validation_candidates,'authentication_surface_readiness':authentication_surface_readiness,'web_exploitation_readiness':web_exploitation_readiness,'suggested_follow_up_objectives':follow_up_objectives,'escalation_paused':False}
         package.update({
             'result_state': result_state,
             'selected_plan_readiness': selected_plan_readiness,
@@ -6630,9 +6737,37 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         out=scan_store.result_path(f'{scan_id}_handoff.json'); out.write_text(json.dumps(_sanitise_export_paths(package), indent=2, default=str), encoding='utf-8')
         package['handoff_file']=str(out)
         _finish(scan_id, task, scan_store.STATUS_SUCCESS, 'Report and handoff package assembled')
-        scan_store.update(scan_id,status=scan_store.STATUS_SUCCESS,completed_at=scan_store.now(),results=package,**analysis_fields)
+        scan_store.update(scan_id,status=scan_store.STATUS_SUCCESS,workflow_stage='completed',workflow=workflow,completed_at=scan_store.now(),results=package,**analysis_fields)
         scan_store.persist(scan_id)
     except Exception as e:
         scan_store.log(scan_id, f'Pipeline error: {e}', 'ERROR')
-        scan_store.update(scan_id,status=scan_store.STATUS_FAILED,error=str(e),completed_at=scan_store.now())
+        current_scan = scan_store.get(scan_id) or {}
+        workflow = dict(current_scan.get('workflow') or {})
+        phase_results = dict(workflow.get('phase_results') or {})
+        assessment_phase = dict(phase_results.get('assessment') or {})
+        failed_targets = []
+        try:
+            failed_targets = expand_target_input(target_input, Config.MAX_EXPANDED_TARGETS)
+        except Exception:
+            failed_targets = []
+        assessment_phase.update({
+            'status': 'failed',
+            'targets': failed_targets,
+            'target_count': len(failed_targets),
+            'error': str(e),
+        })
+        phase_results['assessment'] = assessment_phase
+        workflow.update({
+            'assessment_targets': failed_targets,
+            'assessment_target': target_input,
+            'phase_results': phase_results,
+        })
+        scan_store.update(
+            scan_id,
+            status=scan_store.STATUS_FAILED,
+            workflow_stage='assessment_failed',
+            workflow=workflow,
+            error=str(e),
+            completed_at=scan_store.now(),
+        )
         scan_store.persist(scan_id)

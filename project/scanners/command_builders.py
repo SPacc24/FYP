@@ -62,12 +62,25 @@ def tracepath_path(tracepath_bin: str, host: str, max_hops: int) -> list[str]:
     return [tracepath_bin, '-n', '-m', str(int(max_hops)), str(host)]
 
 
-def arp_scan(arp_bin: str, host: str) -> list[str]:
-    return [arp_bin, str(host)]
+def arp_scan(arp_bin: str, host: str, *, interface: str = '') -> list[str]:
+    cmd = [arp_bin]
+    if str(interface or '').strip():
+        cmd += ['--interface', str(interface).strip()]
+    cmd.append(str(host))
+    return cmd
 
 
-def nmap_host_discovery(nmap_bin: str, targets: Sequence[str], output_file: Path | str) -> list[str]:
-    return [nmap_bin, '-sn', '-oX', str(output_file), *[str(t) for t in targets]]
+def nmap_host_discovery(
+    nmap_bin: str,
+    targets: Sequence[str],
+    output_file: Path | str,
+    *,
+    interface: str = '',
+) -> list[str]:
+    cmd = [nmap_bin, '-sn', '-oX', str(output_file)]
+    if str(interface or '').strip():
+        cmd += ['-e', str(interface).strip()]
+    return [*cmd, *[str(t) for t in targets]]
 
 
 def nmap_tcp_discovery(nmap_bin: str, host: str, ports: Iterable[int], timing: Sequence[str], output_file: Path | str) -> list[str]:
@@ -197,3 +210,35 @@ def git_clone_shallow(git_bin: str, repo_url: str, destination: Path | str) -> l
 
 def git_pull_ff_only(git_bin: str, repo_dir: Path | str) -> list[str]:
     return [git_bin, '-C', str(repo_dir), 'pull', '--ff-only']
+
+
+def nmap_external_reachability(nmap_bin: str, host: str, output_file: Path | str) -> list[str]:
+    """Build Phase 1 low-impact host-discovery probes without a port scan."""
+    return [
+        nmap_bin,
+        '-sn',
+        '-n',
+        '-PE',
+        '-PS80,443',
+        '-PA80,443',
+        '--host-timeout',
+        '15s',
+        '-oX',
+        str(output_file),
+        str(host),
+    ]
+
+
+def nmap_internal_host_discovery(
+    nmap_bin: str,
+    subnet: str,
+    output_file: Path | str,
+    *,
+    interface: str = '',
+) -> list[str]:
+    """Build Phase 2 inventory-only host discovery for one authorised subnet."""
+    cmd = [nmap_bin, '-sn', '-oX', str(output_file)]
+    if str(interface or '').strip():
+        cmd += ['-e', str(interface).strip()]
+    cmd.append(str(subnet))
+    return cmd
