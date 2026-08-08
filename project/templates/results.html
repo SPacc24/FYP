@@ -112,22 +112,41 @@
     {% set mission_hosts = mission_workflow.get('discovered_hosts', []) %}
     {% set mission_targets = mission_workflow.get('assessment_targets', []) %}
     {% set mission_context = mission_workflow.get('network_context', {}) %}
-    <section class="mini-panel scan-config-panel" aria-label="Continuous scan mission">
+    {% set mission_segments = mission_workflow.get('segments', {}) %}
+    {% set mission_segment_order = mission_workflow.get('segment_order', []) %}
+    {% set current_segment = mission_segments.get(mission_workflow.get('current_segment_id'), mission_workflow.get('current_segment', {})) %}
+    {% set entry_records = mission_hosts|selectattr('record_type','equalto','entry_target')|list %}
+    {% set independent_records = mission_hosts|selectattr('independently_discovered')|list %}
+    {% set mission_route_observations = mission_workflow.get('route_observations', []) %}
+    {% set mission_authorized_routes = mission_workflow.get('authorized_route_records', {}) %}
+    {% set mission_override_targets = mission_workflow.get('phase_results',{}).get('assessment',{}).get('override_targets', []) %}
+    <section class="mini-panel scan-config-panel" aria-label="Layered scan mission">
       <div class="stage-head-with-actions">
         <div>
-          <span class="label">Continuous Scan Mission</span>
-          <h3>External → Internal → Assessment</h3>
-          <p class="small muted">Phase 1 and Phase 2 discovery evidence are retained with the existing Phase 3 assessment.</p>
+          <span class="label">Scope-Aware Scan Mission</span>
+          <h3>Entry Verification → Scope Enumeration → Vulnerability Assessment</h3>
+          <p class="small muted">Each host or network scope was processed separately. The operator could authorise any retained bounded route, and every authorised path was reverified before transition.</p>
         </div>
       </div>
       <div class="scan-assurance-grid">
-        <article class="scan-assurance-card"><span class="label">External Target</span><strong>{{ mission_workflow.get('external_target','Unknown') }}</strong><span class="small muted">Phase 1 reachability target</span></article>
-        <article class="scan-assurance-card"><span class="label">Access Method</span><strong>{{ mission_workflow.get('access_mode', mission_context.get('access_mode','unknown'))|replace('_',' ')|title }}</strong><span class="small muted">Derived from route and interface evidence</span></article>
-        <article class="scan-assurance-card"><span class="label">Selected Interface</span><strong>{{ mission_context.get('interface','Unknown') }}</strong><span class="small muted">Scanner source {{ mission_context.get('scanner_ip','Unknown') }}</span></article>
-        <article class="scan-assurance-card"><span class="label">Internal Subnet</span><strong>{{ mission_workflow.get('internal_subnet','Unknown') }}</strong><span class="small muted">Selected from route-derived candidates</span></article>
-        <article class="scan-assurance-card"><span class="label">Hosts Discovered</span><strong>{{ mission_hosts|length }}</strong><span class="small muted">Phase 2 live-host inventory</span></article>
-        <article class="scan-assurance-card"><span class="label">Assessment Targets</span><strong>{{ mission_targets|length if mission_targets else 1 }}</strong><span class="small muted">{{ mission_targets|join(', ') if mission_targets else mission_workflow.get('assessment_target', results.target_input|default('Unknown')) }}</span></article>
+        <article class="scan-assurance-card"><span class="label">Entry Target</span><strong>{{ mission_workflow.get('entry_target', mission_workflow.get('external_target','Unknown')) }}</strong><span class="small muted">Initial operator-supplied address</span></article>
+        <article class="scan-assurance-card"><span class="label">Visited Scopes</span><strong>{{ mission_segment_order|length }}</strong><span class="small muted">Persisted traversal order</span></article>
+        <article class="scan-assurance-card"><span class="label">Assessment Interface</span><strong>{{ current_segment.get('interface', mission_context.get('interface','Unknown')) }}</strong><span class="small muted">Scanner source {{ current_segment.get('source_address', mission_context.get('scanner_ip','Unknown')) }}</span></article>
+        <article class="scan-assurance-card"><span class="label">Assessed Scope</span><strong>{{ current_segment.get('network', mission_workflow.get('internal_subnet','Unknown')) }}</strong><span class="small muted">Selected only after scope verification</span></article>
+        <article class="scan-assurance-card"><span class="label">Operator-Supplied Records</span><strong>{{ entry_records|length }}</strong><span class="small muted">Verified without being relabelled discovered</span></article>
+        <article class="scan-assurance-card"><span class="label">Additional Hosts Discovered</span><strong>{{ independent_records|length }}</strong><span class="small muted">Current-scope network-enumeration findings</span></article>
+        <article class="scan-assurance-card"><span class="label">Route Observations</span><strong>{{ mission_route_observations|length }}</strong><span class="small muted">Not all observations were mission paths</span></article>
+        <article class="scan-assurance-card"><span class="label">Authorised Routes</span><strong>{{ mission_authorized_routes|length }}</strong><span class="small muted">Explicit mission-only operator decisions</span></article>
+        <article class="scan-assurance-card"><span class="label">Assume-Live Overrides</span><strong>{{ mission_override_targets|length }}</strong><span class="small muted">Reachability state was not changed</span></article>
+        <article class="scan-assurance-card"><span class="label">Assessment Targets</span><strong>{{ mission_targets|length }}</strong><span class="small muted">{{ mission_targets|join(', ') if mission_targets else 'No Phase 3 target selected' }}</span></article>
       </div>
+      {% if mission_segment_order %}
+      <div class="table-scroll top-gap"><table><thead><tr><th>Order</th><th>Scope type</th><th>Scope</th><th>Interface</th><th>Source</th><th>Next hop</th><th>Host observations</th></tr></thead><tbody>
+      {% for segment_id in mission_segment_order %}{% set segment = mission_segments.get(segment_id,{}) %}
+      <tr><td>{{ loop.index }}</td><td>{{ 'Host' if segment.get('scope_kind') == 'entry_host' else 'Network' }}</td><td class="mono">{{ segment.get('network','Unknown') }}</td><td class="mono">{{ segment.get('interface','Unknown') }}</td><td class="mono">{{ segment.get('source_address') or 'Not reported' }}</td><td class="mono">{{ segment.get('next_hop') or 'None observed' }}</td><td>{{ segment.get('hosts',[])|length }}</td></tr>
+      {% endfor %}
+      </tbody></table></div>
+      {% endif %}
     </section>
     {% endif %}
 

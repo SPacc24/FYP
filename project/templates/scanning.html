@@ -8,9 +8,9 @@
 <main class="shell">
 <header class="topbar">
   <div>
-    <div class="eyebrow">{% if workflow_stage == 'assessment' %}PHASE 3 · ASSESSMENT{% else %}PHASE 1–2 · NETWORK DISCOVERY{% endif %}</div>
+    <div class="eyebrow">{% if workflow_stage == 'assessment' %}PHASE 3 · VULNERABILITY ASSESSMENT{% else %}PHASE 1–2 · LAYERED NETWORK DISCOVERY{% endif %}</div>
     <h1>{{ target }}</h1>
-    <p class="muted">{% if workflow_stage == 'assessment' %}The existing configurable assessment is running against the selected discovered host. Existing scanner and teammate-owned stages remain unchanged.{% else %}The scanner is validating external access, deriving the routed internal subnet, and building the Phase 2 host inventory.{% endif %}</p>
+    <p class="muted">{% if workflow_stage == 'assessment' %}The existing configurable assessment is running against the operator-selected retained targets. Existing scanner and teammate-owned stages remain unchanged.{% else %}The scanner is collecting route evidence and enumerating only the current verified host or network scope. It will pause before following any continuation path.{% endif %}</p>
   </div>
   <a class="btn ghost" href="/">New Scan</a>
 </header>
@@ -57,7 +57,7 @@
       </div>
       {% else %}
       <div class="overview-card">
-        <span>Discovered Internal Subnet</span>
+        <span>Current Reachable Scope</span>
         <b id="internalSubnet">Pending</b>
       </div>
       <div class="overview-card">
@@ -151,13 +151,13 @@ async function poll(){
  const workflow=(d.workflow && typeof d.workflow === 'object') ? d.workflow : {};
  const networkContext=(workflow.network_context && typeof workflow.network_context === 'object') ? workflow.network_context : {};
  const internalSubnet=document.getElementById('internalSubnet');
- if (internalSubnet) internalSubnet.textContent=workflow.internal_subnet || networkContext.internal_subnet || 'Pending';
+ if (internalSubnet) internalSubnet.textContent=(workflow.current_segment && workflow.current_segment.network) || workflow.internal_subnet || networkContext.internal_subnet || 'Pending';
  const workflowState=document.getElementById('workflowState');
  if (workflowState) workflowState.textContent=String(d.workflow_stage || d.status || 'external discovery').replaceAll('_',' ');
- if (String(d.status||'') === 'awaiting_subnet_selection') {
+ if (['awaiting_subnet_selection','awaiting_layer_decision'].includes(String(d.status||''))) {
    redirecting = true;
-   document.getElementById('current').textContent='Opening internal subnet selection...';
-   window.location.assign(`/scan/select-subnet/${encodeURIComponent(scanId)}`);
+   document.getElementById('current').textContent='Opening network-layer decision...';
+   window.location.assign(`/scan/layer/${encodeURIComponent(scanId)}`);
    return;
  }
  if (String(d.status||'') === 'awaiting_assessment_configuration') {

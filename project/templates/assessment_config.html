@@ -131,12 +131,12 @@
           <section id="phase3-target" class="index-section target-card target-section">
             <div class="section-header">
               <span class="step-number">1</span>
-              <span class="label">DISCOVERED ASSESSMENT TARGETS</span>
+              <span class="label">RETAINED ASSESSMENT TARGETS</span>
             </div>
             <div class="target-selection-head">
               <div>
                 <h2>Select one or more hosts</h2>
-                <p class="muted small">Only hosts retained by Phase 2 are available. At least one host must be selected.</p>
+                <p class="muted small">Only selectable address records retained in the current verified scope are available. At least one target must be selected.</p>
               </div>
               {% if discovered_hosts|length > 1 %}
               <div class="target-selection-actions">
@@ -146,7 +146,7 @@
               {% endif %}
             </div>
             <fieldset class="target-checkbox-fieldset" aria-describedby="assessmentTargetError">
-              <legend class="sr-only">Discovered assessment hosts</legend>
+              <legend class="sr-only">Retained assessment hosts</legend>
               <div class="target-checkbox-grid">
                 {% for host in discovered_hosts %}
                 <label class="target-checkbox-card">
@@ -158,17 +158,19 @@
                   <span class="target-checkbox-content">
                     <strong class="mono">{{ host.ip }}</strong>
                     <small>
-                      {% if host.hostname %}{{ host.hostname }}{% else %}Hostname not observed{% endif %}
-                      {% if host.role == 'gateway' %} · Gateway{% endif %}
+                      {% if host.hostname %}{{ host.hostname }}{% else %}Hostname not observed{% endif %} · {{ host.get('origin','unknown')|replace('_',' ') }}
+                      {% if host.role == 'gateway' %} · Observed next-hop address{% endif %}
+                      · {{ host.get('reachability_state','observed')|replace('_',' ') }}
                     </small>
                     {% if host.mac_vendor or host.mac %}<small class="muted">{{ host.mac_vendor or 'MAC observed' }}{% if host.mac %} · {{ host.mac }}{% endif %}</small>{% endif %}
+                    {% if host.get('assessment_override') %}<small class="muted">Operator authorised assessment despite inconclusive reachability; the original reachability state is preserved.</small>{% endif %}
                   </span>
                 </label>
                 {% endfor %}
               </div>
             </fieldset>
-            <p id="assessmentTargetError" class="form-error" role="alert" hidden>Select at least one discovered host.</p>
-            <p class="muted small">Phase 1 external target: <span class="mono">{{ workflow.external_target }}</span> · Phase 2 subnet: <span class="mono">{{ workflow.internal_subnet }}</span> · Interface: <span class="mono">{{ workflow.get('network_context',{}).get('interface','Unknown') }}</span></p>
+            <p id="assessmentTargetError" class="form-error" role="alert" hidden>Select at least one retained target.</p>
+            <p class="muted small">Entry target: <span class="mono">{{ workflow.get('entry_target', workflow.get('external_target','Unknown')) }}</span> · Current verified scope: <span class="mono">{{ current_segment.get('network', workflow.get('internal_subnet','Unknown')) }}</span> · Interface: <span class="mono">{{ current_segment.get('interface', workflow.get('network_context',{}).get('interface','Unknown')) }}</span></p>
           </section>
 
           <div class="config-grid">

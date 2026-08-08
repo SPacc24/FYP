@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 import json, os, threading, uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +35,10 @@ STATUS_FAILED = 'failed'
 STATUS_EXTERNAL_DISCOVERY = 'external_discovery'
 STATUS_INTERNAL_DISCOVERY = 'internal_discovery'
 STATUS_AWAITING_SUBNET_SELECTION = 'awaiting_subnet_selection'
+STATUS_ENTRY_DISCOVERY = 'entry_discovery'
+STATUS_LAYER_ENUMERATION = 'layer_enumeration'
+STATUS_AWAITING_LAYER_DECISION = 'awaiting_layer_decision'
+STATUS_PATH_VERIFICATION = 'path_verification'
 STATUS_AWAITING_CONFIGURATION = 'awaiting_assessment_configuration'
 STATUS_ASSESSMENT_RUNNING = 'assessment_running'
 
@@ -47,12 +51,16 @@ LABELS = {
     STATUS_EXTERNAL_DISCOVERY: 'External Discovery',
     STATUS_INTERNAL_DISCOVERY: 'Internal Discovery',
     STATUS_AWAITING_SUBNET_SELECTION: 'Awaiting Internal Subnet Selection',
+    STATUS_ENTRY_DISCOVERY: 'Entry Discovery',
+    STATUS_LAYER_ENUMERATION: 'Current Scope Enumeration',
+    STATUS_AWAITING_LAYER_DECISION: 'Awaiting Scope Decision',
+    STATUS_PATH_VERIFICATION: 'Path Verification',
     STATUS_AWAITING_CONFIGURATION: 'Awaiting Assessment Configuration',
     STATUS_ASSESSMENT_RUNNING: 'Assessment Running',
 }
 
 def now() -> str:
-    return datetime.now().isoformat(timespec='seconds')
+    return datetime.now(timezone.utc).isoformat(timespec='seconds')
 
 def new_scan(target: str, source_ip: str = '', user_agent: str = '', scan_options: dict[str, Any] | None = None) -> str:
     scan_id = uuid.uuid4().hex[:12]
@@ -138,14 +146,15 @@ def set_task(scan_id: str, name: str, status: str, command: str = '', summary: s
         data['next_task'] = queued[1]['name'] if (not running and len(queued) > 1) else (queued[0]['name'] if running and queued else '')
 
 def log(scan_id: str, message: str, level: str = 'INFO', command: str = '') -> None:
-    entry = {'time': datetime.now().strftime('%H:%M:%S'), 'level': level, 'message': message, 'command': command}
+    entry = {'time': datetime.now(timezone.utc).strftime('%H:%M:%SZ'), 'timestamp': now(), 'level': level, 'message': message, 'command': command}
     with _lock:
         if scan_id in _store:
             _store[scan_id]['activity_log'].append(entry)
 
-def log_command(scan_id: str, *, command: str, purpose: str, output: str = '', output_summary: str = '', status: str = '', exit_code: Any = '', output_file: str = '', output_truncated: bool = False) -> None:
+def log_command(scan_id: str, *, command: str, purpose: str, output: str = '', output_summary: str = '', status: str = '', exit_code: Any = '', output_file: str = '', output_truncated: bool = False, started_at: str = '', ended_at: str = '', interface: str = '', source_address: str = '', segment_id: str = '', target: str = '') -> None:
     entry = {
-        'time': datetime.now().strftime('%H:%M:%S'),
+        'time': datetime.now(timezone.utc).strftime('%H:%M:%SZ'),
+        'timestamp': now(),
         'level': status or 'Completed',
         'status': status or 'Completed',
         'command': command,
@@ -156,6 +165,12 @@ def log_command(scan_id: str, *, command: str, purpose: str, output: str = '', o
         'exit_code': exit_code,
         'output_file': output_file or '',
         'output_truncated': bool(output_truncated),
+        'started_at': started_at or '',
+        'ended_at': ended_at or '',
+        'interface': interface or '',
+        'source_address': source_address or '',
+        'segment_id': segment_id or '',
+        'target': target or '',
     }
     with _lock:
         if scan_id in _store:
@@ -164,7 +179,8 @@ def log_command(scan_id: str, *, command: str, purpose: str, output: str = '', o
 
 def audit_event(scan_id: str, actor: str, action: str, details: Any = None) -> None:
     entry = {
-        'time': datetime.now().strftime('%H:%M:%S'),
+        'time': datetime.now(timezone.utc).strftime('%H:%M:%SZ'),
+        'timestamp': now(),
         'actor': actor or 'system',
         'action': action or '',
         'details': details if details is not None else {},

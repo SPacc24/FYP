@@ -252,14 +252,14 @@ When the scan completes, review in this order:
 1. Scope-validation result and warnings.
 2. Host and service inventory.
 3. Service evidence and raw artefact references.
-4. Evidence-backed CVE matches and their version evidence.
-5. Matcher diagnostics and identity evidence gaps.
+4. Confirmed CVE matches and their version evidence.
+5. Candidate CVE references and evidence gaps.
 6. Security observations and attack-surface workbench.
 7. ATT&CK mapping and technique explanations.
 8. Tool coverage and incomplete checks.
 9. Technical appendix and evidence manifest.
 
-Treat matcher diagnostics as evidence-quality information, not vulnerability findings. Verify product identity, version applicability, patch state, and compensating controls before reporting a CVE as exploitable.
+Treat candidate CVEs as research leads, not confirmed vulnerabilities. Confirm product identity, version applicability, and compensating controls before reporting them as findings.
 
 ## 8. Controlled validation procedure
 
@@ -443,3 +443,4 @@ Also confirm that the service has sufficiently specific product and version evid
 - [ ] Secrets were not included in evidence or reports.
 - [ ] Runtime data was archived or cleaned according to policy.
 - [ ] The lab was returned to its expected snapshot or baseline.
+

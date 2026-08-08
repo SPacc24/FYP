@@ -2821,3 +2821,59 @@ html {
   border-top: 1px dashed rgba(148, 163, 184, .35);
   color: var(--muted, #94a3b8);
 }
+
+/* Scope-aware route authorisation controls (v5). */
+.route-radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  cursor: pointer;
+  min-width: 4.6rem;
+}
+.route-radio-label input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.route-radio-indicator {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--blue);
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  background: #07101c;
+  box-shadow: 0 0 0 2px rgba(77,155,255,.08);
+}
+.route-radio-label input:checked + .route-radio-indicator::after {
+  content: "";
+  width: .5rem;
+  height: .5rem;
+  border-radius: 50%;
+  background: var(--blue);
+}
+.route-radio-label input:focus-visible + .route-radio-indicator {
+  outline: 2px solid rgba(77,155,255,.65);
+  outline-offset: 2px;
+}
+.operator-override-card {
+  display: flex;
+  align-items: flex-start;
+  gap: .8rem;
+  border: 1px solid rgba(245, 158, 11, .45);
+  background: rgba(245, 158, 11, .08);
+  border-radius: 12px;
+  padding: .9rem 1rem;
+  cursor: pointer;
+}
+.operator-override-card input {
+  margin-top: .25rem;
+  flex: 0 0 auto;
+}
+.operator-override-card span {
+  display: grid;
+  gap: .25rem;
+}
+.operator-override-card small {
+  color: var(--muted);
+}

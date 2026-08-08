@@ -83,6 +83,34 @@ def nmap_host_discovery(
     return [*cmd, *[str(t) for t in targets]]
 
 
+def tracepath_observation(tracepath_bin: str, target: str, max_hops: int) -> list[str]:
+    """Build a bounded, numeric tracepath observation command."""
+
+    return [
+        str(tracepath_bin),
+        '-n',
+        '-m',
+        str(int(max_hops)),
+        str(target),
+    ]
+
+
+def traceroute_observation(traceroute_bin: str, target: str, max_hops: int) -> list[str]:
+    """Build a bounded, numeric traceroute observation command."""
+
+    return [
+        str(traceroute_bin),
+        '-n',
+        '-m',
+        str(int(max_hops)),
+        '-w',
+        '1',
+        '-q',
+        '1',
+        str(target),
+    ]
+
+
 def nmap_tcp_discovery(nmap_bin: str, host: str, ports: Iterable[int], timing: Sequence[str], output_file: Path | str) -> list[str]:
     return [nmap_bin, *_args(timing), '-p', _ports(ports), '-oX', str(output_file), str(host)]
 

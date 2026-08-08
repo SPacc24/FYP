@@ -45,6 +45,8 @@ fi
 export KALI_IP
 export UBUNTU_IP
 export WIN10_IP
+export CHISEL_PORT="${PIVOT_DEFAULT_CHISEL_PORT:-8080}"
+export SOCKS_PORT="${PIVOT_DEFAULT_SOCKS_PORT:-1080}"
 
 
 
@@ -197,7 +199,7 @@ try:
         platform="linux",
     )
 except Exception as exc:
-    print(f"  ❌ Exploiter exception: {type(exc).name}: {exc}")
+    print(f"  ❌ Exploiter exception: {type(exc).__name__}: {exc}")
     raise SystemExit(0)
 
 print("  Exploiter result:")
@@ -221,6 +223,9 @@ echo
 
 echo "[3/5] Pivot setup..."
 
+CHISEL_PORT="${PIVOT_DEFAULT_CHISEL_PORT:-8080}"
+SOCKS_PORT="${PIVOT_DEFAULT_SOCKS_PORT:-1080}"
+
 python3 <<'PY'
 import os
 import socket
@@ -238,15 +243,15 @@ def port_open(host: str, port: int) -> bool:
     except OSError:
         return False
 
-already_running = port_open("127.0.0.1", 8080)
+already_running = port_open("127.0.0.1", int(os.environ.get("CHISEL_PORT", "8080")))
 
 if already_running:
     print("  Chisel server already listening on port 8080")
     ok = True
 else:
     ok = pe.start_chisel_server(
-        port=8080,
-        socks_port=1080,
+        port=int(os.environ.get("CHISEL_PORT", "8080")),
+        socks_port=int(os.environ.get("SOCKS_PORT", "1080")),
     )
 
 print(f'  Chisel: {"✅" if ok else "❌"}')
@@ -256,7 +261,7 @@ if not ok:
 
 try:
     proxychains_ok = pe.configure_proxychains(
-        socks_port=1080,
+        socks_port=int(os.environ.get("SOCKS_PORT", "1080")),
     )
 except Exception as exc:
     print(f"  ❌ ProxyChains configuration failed: {exc}")
@@ -268,7 +273,7 @@ print(
 
 client_command = pe.generate_client_command(
     platform="linux",
-    chisel_port=8080,
+    chisel_port=int(os.environ.get("CHISEL_PORT", "8080")),
 )
 
 print("  Ubuntu client command:")
@@ -285,11 +290,11 @@ echo "[4/5] Internal scan..."
 SOCKS_ACTIVE="$(
     ss -lnt 2>/dev/null |
     awk '{print $4}' |
-    grep -Ec '(^|:)1080$' || true
+    grep -Ec "(^|:)$SOCKS_PORT$" || true
 )"
 
 if [[ "$SOCKS_ACTIVE" -gt 0 ]]; then
-    echo "  ✅ SOCKS proxy detected on port 1080"
+    echo "  ✅ SOCKS proxy detected on port $SOCKS_PORT"
     echo "  Running internal SMB scan through Ubuntu..."
 
     proxychains4 \
@@ -301,7 +306,7 @@ if [[ "$SOCKS_ACTIVE" -gt 0 ]]; then
         -p445 \
         "$WIN10_IP"
 else
-    echo "  ⏳ SOCKS port 1080 is not active yet."
+    echo "  ⏳ SOCKS port $SOCKS_PORT is not active yet."
     echo "  Run the generated Chisel client command on Ubuntu, then use:"
     echo
     echo "  proxychains4 -f $PWD/proxychains4.conf nmap -sT -Pn -p445 $WIN10_IP"

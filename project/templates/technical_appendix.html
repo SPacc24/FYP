@@ -34,23 +34,53 @@
     {% set mission_workflow = results.workflow|default(scan.workflow|default({})) %}
     {% set mission_context = mission_workflow.get('network_context', {}) %}
     {% set mission_targets = mission_workflow.get('assessment_targets', []) %}
+    {% set mission_segments = mission_workflow.get('segments', {}) %}
+    {% set mission_segment_order = mission_workflow.get('segment_order', []) %}
+    {% set current_segment = mission_segments.get(mission_workflow.get('current_segment_id'), mission_workflow.get('current_segment', {})) %}
+    {% set current_hosts = current_segment.get('hosts', mission_workflow.get('discovered_hosts',[])) %}
+    {% set entry_records = current_hosts|selectattr('record_type','equalto','entry_target')|list %}
+    {% set independent_records = current_hosts|selectattr('independently_discovered')|list %}
+    {% set route_observations = mission_workflow.get('route_observations', []) %}
+    {% set authorized_routes = mission_workflow.get('authorized_route_records', {}) %}
+    {% set override_targets = mission_workflow.get('phase_results',{}).get('assessment',{}).get('override_targets', []) %}
     {% if mission_workflow %}
     <section class="appendix-box">
       <div class="appendix-box-head">
-        <span class="label">Continuous Mission</span>
-        <h2>Phase 1 → Phase 2 → Phase 3 Scope</h2>
-        <p class="muted">Route evidence, discovered inventory, and selected assessment targets retained under one scan ID.</p>
+        <span class="label">Scope-Aware Mission</span>
+        <h2>Entry Verification → Scope Traversal → Phase 3</h2>
+        <p class="muted">Every visited scope, operator decision, route verification, address provenance record, and selected assessment target remains under one scan ID.</p>
       </div>
       <div class="appendix-table-shell"><table><tbody>
-        <tr><th>External target</th><td>{{ mission_workflow.get('external_target','Unknown') }}</td></tr>
-        <tr><th>Access method</th><td>{{ mission_workflow.get('access_mode', mission_context.get('access_mode','unknown'))|replace('_',' ')|title }}</td></tr>
-        <tr><th>Selected interface</th><td>{{ mission_context.get('interface','Unknown') }}</td></tr>
-        <tr><th>Scanner source IP</th><td>{{ mission_context.get('scanner_ip','Unknown') }}</td></tr>
-        <tr><th>Route gateway</th><td>{{ mission_context.get('gateway') or 'None / directly connected' }}</td></tr>
-        <tr><th>Selected internal subnet</th><td>{{ mission_workflow.get('internal_subnet','Unknown') }}</td></tr>
-        <tr><th>Phase 2 hosts discovered</th><td>{{ mission_workflow.get('discovered_hosts',[])|length }}</td></tr>
-        <tr><th>Phase 3 targets selected</th><td>{{ mission_targets|join(', ') if mission_targets else mission_workflow.get('assessment_target', results.target_input|default('Unknown')) }}</td></tr>
+        <tr><th>Entry target</th><td>{{ mission_workflow.get('entry_target', mission_workflow.get('external_target','Unknown')) }}</td></tr>
+        <tr><th>Visited scope count</th><td>{{ mission_segment_order|length }}</td></tr>
+        <tr><th>Assessment interface</th><td>{{ current_segment.get('interface', mission_context.get('interface','Unknown')) }}</td></tr>
+        <tr><th>Scanner source address</th><td>{{ current_segment.get('source_address', mission_context.get('scanner_ip','Unknown')) }}</td></tr>
+        <tr><th>Observed next hop</th><td>{{ current_segment.get('next_hop') or mission_context.get('gateway') or 'None observed' }}</td></tr>
+        <tr><th>Assessed scope</th><td>{{ current_segment.get('network', mission_workflow.get('internal_subnet','Unknown')) }} · {{ 'Host' if current_segment.get('scope_kind') == 'entry_host' else 'Network' }}</td></tr>
+        <tr><th>Operator-supplied records</th><td>{{ entry_records|length }}</td></tr>
+        <tr><th>Additional hosts independently discovered</th><td>{{ independent_records|length }}</td></tr>
+        <tr><th>Retained route observations</th><td>{{ route_observations|length }}</td></tr>
+        <tr><th>Operator-authorised routes</th><td>{{ authorized_routes|length }}</td></tr>
+        <tr><th>Inconclusive-reachability Phase 3 overrides</th><td>{{ override_targets|join(', ') if override_targets else 'None' }}</td></tr>
+        <tr><th>Phase 3 targets selected</th><td>{{ mission_targets|join(', ') if mission_targets else 'None selected' }}</td></tr>
       </tbody></table></div>
+      {% if mission_segment_order %}
+      <div class="appendix-table-shell"><table><thead><tr><th>Order</th><th>Segment ID</th><th>Scope type</th><th>Scope</th><th>Interface</th><th>Source</th><th>Next hop</th><th>Route table</th><th>Hosts</th></tr></thead><tbody>
+        {% for segment_id in mission_segment_order %}{% set segment = mission_segments.get(segment_id,{}) %}
+        <tr><td>{{ loop.index }}</td><td class="small mono">{{ segment_id }}</td><td>{{ 'Host' if segment.get('scope_kind') == 'entry_host' else 'Network' }}</td><td class="mono">{{ segment.get('network','Unknown') }}</td><td class="mono">{{ segment.get('interface','Unknown') }}</td><td class="mono">{{ segment.get('source_address') or 'Not reported' }}</td><td class="mono">{{ segment.get('next_hop') or 'None observed' }}</td><td>{{ segment.get('route_table','main') }}</td><td>{{ segment.get('hosts',[])|length }}</td></tr>
+        {% endfor %}
+      </tbody></table></div>
+      {% endif %}
+      {% if route_observations %}
+      <div class="appendix-table-shell"><table><thead><tr><th>Scope</th><th>Destination</th><th>Interface</th><th>Next hop</th><th>Baseline</th><th>Evidence relationship</th><th>Authorisation</th></tr></thead><tbody>
+        {% for route in route_observations %}<tr><td class="small mono">{{ route.get('from_segment_id','N/A') }}</td><td class="mono">{{ route.get('destination_network','Unknown') }}</td><td class="mono">{{ route.get('interface') or 'Kernel-selected' }}</td><td class="mono">{{ route.get('next_hop') or 'None' }}</td><td>{{ 'Yes' if route.get('baseline') else 'No' }}</td><td>{{ route.get('relationship','observation_only')|replace('_',' ') }}</td><td>{% if route.get('operator_authorized') %}Operator authorised{% else %}Observation only{% endif %}{% if route.get('authorized_at') %} · {{ route.get('authorized_at') }}{% endif %}</td></tr>{% endfor %}
+      </tbody></table></div>
+      {% endif %}
+      {% if mission_workflow.get('operator_decisions') %}
+      <div class="appendix-table-shell"><table><thead><tr><th>Time</th><th>Decision</th><th>Segment / Path</th><th>Scope</th></tr></thead><tbody>
+        {% for decision in mission_workflow.get('operator_decisions',[]) %}<tr><td>{{ decision.get('timestamp','Unknown') }}</td><td>{{ decision.get('decision','')|replace('_',' ')|title }}</td><td class="small mono">{{ decision.get('segment_id') or decision.get('path_id') or 'N/A' }}</td><td class="mono">{{ decision.get('network') or decision.get('destination_network') or 'N/A' }}</td></tr>{% endfor %}
+      </tbody></table></div>
+      {% endif %}
     </section>
     {% endif %}
 

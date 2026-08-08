@@ -224,7 +224,7 @@ window.addEventListener("DOMContentLoaded", () => {
     ?.addEventListener("click", () => {
       document.getElementById("cve-review")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-
+    
   document.getElementById("downloadReportNavBtn")
     ?.addEventListener("click", () => {
       const reportSection = document.getElementById("report");
@@ -1005,16 +1005,49 @@ function getSmbTarget() {
 async function smbApiPost(path, body = {}) {
   const csrf = window.DASHBOARD_SECURITY?.csrfToken || "";
 
-  const res = await fetch(path, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(csrf ? { "X-CSRFToken": csrf } : {}),
-    },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-  return res.json();
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    const responseText = await response.text();
+
+    let data;
+
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      throw new Error(
+        `Server returned ${response.status} instead of JSON: ` +
+        responseText.substring(0, 150)
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data.error || `Request failed with status ${response.status}`
+      );
+    }
+
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("SMB request timed out after 15 seconds.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function showSmbResults() {
@@ -1027,58 +1060,83 @@ function showSmbResults() {
 
 
 // ── PROPOSE ──
-document.getElementById("smbProposeBtn")?.addEventListener("click", async () => {
-  const list = document.getElementById("smbActionsList");
-  const target = getSmbTarget();
+document
+  .getElementById("smbProposeBtn")
+  ?.addEventListener("click", async () => {
+    const list = document.getElementById("smbActionsList");
+    const target = getSmbTarget();
 
-  if (!target) {
+    if (!list) {
+      return;
+    }
+
+    if (!target) {
+      list.innerHTML =
+        "<p class='muted'>No target in scan context. Run a scan first.</p>";
+      return;
+    }
+
     list.innerHTML =
-      "<p class='muted'>No target in scan context. Run a scan first.</p>";
-    return;
-  }
+      "<p class='muted'>Checking scan results for SMB services...</p>";
 
-  list.innerHTML =
-    "<p class='muted'>Checking scan results for SMB services...</p>";
+    try {
+      const data = await smbApiPost("/pentest/smb/propose");
 
-  const data = await smbApiPost("/pentest/smb/propose");
+      if (!data.ok || !data.actions?.length) {
+        list.innerHTML = `
+          <p class="muted">
+            ${escapeHtml(
+              data.error ||
+              "No SMB service detected. Ensure port 139 or 445 is open."
+            )}
+          </p>
+        `;
+        return;
+      }
 
-  if (!data.ok || !data.actions?.length) {
-    list.innerHTML = `
-      <p class="muted">
-        ${data.error || "No SMB services detected. Ensure port 445 is open."}
-      </p>
-    `;
-    return;
-  }
+      showSmbResults();
 
-  showSmbResults();
+      list.innerHTML = data.actions
+        .map((action) => `
+          <div
+            class="action-card"
+            style="
+              padding: 8px;
+              margin: 4px 0;
+              border-left: 3px solid ${
+                action.risk === "high"
+                  ? "red"
+                  : action.risk === "medium"
+                    ? "orange"
+                    : "#4a9"
+              };
+              background: #1e1e1e;
+            "
+          >
+            <strong>${escapeHtml(action.title)}</strong>
 
-  list.innerHTML = data.actions.map((action) => `
-    <div
-      class="action-card"
-      style="
-        padding: 8px;
-        margin: 4px 0;
-        border-left: 3px solid ${
-          action.risk === "high"
-            ? "red"
-            : action.risk === "medium"
-              ? "orange"
-              : "#4a9"
-        };
-        background: #1e1e1e;
-      "
-    >
-      <strong>${escapeHtml(action.title)}</strong>
-      <span class="state ${escapeHtml(action.risk)}">
-        ${escapeHtml(action.risk?.toUpperCase())}
-      </span>
-      <p class="small muted">${escapeHtml(action.description)}</p>
-    </div>
-  `).join("");
+            <span class="state ${escapeHtml(action.risk)}">
+              ${escapeHtml((action.risk || "info").toUpperCase())}
+            </span>
 
-  window._smbActions = data.actions;
-});
+            <p class="small muted">
+              ${escapeHtml(action.description)}
+            </p>
+          </div>
+        `)
+        .join("");
+
+      window._smbActions = data.actions;
+    } catch (error) {
+      console.error("SMB proposal request failed:", error);
+
+      list.innerHTML = `
+        <p class="bad">
+          SMB request failed: ${escapeHtml(error.message)}
+        </p>
+      `;
+    }
+  });
 
 
 // ── FINGERPRINT ──

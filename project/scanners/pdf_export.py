@@ -119,18 +119,46 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     if workflow:
         context = workflow.get('network_context') or {}
         targets = workflow.get('assessment_targets') or []
+        segments = workflow.get('segments') or {}
+        segment_order = workflow.get('segment_order') or []
+        current_segment = segments.get(workflow.get('current_segment_id')) or workflow.get('current_segment') or {}
+        authorised_routes = workflow.get('authorized_route_records') or {}
+        override_targets = ((workflow.get('phase_results') or {}).get('assessment') or {}).get('override_targets') or []
         workflow_rows = [
-            ['External target', workflow.get('external_target') or 'Unknown'],
-            ['Access method', str(workflow.get('access_mode') or context.get('access_mode') or 'unknown').replace('_', ' ').title()],
-            ['Selected interface / source', f"{context.get('interface') or 'Unknown'} / {context.get('scanner_ip') or 'Unknown'}"],
-            ['Internal subnet', workflow.get('internal_subnet') or 'Unknown'],
-            ['Phase 2 hosts discovered', len(workflow.get('discovered_hosts') or [])],
-            ['Phase 3 targets selected', ', '.join(map(str, targets)) or workflow.get('assessment_target') or target],
+            ['Entry target', workflow.get('entry_target') or workflow.get('external_target') or 'Unknown'],
+            ['Visited network layers', len(segment_order)],
+            ['Assessment interface / source', f"{current_segment.get('interface') or context.get('interface') or 'Unknown'} / {current_segment.get('source_address') or context.get('scanner_ip') or 'Unknown'}"],
+            ['Assessed network layer', current_segment.get('network') or workflow.get('internal_subnet') or 'Unknown'],
+            ['Current-layer host observations', len(current_segment.get('hosts') or workflow.get('discovered_hosts') or [])],
+            ['Retained route observations', len(workflow.get('route_observations') or [])],
+            ['Operator-authorised routes', len(authorised_routes)],
+            ['Inconclusive-reachability overrides', ', '.join(map(str, override_targets)) or 'None'],
+            ['Phase 3 targets selected', ', '.join(map(str, targets)) or 'None selected'],
         ]
-        story.append(Paragraph('Continuous Scan Mission', styles['Heading2']))
+        story.append(Paragraph('Layered Scan Mission', styles['Heading2']))
         workflow_table = Table([[_para(a, styles['Cell']), _para(b, styles['SmallWrap'])] for a, b in workflow_rows], colWidths=[62*mm, 206*mm])
         workflow_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#f3f3f3')),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(workflow_table)
+        if segment_order:
+            traversal_rows = [['Order', 'Network', 'Interface', 'Source', 'Next hop', 'Hosts']]
+            for index, segment_id in enumerate(segment_order, start=1):
+                segment = segments.get(segment_id) or {}
+                traversal_rows.append([
+                    index,
+                    segment.get('network') or 'Unknown',
+                    segment.get('interface') or 'Unknown',
+                    segment.get('source_address') or 'Not reported',
+                    segment.get('next_hop') or 'None observed',
+                    len(segment.get('hosts') or []),
+                ])
+            traversal_table = Table(
+                [[_para(cell, styles['SmallWrap']) for cell in row] for row in traversal_rows],
+                repeatRows=1,
+                colWidths=[18*mm, 55*mm, 40*mm, 55*mm, 55*mm, 25*mm],
+            )
+            traversal_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+            story.append(Spacer(1, 4))
+            story.append(traversal_table)
         story.append(Spacer(1, 8))
 
     policy = results.get('scan_options') or {}

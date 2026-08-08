@@ -15,7 +15,7 @@
     <span>AutoPenTest</span>
   </a>
   <div class="navbar-links">
-    <a href="#phase1" class="navbar-link"><i class="bi bi-globe2"></i><span>External</span></a>
+    <a href="#phase1" class="navbar-link"><i class="bi bi-globe2"></i><span>Entry</span></a>
     <a href="#workflow" class="navbar-link"><i class="bi bi-diagram-3"></i><span>Workflow</span></a>
   </div>
   <div class="navbar-controls">
@@ -28,9 +28,9 @@
     <div class="hero-top">
       <div class="index-head">
         <p class="eyebrow">CONTINUOUS SCAN MISSION</p>
-        <h1>External → Internal → Assessment</h1>
+        <h1>Entry Verification → Scope Traversal → Assessment</h1>
         <p class="muted">
-          Start with one external or gateway IP. The scanner validates access, derives the safely routed internal subnet, discovers live devices, and then opens the existing assessment customisation page for a discovered host.
+          Start with one entry IP. The scanner records the current route, processes only one verified host or network scope at a time, pauses for the operator before following another observed route, and then opens the existing vulnerability-assessment configuration for selected retained targets.
         </p>
       </div>
 
@@ -62,32 +62,32 @@
             <label for="externalTarget">
               <div class="section-header">
                 <span class="step-number">1</span>
-                <span class="label">PHASE 1 · EXTERNAL ACCESS</span>
+                <span class="label">PHASE 1 · ENTRY DISCOVERY</span>
               </div>
-              <input id="externalTarget" type="text" name="external_target" placeholder="Single external or gateway IP, e.g. 10.10.10.1" required />
+              <input id="externalTarget" type="text" name="external_target" placeholder="Single entry IP address" required />
             </label>
             <p class="muted small">
-              One IP only. CIDRs and ranges are discovered by the scanner rather than manually entered.
+              One IP only. No subnet, route, interface, device role, or topology is inferred from the address itself.
             </p>
           </section>
 
           <section id="workflow" class="index-section">
             <div class="section-header">
               <span class="step-number">2</span>
-              <span class="label">AUTOMATIC CONTINUATION</span>
+              <span class="label">OPERATOR-CONTROLLED CONTINUATION</span>
             </div>
             <div class="recon-output-grid">
               <article class="tool-toggle">
-                <span><b>External Reachability</b><small>Low-impact reachability checks and route/interface evidence.</small></span>
+                <span><b>Entry Evidence</b><small>Low-impact response checks plus the kernel-selected route, source, and interface.</small></span>
               </article>
               <article class="tool-toggle">
-                <span><b>Internal Subnet Discovery</b><small>Uses the authorised routed interface; it does not guess a /24.</small></span>
+                <span><b>Current-Layer Enumeration</b><small>Processes only the current verified host or route-derived network.</small></span>
               </article>
               <article class="tool-toggle">
-                <span><b>Internal Host Inventory</b><small>Nmap host discovery only; no detailed service or CVE assessment yet.</small></span>
+                <span><b>Operator Path Decision</b><small>Observed non-default routes are displayed; one selected path is reverified before the next layer is processed.</small></span>
               </article>
               <article class="tool-toggle">
-                <span><b>Existing Phase 3</b><small>Select a discovered host and use the current scanner customisation features unchanged.</small></span>
+                <span><b>Existing Phase 3</b><small>Select one or multiple current-scope targets and use the existing vulnerability-assessment controls unchanged.</small></span>
               </article>
             </div>
           </section>
@@ -99,7 +99,7 @@
               <i class="bi bi-arrow-right"></i>
             </button>
             <p class="note">
-              Automatic discovery is limited to a bounded private subnet available through the route used for the supplied IP. The scanner does not reconfigure Kali network adapters.
+              Discovery is bounded by the configured expansion limit. The scanner does not add routes, change interface addresses, invent networks, or automatically follow every observed branch.
             </p>
           </div>
         </form>

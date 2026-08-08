@@ -16,12 +16,29 @@
 {% if mission_workflow %}
 {% set mission_context = mission_workflow.get('network_context', {}) %}
 {% set mission_targets = mission_workflow.get('assessment_targets', []) %}
-<h2>Continuous Scan Mission</h2>
+{% set mission_segments = mission_workflow.get('segments', {}) %}
+{% set mission_segment_order = mission_workflow.get('segment_order', []) %}
+{% set current_segment = mission_segments.get(mission_workflow.get('current_segment_id'), mission_workflow.get('current_segment', {})) %}
+{% set current_hosts = current_segment.get('hosts', mission_workflow.get('discovered_hosts',[])) %}
+{% set entry_records = current_hosts|selectattr('record_type','equalto','entry_target')|list %}
+{% set independent_records = current_hosts|selectattr('independently_discovered')|list %}
+{% set route_observations = mission_workflow.get('route_observations', []) %}
+{% set authorized_routes = mission_workflow.get('authorized_route_records', {}) %}
+{% set override_targets = mission_workflow.get('phase_results',{}).get('assessment',{}).get('override_targets', []) %}
+<h2>Layered Scan Mission</h2>
 <table><tbody>
-<tr><th>Phase 1 external target</th><td>{{ mission_workflow.get('external_target','Unknown') }}</td><th>Access method</th><td>{{ mission_workflow.get('access_mode', mission_context.get('access_mode','unknown'))|replace('_',' ')|title }}</td></tr>
-<tr><th>Selected interface / source</th><td>{{ mission_context.get('interface','Unknown') }} / {{ mission_context.get('scanner_ip','Unknown') }}</td><th>Phase 2 internal subnet</th><td>{{ mission_workflow.get('internal_subnet','Unknown') }}</td></tr>
-<tr><th>Hosts discovered</th><td>{{ mission_workflow.get('discovered_hosts',[])|length }}</td><th>Phase 3 assessment targets</th><td>{{ mission_targets|join(', ') if mission_targets else mission_workflow.get('assessment_target', results.target_input|default('Unknown')) }}</td></tr>
+<tr><th>Entry target</th><td>{{ mission_workflow.get('entry_target', mission_workflow.get('external_target','Unknown')) }}</td><th>Visited scopes</th><td>{{ mission_segment_order|length }}</td></tr>
+<tr><th>Assessment interface / source</th><td>{{ current_segment.get('interface', mission_context.get('interface','Unknown')) }} / {{ current_segment.get('source_address', mission_context.get('scanner_ip','Unknown')) }}</td><th>Assessed scope</th><td>{{ current_segment.get('network', mission_workflow.get('internal_subnet','Unknown')) }} · {{ 'Host' if current_segment.get('scope_kind') == 'entry_host' else 'Network' }}</td></tr>
+<tr><th>Operator-supplied / additional discovered</th><td>{{ entry_records|length }} / {{ independent_records|length }}</td><th>Phase 3 assessment targets</th><td>{{ mission_targets|join(', ') if mission_targets else 'None selected' }}</td></tr>
+<tr><th>Retained route observations</th><td>{{ route_observations|length }}</td><th>Operator-authorised routes</th><td>{{ authorized_routes|length }}</td></tr>
+<tr><th>Retained paths</th><td>{{ mission_workflow.get('paths',{})|length }}</td><th>Inconclusive-reachability overrides</th><td>{{ override_targets|join(', ') if override_targets else 'None' }}</td></tr>
 </tbody></table>
+{% if mission_segment_order %}
+<h3>Scope Traversal Record</h3>
+<table><thead><tr><th>Order</th><th>Scope type</th><th>Scope</th><th>Interface</th><th>Source</th><th>Next hop</th><th>Host observations</th></tr></thead><tbody>
+{% for segment_id in mission_segment_order %}{% set segment = mission_segments.get(segment_id,{}) %}<tr><td>{{ loop.index }}</td><td>{{ 'Host' if segment.get('scope_kind') == 'entry_host' else 'Network' }}</td><td>{{ segment.get('network','Unknown') }}</td><td>{{ segment.get('interface','Unknown') }}</td><td>{{ segment.get('source_address') or 'Not reported' }}</td><td>{{ segment.get('next_hop') or 'None observed' }}</td><td>{{ segment.get('hosts',[])|length }}</td></tr>{% endfor %}
+</tbody></table>
+{% endif %}
 {% endif %}
 {% set effective_options = results.scan_options|default(scan.scan_options|default({})) %}
 {% set port_selection = effective_options.get('port_selection', {}) %}

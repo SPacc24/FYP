@@ -1,0 +1,304 @@
+<!doctype html>
+<html>
+<head>
+  <title>Reachable Scope Decision · AutoPentest</title>
+  <link rel="stylesheet" href="/static/style.css?v=layered-3">
+</head>
+<body>
+<main class="shell">
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">PHASE 1–2 · OPERATOR-CONTROLLED NETWORK DISCOVERY</div>
+      <h1>Current Reachable Scope</h1>
+      <p class="muted">Only this retained host or verified route-backed network scope has been processed. Assess retained targets, explicitly authorise any observed bounded route, verify and follow one authorised path, revisit a branch, refresh evidence, retry, or stop.</p>
+    </div>
+    <a class="btn ghost" href="/">New Scan</a>
+  </header>
+
+  {% if mission_error %}
+  <section class="panel scan-warning" role="alert">
+    <strong>Latest workflow message</strong>
+    <p>{{ mission_error }}</p>
+  </section>
+  {% endif %}
+
+  {% set is_entry_host = current_segment.get('scope_kind') == 'entry_host' %}
+  {% set entry_targets = current_hosts|selectattr('record_type','equalto','entry_target')|list %}
+  {% set independently_discovered = current_hosts|selectattr('independently_discovered')|list %}
+  {% set selectable_hosts = current_hosts|selectattr('selectable')|list %}
+
+  <section class="panel">
+    <div class="section-head">
+      <div>
+        <span class="label">CURRENT RETAINED SCOPE</span>
+        <h2 class="mono">{{ current_segment.get('network','Unknown') }}</h2>
+      </div>
+      <span class="status-pill">{{ 'Host entry point' if is_entry_host else 'Network segment' }}</span>
+    </div>
+    <div class="scan-assurance-grid">
+      <article class="scan-assurance-card"><span class="label">Scope Type</span><strong>{{ 'Single host' if is_entry_host else 'Route-backed network' }}</strong><span class="small muted">A host scope is never expanded into a guessed subnet</span></article>
+      <article class="scan-assurance-card"><span class="label">Interface</span><strong class="mono">{{ current_segment.get('interface') or 'Kernel-selected' }}</strong><span class="small muted">No interface-name meaning is assumed</span></article>
+      <article class="scan-assurance-card"><span class="label">Source Address</span><strong class="mono">{{ current_segment.get('source_address') or 'Not reported' }}</strong><span class="small muted">Observed from the active routing context</span></article>
+      <article class="scan-assurance-card"><span class="label">Next Hop</span><strong class="mono">{{ current_segment.get('next_hop') or 'None observed' }}</strong><span class="small muted">Recorded without assigning a device role</span></article>
+      <article class="scan-assurance-card"><span class="label">Operator-Supplied Targets</span><strong>{{ entry_targets|length }}</strong><span class="small muted">Never counted as independently discovered</span></article>
+      <article class="scan-assurance-card"><span class="label">Additional Hosts Discovered</span><strong>{{ independently_discovered|length }}</strong><span class="small muted">Observed during actual network enumeration</span></article>
+      <article class="scan-assurance-card"><span class="label">Observed Routes</span><strong>{{ route_observations|length }}</strong><span class="small muted">Every bounded route may be chosen by the operator</span></article>
+      <article class="scan-assurance-card"><span class="label">Authorised Paths</span><strong>{{ authorized_path_count }}</strong><span class="small muted">Each is reverified immediately before traversal</span></article>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-head">
+      <div>
+        <span class="label">CURRENT-SCOPE INVENTORY</span>
+        <h2>Retained Address Records</h2>
+        <p class="muted small">Address origin and reachability remain separate. An operator-supplied host may be passed to Phase 3 with an explicit assume-live decision without being relabelled responsive.</p>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Address</th><th>Origin</th><th>Observed identity</th><th>Reachability</th><th>Evidence methods</th><th>Phase 3</th></tr></thead>
+        <tbody>
+          {% for host in current_hosts %}
+          <tr>
+            <td class="mono">{{ host.get('ip') or host.get('address') }}</td>
+            <td>
+              <strong>{{ host.get('origin','unknown')|replace('_',' ')|title }}</strong>
+              {% if host.get('independently_discovered') %}<div class="small muted">Independently discovered</div>{% else %}<div class="small muted">Not independently discovered</div>{% endif %}
+              {% if host.get('origins',[])|length > 1 %}<div class="small muted">Also observed via {{ host.get('origins',[])|reject('equalto',host.get('origin'))|join(', ')|replace('_',' ') }}</div>{% endif %}
+            </td>
+            <td>
+              {{ host.get('hostname') or 'No hostname retained' }}
+              {% if host.get('hostname_conflict') %}<div class="small form-error">Conflicting hostname observations retained.</div>{% endif %}
+              {% if host.get('mac') %}<div class="small muted mono">{{ host.get('mac') }}{% if host.get('mac_vendor') %} · {{ host.get('mac_vendor') }}{% endif %}</div>{% endif %}
+            </td>
+            <td>{{ host.get('reachability_state','observed')|replace('_',' ')|title }}</td>
+            <td class="small">{{ host.get('verification_methods', host.get('discovered_by',[]))|join(', ')|replace('_',' ') or 'No active verification method retained' }}</td>
+            <td>
+              {% if host.get('selectable') %}
+                <span class="status-pill">Selectable</span>
+                {% if host.get('assessment_override') %}<div class="small muted">Operator assume-live override retained</div>{% endif %}
+              {% else %}
+                <span class="muted">Excluded{% if host.get('is_scanner') %} · scanner source{% endif %}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="muted">No address observation was retained in this scope.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <form action="{{ url_for('scan_layer_decision', scan_id=scan_id) }}" method="POST" id="scopeActionForm" class="top-gap">
+      <input type="hidden" name="_csrf_token" value="{{ operator_csrf_token }}" />
+      {% if inconclusive_operator_targets %}
+      <label class="operator-override-card" for="allowInconclusiveOperatorTargets">
+        <input type="checkbox" id="allowInconclusiveOperatorTargets" name="allow_inconclusive_operator_targets" value="1" />
+        <span>
+          <strong>Retain the operator-supplied host for Phase 3 despite inconclusive reachability</strong>
+          <small>The target remains “Reachability Not Established.” Phase 3 may still perform authorised service discovery using its existing assume-live/-Pn workflow.</small>
+        </span>
+      </label>
+      {% endif %}
+      <div class="form-actions top-gap" style="flex-wrap:wrap">
+        <button class="btn" type="submit" name="action" value="assess_current" {% if selectable_hosts|length == 0 and inconclusive_operator_targets|length == 0 %}disabled{% endif %}>Configure VA on this scope</button>
+        <button class="btn ghost" type="submit" name="action" value="refresh_paths">Refresh route evidence</button>
+        <button class="btn ghost" type="submit" name="action" value="retry_layer">Retry this scope</button>
+        <button class="btn ghost" type="submit" name="action" value="stop">Stop discovery</button>
+      </div>
+      <p id="overrideError" class="form-error" hidden>Select the explicit assume-live option before configuring an inconclusive operator-supplied target.</p>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="section-head">
+      <div>
+        <span class="label">OPERATOR-AUTHORISED CONTINUATION PATHS</span>
+        <h2>Verify and Follow One Path</h2>
+        <p class="muted small">Only routes explicitly authorised for this mission appear here. Authorisation does not prove reachability; the exact route is refreshed and reverified before its network is enumerated.</p>
+      </div>
+    </div>
+
+    <form action="{{ url_for('scan_layer_decision', scan_id=scan_id) }}" method="POST" id="pathDecisionForm">
+      <input type="hidden" name="_csrf_token" value="{{ operator_csrf_token }}" />
+      <fieldset class="target-checkbox-fieldset">
+        <legend class="sr-only">Operator-authorised continuation paths</legend>
+        <div class="target-checkbox-grid subnet-candidate-grid">
+          {% for path in continuation_paths %}
+          {% set authorized = path.get('authorization_state') == 'operator_authorized' %}
+          {% set available = authorized and path.get('verification_state') in ['authorized_pending_verification','verification_failed','route_unavailable'] and path.get('enumeration_eligible', True) %}
+          <label class="target-checkbox-card {% if not authorized %}disabled{% endif %}">
+            <input type="radio" name="path_id" value="{{ path.get('path_id') }}" {% if not authorized %}disabled{% endif %} />
+            <span class="target-checkbox-content">
+              <strong class="mono">{{ path.get('destination_network','Unknown') }}</strong>
+              <small>Interface {{ path.get('interface') or 'kernel-selected' }}{% if path.get('next_hop') %} · next hop {{ path.get('next_hop') }}{% endif %} · table {{ path.get('route_table','main') }}</small>
+              <small class="muted">Operator authorised{% if path.get('authorized_at') %} · {{ path.get('authorized_at') }}{% endif %} · {{ path.get('verification_state','authorized_pending_verification')|replace('_',' ')|title }}</small>
+              {% if path.get('mission_related') %}<small class="muted">Automatic evidence relationship: {{ path.get('evidence_relationship','')|replace('_',' ')|title }}</small>{% else %}<small class="muted">Selected from a retained route observation without an automatic mission relationship.</small>{% endif %}
+              {% if not path.get('enumeration_eligible', True) %}<small class="form-error">Retained only: {{ path.get('address_count','?') }} addresses exceeds the bounded discovery limit of {{ path.get('discovery_limit','?') }}.</small>{% endif %}
+              {% if path.get('verification_error') %}<small class="form-error">{{ path.get('verification_error') }}</small>{% endif %}
+            </span>
+          </label>
+          {% else %}
+          <p class="muted">No route has been authorised for this scope. Choose one from Observed Local Routes below.</p>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <div class="form-actions top-gap" style="flex-wrap:wrap">
+        <button class="btn" type="submit" name="action" value="follow_path" {% if followable_path_count == 0 %}disabled{% endif %}>Verify and follow selected path</button>
+        <button class="btn ghost" type="submit" name="action" value="revoke_route" {% if authorized_path_count == 0 %}disabled{% endif %}>Revoke selected route authorisation</button>
+      </div>
+      <p id="pathError" class="form-error" hidden>Select one authorised continuation path.</p>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="section-head">
+      <div>
+        <span class="label">ROUTE EVIDENCE</span>
+        <h2>Observed Local Routes</h2>
+        <p class="muted small">Every valid bounded route visible to Kali may be selected freely. “Observation only” means the scanner has not yet received mission authorisation; it does not mean the operator is forbidden from choosing it.</p>
+      </div>
+    </div>
+    <form action="{{ url_for('scan_layer_decision', scan_id=scan_id) }}" method="POST" id="authorizeRouteForm">
+      <input type="hidden" name="_csrf_token" value="{{ operator_csrf_token }}" />
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Select</th><th>Destination</th><th>Interface</th><th>Next hop</th><th>Observed</th><th>Mission state</th><th>Enumeration</th></tr></thead>
+          <tbody>
+            {% for route in route_observations %}
+            {% set can_authorize = route.get('enumeration_eligible') and not route.get('operator_authorized') %}
+            <tr>
+              <td>
+                {% if can_authorize %}
+                <label class="route-radio-label">
+                  <input type="radio" name="route_observation_id" value="{{ route.get('observation_id') }}" aria-label="Authorise route {{ route.get('destination_network') }}" />
+                  <span class="route-radio-indicator" aria-hidden="true"></span>
+                  <span class="small">Select</span>
+                </label>
+                {% else %}
+                <span class="muted small">—</span>
+                {% endif %}
+              </td>
+              <td class="mono">{{ route.get('destination_network') }}</td>
+              <td class="mono">{{ route.get('interface') or 'Kernel-selected' }}</td>
+              <td class="mono">{{ route.get('next_hop') or 'Direct/none' }}</td>
+              <td>
+                {{ 'Mission baseline' if route.get('baseline') else 'Observed after baseline' }}
+                {% if route.get('first_observed_at') %}<div class="small muted">First: {{ route.get('first_observed_at') }}</div>{% endif %}
+              </td>
+              <td>
+                {% if route.get('operator_authorized') %}
+                  <span class="status-pill">Operator authorised</span>
+                  {% if route.get('authorized_at') %}<div class="small muted">{{ route.get('authorized_at') }}</div>{% endif %}
+                {% elif route.get('mission_related') %}
+                  <span class="status-pill">Evidence-linked suggestion</span>
+                  <div class="small muted">{{ route.get('relationship','')|replace('_',' ')|title }} · still requires operator authorisation</div>
+                {% else %}
+                  <span class="muted">Observation only</span>
+                  <div class="small muted">Available for explicit operator authorisation.</div>
+                {% endif %}
+              </td>
+              <td>{% if route.get('enumeration_eligible') %}Within bounded limit{% else %}<span class="form-error">Exceeds bounded limit</span>{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="muted">No non-default unicast route observation was retained.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% set authorizable_routes = route_observations|selectattr('enumeration_eligible')|rejectattr('operator_authorized')|list %}
+      {% if authorizable_routes %}
+      <div class="form-actions top-gap">
+        <button class="btn" type="submit" name="action" value="authorize_route">Authorise selected observed route for this mission</button>
+      </div>
+      <p id="authorizeRouteError" class="form-error" hidden>Select one eligible observed route.</p>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="section-head"><div><span class="label">MISSION HISTORY</span><h2>Visited Scopes</h2></div></div>
+    <form action="{{ url_for('scan_layer_decision', scan_id=scan_id) }}" method="POST" id="revisitLayerForm">
+      <input type="hidden" name="_csrf_token" value="{{ operator_csrf_token }}" />
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Select</th><th>Order</th><th>Scope</th><th>Type</th><th>Interface</th><th>Source</th><th>Records</th><th>State</th></tr></thead>
+          <tbody>
+            {% for segment in visited_segments %}
+            {% set is_current = segment.get('segment_id') == current_segment.get('segment_id') %}
+            <tr {% if is_current %}class="active"{% endif %}>
+              <td><input type="radio" name="segment_id" value="{{ segment.get('segment_id') }}" {% if is_current %}disabled{% endif %} aria-label="Revisit {{ segment.get('network') }}" /></td>
+              <td>{{ loop.index }}</td>
+              <td class="mono">{{ segment.get('network') }}</td>
+              <td>{{ 'Host' if segment.get('scope_kind') == 'entry_host' else 'Network' }}</td>
+              <td class="mono">{{ segment.get('interface') or 'Unknown' }}</td>
+              <td class="mono">{{ segment.get('source_address') or 'Not reported' }}</td>
+              <td>{{ segment.get('hosts',[])|length }}</td>
+              <td>{% if is_current %}Current{% else %}Visited · route will be reverified{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if visited_segments|length > 1 %}
+      <div class="form-actions top-gap"><button class="btn ghost" type="submit" name="action" value="revisit_segment">Reverify and revisit selected scope</button></div>
+      <p id="revisitError" class="form-error" hidden>Select one previously visited scope.</p>
+      {% endif %}
+    </form>
+  </section>
+</main>
+<script>
+const scopeForm = document.getElementById('scopeActionForm');
+const overrideError = document.getElementById('overrideError');
+scopeForm?.addEventListener('submit', event => {
+  if (event.submitter?.value !== 'assess_current') return;
+  const hasSelectable = {{ 'true' if selectable_hosts|length > 0 else 'false' }};
+  const hasInconclusive = {{ 'true' if inconclusive_operator_targets|length > 0 else 'false' }};
+  const override = document.getElementById('allowInconclusiveOperatorTargets');
+  if (!hasSelectable && hasInconclusive && !override?.checked) {
+    event.preventDefault();
+    overrideError.hidden = false;
+    override?.focus();
+  }
+});
+document.getElementById('allowInconclusiveOperatorTargets')?.addEventListener('change', () => { overrideError.hidden = true; });
+
+const pathForm = document.getElementById('pathDecisionForm');
+const pathError = document.getElementById('pathError');
+pathForm?.addEventListener('submit', event => {
+  if (!['follow_path', 'revoke_route'].includes(event.submitter?.value)) return;
+  if (!pathForm.querySelector('input[name="path_id"]:checked')) {
+    event.preventDefault();
+    pathError.hidden = false;
+    pathError.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+});
+pathForm?.querySelectorAll('input[name="path_id"]').forEach(input => input.addEventListener('change', () => { pathError.hidden = true; }));
+
+const revisitForm = document.getElementById('revisitLayerForm');
+const revisitError = document.getElementById('revisitError');
+revisitForm?.addEventListener('submit', event => {
+  if (event.submitter?.value !== 'revisit_segment') return;
+  if (!revisitForm.querySelector('input[name="segment_id"]:checked')) {
+    event.preventDefault();
+    revisitError.hidden = false;
+    revisitError.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+});
+revisitForm?.querySelectorAll('input[name="segment_id"]').forEach(input => input.addEventListener('change', () => { revisitError.hidden = true; }));
+
+const authorizeForm = document.getElementById('authorizeRouteForm');
+const authorizeError = document.getElementById('authorizeRouteError');
+authorizeForm?.addEventListener('submit', event => {
+  if (event.submitter?.value !== 'authorize_route') return;
+  if (!authorizeForm.querySelector('input[name="route_observation_id"]:checked')) {
+    event.preventDefault();
+    authorizeError.hidden = false;
+    authorizeError.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+});
+authorizeForm?.querySelectorAll('input[name="route_observation_id"]').forEach(input => input.addEventListener('change', () => { authorizeError.hidden = true; }));
+</script>
+</body>
+</html>
