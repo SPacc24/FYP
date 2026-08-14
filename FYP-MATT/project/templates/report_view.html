@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Assessment Report</title>
+
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+  />
+
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='style.css') }}"
+  />
+</head>
+
+<body>
+
+  <main class="page report-page">
+
+    <nav class="main-navbar">
+
+      <a href="{{ url_for('index') }}" class="navbar-brand">
+        <span class="brand-icon">
+          <i class="bi bi-shield-check"></i>
+        </span>
+
+        <span>AutoPenTest</span>
+      </a>
+
+      <div class="navbar-links"></div>
+
+      <div class="navbar-controls">
+        <button
+          class="theme-toggle"
+          type="button"
+          title="Light Mode (Coming Soon)"
+          aria-label="Light Mode"
+        >
+          <i class="bi bi-sun-fill"></i>
+        </button>
+      </div>
+
+    </nav>
+
+    <header class="hero compact-hero">
+      <p class="eyebrow">AI-Assisted Assessment Report</p>
+
+      <h1>{{ scan.target_ip }}</h1>
+
+      <p class="muted">
+        Generated from scan evidence, MITRE mapping, validation results,
+        CALDERA output, pivot findings, attack paths, and remediation notes.
+      </p>
+
+      <div class="actions">
+        <a class="button secondary" href="{{ url_for('latest') }}">
+          Back to Dashboard
+        </a>
+
+        <a class="button" href="{{ url_for('export_report') }}">
+          Download Text Report
+        </a>
+      </div>
+    </header>
+
+    <section class="flow-card" id="assessment-summary">
+      <div class="flow-card-header">
+        <span class="label">Report</span>
+        <h2>Assessment Summary</h2>
+      </div>
+
+      <pre class="report-preview">{{ report }}</pre>
+    </section>
+
+  </main>
+
+  <div
+    class="nvd-attribution"
+    style="margin:18px auto;max-width:1200px;padding:10px 14px;font-size:.82rem;opacity:.72;text-align:center;"
+  >
+    This product uses the NVD API but is not endorsed or certified by the NVD.
+  </div>
+
+</body>
+</html>

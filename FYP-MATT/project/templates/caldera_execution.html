@@ -1,0 +1,215 @@
+<section class="flow-card thin-flow-card" id="caldera-execution">
+  <div class="flow-card-header">
+    <span class="label">Assessment Stage 4</span>
+    <h2>Agent Readiness and Caldera Execution</h2>
+  </div>
+
+  <div class="caldera-readiness-layout">
+
+    <!-- CALDERA status heading -->
+    <div class="caldera-status-heading caldera-full-row">
+      <h4>CALDERA Status</h4>
+    </div>
+
+    <!-- Full-width readiness status -->
+    <div
+      id="calderaStatusBox"
+      class="mini-panel status-card caldera-status-banner"
+    >
+      <p class="muted">Checking Caldera agent status...</p>
+    </div>
+
+    <!-- Target information -->
+    <div
+      id="targetDetailsBox"
+      class="mini-panel small-panel caldera-info-card"
+    >
+      <h4>Target Details</h4>
+
+      <div class="caldera-detail-list">
+        <div>
+          <span>Target</span>
+          <strong id="deployTargetText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>Source</span>
+          <strong id="deployTargetSourceText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>External Target</span>
+          <strong id="deployExternalTargetText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>OS</span>
+          <strong id="deployOsText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>Platform</span>
+          <strong id="deployPlatformText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>Required Shell</span>
+          <strong id="deployShellText">Unknown</strong>
+        </div>
+
+        <div>
+          <span>Trusted Agent</span>
+          <strong id="trustedAgentName">-</strong>
+        </div>
+
+        <div>
+          <span>Match Type</span>
+          <strong id="targetMatchTypeText">-</strong>
+        </div>
+
+        <div>
+          <span>Selected PAW</span>
+          <strong id="selectedPawText">-</strong>
+        </div>
+      </div>
+
+      <div class="caldera-rejection-box">
+        <span>Rejection reason</span>
+        <p id="agentRejectionReasonText">-</p>
+      </div>
+    </div>
+
+    <!-- Agent check -->
+    <div class="mini-panel small-panel caldera-agent-card">
+      <div>
+        <span class="label">Agent Check</span>
+        <h4>CALDERA Agent Availability</h4>
+
+        <p class="small" id="agentStatusSummary">
+          Waiting for Caldera status.
+        </p>
+      </div>
+
+      <button
+        class="button secondary"
+        id="refreshAgentStatusBtn"
+        type="button"
+      >
+        Refresh Agent Status
+      </button>
+    </div>
+
+    <!-- Deploy command -->
+    <div
+      id="deployCommandBox"
+      class="command-box deploy-card caldera-full-row"
+      style="display:none;"
+    >
+      <h4>Deploy Command</h4>
+
+      <p class="small">
+        Copy-only; run this inside the authorised lab target host when no
+        trusted agent is available.
+      </p>
+
+      <p class="small" id="deployCommandMessage"></p>
+
+      <pre
+        id="deployCommandText"
+        class="deploy-command-text mono"
+      ></pre>
+
+      <button
+        class="button secondary top-gap"
+        id="copyDeployCommandBtn"
+        type="button"
+      >
+        Copy Deploy Command
+      </button>
+    </div>
+
+    <!-- Coverage warning -->
+    <div
+      id="coverageWarningBox"
+      class="mini-panel caldera-full-row"
+      style="display:none;"
+    >
+      <strong>Coverage</strong>
+      <p class="small" id="coverageWarningText"></p>
+    </div>
+
+    <!-- Operation controls -->
+    <div class="caldera-operation-row caldera-full-row">
+      <div id="operationBox" class="mini-panel">
+        <p class="muted">No operation started yet.</p>
+      </div>
+
+      <div class="actions caldera-actions compact-actions">
+        <button class="button" id="runCalderaBtn" type="button">
+          Run CALDERA
+        </button>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ==========================================
+     EXECUTION RESULTS
+     ========================================== -->
+
+<section class="flow-card" id="execution-results">
+  <div class="flow-card-header">
+    <span class="label">Assessment Stage 5</span>
+    <h2>Execution Results</h2>
+  </div>
+
+  <div
+    id="executionSummary"
+    class="summary-strip"
+    style="display:none;"
+  >
+    <article>
+      <span class="label">Total Techniques</span>
+      <strong id="totalTechniques">0</strong>
+    </article>
+
+    <article>
+      <span class="label">Successful</span>
+      <strong id="successfulTechniques" style="color: green;">0</strong>
+    </article>
+
+    <article>
+      <span class="label">Failed</span>
+      <strong id="failedTechniques" style="color: red;">0</strong>
+    </article>
+
+    <article>
+      <span class="label">Discarded</span>
+      <strong id="discardedTechniques" style="color: orange;">0</strong>
+    </article>
+  </div>
+
+  <div class="table-wrap" id="executionResults">
+    <table>
+      <thead>
+        <tr>
+          <th>Technique</th>
+          <th>Name</th>
+          <th>Tactic</th>
+          <th>Status</th>
+          <th>Timestamp</th>
+          <th>Output</th>
+        </tr>
+      </thead>
+
+      <tbody id="techniqueResultsBody">
+        <tr>
+          <td colspan="6" class="small">
+            No execution results yet.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
