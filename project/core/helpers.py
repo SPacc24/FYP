@@ -379,11 +379,12 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         remediations=remediations,
         validation=validation_results,
         pivot=pivot_results,
-        missions=missions,
+        results=parsed_results,
     )
 
     return {
         "scan": scan,
+        "results": parsed_results,
         "mapping": mapping_results,
         "operation": operation_results,
         "validation": validation_results,
@@ -393,7 +394,6 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         "risk": risk,
         "remediations": remediations,
         "report": report,
-        "missions": missions,
     }
 
 

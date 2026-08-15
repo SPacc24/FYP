@@ -451,13 +451,13 @@ def register_routes(app):
         report_path = generate_pdf_report(
             scan_id=session.get("scan_id", ""),
             scan=context["scan"],
+            results=context["results"],
             mapping=context["mapping"],
             validation=context["validation"],
             operation=context["operation"],
             risk=context["risk"],
             remediations=context["remediations"],
             pivot=context["pivot"],
-            missions=context.get("missions", []),
         )
         mimetype = "application/pdf" if str(report_path).lower().endswith(".pdf") else "text/plain"
         return send_file(
@@ -475,13 +475,13 @@ def register_routes(app):
 
         report_path = generate_text_report(
             scan=context["scan"],
+            results=context["results"],
             mapping=context["mapping"],
             operation=context["operation"],
             risk=context["risk"],
             remediations=context["remediations"],
             validation=context["validation"],
             pivot=context["pivot"],
-            missions=context.get("missions", []),
         )
 
         return send_file(
