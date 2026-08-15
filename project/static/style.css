@@ -4792,26 +4792,30 @@ html {
 }
 
 /* ==========================================
-   Global PenPilot Background
+   Global Application Background
    ========================================== */
+
+html {
+  background: #080d17;
+}
 
 body {
   background:
     radial-gradient(
-      circle at 18% 18%,
-      rgba(38, 75, 128, 0.22),
-      transparent 42%
+      circle at 18% 12%,
+      rgba(45, 85, 145, 0.20),
+      transparent 38%
     ),
     radial-gradient(
-      circle at 88% 18%,
-      rgba(74, 59, 110, 0.14),
-      transparent 40%
+      circle at 88% 8%,
+      rgba(88, 69, 130, 0.13),
+      transparent 36%
     ),
     linear-gradient(
       135deg,
-      #101d31 0%,
-      #152139 48%,
-      #181d32 100%
+      #0b1423 0%,
+      #101a2c 48%,
+      #14182b 100%
     ) !important;
 
   background-attachment: fixed !important;
