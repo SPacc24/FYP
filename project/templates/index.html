@@ -38,11 +38,11 @@
           <h1>Start from one authorised IP address</h1>
         </div>
 
-        {% if not operator_authenticated %}
         <section class="operator-panel index-section hero-operator">
           <span class="label">Operator Access</span>
 
           {% if operator_token_configured %}
+
             <p class="muted small">
               Unlock this browser session before starting Phase 1.
             </p>
@@ -53,28 +53,57 @@
                 type="password"
                 placeholder="Operator token"
                 autocomplete="current-password"
+                {% if operator_authenticated %}disabled{% endif %}
               />
 
               <button
                 class="btn ghost mini"
                 id="operatorUnlockBtn"
-                type="button">
-                Unlock
+                type="button"
+                {% if operator_authenticated %}disabled{% endif %}
+              >
+                {% if operator_authenticated %}
+                  Activated
+                {% else %}
+                  Unlock
+                {% endif %}
               </button>
             </div>
-          <p class="muted small" id="operatorUnlockStatus"></p>
-        {% else %}
-          <p class="muted small">
-            Remote operator actions are disabled because OPERATOR_TOKEN is not configured. Use the Kali browser locally or configure the token in project/.env.
-          </p>
-        {% endif %}
-      </section>
-      {% endif %}
-    </div>
+
+            <div
+              id="operatorAccessStatus"
+              class="operator-status-bar {% if operator_authenticated %}is-success{% else %}is-idle{% endif %}"
+            >
+              <i
+                id="operatorStatusIcon"
+                class="bi {% if operator_authenticated %}bi-check-circle-fill{% else %}bi-lock-fill{% endif %}"
+              ></i>
+
+              <span id="operatorStatusText">
+                {% if operator_authenticated %}
+                  Operator access activated
+                {% else %}
+                  Operator access not activated
+                {% endif %}
+              </span>
+            </div>
+
+          {% else %}
+
+            <div class="operator-status-bar is-error">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              <span>
+                Operator token is not configured. Remote operator actions are disabled.
+              </span>
+            </div>
+
+          {% endif %}
+        </section>
+      </div>
 
     <div class="index-layout">
       <div class="index-form-column">
-        <form action="{{ url_for('scan_discover') }}" method="POST" id="discoveryForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtnText').textContent='Starting Discovery...';">
+        <form action="{{ url_for('scan_discover') }}" method="POST" id="discoveryForm" >
           <input type="hidden" name="_csrf_token" id="csrfTokenInput" value="{{ operator_csrf_token }}" />
 
           <section id="phase1" class="index-section target-card target-section">
@@ -94,7 +123,7 @@
           </section>
 
           <div class="index-actions">
-            <button id="startBtn" class="btn" type="submit" {% if not operator_authenticated %}disabled{% endif %}>
+            <button id="startBtn" class="btn" type="submit">
               <i class="bi bi-radar"></i>
               <span id="startBtnText">Discover Network</span>
               <i class="bi bi-arrow-right"></i>
@@ -111,31 +140,149 @@
 <footer class="footer"><p>Automated Penetration Testing · Group 6 · Continuous Discovery Workflow</p></footer>
 
 <script>
-document.getElementById('operatorUnlockBtn')?.addEventListener('click', async () => {
-  const input = document.getElementById('operatorTokenInput');
-  const status = document.getElementById('operatorUnlockStatus');
-  const token = input?.value || '';
-  if (status) status.textContent = 'Checking operator token...';
+let operatorActivated = {{ 'true' if operator_authenticated else 'false' }};
+
+const unlockBtn = document.getElementById('operatorUnlockBtn');
+const tokenInput = document.getElementById('operatorTokenInput');
+const statusBar = document.getElementById('operatorAccessStatus');
+const statusText = document.getElementById('operatorStatusText');
+const statusIcon = document.getElementById('operatorStatusIcon');
+const discoveryForm = document.getElementById('discoveryForm');
+
+function setOperatorStatus(type, message) {
+  if (!statusBar || !statusText || !statusIcon) return;
+
+  statusBar.classList.remove(
+    'is-idle',
+    'is-success',
+    'is-error',
+    'is-checking'
+  );
+
+  statusBar.classList.add(type);
+
+  if (type === 'is-success') {
+    statusIcon.className = 'bi bi-check-circle-fill';
+  } else if (type === 'is-error') {
+    statusIcon.className = 'bi bi-x-circle-fill';
+  } else if (type === 'is-checking') {
+    statusIcon.className = 'bi bi-arrow-repeat';
+  } else {
+    statusIcon.className = 'bi bi-lock-fill';
+  }
+
+  statusText.textContent = message;
+}
+
+
+unlockBtn?.addEventListener('click', async () => {
+  const token = tokenInput?.value.trim() || '';
+
+  if (!token) {
+    setOperatorStatus(
+      'is-error',
+      'Enter the operator token first.'
+    );
+    tokenInput?.focus();
+    return;
+  }
+
+  setOperatorStatus(
+    'is-checking',
+    'Checking operator token...'
+  );
+
   try {
-    const response = await fetch('{{ url_for("operator_unlock") }}', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({operator_token: token})
-    });
+    const response = await fetch(
+      '{{ url_for("operator_unlock") }}',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operator_token: token
+        })
+      }
+    );
+
     const data = await response.json();
+
     if (!response.ok || !data.ok) {
-      if (status) status.textContent = data.error || 'Operator unlock failed.';
+      operatorActivated = false;
+
+      setOperatorStatus(
+        'is-error',
+        data.error || 'Incorrect operator token.'
+      );
+
+      tokenInput?.focus();
+      tokenInput?.select();
       return;
     }
-    if (status) status.textContent = 'Operator session unlocked.';
+
+    operatorActivated = true;
+
     if (data.csrf_token) {
       const csrfInput = document.getElementById('csrfTokenInput');
-      if (csrfInput) csrfInput.value = data.csrf_token;
+
+      if (csrfInput) {
+        csrfInput.value = data.csrf_token;
+      }
     }
-    const startBtn = document.getElementById('startBtn');
-    if (startBtn) startBtn.disabled = false;
-  } catch (err) {
-    if (status) status.textContent = 'Could not unlock operator session.';
+
+    setOperatorStatus(
+      'is-success',
+      'Operator access activated.'
+    );
+
+    if (tokenInput) {
+      tokenInput.value = '';
+      tokenInput.disabled = true;
+    }
+
+    if (unlockBtn) {
+      unlockBtn.textContent = 'Activated';
+      unlockBtn.disabled = true;
+    }
+
+  } catch (error) {
+    operatorActivated = false;
+
+    setOperatorStatus(
+      'is-error',
+      'Could not verify operator access.'
+    );
+  }
+});
+
+
+discoveryForm?.addEventListener('submit', event => {
+  if (!operatorActivated) {
+    event.preventDefault();
+
+    alert(
+      'Operator access is required before starting network discovery. Please enter the operator token and unlock the session first.'
+    );
+
+    setOperatorStatus(
+      'is-error',
+      'Operator access required before discovery.'
+    );
+
+    tokenInput?.focus();
+    return;
+  }
+
+  const startBtn = document.getElementById('startBtn');
+  const startBtnText = document.getElementById('startBtnText');
+
+  if (startBtn) {
+    startBtn.disabled = true;
+  }
+
+  if (startBtnText) {
+    startBtnText.textContent = 'Starting Discovery...';
   }
 });
 </script>

@@ -7086,3 +7086,127 @@ html[data-theme="light"] .report-page .button.secondary:hover {
   border-color: #8eafd2 !important;
   color: #2469bd !important;
 }
+
+/* ==========================================
+   OPERATOR ACCESS STATUS
+   ========================================== */
+
+.operator-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 10px;
+  padding: 9px 12px;
+
+  border: 1px solid;
+  border-radius: 8px;
+
+  font-size: 0.82rem;
+  font-weight: 600;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.operator-status-bar i {
+  font-size: 0.9rem;
+}
+
+
+/* Not activated */
+.operator-status-bar.is-idle {
+  background: rgba(148, 163, 184, 0.08);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #94a3b8;
+}
+
+
+/* Checking token */
+.operator-status-bar.is-checking {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+}
+
+.operator-status-bar.is-checking i {
+  animation: operator-spin 0.8s linear infinite;
+}
+
+
+/* Activated */
+.operator-status-bar.is-success {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+}
+
+
+/* Wrong token / blocked */
+.operator-status-bar.is-error {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+
+@keyframes operator-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==========================================
+   LIGHT MODE — OPERATOR STATUS
+   ========================================== */
+
+html[data-theme="light"] .operator-status-bar.is-idle {
+  background: #edf2f7;
+  border-color: #c3cfdd;
+  color: #66788f;
+}
+
+html[data-theme="light"] .operator-status-bar.is-checking {
+  background: #e6f0fb;
+  border-color: #a9c8e9;
+  color: #2f6fb8;
+}
+
+html[data-theme="light"] .operator-status-bar.is-success {
+  background: #e8f5ed;
+  border-color: #add5bc;
+  color: #287a49;
+}
+
+html[data-theme="light"] .operator-status-bar.is-error {
+  background: #faeaea;
+  border-color: #e4b5b5;
+  color: #b33f3f;
+}
+/* ==========================================
+   OPERATOR TOKEN BUTTON
+   ========================================== */
+.operator-unlock-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.operator-unlock-row input {
+  flex: 1;
+}
+
+.operator-unlock-row #operatorUnlockBtn {
+  height: auto;
+  min-height: 46px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
