@@ -44,7 +44,7 @@
       <button
         class="theme-toggle"
         type="button"
-        title="Light Mode (Coming Soon)"
+        title="Light Mode"
         aria-label="Light Mode">
         <i class="bi bi-sun-fill"></i>
       </button>
@@ -479,5 +479,6 @@ async function poll(){
 }
 poll();
 </script>
+<script src="{{ url_for('static', filename='theme.js') }}"></script>
 </body>
 </html>

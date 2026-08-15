@@ -219,7 +219,7 @@
       <button
         class="theme-toggle"
         type="button"
-        title="Light Mode (Coming Soon)"
+        title="Light Mode"
         aria-label="Light Mode"
       >
         <i class="bi bi-sun-fill"></i>
@@ -350,12 +350,8 @@
 
     <div class="operator-grid">
 
-      <!-- ======================================
-           Discovered Devices
-           ====================================== -->
-
       <div>
-
+        <div class="operator-column-head">
         <h3>Devices Discovered on Current Subnet</h3>
 
         <p class="muted small">
@@ -363,6 +359,7 @@
           continuation. Device labels are based only on retained discovery
           evidence.
         </p>
+      </div>
 
         <form
           action="{{ url_for('scan_layer_decision', scan_id=scan_id) }}"
@@ -492,9 +489,9 @@
            ====================================== -->
 
       <div>
-
-        <h3>Continuation Networks</h3>
-
+        <div class="operator-column-head">
+          <h3>Continuation Networks</h3>
+        </div>
         {% if continuation_paths %}
 
         <form
@@ -1140,6 +1137,7 @@
 
   });
 </script>
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
 
 </body>
 </html>

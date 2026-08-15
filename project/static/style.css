@@ -4111,6 +4111,18 @@ section[aria-label="Layered scan mission"] .scan-assurance-card span {
   margin-bottom: 42px;
 }
 
+.operator-column-head {
+  min-height: 62px;
+}
+
+.operator-column-head h3 {
+  margin-top: 0;
+}
+
+.operator-column-head p {
+  margin-bottom: 0;
+}
+
 .target-checkbox-card,
 .next-network-card {
   box-sizing: border-box;
@@ -5065,4 +5077,2012 @@ body {
 .execution-results-table td:nth-child(6) .muted {
   font-size: 13px !important;
   line-height: 1.6;
+}
+
+.task-list .task-group .task {
+    margin-bottom: 6px;
+}
+
+.task-list .task-group .task:last-child {
+    margin-bottom: 0;
+}
+/* ==========================================
+   GLOBAL LIGHT MODE
+   ========================================== */
+
+html[data-theme="light"] {
+  --bg: #e8eef6;
+
+  --surface: #f8fafc;
+  --surface2: #eef3f8;
+  --surface3: #e5ecf4;
+
+  --border: #c7d3e1;
+  --border-strong: #aebfd3;
+
+  --text: #17243a;
+  --muted: #607089;
+
+  --blue: #3478c8;
+  --line: #c9d6e4;
+  --text-muted: #607089;
+
+  background: #e8eef6;
+}
+
+
+/* PAGE BACKGROUND */
+
+html[data-theme="light"] body {
+  color: var(--text) !important;
+
+  background:
+    radial-gradient(
+      circle at 16% 8%,
+      rgba(75, 133, 196, 0.14),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 88% 4%,
+      rgba(111, 99, 170, 0.09),
+      transparent 32%
+    ),
+    linear-gradient(
+      135deg,
+      #e3ebf4 0%,
+      #edf2f7 48%,
+      #e7eaf2 100%
+    ) !important;
+
+  background-attachment: fixed !important;
+}
+
+
+/* NAVBAR */
+
+html[data-theme="light"] .main-navbar {
+  background: #f7f9fc !important;
+  border-color: #c5d2e1 !important;
+
+  box-shadow:
+    0 8px 24px rgba(38, 61, 89, 0.09) !important;
+}
+
+
+/* MAIN PANELS */
+
+html[data-theme="light"] .flow-card,
+html[data-theme="light"] .mini-panel,
+html[data-theme="light"] .index-section,
+html[data-theme="light"] .operator-panel {
+  background: #f6f8fb !important;
+  border-color: #c5d2e1 !important;
+
+  box-shadow:
+    0 10px 26px rgba(39, 59, 84, 0.08) !important;
+}
+
+
+/* KEEP INDEX OUTER CONTAINER INVISIBLE */
+
+html[data-theme="light"] .index-card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+
+/* INNER CARDS */
+
+html[data-theme="light"] .tool-toggle {
+  background: #e3ebf4 !important;
+  border-color: #b9c9da !important;
+}
+
+html[data-theme="light"] .tool-toggle:hover {
+  background: #e2ebf4 !important;
+  border-color: #8eafd2 !important;
+}
+
+
+/* INPUTS */
+
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea {
+  background: #edf2f7 !important;
+  color: #17243a !important;
+  border-color: #c1cfde !important;
+}
+
+html[data-theme="light"] input::placeholder,
+html[data-theme="light"] textarea::placeholder {
+  color: #74859b !important;
+}
+
+
+/* TEXT */
+
+html[data-theme="light"] h1,
+html[data-theme="light"] h2,
+html[data-theme="light"] h3,
+html[data-theme="light"] h4,
+html[data-theme="light"] b,
+html[data-theme="light"] strong,
+html[data-theme="light"] label {
+  color: #17243a;
+}
+
+html[data-theme="light"] .muted,
+html[data-theme="light"] .small,
+html[data-theme="light"] .note,
+html[data-theme="light"] .tool-toggle small {
+  color: #607089 !important;
+}
+
+
+/* BLUE LABELS */
+
+html[data-theme="light"] .eyebrow,
+html[data-theme="light"] .label {
+  color: #3478c8 !important;
+}
+
+
+/* THEME BUTTON */
+
+html[data-theme="light"] .theme-toggle {
+  background: #edf2f7 !important;
+  border-color: #c5d2e1 !important;
+  color: #36516f !important;
+}
+html[data-theme="light"] .navbar-brand {
+  color: #172033 !important;
+}
+/* ==========================================
+   LIGHT MODE - ICON CONTRAST
+   ========================================== */
+
+/* PenPilot shield */
+html[data-theme="light"] .brand-icon {
+  color: #2f73c9 !important;
+  background: #e1edfb !important;
+  border-color: #a9c8eb !important;
+}
+
+/* Phase number box */
+html[data-theme="light"] .step-number {
+  color: #2469bd !important;
+  background: #dceafb !important;
+  border-color: #a8c8ec !important;
+  font-weight: 700;
+}
+/* ==========================================
+   Light Mode - Remove Index Outer Box
+   ========================================== */
+
+html[data-theme="light"] .index-card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+/* ==========================================
+   LIGHT MODE - FOOTER / BOTTOM AREA
+   ========================================== */
+
+html[data-theme="light"] .footer {
+  background: transparent !important;
+  color: #607089 !important;
+  border-color: #c9d6e4 !important;
+}
+
+html[data-theme="light"] .footer p {
+  color: #607089 !important;
+}
+/* ==========================================
+   LIGHT MODE - PRIMARY ACTION BUTTON
+   ========================================== */
+
+html[data-theme="light"] .index-actions .btn {
+  background: #3f7fc8 !important;
+  border-color: #3f7fc8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px rgba(47, 115, 201, 0.16) !important;
+}
+
+html[data-theme="light"] .index-actions .btn:hover {
+  background: #346fae !important;
+  border-color: #346fae !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .index-actions .btn i,
+html[data-theme="light"] .index-actions .btn span {
+  color: #ffffff !important;
+}
+
+/* ==========================================
+   LIGHT MODE - SCANNING PAGE PANELS
+   ========================================== */
+
+html[data-theme="light"] .scanning-shell .panel {
+  background: #f6f8fb !important;
+  border-color: #c5d2e1 !important;
+  box-shadow: 0 10px 26px rgba(39, 59, 84, 0.08) !important;
+}
+
+html[data-theme="light"] .scanning-shell .overview-card,
+html[data-theme="light"] .scanning-shell .mini-card,
+html[data-theme="light"] .scanning-shell .task {
+  background: #e3ebf4 !important;
+  border-color: #b9c9da !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .scanning-shell h1,
+html[data-theme="light"] .scanning-shell h2,
+html[data-theme="light"] .scanning-shell h3,
+html[data-theme="light"] .scanning-shell b,
+html[data-theme="light"] .scanning-shell strong {
+  color: #17243a;
+}
+
+html[data-theme="light"] .scanning-shell .overview-card span,
+html[data-theme="light"] .scanning-shell .mini-card span,
+html[data-theme="light"] .scanning-shell .task span,
+html[data-theme="light"] .scanning-shell .task small {
+  color: #607089;
+}
+/* ==========================================
+   LIGHT MODE - SCANNING FINISHING TOUCHES
+   ========================================== */
+
+/* Left Task Progress panel */
+html[data-theme="light"] .scanning-shell .scan-sidebar .panel {
+  background: #f6f8fb !important;
+  border-color: #c5d2e1 !important;
+}
+
+/* Progress bar track */
+html[data-theme="light"] .scanning-shell .progress-track {
+  background: #d5dfeb !important;
+  border-color: #b9c9da !important;
+}
+
+/* Keep completed portion blue */
+html[data-theme="light"] .scanning-shell .progress-fill {
+  background: linear-gradient(
+    90deg,
+    #3f7fc8,
+    #7b6fd6
+  ) !important;
+}
+
+/* Command Log table */
+html[data-theme="light"] .scanning-shell .command-table {
+  background: #f6f8fb !important;
+  border-color: #b9c9da !important;
+}
+
+html[data-theme="light"] .scanning-shell .command-table th {
+  background: #dfe9f4 !important;
+  color: #2469bd !important;
+  border-color: #b9c9da !important;
+}
+
+html[data-theme="light"] .scanning-shell .command-table td {
+  background: #edf2f7 !important;
+  color: #17243a !important;
+  border-color: #c5d2e1 !important;
+}
+
+/* Exact command text */
+html[data-theme="light"] .scanning-shell .command-table code {
+  color: #314b6b !important;
+}
+
+/* Copy Command + View Evidence */
+html[data-theme="light"] .scanning-shell .btn.mini {
+  background: #3f7fc8 !important;
+  border-color: #3f7fc8 !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .scanning-shell .btn.mini:hover {
+  background: #346fae !important;
+  border-color: #346fae !important;
+  color: #ffffff !important;
+}
+
+/* ==========================================
+   LIGHT MODE - LAYER DECISION REFINED
+   ========================================== */
+
+/* Workflow step cards */
+html[data-theme="light"] .layer-decision-shell .mission-summary-card,
+html[data-theme="light"] .layer-decision-shell .recon-setting-card {
+  background: #e8eef5 !important;
+  border-color: #b9c8d8 !important;
+  box-shadow: 0 6px 16px rgba(35, 58, 86, 0.06) !important;
+}
+
+/* Step number badges */
+html[data-theme="light"] .layer-decision-shell .mission-card-icon,
+html[data-theme="light"] .layer-decision-shell .recon-setting-icon {
+  background: #d9e8f8 !important;
+  color: #286dbb !important;
+  border: 1px solid #aac5e3 !important;
+}
+
+/* Large content panels */
+html[data-theme="light"] .layer-decision-shell .mission-summary-panel,
+html[data-theme="light"] .layer-decision-shell .flow-card,
+html[data-theme="light"] .layer-decision-shell .panel {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  box-shadow: 0 10px 24px rgba(36, 58, 83, 0.07) !important;
+}
+
+/* Device / continuation inner boxes */
+html[data-theme="light"] .layer-decision-shell .target-checkbox-card,
+html[data-theme="light"] .layer-decision-shell .route-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+/* Empty continuation box */
+html[data-theme="light"] .layer-decision-shell .continuation-empty,
+html[data-theme="light"] .layer-decision-shell .empty-state {
+  background: #edf2f7 !important;
+  border-color: #c1cedc !important;
+}
+
+/* Main titles */
+html[data-theme="light"] .layer-decision-shell h1,
+html[data-theme="light"] .layer-decision-shell h2,
+html[data-theme="light"] .layer-decision-shell h3 {
+  color: #17243a !important;
+}
+
+/* Secondary text */
+html[data-theme="light"] .layer-decision-shell p,
+html[data-theme="light"] .layer-decision-shell small,
+html[data-theme="light"] .layer-decision-shell .muted {
+  color: #5f7087 !important;
+}
+
+/* ==========================================
+   LIGHT MODE - ASSESSMENT CONFIG
+   ========================================== */
+
+/* Main assessment panels */
+html[data-theme="light"] .assessment-shell .panel,
+html[data-theme="light"] .assessment-shell .mini-panel,
+html[data-theme="light"] .assessment-shell .assessment-card {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  box-shadow: 0 10px 24px rgba(36, 58, 83, 0.07) !important;
+}
+
+/* Inner cards / configuration boxes */
+html[data-theme="light"] .assessment-shell .tool-toggle,
+html[data-theme="light"] .assessment-shell .config-card,
+html[data-theme="light"] .assessment-shell .target-card,
+html[data-theme="light"] .assessment-shell .scan-assurance-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* Inputs / selects */
+html[data-theme="light"] .assessment-shell input,
+html[data-theme="light"] .assessment-shell select,
+html[data-theme="light"] .assessment-shell textarea {
+  background: #edf2f7 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .assessment-shell input::placeholder,
+html[data-theme="light"] .assessment-shell textarea::placeholder {
+  color: #7a899c !important;
+}
+
+/* Main text */
+html[data-theme="light"] .assessment-shell h1,
+html[data-theme="light"] .assessment-shell h2,
+html[data-theme="light"] .assessment-shell h3,
+html[data-theme="light"] .assessment-shell h4,
+html[data-theme="light"] .assessment-shell strong,
+html[data-theme="light"] .assessment-shell b {
+  color: #17243a !important;
+}
+
+/* Secondary text */
+html[data-theme="light"] .assessment-shell p,
+html[data-theme="light"] .assessment-shell small,
+html[data-theme="light"] .assessment-shell .muted {
+  color: #5f7087 !important;
+}
+
+/* Labels / eyebrows */
+html[data-theme="light"] .assessment-shell .label,
+html[data-theme="light"] .assessment-shell .eyebrow {
+  color: #3478c8 !important;
+}
+
+/* Tables */
+html[data-theme="light"] .assessment-shell table {
+  background: #f3f6fa !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .assessment-shell th {
+  background: #dfe9f4 !important;
+  color: #2469bd !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .assessment-shell td {
+  background: #edf2f7 !important;
+  color: #17243a !important;
+  border-color: #c3cfdd !important;
+}
+
+/* Main buttons */
+html[data-theme="light"] .assessment-shell .btn:not(.ghost) {
+  background: #4f96ed !important;
+  border-color: #4f96ed !important;
+  color: #ffffff !important;
+}
+
+/* Secondary buttons */
+html[data-theme="light"] .assessment-shell .btn.ghost {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .assessment-shell .btn.ghost:hover {
+  background: #e2ebf4 !important;
+}
+
+.assessment-page .navbar-link {
+  color: var(--muted);
+  background: transparent;
+  border-radius: 10px;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.assessment-page .navbar-link:hover {
+  color: var(--text);
+  background: rgba(59, 130, 246, 0.10);
+}
+
+.assessment-page .navbar-link:focus-visible {
+  color: var(--text);
+  background: rgba(59, 130, 246, 0.10);
+  outline: 2px solid rgba(59, 130, 246, 0.35);
+  outline-offset: 2px;
+}
+
+/* ==========================================
+   LIGHT MODE - ASSESSMENT GREY CARD FIXES
+   ========================================== */
+
+/* Retained target cards */
+html[data-theme="light"] .assessment-page .target-checkbox-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* TCP / UDP strategy cards */
+html[data-theme="light"] .assessment-page .port-strategy-card {
+  background: #e8eef5 !important;
+  border-color: #b9c8d8 !important;
+}
+
+/* Port preview boxes */
+html[data-theme="light"] .assessment-page .port-selection-preview {
+  background: #edf2f7 !important;
+  border-color: #c1cedc !important;
+}
+
+/* Host discovery / service identification / advanced settings */
+html[data-theme="light"] .assessment-page .setting-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* Evidence preset cards */
+html[data-theme="light"] .assessment-page .preset-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+/* Collector cards */
+html[data-theme="light"] .assessment-page .collector-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+/* Scan plan review cards */
+html[data-theme="light"] .assessment-page .scan-plan-grid article {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+/* Mapping options */
+html[data-theme="light"] .assessment-page .mapping-option {
+  background: #edf2f7 !important;
+  border-color: #c1cedc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .assessment-page .mapping-option.active {
+  background: #dbe9f8 !important;
+  border-color: #7da9d8 !important;
+}
+
+/* Collector count chips */
+html[data-theme="light"] .assessment-page .collector-plan-counts span {
+  background: #dfe8f2 !important;
+  color: #53657b !important;
+}
+/* ==========================================
+   LIGHT MODE - PHASE 3 STATUS CARDS
+   ========================================== */
+
+html[data-theme="light"] .scanning-shell .status-time-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .scanning-shell .status-time-card span,
+html[data-theme="light"] .scanning-shell .status-time-card small {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .scanning-shell .status-time-card b {
+  color: #17243a !important;
+}
+
+/* ==========================================
+   LIGHT MODE - RESULTS PAGE
+   ========================================== */
+
+/* Top overview cards */
+html[data-theme="light"] .results-page .results-overview .overview-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .overview-card strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .overview-card small,
+html[data-theme="light"] .results-page .overview-label {
+  color: #5f7087 !important;
+}
+
+
+/* Discovery & Assessment Mission outer panel */
+html[data-theme="light"] .results-page .mission-summary-panel,
+html[data-theme="light"] .results-page .recon-settings-panel {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  box-shadow: 0 10px 24px rgba(36, 58, 83, 0.07) !important;
+}
+
+
+/* Mission summary cards */
+html[data-theme="light"] .results-page .mission-summary-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .mission-summary-card strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .mission-summary-card .muted {
+  color: #5f7087 !important;
+}
+
+
+/* Mission card icons */
+html[data-theme="light"] .results-page .mission-card-icon,
+html[data-theme="light"] .results-page .mission-summary-icon {
+  background: #dceafb !important;
+  color: #2469bd !important;
+}
+
+
+/* Effective Recon Settings cards */
+html[data-theme="light"] .results-page .recon-setting-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .recon-setting-card strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .recon-setting-icon {
+  background: #dceafb !important;
+  color: #2469bd !important;
+}
+
+
+/* Mission note */
+html[data-theme="light"] .results-page .mission-summary-note {
+  background: #edf2f7 !important;
+  border-color: #bfd0e1 !important;
+  color: #465a72 !important;
+}
+
+
+/* Mission table */
+html[data-theme="light"] .results-page .mission-summary-table table {
+  background: #f6f8fb !important;
+}
+
+html[data-theme="light"] .results-page .mission-summary-table th {
+  background: #dfe9f4 !important;
+  color: #2469bd !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .results-page .mission-summary-table td {
+  background: #edf2f7 !important;
+  color: #17243a !important;
+  border-color: #c3cfdd !important;
+}
+
+
+/* Assessment workflow strip */
+html[data-theme="light"] .results-page .assessment-flow {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .flow-node {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page .flow-node span {
+  background: #dce5ef !important;
+  border-color: #b6c5d6 !important;
+  color: #496178 !important;
+}
+
+html[data-theme="light"] .results-page .flow-node.complete span {
+  background: #dceafb !important;
+  border-color: #78aee8 !important;
+  color: #2469bd !important;
+}
+
+
+/* Results navigation tabs */
+html[data-theme="light"] .results-page .results-tabs {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .results-tab {
+  color: #5f7087 !important;
+  background: transparent !important;
+}
+
+html[data-theme="light"] .results-page .results-tab:hover {
+  background: #dceafb !important;
+  color: #2469bd !important;
+}
+
+html[data-theme="light"] .results-page .results-tab.is-active {
+  background: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+
+/* Results workspace general panels */
+html[data-theme="light"] .results-page .results-workspace .panel,
+html[data-theme="light"] .results-page .results-workspace .mini-panel {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* Generic text inside results */
+html[data-theme="light"] .results-page h1,
+html[data-theme="light"] .results-page h2,
+html[data-theme="light"] .results-page h3,
+html[data-theme="light"] .results-page h4,
+html[data-theme="light"] .results-page strong,
+html[data-theme="light"] .results-page b {
+  color: #17243a;
+}
+
+html[data-theme="light"] .results-page .muted,
+html[data-theme="light"] .results-page .small {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page .label,
+html[data-theme="light"] .results-page .eyebrow {
+  color: #3478c8 !important;
+}
+
+/* =========================================================
+   LIGHT MODE — ATTACK SURFACE WORKBENCH
+   ========================================================= */
+
+body.light-mode .left-workbench {
+  background: #f8fbff;
+  border-color: #bfd1e5;
+  color: #14233b;
+}
+
+body.light-mode .left-workbench h2,
+body.light-mode .left-workbench h3,
+body.light-mode .left-workbench h4 {
+  color: #14233b;
+}
+
+body.light-mode .left-workbench .muted {
+  color: #617694;
+}
+
+body.light-mode .left-workbench .label {
+  color: #2f78d8;
+}
+
+
+/* Service cards */
+
+body.light-mode .left-workbench .service-card {
+  background: #eaf2fb;
+  border-color: #b9cee4;
+  color: #14233b;
+}
+
+body.light-mode .left-workbench .service-card h4,
+body.light-mode .left-workbench .service-card b,
+body.light-mode .left-workbench .service-card li {
+  color: #14233b;
+}
+
+
+/* Service metadata */
+
+body.light-mode .left-workbench .service-meta {
+  color: #617694;
+}
+
+body.light-mode .left-workbench .service-meta b {
+  color: #14233b;
+}
+
+
+/* Service state */
+
+body.light-mode .left-workbench .service-state {
+  background: #dce9f7;
+  border-color: #b9cee4;
+  color: #2f78d8;
+}
+
+
+/* Pills */
+
+body.light-mode .left-workbench .pill,
+body.light-mode .left-workbench .muted-pill {
+  background: #dce9f7;
+  border-color: #b9cee4;
+  color: #315f94;
+}
+
+
+/* Evidence sections */
+
+body.light-mode .left-workbench .service-block {
+  background: #f5f9fe;
+  border-color: #c6d7e8;
+  color: #14233b;
+}
+
+body.light-mode .left-workbench .service-block b {
+  color: #14233b;
+}
+
+body.light-mode .left-workbench .service-block .muted {
+  color: #617694;
+}
+
+
+/* Expandable service evidence */
+
+body.light-mode .left-workbench .mini-details {
+  background: #f5f9fe;
+  border-color: #c6d7e8;
+  color: #14233b;
+}
+
+body.light-mode .left-workbench .mini-details summary {
+  color: #2f78d8;
+}
+
+body.light-mode .left-workbench .mini-details li {
+  color: #14233b;
+}
+/* =========================================================
+   LIGHT MODE — RECON SNAPSHOT SIDEBAR
+   ========================================================= */
+
+html[data-theme="light"] .results-page .sidebar-summary-panel {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-summary-panel h2 {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-summary-panel .label {
+  color: #3478c8 !important;
+}
+
+
+/* Snapshot metric cards */
+
+html[data-theme="light"] .results-page .sidebar-summary-grid .mini-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-summary-grid .mini-card b {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-summary-grid .mini-card span {
+  color: #5f7087 !important;
+}
+
+
+/* Target / mode / operating system */
+
+html[data-theme="light"] .results-page .sidebar-facts {
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-facts p {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-facts strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-facts .label {
+  color: #3478c8 !important;
+}
+/* =========================================================
+   LIGHT MODE — FINDINGS / CVE REVIEW
+   ========================================================= */
+
+/* Main Findings container */
+html[data-theme="light"] .results-page #scan-vuln {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* Inner sections:
+   Data Freshness
+   Correlation Queue
+   Host Identity
+   Platform Identity
+   Coverage & Assurance
+   Collector Coverage
+   Evidence Gaps
+*/
+html[data-theme="light"] .results-page #scan-vuln .mini-panel {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* =========================================================
+   ASSURANCE / SUMMARY CARDS
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln .scan-assurance-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .scan-assurance-card strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .scan-assurance-card .muted {
+  color: #5f7087 !important;
+}
+
+
+/* =========================================================
+   TABLES
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln .table-wrap {
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln table {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln th {
+  background: #dfe9f4 !important;
+  color: #284f7d !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln td {
+  background: #f5f8fb !important;
+  color: #17243a !important;
+  border-color: #d1dbe6 !important;
+}
+
+/* Slight alternating rows */
+html[data-theme="light"] .results-page #scan-vuln tbody tr:nth-child(even) td {
+  background: #edf2f7 !important;
+}
+
+
+/* CVE host separator rows */
+html[data-theme="light"] .results-page #scan-vuln .cve-host-group-row th {
+  background: #d7e5f4 !important;
+  color: #2469bd !important;
+}
+
+
+/* =========================================================
+   INPUTS / FILTERS
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln input,
+html[data-theme="light"] .results-page #scan-vuln select {
+  background: #ffffff !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln input::placeholder {
+  color: #7a899c !important;
+}
+
+
+/* =========================================================
+   CVSS 3.1 / 4.0 / BOTH SWITCH
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln .cvss-view-switch {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .cvss-view-switch button {
+  background: transparent !important;
+  color: #5f7087 !important;
+  border-color: transparent !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .cvss-view-switch button:hover {
+  background: #dceafb !important;
+  color: #2469bd !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .cvss-view-switch button.active {
+  background: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+
+/* =========================================================
+   CVE LINKS
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln a {
+  color: #2469bd;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .cve-link-actions .button {
+  background: #e4ebf3 !important;
+  border-color: #aabed4 !important;
+  color: #2469bd !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .cve-link-actions .button:hover {
+  background: #d7e6f7 !important;
+  border-color: #8eafd2 !important;
+}
+
+
+/* =========================================================
+   CVE ASSURANCE STATE
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln .cve-assurance-state {
+  background: #e9eff6 !important;
+  border-color: #c3cfdd !important;
+  color: #465a72 !important;
+}
+
+
+/* =========================================================
+   DETAILS / EXPANDABLE EVIDENCE
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln details {
+  background: #edf2f7 !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln summary {
+  color: #2469bd !important;
+}
+
+
+/* =========================================================
+   SCAN ASSURANCE FOOTER
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln .scan-assurance-foot {
+  background: #edf2f7 !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* =========================================================
+   TEXT
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln h2,
+html[data-theme="light"] .results-page #scan-vuln h3,
+html[data-theme="light"] .results-page #scan-vuln h4,
+html[data-theme="light"] .results-page #scan-vuln strong,
+html[data-theme="light"] .results-page #scan-vuln b {
+  color: #17243a;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .muted {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .label {
+  color: #3478c8 !important;
+}
+/* =========================================================
+   LIGHT MODE — AI PLAN / TECHNIQUE SELECTION
+   ========================================================= */
+
+/* Main AI Plan container */
+html[data-theme="light"] .results-page #ai-techniques {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* AI reasoning summary panel */
+html[data-theme="light"] .results-page #ai-techniques .mini-panel {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+
+/* Expandable sections */
+html[data-theme="light"] .results-page #ai-techniques .details-block {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques .details-block > summary {
+  background: #e4ebf3 !important;
+  color: #2469bd !important;
+  border-color: #b7c6d7 !important;
+}
+
+
+/* MITRE reasoning panel */
+html[data-theme="light"] .results-page #ai-techniques .attack-explanation-panel {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+}
+
+
+/* Technique-selection area */
+html[data-theme="light"] .results-page #ai-techniques #attackPlanForm {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+
+/* =========================================================
+   TABLES
+   ========================================================= */
+
+html[data-theme="light"] .results-page #ai-techniques .table-wrap {
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques table {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques th {
+  background: #dfe9f4 !important;
+  color: #284f7d !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques td {
+  background: #f5f8fb !important;
+  color: #17243a !important;
+  border-color: #d1dbe6 !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques tbody tr:nth-child(even) td {
+  background: #edf2f7 !important;
+}
+
+
+/* MITRE links */
+html[data-theme="light"] .results-page #ai-techniques a {
+  color: #2469bd !important;
+}
+
+
+/* Checkbox area */
+html[data-theme="light"] .results-page #ai-techniques input[type="checkbox"] {
+  accent-color: #3478c8;
+}
+
+
+/* Text */
+html[data-theme="light"] .results-page #ai-techniques h2,
+html[data-theme="light"] .results-page #ai-techniques h3,
+html[data-theme="light"] .results-page #ai-techniques strong,
+html[data-theme="light"] .results-page #ai-techniques b,
+html[data-theme="light"] .results-page #ai-techniques li {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques .muted,
+html[data-theme="light"] .results-page #ai-techniques .small {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques .label {
+  color: #3478c8 !important;
+}
+
+/* =========================================================
+   LIGHT MODE — VALIDATION
+   ========================================================= */
+
+/* Main Validation container */
+html[data-theme="light"] .results-page #exploitability-validation {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* Inner panels */
+html[data-theme="light"] .results-page #exploitability-validation .mini-panel {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+
+/* =========================================================
+   EXPANDABLE SECTIONS
+   ========================================================= */
+
+html[data-theme="light"] .results-page #exploitability-validation .details-block {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation .details-block > summary {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #2469bd !important;
+}
+
+
+/* =========================================================
+   TABLES
+   ========================================================= */
+
+html[data-theme="light"] .results-page #exploitability-validation .table-wrap {
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation table {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation th {
+  background: #dfe9f4 !important;
+  color: #284f7d !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation td {
+  background: #f5f8fb !important;
+  color: #17243a !important;
+  border-color: #d1dbe6 !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation tbody tr:nth-child(even) td {
+  background: #edf2f7 !important;
+}
+
+
+/* =========================================================
+   SMB EXPLOITATION
+   ========================================================= */
+
+html[data-theme="light"] .results-page #smbExploitationSection {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #smbActionsList,
+html[data-theme="light"] .results-page #smbChainProgress {
+  color: #17243a !important;
+}
+
+
+/* BEFORE / AFTER output
+   Overrides inline background:#1a1a1a */
+html[data-theme="light"] .results-page #smbBeforeFiles,
+html[data-theme="light"] .results-page #smbAfterFiles {
+  background: #e8eef5 !important;
+  border: 1px solid #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+
+/* Other SMB output */
+html[data-theme="light"] .results-page #smbFingerprintOutput,
+html[data-theme="light"] .results-page #smbHydraOutput {
+  background: #e8eef5 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+
+/* =========================================================
+   VALIDATION SUMMARY
+   ========================================================= */
+
+html[data-theme="light"] .results-page #validationSummary {
+  background: transparent !important;
+}
+
+html[data-theme="light"] .results-page #validationSummary article {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #validationSummary article strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #validationSummary .label {
+  color: #3478c8 !important;
+}
+
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+html[data-theme="light"] .results-page #exploitability-validation .button.secondary {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation .button.secondary:hover {
+  background: #dceafb !important;
+  border-color: #8eafd2 !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation .button.primary {
+  background: #3478c8 !important;
+  border-color: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+
+/* =========================================================
+   TEXT
+   ========================================================= */
+
+html[data-theme="light"] .results-page #exploitability-validation h2,
+html[data-theme="light"] .results-page #exploitability-validation h3,
+html[data-theme="light"] .results-page #exploitability-validation strong,
+html[data-theme="light"] .results-page #exploitability-validation b {
+  color: #17243a;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation .muted,
+html[data-theme="light"] .results-page #exploitability-validation .small {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation .label {
+  color: #3478c8 !important;
+}
+/* =========================================================
+   LIGHT MODE — CONTROLLED WEB VALIDATION
+   ========================================================= */
+
+html[data-theme="light"] .results-page #webValidationPanel {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #webValidationPanel .label {
+  color: #3478c8 !important;
+}
+
+html[data-theme="light"] .results-page #webValidationPanel .muted {
+  color: #5f7087 !important;
+}
+
+
+/* Find Web Validation Actions button */
+html[data-theme="light"] .results-page #webValidationPanel .button.secondary {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .results-page #webValidationPanel .button.secondary:hover {
+  background: #dceafb !important;
+  border-color: #8eafd2 !important;
+  color: #2469bd !important;
+}
+/* =========================================================
+   LIGHT MODE — CALDERA
+   ========================================================= */
+
+/* Main CALDERA section */
+html[data-theme="light"] .results-page #caldera-execution,
+html[data-theme="light"] .results-page #execution-results {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+/* General CALDERA cards */
+html[data-theme="light"] .results-page #caldera-execution .mini-panel,
+html[data-theme="light"] .results-page #caldera-execution .status-card,
+html[data-theme="light"] .results-page #caldera-execution .caldera-info-card,
+html[data-theme="light"] .results-page #caldera-execution .caldera-agent-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* CALDERA status banner */
+html[data-theme="light"] .results-page #calderaStatusBox {
+  background: #e8eef5 !important;
+  border-color: #b7c6d7 !important;
+}
+
+/* Target details rows */
+html[data-theme="light"] .results-page .caldera-detail-list > div {
+  background: #edf2f7 !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .caldera-detail-list span {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page .caldera-detail-list strong {
+  color: #17243a !important;
+}
+
+/* Rejection box */
+html[data-theme="light"] .results-page .caldera-rejection-box {
+  background: #f8eaea !important;
+  border-color: #e4b7b7 !important;
+}
+
+html[data-theme="light"] .results-page .caldera-rejection-box span {
+  color: #b84a4a !important;
+}
+
+html[data-theme="light"] .results-page .caldera-rejection-box p {
+  color: #7f3333 !important;
+}
+
+/* Deploy command */
+html[data-theme="light"] .results-page #deployCommandBox {
+  background: #e8eef5 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #deployCommandText {
+  background: #dfe8f2 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* Coverage warning */
+html[data-theme="light"] .results-page #coverageWarningBox {
+  background: #fff6df !important;
+  border-color: #e7c975 !important;
+  color: #6d571f !important;
+}
+
+/* Operation box */
+html[data-theme="light"] .results-page #operationBox {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* Buttons */
+html[data-theme="light"] .results-page #caldera-execution .button.secondary {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .results-page #caldera-execution .button.secondary:hover {
+  background: #dceafb !important;
+  border-color: #8eafd2 !important;
+}
+
+html[data-theme="light"] .results-page #caldera-execution .button:not(.secondary) {
+  background: #3478c8 !important;
+  border-color: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+/* =========================================================
+   EXECUTION SUMMARY
+   ========================================================= */
+
+html[data-theme="light"] .results-page #executionSummary article {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #executionSummary .label {
+  color: #3478c8 !important;
+}
+
+/* Keep semantic result colours */
+html[data-theme="light"] .results-page #successfulTechniques {
+  color: #2f8f57 !important;
+}
+
+html[data-theme="light"] .results-page #failedTechniques {
+  color: #c94c4c !important;
+}
+
+html[data-theme="light"] .results-page #discardedTechniques {
+  color: #c98225 !important;
+}
+
+/* =========================================================
+   EXECUTION RESULTS TABLE
+   ========================================================= */
+
+html[data-theme="light"] .results-page #executionResults {
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .execution-results-table {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .execution-results-table th {
+  background: #dfe9f4 !important;
+  color: #284f7d !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .execution-results-table td {
+  background: #f5f8fb !important;
+  color: #17243a !important;
+  border-color: #d1dbe6 !important;
+}
+
+html[data-theme="light"] .results-page .execution-results-table tbody tr:nth-child(even) td {
+  background: #edf2f7 !important;
+}
+
+/* Text */
+html[data-theme="light"] .results-page #caldera-execution h2,
+html[data-theme="light"] .results-page #caldera-execution h4,
+html[data-theme="light"] .results-page #execution-results h2,
+html[data-theme="light"] .results-page #caldera-execution strong,
+html[data-theme="light"] .results-page #execution-results strong {
+  color: #17243a;
+}
+
+html[data-theme="light"] .results-page #caldera-execution .muted,
+html[data-theme="light"] .results-page #execution-results .muted {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page #caldera-execution .label,
+html[data-theme="light"] .results-page #execution-results .label {
+  color: #3478c8 !important;
+}
+/* =========================================================
+   LIGHT MODE — AI CHAT CONTENT
+   ========================================================= */
+
+/* Chat message area */
+html[data-theme="light"] .results-page .ai-chat-box {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+}
+
+/* All message bubbles */
+html[data-theme="light"] .results-page .ai-message {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* AI message */
+html[data-theme="light"] .results-page .ai-message-assistant {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .results-page .ai-message-assistant strong {
+  color: #3478c8 !important;
+}
+
+html[data-theme="light"] .results-page .ai-message-assistant p {
+  color: #17243a !important;
+}
+
+/* User message, if JS generates this class */
+html[data-theme="light"] .results-page .ai-message-user {
+  background: #dceafb !important;
+  border-color: #a8c8ec !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .ai-message-user strong {
+  color: #2469bd !important;
+}
+
+/* Input row */
+html[data-theme="light"] .results-page .ai-input-row {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+}
+
+/* Input */
+html[data-theme="light"] .results-page #aiChatInput {
+  background: #edf2f7 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #aiChatInput::placeholder {
+  color: #7a899c !important;
+}
+
+html[data-theme="light"] .results-page #aiChatInput:focus {
+  border-color: #78aee8 !important;
+  box-shadow: 0 0 0 3px rgba(52, 120, 200, 0.12) !important;
+}
+
+/* Ask button */
+html[data-theme="light"] .results-page #aiChatSendBtn {
+  background: #3478c8 !important;
+  border-color: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .results-page #aiChatSendBtn:hover {
+  background: #2f6fb8 !important;
+  border-color: #2f6fb8 !important;
+}
+
+/* Status / intro text */
+html[data-theme="light"] .results-page #ai-assistant .muted {
+  color: #5f7087 !important;
+}
+/* =========================================================
+   LIGHT MODE — AI DRAWER OUTER SHELL
+   ========================================================= */
+
+html[data-theme="light"] .ai-chat-drawer,
+html[data-theme="light"] #aiChatDrawer {
+  background: #f3f6fa !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+  box-shadow: 0 18px 45px rgba(36, 58, 83, 0.16) !important;
+}
+
+
+/* Drawer header */
+html[data-theme="light"] .ai-chat-drawer-head,
+html[data-theme="light"] #aiChatDrawer .ai-chat-drawer-head {
+  background: #f3f6fa !important;
+  border-bottom: 1px solid #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] #aiChatDrawer .ai-chat-drawer-head .label {
+  color: #3478c8 !important;
+}
+
+html[data-theme="light"] #aiChatDrawer .ai-chat-drawer-head h2,
+html[data-theme="light"] #aiChatDrawer .ai-chat-drawer-head strong {
+  color: #17243a !important;
+}
+
+
+/* Main AI content area */
+html[data-theme="light"] #aiChatDrawer .ai-sidebar,
+html[data-theme="light"] #aiChatDrawer .ai-sidebar-inner {
+  background: #f3f6fa !important;
+  color: #17243a !important;
+}
+
+
+/* Intro + unavailable status */
+html[data-theme="light"] #aiChatDrawer .ai-chat-intro,
+html[data-theme="light"] #aiChatDrawer #aiStatusText {
+  color: #5f7087 !important;
+}
+
+
+/* Close button */
+html[data-theme="light"] #aiChatDrawer button[id*="Close"],
+html[data-theme="light"] #aiChatDrawer .ai-chat-close,
+html[data-theme="light"] #aiChatDrawer .drawer-close {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] #aiChatDrawer button[id*="Close"]:hover,
+html[data-theme="light"] #aiChatDrawer .ai-chat-close:hover,
+html[data-theme="light"] #aiChatDrawer .drawer-close:hover {
+  background: #dceafb !important;
+}
+/* =========================================================
+   LIGHT MODE — REPORT
+   ========================================================= */
+
+/* Main report section */
+html[data-theme="light"] .results-page #report {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* Risk summary cards */
+html[data-theme="light"] .results-page #report .summary-strip article {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #report .summary-strip article strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #report .summary-strip .label {
+  color: #3478c8 !important;
+}
+
+
+/* Generated report output */
+html[data-theme="light"] .results-page #reportBox {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #reportBox p,
+html[data-theme="light"] .results-page #reportBox li,
+html[data-theme="light"] .results-page #reportBox strong,
+html[data-theme="light"] .results-page #reportBox b {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #reportBox .muted {
+  color: #5f7087 !important;
+}
+
+
+/* Generate Report */
+html[data-theme="light"] .results-page #generateReportBtn {
+  background: #3478c8 !important;
+  border-color: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .results-page #generateReportBtn:hover {
+  background: #2f6fb8 !important;
+  border-color: #2f6fb8 !important;
+}
+
+
+/* Download buttons */
+html[data-theme="light"] .results-page #downloadReportBtn,
+html[data-theme="light"] .results-page #downloadPdfReportBtn {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .results-page #downloadReportBtn:hover,
+html[data-theme="light"] .results-page #downloadPdfReportBtn:hover {
+  background: #dceafb !important;
+  border-color: #8eafd2 !important;
+}
+
+
+/* Text */
+html[data-theme="light"] .results-page #report h2,
+html[data-theme="light"] .results-page #report strong {
+  color: #17243a;
+}
+
+html[data-theme="light"] .results-page #report > .muted {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page #report .label {
+  color: #3478c8 !important;
+}
+/* ==========================================
+   TECHNICAL APPENDIX - LIGHT MODE
+   ========================================== */
+
+html[data-theme="light"] .appendix-page {
+  color: #17243a !important;
+}
+
+
+/* Main appendix sections */
+html[data-theme="light"] .appendix-page .appendix-box {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+  box-shadow: 0 10px 24px rgba(36, 58, 83, 0.07) !important;
+}
+
+
+/* Headings */
+html[data-theme="light"] .appendix-page .appendix-box h2,
+html[data-theme="light"] .appendix-page .appendix-box h3,
+html[data-theme="light"] .appendix-page .appendix-box strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-box .label,
+html[data-theme="light"] .appendix-page .appendix-box-head .label {
+  color: #3478c8 !important;
+}
+
+
+/* Scan metadata cards */
+html[data-theme="light"] .appendix-page .appendix-chip {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-chip strong {
+  color: #17243a !important;
+}
+
+
+/* ==========================================
+   TABLES
+   ========================================== */
+
+html[data-theme="light"] .appendix-page .appendix-table-shell {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-table-shell table {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-table-shell th {
+  background: #dfe9f4 !important;
+  color: #2469bd !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-table-shell td {
+  background: #f5f8fb !important;
+  color: #17243a !important;
+  border-color: #cbd7e3 !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-table-shell tbody tr:nth-child(even) td {
+  background: #edf2f7 !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-table-shell tbody tr:hover td {
+  background: #e4edf7 !important;
+}
+
+
+/* Muted text */
+html[data-theme="light"] .appendix-page .muted,
+html[data-theme="light"] .appendix-page .small {
+  color: #5f7087 !important;
+}
+
+
+/* Code / monospace */
+html[data-theme="light"] .appendix-page code,
+html[data-theme="light"] .appendix-page .mono {
+  color: #294766 !important;
+}
+
+
+/* Buttons */
+html[data-theme="light"] .appendix-page .button.secondary {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .appendix-page .button.secondary:hover {
+  background: #dceafb !important;
+}
+
+
+/* ==========================================
+   EVIDENCE MODAL
+   ========================================== */
+
+html[data-theme="light"] #appendixEvidenceModal .modal-card {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] #appendixEvidenceModal .modal-head {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] #appendixEvidenceModal .modal-head h2,
+html[data-theme="light"] #appendixEvidenceModal .modal-body h3 {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] #appendixEvidenceModal pre {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] #appendixEvidenceModal .icon-btn {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+/* ==========================================
+   REPORT VIEW - LIGHT MODE
+   ========================================== */
+
+html[data-theme="light"] .report-page {
+  color: #17243a !important;
+}
+
+
+/* Main report card */
+html[data-theme="light"] .report-page #assessment-summary {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+  box-shadow: 0 10px 24px rgba(36, 58, 83, 0.07) !important;
+}
+
+
+/* Report heading */
+html[data-theme="light"] .report-page #assessment-summary h2 {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .report-page #assessment-summary .label {
+  color: #3478c8 !important;
+}
+
+
+/* Actual generated report text */
+html[data-theme="light"] .report-page .report-preview {
+  background: #e4ebf3 !important;
+  border: 1px solid #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+
+/* Hero text */
+html[data-theme="light"] .report-page .hero h1 {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .report-page .hero .muted {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .report-page .hero .eyebrow {
+  color: #3478c8 !important;
+}
+
+
+/* Report action buttons */
+html[data-theme="light"] .report-page .button.secondary {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .report-page .button.secondary:hover {
+  background: #dceafb !important;
+  border-color: #8eafd2 !important;
+  color: #2469bd !important;
 }

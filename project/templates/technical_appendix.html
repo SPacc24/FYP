@@ -437,6 +437,6 @@
     function closeAppendixEvidence(){ document.getElementById('appendixEvidenceModal').classList.remove('open'); document.getElementById('appendixEvidenceModal').setAttribute('aria-hidden','true'); }
     document.addEventListener('keydown', event => { if(event.key==='Escape') closeAppendixEvidence(); });
   </script>
-
+<script src="{{ url_for('static', filename='theme.js') }}"></script>
 </body>
 </html>
