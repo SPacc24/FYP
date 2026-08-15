@@ -19,115 +19,78 @@
   </style>
 </head>
 
-<body>
- <!-- ==========================================
-     Main Navigation Bar
-     ========================================== -->
+<body class="assessment-page"> 
 
-<nav class="main-navbar">
+<main class="shell hero index-shell assessment-shell">
 
-  <!-- Brand -->
-  <a href="#" class="navbar-brand">
-    <span class="brand-icon">
-      <i class="bi bi-shield-check"></i>
-    </span>
+  <nav class="main-navbar">
 
-    <span>AutoPenTest</span>
-  </a>
+    <div class="navbar-brand">
+  <span class="brand-icon">
+    <i class="bi bi-shield-check"></i>
+  </span>
+  <span>PenPilot</span>
+</div>
 
-  <!-- Navigation -->
-  <div class="navbar-links">
-    <a href="#phase3-target" class="navbar-link">
-      <i class="bi bi-bullseye"></i>
-      <span>Target</span>
-    </a>
+    <div class="navbar-links">
 
-    <a href="#strategy" class="navbar-link">
-      <i class="bi bi-radar"></i>
-      <span>Strategy</span>
-    </a>
+      <a href="#phase3-target" class="navbar-link">
+        <span>Targets</span>
+      </a>
 
-    <a href="#mapping" class="navbar-link">
-      <i class="bi bi-diagram-3"></i>
-      <span>Mapping</span>
-    </a>
+      <a href="#strategy" class="navbar-link">
+        <span>Recon</span>
+      </a>
 
-    <a href="#tools" class="navbar-link">
-      <i class="bi bi-tools"></i>
-      <span>Tools</span>
-    </a>
+      <a href="#host-discovery" class="navbar-link">
+        <span>Discovery</span>
+      </a>
 
-    <a href="#advanced" class="navbar-link">
-      <i class="bi bi-sliders"></i>
-      <span>Advanced</span>
-    </a>
-  </div>
+      <a href="#tools" class="navbar-link">
+        <span>Evidence</span>
+      </a>
 
-  <!-- Right Controls -->
-  <div class="navbar-controls">
+      <a href="#advanced" class="navbar-link">
+        <span>Advanced</span>
+      </a>
 
-    <!-- Light Mode Placeholder -->
-    <button
-      class="theme-toggle"
-      type="button"
-      title="Light Mode (Coming Soon)"
-      aria-label="Light Mode"
-    >
-      <i class="bi bi-sun-fill"></i>
-    </button>
+      <a href="#scan-plan-review" class="navbar-link">
+        <span>Review</span>
+      </a>
 
-  </div>
+    </div>
 
-</nav>
+    <div class="navbar-controls">
 
-  <main class="shell hero index-shell">
+      <a href="{{ url_for('index') }}" class="navbar-new-scan">
+        <i class="bi bi-plus-lg"></i>
+        <span>New Scan</span>
+      </a>
+
+      <button
+        class="theme-toggle"
+        type="button"
+        title="Light Mode (Coming Soon)"
+        aria-label="Light Mode">
+        <i class="bi bi-sun-fill"></i>
+      </button>
+
+    </div>
+
+  </nav>
+
+
   <section class="hero-card wide-hero index-card">
 
-    <div class="hero-top">
+    <div class="index-head phase3-head">
+      <p class="eyebrow">PHASE 3 · ASSESSMENT</p>
 
-      <div class="index-head">
-        <p class="eyebrow">PHASE 3 · ASSESSMENT</p>
-        <h1>Configure Target Assessment</h1>
-        <p class="muted">
-          Select one or more assets retained from Phase 1 and Phase 2, then use the existing TCP/UDP, evidence collector, advanced execution, and technique-mapping controls.
-        </p>
-      </div>
+      <h1>Configure Target Assessment</h1>
 
-      {% if not operator_authenticated %}
-      <section class="operator-panel index-section hero-operator">
-        <span class="label">Operator Access</span>
-
-        {% if operator_token_configured %}
-          <p class="muted small">
-            Unlock this browser session before starting scans or running lab tools.
-          </p>
-
-          <div class="operator-unlock-row">
-            <input
-              id="operatorTokenInput"
-              type="password"
-              placeholder="Operator token"
-              autocomplete="current-password" />
-
-            <button
-              class="btn ghost mini"
-              id="operatorUnlockBtn"
-              type="button">
-              Unlock
-            </button>
-          </div>
-
-          <p class="muted small" id="operatorUnlockStatus"></p>
-
-        {% else %}
-          <p class="muted small">
-            Remote operator actions are disabled because OPERATOR_TOKEN is not configured.
-            Use the Kali browser locally or set OPERATOR_TOKEN in project/.env and restart Flask.
-          </p>
-        {% endif %}
-      </section>
-      {% endif %}
-
+      <p class="muted">
+        Select one or more assets retained from Phase 1 and Phase 2, then configure
+        the assessment using the available scanning and technique-mapping controls.
+      </p>
     </div>
 
     <div class="index-layout">
@@ -255,20 +218,90 @@
               <div class="scan-warning" id="fullPortWarning" hidden>Full-range scanning covers ports 1–65535. Full UDP scans in particular can take substantially longer than Essentials or Custom coverage.</div>
             </section>
 
-            <section id="mapping" class="index-section attack-mode-section">
-                <div class="section-header">
-                  <span class="step-number">3</span>
-                  <span class="label">TECHNIQUE MAPPING</span>
-                </div>
-              <label>
-                <select name="technique_mode" required>
-                  <option value="auto" {% if session.get('technique_mode','hybrid') == 'auto' %}selected{% endif %}>Auto - AI selects techniques automatically</option>
-                  <option value="hybrid" {% if session.get('technique_mode','hybrid') == 'hybrid' %}selected{% endif %}>Hybrid - AI recommends, analyst can edit</option>
-                  <option value="manual" {% if session.get('technique_mode','hybrid') == 'manual' %}selected{% endif %}>Manual - analyst selects techniques manually</option>
-                </select>
-              </label>
-               <p class="mapping-description">Choose how techniques will be mapped during the assessment.</p>
-            </section>
+           <section id="mapping" class="index-section attack-mode-section">
+            <div class="section-header">
+              <span class="step-number">3</span>
+              <span class="label">TECHNIQUE MAPPING</span>
+            </div>
+
+            <h2>Mapping Strategy</h2>
+
+            <p class="mapping-description">
+              Choose how MITRE ATT&amp;CK techniques will be selected and mapped during the assessment.
+            </p>
+
+            <label>
+              <select name="technique_mode" id="techniqueMode" required>
+                <option
+                  value="auto"
+                  {% if session.get('technique_mode','hybrid') == 'auto' %}selected{% endif %}
+                >
+                  Auto - AI selects techniques automatically
+                </option>
+
+                <option
+                  value="hybrid"
+                  {% if session.get('technique_mode','hybrid') == 'hybrid' %}selected{% endif %}
+                >
+                  Hybrid - AI recommends, analyst can edit
+                </option>
+
+                <option
+                  value="manual"
+                  {% if session.get('technique_mode','hybrid') == 'manual' %}selected{% endif %}
+                >
+                  Manual - analyst selects techniques manually
+                </option>
+              </select>
+            </label>
+
+            <div class="mapping-options">
+              <span class="label">MAPPING OPTIONS</span>
+
+              <button
+                type="button"
+                class="mapping-option"
+                data-technique-mode="auto"
+              >
+                <span class="mapping-option-heading">
+                  <strong>Auto</strong>
+                </span>
+
+                <span class="mapping-option-description">
+                  AI selects techniques automatically.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                class="mapping-option"
+                data-technique-mode="hybrid"
+              >
+                <span class="mapping-option-heading">
+                  <strong>Hybrid</strong>
+                  <span class="mapping-badge">Recommended</span>
+                </span>
+
+                <span class="mapping-option-description">
+                  AI recommends techniques while the analyst can review and edit them.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                class="mapping-option"
+                data-technique-mode="manual"
+              >
+                <span class="mapping-option-heading">
+                  <strong>Manual</strong>
+                </span>
+
+                <span class="mapping-option-description">
+                  Analyst selects techniques manually.
+                </span>
+              </button>
+            </div>
+          </section>
           </div>
 
             <input type="hidden" name="collector_plan_json" id="collectorPlanJson" value="{}">
@@ -308,7 +341,7 @@
                           max="10"
                           value="2"
                         >
-                        <span class="unit">sec</span>
+                        <span class="unit">s</span>
                       </div>
                     </label>
                   </div>
@@ -341,7 +374,7 @@
                 </div>
               </div>
               <div class="advanced-grid">
-                <div class="setting-card">
+                <div class="setting-card discovery-toggle-card">
                   <label class="switch-row" for="coreTcpDiscovery"><span><b>TCP discovery</b><small>Use the exact TCP scope selected above.</small></span><input type="checkbox" id="coreTcpDiscovery" checked></label>
                   <label class="switch-row" for="coreUdpDiscovery"><span><b>UDP discovery</b><small>Use the exact UDP scope selected above.</small></span><input type="checkbox" id="coreUdpDiscovery" checked></label>
                 </div>
@@ -516,43 +549,24 @@
               <div class="section-header"><span class="step-number">8</span><span class="label">SCAN PLAN REVIEW</span></div>
               <div class="advanced-settings-head">
                 <div><h2>Review Effective Intent</h2><p class="tool-selection-description">Preview what the operator requested before packets leave the scanner. Runtime applicability and policy outcomes are still recorded separately.</p></div>
-                <button class="btn ghost mini" type="button" id="reviewScanPlanBtn">Refresh Plan</button>
               </div>
               <div id="scanPlanPreview" class="scan-plan-preview"></div>
             </section>
-
-            <section class="index-section">
-              <span class="label">What the recon module will produce</span>
-              <div class="recon-output-grid">
-                <article class="tool-toggle"><span><b>Environment Intelligence</b><small>TTL, DNS and initial response behaviour.</small></span></article>
-                <article class="tool-toggle"><span><b>Attack Surface Workbench</b><small>Web, remote access, file sharing, database and infrastructure surfaces.</small></span></article>
-                <article class="tool-toggle"><span><b>Host &amp; Platform Identity</b><small>Evidence-derived OS, build, hostname/domain and platform identity without selecting a Windows/Linux/macOS mode.</small></span></article>
-                <article class="tool-toggle"><span><b>Evidence Gap Review</b><small>Missing host OS, product, release/build, version, CPE and service-context evidence.</small></span></article>
-                <article class="tool-toggle"><span><b>Scope-Aware CVE Correlation</b><small>One official CVE correlation engine evaluates observed host-OS and application/service identities in their correct scope.</small></span></article>
-                <article class="tool-toggle"><span><b>Validation Handoff</b><small>Evidence and CVE-reference handoff records for downstream validation teammates. No exploitation is performed by recon.</small></span></article>
-              </div>
-            </section>
-
             <div class="index-actions">
-<button
-    id="startBtn"
-    class="btn"
-    type="submit"
-    {% if not operator_authenticated %}disabled{% endif %}
->
-    <i class="bi bi-rocket-takeoff"></i>
+              <button
+                  id="startBtn"
+                  class="btn"
+                  type="submit"
+                  {% if not operator_authenticated %}disabled{% endif %}
+              >
+                  <i class="bi bi-rocket-takeoff"></i>
 
-    <span>Launch Assessment</span>
+                  <span>Launch Assessment</span>
 
-    <i class="bi bi-arrow-right"></i>
-</button>
+                  <i class="bi bi-arrow-right"></i>
+              </button>
 
-  <p class="note">
-    Recon only: no scoring, no ranking, no prioritisation, no exploitation,
-    no fake-IP evasion. The module uses adaptive low-impact collection and
-    preserves evidence for downstream teams.
-  </p>
-</div>
+              </div>
           </form>
         </div>
       </div>
@@ -975,7 +989,6 @@
   document.getElementById('exportPlanBtn')?.addEventListener('click', () => { const blob=new Blob([JSON.stringify(currentFormConfig(), null, 2)], {type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='autopentest-recon-plan.json'; a.click(); URL.revokeObjectURL(url); });
   document.getElementById('importPlanBtn')?.addEventListener('click', () => document.getElementById('importPlanFile')?.click());
   document.getElementById('importPlanFile')?.addEventListener('change', async event => { const file=event.target.files?.[0]; if(!file) return; try { const parsed=JSON.parse(await file.text()); if(parsed.schema && parsed.schema !== 'autopentest-recon-plan-v1') throw new Error('Unsupported plan schema'); applyFormConfig(parsed); } catch(err) { alert(`Could not import recon plan: ${err.message}`); } event.target.value=''; });
-  document.getElementById('reviewScanPlanBtn')?.addEventListener('click', syncPlanInputs);
   document.querySelectorAll('#host-discovery input, #identity input').forEach(input => input.addEventListener('change', syncPlanInputs));
   document.querySelectorAll('.assessment-target-checkbox').forEach(input => input.addEventListener('change', () => {
     const error = document.getElementById('assessmentTargetError');

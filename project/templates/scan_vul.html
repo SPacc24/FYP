@@ -21,10 +21,54 @@
       <h3>Data Freshness</h3>
     </div>
   </div>
-  <div class="scan-assurance-grid">
+  <div class="scan-assurance-grid freshness-grid">
     <article class="scan-assurance-card"><span class="label">CVE Program Index</span><strong>{{ 'Available' if mitre_source.get('local_index_available') else 'Unavailable' }}</strong><span class="small muted">{{ mitre_source.get('records_indexed','N/A') }} record(s)</span></article>
-    <article class="scan-assurance-card"><span class="label">Index Updated</span><strong class="small">{{ mitre_source.get('index_updated_at') or 'Unknown' }}</strong><span class="small muted">{% if mitre_source.get('index_age_seconds') is not none %}Age {{ ((mitre_source.get('index_age_seconds')|int) / 3600)|round(1) }} hour(s){% else %}Age unavailable{% endif %}</span></article>
-    <article class="scan-assurance-card"><span class="label">CVE Repository Head</span><strong class="small">{{ mitre_source.get('repo_head_at') or 'Unknown' }}</strong><span class="small muted">Source revision time when available</span></article>
+    <article class="scan-assurance-card freshness-time-card">
+      <span class="label">Index Updated</span>
+
+      {% set index_updated = mitre_source.get('index_updated_at') %}
+
+      {% if index_updated %}
+        <strong class="freshness-date">
+          {{ index_updated[:10] }}
+        </strong>
+
+        <span class="freshness-time">
+          {{ index_updated[11:16] }} UTC
+        </span>
+      {% else %}
+        <strong>Unknown</strong>
+      {% endif %}
+
+      <span class="small muted">
+        {% if mitre_source.get('index_age_seconds') is not none %}
+          Updated {{ ((mitre_source.get('index_age_seconds')|int) / 3600)|round(1) }} hour(s) ago
+        {% else %}
+          Age unavailable
+        {% endif %}
+      </span>
+    </article>    
+    <article class="scan-assurance-card freshness-time-card">
+      <span class="label">CVE Repository Head</span>
+
+      {% set repo_head = mitre_source.get('repo_head_at') %}
+
+      {% if repo_head %}
+        <strong class="freshness-date">
+          {{ repo_head[:10] }}
+        </strong>
+
+        <span class="freshness-time">
+          {{ repo_head[11:16] }} UTC
+        </span>
+      {% else %}
+        <strong>Unknown</strong>
+      {% endif %}
+
+      <span class="small muted">
+        Source revision time
+      </span>
+    </article>
     <article class="scan-assurance-card"><span class="label">CVSS Metadata</span><strong>{{ mitre_source.get('records_with_cvss_metadata','N/A') }}</strong><span class="small muted">3.1: {{ mitre_source.get('records_with_cvss_metadata_by_version',{}).get('3.1','N/A') }} · 4.0: {{ mitre_source.get('records_with_cvss_metadata_by_version',{}).get('4.0','N/A') }}</span></article>
     <article class="scan-assurance-card"><span class="label">NVD Enrichment</span><strong>{{ 'Enabled' if nvd_source.get('enabled') else 'Disabled / unavailable' }}</strong><span class="small muted">Exact Candidate CVE IDs only · cached CVSS/metadata queries: {{ nvd_source.get('cached_cve_metric_queries',0) }} · NVD cannot create or remove candidates</span></article>
     <article class="scan-assurance-card"><span class="label">NVD Cache Freshness</span><strong>{% if nvd_source.get('cache_age_seconds') is not none %}{{ ((nvd_source.get('cache_age_seconds')|int) / 3600)|round(1) }} h{% else %}No successful cache timestamp{% endif %}</strong><span class="small muted">Assessment-time enrichment state</span></article>
@@ -36,7 +80,7 @@
 <section class="mini-panel top-gap" id="cve-review-coverage">
   <div class="stage-head-with-actions"><div><span class="label">Candidate CVE Generation</span><h3>Correlation Queue</h3></div></div>
   {% set generation_state = cve_review_summary.get('candidate_generation_state', 'available' if mitre_source.get('local_index_available') else 'unavailable') %}
-  <div class="scan-assurance-grid">
+  <div class="scan-assurance-grid correlation-queue-grid">
     <article class="scan-assurance-card"><span class="label">Candidate Source</span><strong>{{ generation_state|replace('_',' ')|title }}</strong><span class="small muted">Official CVE Program structured affected data</span></article>
     <article class="scan-assurance-card"><span class="label">Software Identities Reviewed</span><strong>{{ cve_review_summary.get('identities_reviewed',0) }}</strong><span class="small muted">Software product/version inputs evaluated</span></article>
     {% set candidate_unique = cve_review_summary.get('candidate_cves_retained', cve_review_summary.get('candidate_cves_considered',0)) %}

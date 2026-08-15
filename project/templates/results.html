@@ -3,12 +3,54 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AutoPenTest Results</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+
+  <title>PenPilot Results</title>
+
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+  />
+
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='style.css') }}"
+  />
 </head>
 <body class="results-page">
   <main class="page results-shell">
-    {% include "navbar.html" %}
+    <nav class="main-navbar">
+
+      <div class="navbar-brand">
+  <span class="brand-icon">
+    <i class="bi bi-shield-check"></i>
+  </span>
+  <span>PenPilot</span>
+</div>
+
+      <div class="navbar-page-content">
+        <span class="results-navbar-title">
+          Assessment Results
+        </span>
+      </div>
+
+      <div class="navbar-controls">
+
+        <a href="{{ url_for('index') }}" class="navbar-new-scan">
+          <i class="bi bi-plus-lg"></i>
+          <span>New Scan</span>
+        </a>
+
+        <button
+          class="theme-toggle"
+          type="button"
+          title="Light Mode (Coming Soon)"
+          aria-label="Light Mode">
+          <i class="bi bi-sun-fill"></i>
+        </button>
+
+      </div>
+
+    </nav>
 
     <section class="results-hero">
       <div>
@@ -17,9 +59,7 @@
         <p class="muted">Review the target, validate findings, run approved actions, and export evidence without fighting the interface.</p>
       </div>
       <div class="results-hero-actions">
-        <a class="button secondary" href="/">New Scan</a>
         {% if scan and scan.scan_id %}<a class="button secondary" href="/?clone_scan={{ scan.scan_id }}">New Scan Using Same Settings</a>{% endif %}
-        <a class="button" href="#report-workspace" data-dashboard-tab-link="report">Open Report</a>
       </div>
     </section>
 
@@ -155,35 +195,171 @@
     {% set mission_paths = mission_workflow.get('paths', {}) %}
     {% set mission_continuation_paths = mission_paths.values()|selectattr('destination_network','defined')|list if mission_paths else [] %}
     {% set mission_override_targets = mission_workflow.get('phase_results',{}).get('assessment',{}).get('override_targets', []) %}
-    <section class="mini-panel scan-config-panel" aria-label="Layered scan mission">
-      <div class="stage-head-with-actions">
+    <section class="mini-panel scan-config-panel mission-summary-panel" aria-label="Layered scan mission">
+
+      <div class="mission-summary-head">
+        <div class="mission-summary-icon">
+          <i class="bi bi-shield-check"></i>
+        </div>
+
         <div>
-          <span class="label">Discovery &amp; Assessment Mission</span>
+          <span class="label">DISCOVERY &amp; ASSESSMENT MISSION</span>
           <h3>Entry Verification → Network Discovery → Vulnerability Assessment</h3>
+          <p class="small muted">
+            Mission scope and retained evidence across the discovery and assessment workflow.
+          </p>
         </div>
       </div>
-      <div class="scan-assurance-grid">
-        <article class="scan-assurance-card"><span class="label">Entry Target</span><strong>{{ mission_workflow.get('entry_target', mission_workflow.get('external_target','Unknown')) }}</strong><span class="small muted">Initial operator-supplied address</span></article>
-        <article class="scan-assurance-card"><span class="label">Visited Scopes</span><strong>{{ mission_segment_order|length }}</strong><span class="small muted">Persisted traversal order</span></article>
-        <article class="scan-assurance-card"><span class="label">Assessment Interface</span><strong>{{ current_segment.get('interface', mission_context.get('interface','Unknown')) }}</strong><span class="small muted">Scanner source {{ current_segment.get('source_address', mission_context.get('scanner_ip','Unknown')) }}</span></article>
-        <article class="scan-assurance-card"><span class="label">Assessed Scope</span><strong>{{ current_segment.get('network', mission_workflow.get('internal_subnet','Unknown')) }}</strong><span class="small muted">Selected only after scope verification</span></article>
-        <article class="scan-assurance-card"><span class="label">Operator-Supplied Records</span><strong>{{ entry_records|length }}</strong><span class="small muted">Verified without being relabelled discovered</span></article>
-        <article class="scan-assurance-card"><span class="label">Additional Hosts Discovered</span><strong>{{ independent_records|length }}</strong><span class="small muted">Current-scope network-enumeration findings</span></article>
-        <article class="scan-assurance-card"><span class="label">Continuation Networks</span><strong>{{ mission_continuation_paths|length }}</strong><span class="small muted">Retained device-to-network relationships</span></article>
-        <article class="scan-assurance-card"><span class="label">Discovered Assets</span><strong>{{ mission_hosts|length }}</strong><span class="small muted">Retained across Phase 1 and Phase 2</span></article>
-        <article class="scan-assurance-card"><span class="label">Assume-Live Overrides</span><strong>{{ mission_override_targets|length }}</strong><span class="small muted">Reachability state was not changed</span></article>
-        <article class="scan-assurance-card"><span class="label">Assessment Targets</span><strong>{{ mission_targets|length }}</strong><span class="small muted">{{ mission_targets|join(', ') if mission_targets else 'No Phase 3 target selected' }}</span></article>
+
+      <div class="mission-summary-grid">
+
+        <article class="mission-summary-card accent-blue">
+          <div class="mission-card-icon">
+            <i class="bi bi-bullseye"></i>
+          </div>
+          <span class="label">ENTRY TARGET</span>
+          <strong class="mono">
+            {{ mission_workflow.get('entry_target', mission_workflow.get('external_target','Unknown')) }}
+          </strong>
+          <span class="small muted">Initial operator-supplied address</span>
+        </article>
+
+        <article class="mission-summary-card accent-blue">
+          <div class="mission-card-icon">
+            <i class="bi bi-layers"></i>
+          </div>
+          <span class="label">VISITED SCOPES</span>
+          <strong>{{ mission_segment_order|length }}</strong>
+          <span class="small muted">Persisted traversal order</span>
+        </article>
+
+        <article class="mission-summary-card accent-blue">
+          <div class="mission-card-icon">
+            <i class="bi bi-hdd-network"></i>
+          </div>
+          <span class="label">ASSESSMENT INTERFACE</span>
+          <strong>
+            {{ current_segment.get('interface', mission_context.get('interface','Unknown')) }}
+          </strong>
+          <span class="small muted">
+            Scanner source {{ current_segment.get('source_address', mission_context.get('scanner_ip','Unknown')) }}
+          </span>
+        </article>
+
+        <article class="mission-summary-card accent-blue">
+          <div class="mission-card-icon">
+            <i class="bi bi-globe2"></i>
+          </div>
+          <span class="label">ASSESSED SCOPE</span>
+          <strong class="mono">
+            {{ current_segment.get('network', mission_workflow.get('internal_subnet','Unknown')) }}
+          </strong>
+          <span class="small muted">Selected only after scope verification</span>
+        </article>
+
+        <article class="mission-summary-card accent-blue">
+          <div class="mission-card-icon">
+            <i class="bi bi-file-earmark-text"></i>
+          </div>
+          <span class="label">OPERATOR-SUPPLIED RECORDS</span>
+          <strong>{{ entry_records|length }}</strong>
+          <span class="small muted">Verified without being relabelled discovered</span>
+        </article>
+
+        <article class="mission-summary-card accent-green">
+          <div class="mission-card-icon">
+            <i class="bi bi-diagram-3"></i>
+          </div>
+          <span class="label">ADDITIONAL HOSTS DISCOVERED</span>
+          <strong>{{ independent_records|length }}</strong>
+          <span class="small muted">Current-scope network-enumeration findings</span>
+        </article>
+
+        <article class="mission-summary-card accent-green">
+          <div class="mission-card-icon">
+            <i class="bi bi-link-45deg"></i>
+          </div>
+          <span class="label">CONTINUATION NETWORKS</span>
+          <strong>{{ mission_continuation_paths|length }}</strong>
+          <span class="small muted">Retained device-to-network relationships</span>
+        </article>
+
+        <article class="mission-summary-card accent-purple">
+          <div class="mission-card-icon">
+            <i class="bi bi-shield"></i>
+          </div>
+          <span class="label">DISCOVERED ASSETS</span>
+          <strong>{{ mission_hosts|length }}</strong>
+          <span class="small muted">Retained across Phase 1 and Phase 2</span>
+        </article>
+
+        <article class="mission-summary-card accent-amber">
+          <div class="mission-card-icon">
+            <i class="bi bi-sliders"></i>
+          </div>
+          <span class="label">ASSUME-LIVE OVERRIDES</span>
+          <strong>{{ mission_override_targets|length }}</strong>
+          <span class="small muted">Reachability state was not changed</span>
+        </article>
+
+        <article class="mission-summary-card accent-blue">
+          <div class="mission-card-icon">
+            <i class="bi bi-crosshair"></i>
+          </div>
+          <span class="label">ASSESSMENT TARGETS</span>
+          <strong>{{ mission_targets|length }}</strong>
+          <span class="small muted">
+            {{ mission_targets|join(', ') if mission_targets else 'No Phase 3 target selected' }}
+          </span>
+        </article>
+
       </div>
+
       {% if mission_workflow.get('phase2_stop_reason') %}
-      <p class="small muted top-gap"><strong>Phase 2 stop reason:</strong> {{ mission_workflow.get('phase2_stop_reason') }}</p>
+      <div class="mission-summary-note">
+        <i class="bi bi-info-circle"></i>
+        <span>
+          <strong>Phase 2 stop reason:</strong>
+          {{ mission_workflow.get('phase2_stop_reason') }}
+        </span>
+      </div>
       {% endif %}
+
       {% if mission_segment_order %}
-      <div class="table-scroll top-gap"><table><thead><tr><th>Order</th><th>Scope type</th><th>Scope</th><th>Interface</th><th>Source</th><th>Continuation device</th><th>Host observations</th></tr></thead><tbody>
-      {% for segment_id in mission_segment_order %}{% set segment = mission_segments.get(segment_id,{}) %}
-      <tr><td>{{ loop.index }}</td><td>{{ 'Host' if segment.get('scope_kind') == 'entry_host' else 'Network' }}</td><td class="mono">{{ segment.get('network','Unknown') }}</td><td class="mono">{{ segment.get('interface','Unknown') }}</td><td class="mono">{{ segment.get('source_address') or 'Not reported' }}</td><td class="mono">{{ segment.get('next_hop') or 'None observed' }}</td><td>{{ segment.get('hosts',[])|length }}</td></tr>
-      {% endfor %}
-      </tbody></table></div>
+      <div class="table-scroll mission-summary-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Order</th>
+              <th>Scope type</th>
+              <th>Scope</th>
+              <th>Interface</th>
+              <th>Source</th>
+              <th>Continuation device</th>
+              <th>Host observations</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for segment_id in mission_segment_order %}
+            {% set segment = mission_segments.get(segment_id,{}) %}
+
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td>{{ 'Host' if segment.get('scope_kind') == 'entry_host' else 'Network' }}</td>
+              <td class="mono">{{ segment.get('network','Unknown') }}</td>
+              <td class="mono">{{ segment.get('interface','Unknown') }}</td>
+              <td class="mono">{{ segment.get('source_address') or 'Not reported' }}</td>
+              <td class="mono">{{ segment.get('next_hop') or 'None observed' }}</td>
+              <td>{{ segment.get('hosts',[])|length }}</td>
+            </tr>
+
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
       {% endif %}
+
     </section>
     {% endif %}
 
@@ -192,24 +368,135 @@
     {% set tcp_config = port_selection.get('tcp', {}) %}
     {% set udp_config = port_selection.get('udp', {}) %}
     {% set advanced_config = effective_options.get('advanced_settings', {}) %}
-    <section class="mini-panel scan-config-panel" aria-label="Effective scan configuration">
+    <section class="mini-panel scan-config-panel recon-settings-panel" aria-label="Effective scan configuration">
+
       <div class="stage-head-with-actions">
         <div>
-          <span class="label">Scan Configuration</span>
+          <span class="label">SCAN CONFIGURATION</span>
           <h3>Effective Recon Settings</h3>
+          <p class="small muted">
+            Effective discovery, execution and evidence-collection settings used for this assessment.
+          </p>
         </div>
       </div>
-      <div class="scan-assurance-grid">
-        <article class="scan-assurance-card"><span class="label">TCP Strategy</span><strong>{{ tcp_config.get('display') or tcp_config.get('mode','Unknown')|title }}</strong><span class="small muted">{{ tcp_config.get('count',0) }} selected port(s)</span></article>
-        <article class="scan-assurance-card"><span class="label">UDP Strategy</span><strong>{{ udp_config.get('display') or udp_config.get('mode','Unknown')|title }}</strong><span class="small muted">{{ udp_config.get('count',0) }} selected port(s)</span></article>
-        <article class="scan-assurance-card"><span class="label">Ports / Batch</span><strong>{{ advanced_config.get('ports_per_batch','N/A') }}</strong><span class="small muted">Discovery batch size</span></article>
-        <article class="scan-assurance-card"><span class="label">Batch Timeout</span><strong>{{ advanced_config.get('command_timeout_seconds','N/A') }} s</strong><span class="small muted">Per command</span></article>
-        <article class="scan-assurance-card"><span class="label">Failed-Batch Retry</span><strong>{{ 'Enabled' if advanced_config.get('retry_failed_batches') else 'Disabled' }}</strong><span class="small muted">Maximum retries: {{ advanced_config.get('retry_count',0) }}</span></article>
-        <article class="scan-assurance-card"><span class="label">Parallel Scanning</span><strong>{{ 'Enabled' if advanced_config.get('parallel_scanning') else 'Disabled' }}</strong><span class="small muted">Worker count: {{ advanced_config.get('parallel_workers',1) }}</span></article>
-        <article class="scan-assurance-card"><span class="label">Evidence Plan</span><strong>{{ effective_options.get('collection_preset_label') or 'Legacy' }}</strong><span class="small muted">Requested {{ effective_options.get('collector_counts',{}).get('requested',0) }} · permitted {{ effective_options.get('collector_counts',{}).get('permitted',0) }} · blocked {{ effective_options.get('collector_counts',{}).get('blocked',0) }}</span></article>
+
+      <div class="recon-settings-grid">
+
+        <article class="recon-setting-card">
+          <div class="recon-setting-icon">
+            <i class="bi bi-hdd-network"></i>
+          </div>
+          <span class="label">TCP STRATEGY</span>
+          <strong>
+            {{ tcp_config.get('display') or tcp_config.get('mode','Unknown')|title }}
+          </strong>
+          <span class="small muted">
+            {{ tcp_config.get('count',0) }} selected port(s)
+          </span>
+        </article>
+
+        <article class="recon-setting-card">
+          <div class="recon-setting-icon">
+            <i class="bi bi-broadcast"></i>
+          </div>
+          <span class="label">UDP STRATEGY</span>
+          <strong>
+            {{ udp_config.get('display') or udp_config.get('mode','Unknown')|title }}
+          </strong>
+          <span class="small muted">
+            {{ udp_config.get('count',0) }} selected port(s)
+          </span>
+        </article>
+
+        <article class="recon-setting-card">
+          <div class="recon-setting-icon">
+            <i class="bi bi-boxes"></i>
+          </div>
+          <span class="label">PORTS / BATCH</span>
+          <strong>{{ advanced_config.get('ports_per_batch','N/A') }}</strong>
+          <span class="small muted">Discovery batch size</span>
+        </article>
+
+        <article class="recon-setting-card">
+          <div class="recon-setting-icon">
+            <i class="bi bi-clock"></i>
+          </div>
+          <span class="label">BATCH TIMEOUT</span>
+          <strong>{{ advanced_config.get('command_timeout_seconds','N/A') }} s</strong>
+          <span class="small muted">Per command</span>
+        </article>
+
+        <article class="recon-setting-card">
+          <div class="recon-setting-icon">
+            <i class="bi bi-arrow-repeat"></i>
+          </div>
+          <span class="label">FAILED-BATCH RETRY</span>
+          <strong>
+            {{ 'Enabled' if advanced_config.get('retry_failed_batches') else 'Disabled' }}
+          </strong>
+          <span class="small muted">
+            Maximum retries: {{ advanced_config.get('retry_count',0) }}
+          </span>
+        </article>
+
+        <article class="recon-setting-card">
+          <div class="recon-setting-icon">
+            <i class="bi bi-diagram-3"></i>
+          </div>
+          <span class="label">PARALLEL SCANNING</span>
+          <strong>
+            {{ 'Enabled' if advanced_config.get('parallel_scanning') else 'Disabled' }}
+          </strong>
+          <span class="small muted">
+            Worker count: {{ advanced_config.get('parallel_workers',1) }}
+          </span>
+        </article>
+
+        <article class="recon-setting-card">
+          <div class="recon-setting-icon">
+            <i class="bi bi-clipboard-check"></i>
+          </div>
+          <span class="label">EVIDENCE PLAN</span>
+          <strong>
+            {{ effective_options.get('collection_preset_label') or 'Legacy' }}
+          </strong>
+          <span class="small muted">
+            Requested {{ effective_options.get('collector_counts',{}).get('requested',0) }}
+            · permitted {{ effective_options.get('collector_counts',{}).get('permitted',0) }}
+            · blocked {{ effective_options.get('collector_counts',{}).get('blocked',0) }}
+          </span>
+        </article>
+
         {% set hd_exec = results.host_discovery_execution|default({}) %}
-        <article class="scan-assurance-card"><span class="label">Phase 3 Host Evidence</span><strong>Request and execution retained separately</strong><span class="small muted">ARP: {{ 'executed' if hd_exec.get('arp_discovery',{}).get('executed') else ('requested · not executed' if hd_exec.get('arp_discovery',{}).get('requested') else 'not requested') }} · ICMP: {{ 'executed' if hd_exec.get('icmp_echo',{}).get('executed') else ('requested · not executed' if hd_exec.get('icmp_echo',{}).get('requested') else 'not requested') }} · Nmap -sn: {{ 'executed' if hd_exec.get('nmap_host_discovery',{}).get('executed') else ('requested · not executed' if hd_exec.get('nmap_host_discovery',{}).get('requested') else 'not requested') }}</span></article>
+
+        <article class="recon-setting-card recon-setting-card-wide">
+          <div class="recon-setting-icon">
+            <i class="bi bi-shield-check"></i>
+          </div>
+          <span class="label">PHASE 3 HOST EVIDENCE</span>
+
+          <strong>Request and execution retained separately</strong>
+
+          <span class="small muted">
+            ARP:
+            {{ 'executed' if hd_exec.get('arp_discovery',{}).get('executed')
+            else ('requested · not executed' if hd_exec.get('arp_discovery',{}).get('requested')
+            else 'not requested') }}
+
+            · ICMP:
+            {{ 'executed' if hd_exec.get('icmp_echo',{}).get('executed')
+            else ('requested · not executed' if hd_exec.get('icmp_echo',{}).get('requested')
+            else 'not requested') }}
+
+            · Nmap -sn:
+            {{ 'executed' if hd_exec.get('nmap_host_discovery',{}).get('executed')
+            else ('requested · not executed' if hd_exec.get('nmap_host_discovery',{}).get('requested')
+            else 'not requested') }}
+          </span>
+        </article>
+
       </div>
+
     </section>
 
     <section class="assessment-flow" aria-label="Assessment workflow">
@@ -329,9 +616,7 @@
     {% include "ai_chatbox.html" %}
   </section>
 
-  <footer class="footer">
-    <p>Automated Penetration Testing · Group 6 · AI-Assisted Security Assessment</p>
-  </footer>
+    <footer class="footer"><p>Automated Penetration Testing · Group 6 · Continuous Discovery Workflow</p></footer>
 
   <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
   <script src="{{ url_for('static', filename='web_validation.js') }}"></script>
@@ -425,6 +710,5 @@
       document.getElementById("recordModal").setAttribute("aria-hidden", "true");
     }
   </script>
-<div class="nvd-attribution" style="margin:18px auto;max-width:1200px;padding:10px 14px;font-size:.82rem;opacity:.72;text-align:center;">This product uses the NVD API but is not endorsed or certified by the NVD.</div>
 </body>
 </html>

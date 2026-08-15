@@ -3,42 +3,65 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AutoPenTest Network Discovery</title>
+  <title>PenPilot Network Discovery</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-<nav class="main-navbar">
-  <a href="{{ url_for('index') }}" class="navbar-brand">
-    <span class="brand-icon"><i class="bi bi-shield-check"></i></span>
-    <span>AutoPenTest</span>
-  </a>
-  <div class="navbar-links">
-    <a href="#phase1" class="navbar-link"><i class="bi bi-globe2"></i><span>Phase 1</span></a>
-  </div>
-  <div class="navbar-controls">
-    <button class="theme-toggle" type="button" title="Light Mode (Coming Soon)" aria-label="Light Mode"><i class="bi bi-sun-fill"></i></button>
-  </div>
-</nav>
 
-<main class="shell hero index-shell">
-  <section class="hero-card wide-hero index-card">
-    <div class="hero-top">
-      <div class="index-head">
-        <p class="eyebrow">PHASE 1 · ENTRY DISCOVERY</p>
-        <h1>Start from one authorised IP address</h1>
+  <main class="shell hero index-shell">
+
+    <nav class="main-navbar">
+      <div class="navbar-brand">
+  <span class="brand-icon">
+    <i class="bi bi-shield-check"></i>
+  </span>
+  <span>PenPilot</span>
+</div>
+
+      <div class="navbar-controls">
+        <button
+          class="theme-toggle"
+          type="button"
+          title="Light Mode (Coming Soon)"
+          aria-label="Light Mode">
+          <i class="bi bi-sun-fill"></i>
+        </button>
       </div>
+    </nav>
 
-      {% if not operator_authenticated %}
-      <section class="operator-panel index-section hero-operator">
-        <span class="label">Operator Access</span>
-        {% if operator_token_configured %}
-          <p class="muted small">Unlock this browser session before starting Phase 1.</p>
-          <div class="operator-unlock-row">
-            <input id="operatorTokenInput" type="password" placeholder="Operator token" autocomplete="current-password" />
-            <button class="btn ghost mini" id="operatorUnlockBtn" type="button">Unlock</button>
-          </div>
+    <section class="hero-card wide-hero index-card">
+      <div class="hero-top">
+        <div class="index-head">
+          <p class="eyebrow">PHASE 1 · ENTRY DISCOVERY</p>
+          <h1>Start from one authorised IP address</h1>
+        </div>
+
+        {% if not operator_authenticated %}
+        <section class="operator-panel index-section hero-operator">
+          <span class="label">Operator Access</span>
+
+          {% if operator_token_configured %}
+            <p class="muted small">
+              Unlock this browser session before starting Phase 1.
+            </p>
+
+            <div class="operator-unlock-row">
+              <input
+                id="operatorTokenInput"
+                type="password"
+                placeholder="Operator token"
+                autocomplete="current-password"
+              />
+
+              <button
+                class="btn ghost mini"
+                id="operatorUnlockBtn"
+                type="button">
+                Unlock
+              </button>
+            </div>
           <p class="muted small" id="operatorUnlockStatus"></p>
         {% else %}
           <p class="muted small">

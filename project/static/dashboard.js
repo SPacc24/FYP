@@ -1491,7 +1491,7 @@ function escapeHtml(value) {
     return;
   }
 
-  function activate(name, updateHash = true) {
+  function activate(name, updateHash = true, shouldScroll = true) {
     const valid = panes.some(
       (pane) => pane.dataset.dashboardPane === name
     );
@@ -1523,9 +1523,9 @@ function escapeHtml(value) {
     const tabBar =
       document.querySelector(".results-tabs");
 
-    if (tabBar) {
+    if (tabBar && shouldScroll) {
       window.scrollTo({
-        top: Math.max(0, tabBar.offsetTop - 14),
+        top: Math.max(0, tabBar.offsetTop - 100),
         behavior: "smooth",
       });
     }
@@ -1548,6 +1548,7 @@ function escapeHtml(value) {
 
   activate(
     (location.hash || "").replace("#", "") || "overview",
+    false,
     false
   );
 })();
