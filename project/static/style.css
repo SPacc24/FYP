@@ -4822,3 +4822,247 @@ body {
   background-size: 100vw 100vh !important;
   background-repeat: no-repeat !important;
 }
+
+/* ==========================================
+   Metasploit RPC Actions
+   ========================================== */
+
+.results-page #exploitability-validation .metasploit-actions-table {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(1),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) {
+  width: 30%;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(2),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(2) {
+  width: 25%;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(3),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(3) {
+  width: 15%;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(4),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(4) {
+  width: 6%;
+  white-space: nowrap;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(5),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(5) {
+  width: 14%;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(6),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(6) {
+  width: 10%;
+  white-space: nowrap;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table th {
+  padding: 12px 14px;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table td {
+  padding: 16px 14px;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) {
+  font-size: 14px;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) strong,
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) b {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) small,
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) .small,
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) .muted {
+  font-size: 13px !important;
+  line-height: 1.55;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(2),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(2) code {
+  font-size: 13px !important;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(3) {
+  font-size: 13px;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(5) {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(6),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(6) {
+  text-align: right;
+}
+/* ==========================================
+   CALDERA Execution Results
+   ========================================== */
+
+.results-page #execution-results .execution-results-table {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+.results-page #execution-results
+.execution-results-table th:nth-child(1),
+.results-page #execution-results
+.execution-results-table td:nth-child(1) {
+  width: 11%;
+}
+
+.results-page #execution-results
+.execution-results-table th:nth-child(2),
+.results-page #execution-results
+.execution-results-table td:nth-child(2) {
+  width: 15%;
+}
+
+.results-page #execution-results
+.execution-results-table th:nth-child(3),
+.results-page #execution-results
+.execution-results-table td:nth-child(3) {
+  width: 12%;
+}
+
+.results-page #execution-results
+.execution-results-table th:nth-child(4),
+.results-page #execution-results
+.execution-results-table td:nth-child(4) {
+  width: 9%;
+  white-space: nowrap;
+}
+
+
+.results-page #execution-results
+.execution-results-table th:nth-child(5),
+.results-page #execution-results
+.execution-results-table td:nth-child(5) {
+  width: 18%;
+}
+
+
+.results-page #execution-results
+.execution-results-table th:nth-child(6),
+.results-page #execution-results
+.execution-results-table td:nth-child(6) {
+  width: 35%;
+}
+
+
+/* ==========================================
+   Cell readability
+   ========================================== */
+
+.results-page #execution-results
+.execution-results-table th {
+  padding: 12px 14px;
+  vertical-align: middle;
+}
+
+.results-page #execution-results
+.execution-results-table td {
+  padding: 16px 14px;
+  vertical-align: top;
+
+  font-size: 13px;
+  line-height: 1.55;
+
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+
+.results-page #execution-results
+.execution-results-table td:nth-child(1) {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.results-page #execution-results
+.execution-results-table td:nth-child(2) {
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+
+.results-page #execution-results
+.execution-results-table td:nth-child(3) {
+  font-size: 13px;
+}
+
+
+.results-page #execution-results
+.execution-results-table td:nth-child(5) {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+
+.results-page #execution-results
+.execution-results-table td:nth-child(6) {
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.results-page #execution-results
+.execution-results-table td:nth-child(6) small,
+.results-page #execution-results
+.execution-results-table td:nth-child(6) .small,
+.results-page #execution-results
+.execution-results-table td:nth-child(6) .muted {
+  font-size: 13px !important;
+  line-height: 1.6;
+}
