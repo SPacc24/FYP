@@ -1,0 +1,869 @@
+PenPilot – Complete Setup, Configuration and Startup Guide
+===============================================================
+
+Purpose
+-------
+This document is the full handover checklist for setting up AutoPenTest on a
+new Kali/Linux machine. Follow it from top to bottom before using the dashboard.
+
+AutoPenTest is an authorised cyber-range penetration-testing platform. Only run
+scanning, validation, exploitation, Metasploit, SMB, web exploitation,
+credential-audit, or CALDERA operations against systems you are explicitly
+authorised to test.
+
+The project has several optional external services. The Flask dashboard itself
+can start without them, but the corresponding modules will not work until their
+services and environment values are configured.
+
+
+======================================================================
+1. SYSTEM REQUIREMENTS
+======================================================================
+
+Recommended environment:
+- Kali Linux / Debian-based Linux
+- Python 3
+- Git
+- MySQL/MariaDB server
+- Internet access during initial installation and data synchronisation
+
+AutoPenTest also uses these Kali tools for reconnaissance/enumeration:
+- nmap
+- arp-scan
+- gobuster
+- enum4linux-ng
+- smbclient
+- smbmap
+- snmp tools
+- ldap-utils
+- sslscan
+- mtr
+- traceroute
+- hydra
+- tshark
+- rpcbind
+- nfs-common
+- PostgreSQL client
+- curl
+- openssl
+- ping/traceroute utilities
+- seclists
+
+The supplied install.sh installs the main Kali-side dependencies automatically.
+
+
+======================================================================
+2. FIRST-TIME INSTALLATION
+======================================================================
+
+From the repository root:
+
+    chmod +x install.sh start.sh
+    ./install.sh
+
+The installer will:
+1. Update apt metadata.
+2. Install the required Kali enumeration tools.
+3. Create project/.venv.
+4. Install Python dependencies.
+5. Create the storage directories.
+6. Create/refresh project/.env.
+7. Generate local secrets.
+8. Synchronise the CVEProject CVE List mirror when network access is available.
+9. Cache Microsoft Security Update Guide data when available.
+10. Build the Microsoft Windows advisory applicability index when available.
+
+If CVE/MSRC synchronisation fails because the machine has no Internet access,
+the application can still start, but vulnerability enrichment may be incomplete.
+Run the corresponding scripts again when connectivity is available.
+
+
+======================================================================
+3. PYTHON ENVIRONMENT
+======================================================================
+
+The project uses:
+
+    project/.venv/
+
+Do not install the project's Python dependencies into the system Python unless
+there is a specific operational reason.
+
+Manual activation, if required:
+
+    cd project
+    source .venv/bin/activate
+
+The project dependency manifest is:
+
+    project/requirements.txt
+
+
+======================================================================
+4. MYSQL DATABASE
+======================================================================
+
+AutoPenTest uses MySQL through mysql-connector-python.
+
+Default configuration:
+
+    MYSQL_HOST=127.0.0.1
+    MYSQL_USER=autopentest
+    MYSQL_PASS=
+    MYSQL_DB=FYP
+
+The application initialises the AutoPenTest schema and creates the database
+when the configured MySQL account has sufficient privileges.
+
+Before starting the application, make sure MySQL/MariaDB is running:
+
+    sudo systemctl enable --now mysql
+
+Check it:
+
+    sudo systemctl status mysql
+
+If your machine uses MariaDB instead, use its service name as appropriate.
+
+The configured MySQL user must be able to create/use the autopentest database
+and create its tables. If the supplied account does not exist, create an
+appropriate local account and update MYSQL_USER/MYSQL_PASS in project/.env.
+
+
+======================================================================
+5. CREATE THE ENVIRONMENT FILE
+======================================================================
+
+The canonical configuration template is:
+
+    project/.env.example
+
+The actual local configuration is:
+
+    project/.env
+
+Never commit project/.env.
+
+Generate or refresh the local configuration with:
+
+    cd project
+    .venv/bin/python runtime_env.py
+
+To display the generated secrets in a trusted terminal:
+
+    python runtime_env.py --show-secrets
+
+
+The generated OPERATOR_TOKEN is the token used to unlock the protected
+operator session in the dashboard.
+
+If you change OPERATOR_TOKEN, restart Flask afterwards.
+
+======================================================================
+6. ENVIRONMENT VALUES – WHAT THEY CONTROL
+======================================================================
+
+Application
+-----------
+DEBUG=false
+APP_HOST=127.0.0.1
+PORT=5000
+SECRET_KEY=<generated automatically>
+OPERATOR_TOKEN=<generated automatically>
+ALLOW_INSECURE_OPERATOR_ACCESS=0
+
+Keep DEBUG=false for normal use. For a non-loopback deployment, the application
+requires a strong SECRET_KEY, an OPERATOR_TOKEN, and DEBUG=false.
+
+
+AI / OLLAMA
+-----------
+OLLAMA_URL=http://localhost:11434/api/generate
+OLLAMA_MODEL=llama3.2:1b
+OLLAMA_TIMEOUT=180
+
+These values control the local AI planner.
+
+
+CVE / NVD
+---------
+NVD_ENRICHMENT_ENABLED=1
+NVD_CPE_RESOLUTION_ENABLED=0
+NVD_API_KEY=
+NVD_REQUEST_DELAY_SECONDS=6.5
+NVD_REQUEST_TIMEOUT_SECONDS=20
+NVD_CACHE_TTL_SECONDS=604800
+MITRE_CVE_REPO=https://github.com/CVEProject/cvelistV5.git
+
+NVD_API_KEY is optional. The local CVEProject mirror is prepared by the installer
+when Internet access is available.
+
+
+WINDOWS / MSRC
+--------------
+WINDOWS_INVENTORY_DIR=
+MSRC_REQUEST_TIMEOUT_SECONDS=45
+MSRC_HISTORY_YEARS=15
+
+Windows inventory is optional and contains read-only exported inventory data.
+The scanner does not accept or store Windows credentials through this setting.
+
+
+CALDERA
+-------
+CALDERA_URL=http://127.0.0.1:8888
+CALDERA_API_KEY=
+ENABLE_CALDERA_EXECUTION=0
+MAX_EXPANDED_TARGETS=256
+AGENT_GROUP=red
+KALI_IP=127.0.0.1
+OPERATION_TIMEOUT=180
+
+CALDERA_API_KEY must match the API key configured by the CALDERA server.
+ENABLE_CALDERA_EXECUTION must be changed to 1 only after CALDERA is installed,
+configured, reachable, and an authorised test agent is available.
+
+
+METASPLOIT
+----------
+ENABLE_METASPLOIT=0
+ENABLE_METASPLOIT_EXPLOITS=0
+METASPLOIT_RPC_URL=https://127.0.0.1:55552
+METASPLOIT_RPC_USER=msf
+METASPLOIT_RPC_PASS=<generated automatically>
+METASPLOIT_RPC_VERIFY_SSL=0
+METASPLOIT_RPC_TIMEOUT=20
+METASPLOIT_RESULT_TIMEOUT=90
+METASPLOIT_POLL_INTERVAL=1
+METASPLOIT_LPORT=4445
+METASPLOIT_SESSION_TIMEOUT=45
+METASPLOIT_SESSION_POLL_INTERVAL=2
+
+ENABLE_METASPLOIT enables the RPC integration.
+ENABLE_METASPLOIT_EXPLOITS enables the exploit-execution layer.
+Keep both disabled until Metasploit RPC has been configured and tested.
+
+The application does not expose unrestricted Metasploit module execution.
+The project applies its server-side module allowlist and execution policies.
+
+
+WEB CALLBACK
+------------
+WEB_CALLBACK_BIND_HOST=0.0.0.0
+WEB_CALLBACK_ADVERTISE_HOST=
+WEB_CALLBACK_PORT=4444
+WEB_CALLBACK_TIMEOUT=15
+WEB_CALLBACK_MAX_BYTES=8192
+
+WEB_CALLBACK_ADVERTISE_HOST should be the IP address that the authorised lab
+target can reach when a callback is required. If blank, the application derives
+it from KALI_IP.
+
+
+PROOF OF ACCESS
+---------------
+PROOF_OF_ACCESS_ENABLED=false
+PROOF_OF_ACCESS_SECRET=<generated automatically>
+PROOF_OF_ACCESS_TTL=300
+
+This feature is optional and should only be enabled for the authorised lab.
+
+
+RECON / ENUMERATION
+-------------------
+ENABLE_CONTEXT_FOOTPRINTING=0
+ENABLE_ARP_SCAN=0
+ENABLE_HTTPX=0
+ENABLE_DEEP_WEB_DISCOVERY=0
+ENABLE_SMBMAP=0
+ENABLE_HYDRA=0
+GOBUSTER_WORDLIST=/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
+HYDRA_CREDENTIAL_FILE=
+
+Enable only the collectors required by the assessment environment.
+
+
+NMAP
+----
+NMAP_DEFAULT_PORTS=1-1024
+NMAP_DEFAULT_INTENSITY=3
+NMAP_DEFAULT_PROFILE=basic
+
+
+WEB VALIDATION
+--------------
+ENABLE_WEB_VALIDATION=0
+WEB_VALIDATION_TIMEOUT=5
+WEB_VALIDATION_MAX_RESPONSE_BYTES=65536
+WEB_VALIDATION_MAX_REDIRECTS=2
+LAB_WEB_OS=windows
+LAB_WEB_EXPECTED_TITLE=AutoPentest Lab Diagnostics
+LAB_WEB_SCHEME=http
+LAB_WEB_PORT=80
+
+
+WEB EXPLOITATION
+----------------
+ENABLE_WEB_EXPLOITATION=0
+LAB_WEB_EXPLOIT_ENDPOINT=
+LAB_WEB_EXPLOIT_PARAMETER=host
+LAB_WEB_EXPLOIT_METHOD=POST
+LAB_WEB_EXPLOIT_PLATFORM=linux
+
+These values are for the controlled web-lab workflow.
+
+
+SMB EXPLOITATION
+----------------
+ENABLE_SMB_EXPLOITATION=0
+SMB_DEFAULT_USERNAME=smbtest
+SMB_DEFAULT_SHARE=PrivEscLab
+SMB_HYDRA_TIMEOUT=90
+
+SMB functionality is intentionally retained in the final platform. Enable it
+only for an authorised lab target and configure the target/share values to
+match the lab.
+
+
+LAB CREDENTIAL AUDIT
+--------------------
+ENABLE_LAB_CREDENTIAL_AUDIT=0
+LAB_CREDENTIAL_AUDIT_FILE=
+LAB_CREDENTIAL_AUDIT_MAX_ATTEMPTS=8
+LAB_CREDENTIAL_AUDIT_DELAY_SECONDS=1.5
+
+This is intended only for an authorised private laboratory. Keep disabled
+unless explicitly required.
+
+
+INFRASTRUCTURE TOPOLOGY
+-----------------------
+INFRA_TOPOLOGY_PROFILES_JSON={}
+
+Only configure this when using the corresponding topology-aware functionality.
+
+
+======================================================================
+7. INSTALL OLLAMA FOR AI FEATURES
+======================================================================
+
+The AI planner uses a local Ollama service.
+
+Install Ollama using its current official Linux installation method, then verify:
+
+    ollama --version
+
+Start/verify the Ollama service according to the Ollama installation on the
+machine, then pull the model configured in .env:
+
+    ollama pull llama3.2:1b
+
+Verify that the model exists:
+
+    ollama list
+
+The dashboard expects Ollama at:
+
+    http://127.0.0.1:11434
+
+If Ollama is not running, the main application can still start, but AI-assisted
+attack planning will not work.
+
+If you use another model, change OLLAMA_MODEL in project/.env and pull that
+model before starting a scan.
+
+Official Ollama documentation should be used if the installation/service
+procedure differs for the current Ollama release.
+
+
+======================================================================
+8. INSTALL AND CONFIGURE MITRE CALDERA
+======================================================================
+
+CALDERA is an external service; it is not bundled inside this AutoPenTest
+repository.
+
+Official CALDERA documentation recommends a recursive clone so that plugin
+submodules are present. The current documentation covers installation,
+configuration, agents and operations.
+
+Recommended general setup:
+
+    cd ..
+    git clone https://github.com/mitre/caldera.git --recursive
+    cd caldera
+    pip3 install -r requirements.txt
+
+Start CALDERA using the startup procedure appropriate to the checked-out
+release. The standard server listens on port 8888 when configured accordingly.
+
+For a development/lab installation, CALDERA documentation provides:
+
+    python3 server.py --insecure --build
+
+Use the CALDERA release/configuration your team has standardised on rather than
+blindly mixing versions.
+
+After the first startup:
+1. Open the CALDERA web interface.
+2. Confirm that the server is reachable on port 8888.
+3. Confirm the configured API key.
+4. Confirm the required plugins are loaded.
+5. Deploy an authorised Sandcat/test agent to the lab target.
+6. Confirm the agent is visible to CALDERA.
+7. Confirm the agent belongs to the expected group (default: red).
+
+Set the AutoPenTest values in project/.env:
+
+    CALDERA_URL=http://127.0.0.1:8888
+    CALDERA_API_KEY=<CALDERA API key>
+    AGENT_GROUP=red
+    KALI_IP=<Kali IP reachable by the CALDERA agent>
+    ENABLE_CALDERA_EXECUTION=1
+
+Restart AutoPenTest after changing these values.
+
+Do not enable CALDERA execution merely because the server is installed. The
+agent must be an authorised lab agent and the execution gate should remain
+controlled by the project policies.
+
+Official documentation:
+    https://caldera.readthedocs.io/
+
+
+======================================================================
+9. CONFIGURE METASPLOIT RPC
+======================================================================
+
+Metasploit is optional.
+
+Install/verify Metasploit Framework on the Kali machine:
+
+    msfconsole --version
+
+Generate the AutoPenTest environment first so that METASPLOIT_RPC_PASS exists:
+
+    cd project
+    .venv/bin/python runtime_env.py --show-secrets
+
+Start the RPC service using the generated credentials. The current project
+expects the RPC endpoint at:
+
+    https://127.0.0.1:55552
+
+The project instruction used by the current codebase is:
+
+    msfrpcd -U msf -P <METASPLOIT_RPC_PASS> -a 127.0.0.1 -p 55552
+
+Then set:
+
+    ENABLE_METASPLOIT=1
+    ENABLE_METASPLOIT_EXPLOITS=1
+
+Restart AutoPenTest.
+
+If the RPC password is changed, restart both the RPC service and Flask so that
+both sides use the same value.
+
+AutoPenTest applies its own Metasploit allowlist/policy. Do not bypass those
+controls to execute arbitrary modules through the dashboard.
+
+
+======================================================================
+10. SMB MODULE
+======================================================================
+
+SMB exploitation is a retained core capability of the project.
+
+Required Kali tools include:
+- smbclient
+- smbmap
+- enum4linux-ng
+- hydra (when credential testing is enabled)
+
+Enable when the authorised lab is ready:
+
+    ENABLE_SMB_EXPLOITATION=1
+
+Configure the lab-specific values:
+
+    SMB_DEFAULT_USERNAME=<lab username>
+    SMB_DEFAULT_SHARE=<lab share>
+    SMB_HYDRA_TIMEOUT=90
+
+Restart AutoPenTest after changing .env.
+
+Do not enable SMB exploitation against systems outside the authorised lab.
+
+
+======================================================================
+11. WEB VALIDATION / WEB EXPLOITATION
+======================================================================
+
+Web validation and web exploitation are separate controls.
+
+For validation:
+
+    ENABLE_WEB_VALIDATION=1
+
+For the controlled web exploitation workflow:
+
+    ENABLE_WEB_EXPLOITATION=1
+
+Configure the target-specific values:
+
+    LAB_WEB_OS=windows
+    LAB_WEB_EXPECTED_TITLE=AutoPentest Lab Diagnostics
+    LAB_WEB_SCHEME=http
+    LAB_WEB_PORT=80
+    LAB_WEB_EXPLOIT_ENDPOINT=<authorised lab endpoint>
+    LAB_WEB_EXPLOIT_PARAMETER=host
+    LAB_WEB_EXPLOIT_METHOD=POST
+    LAB_WEB_EXPLOIT_PLATFORM=linux
+
+For callback-based workflows, also configure WEB_CALLBACK_ADVERTISE_HOST or
+KALI_IP so the lab target can reach the Kali callback address.
+
+
+======================================================================
+12. OPERATOR TOKEN / DASHBOARD ACCESS
+======================================================================
+
+The dashboard uses an operator-session gate for protected operations.
+
+After installation, obtain the generated token with:
+
+    cd project
+    .venv/bin/python runtime_env.py --show-secrets
+
+Look for:
+
+    OPERATOR_TOKEN=<generated value>
+
+Start AutoPenTest:
+
+    cd ..
+    ./start.sh
+
+Open the dashboard at:
+
+    http://127.0.0.1:5000
+
+When prompted, enter the generated OPERATOR_TOKEN to unlock the operator
+session.
+
+Do not paste the operator token into source code, README files, Git commits,
+screenshots, reports, or chat logs.
+
+If AutoPenTest is intentionally exposed beyond localhost, use a strong
+SECRET_KEY, a strong OPERATOR_TOKEN and DEBUG=false. Do not enable
+ALLOW_INSECURE_OPERATOR_ACCESS for a normal deployment.
+
+
+======================================================================
+13. STARTUP ORDER – USE THIS EVERY TIME
+======================================================================
+
+For a fully enabled lab environment, the practical order is:
+
+Terminal 1 – MySQL
+------------------
+    sudo systemctl start mysql
+
+Terminal 2 – Ollama
+-------------------
+Ensure Ollama is running, then verify:
+
+    ollama list
+
+The configured model must be present.
+
+Terminal 3 – CALDERA
+--------------------
+Start CALDERA and confirm:
+- server is reachable on 8888
+- API key is configured
+- required plugins are loaded
+- authorised agent is online
+
+Terminal 4 – Metasploit RPC (if enabled)
+------------------------------------------
+Start:
+
+    msfrpcd -U msf -P <METASPLOIT_RPC_PASS> -a 127.0.0.1 -p 55552
+
+Terminal 5 – AutoPenTest
+------------------------
+From repository root:
+
+    ./start.sh
+
+Then open:
+
+    http://127.0.0.1:5000
+
+Unlock the dashboard with OPERATOR_TOKEN.
+
+
+======================================================================
+14. MINIMUM STARTUP VS FULL MODULE STARTUP
+======================================================================
+
+Minimum dashboard only:
+- Python venv
+- project dependencies
+- .env
+- MySQL
+
+AI-enabled:
+- Everything above
+- Ollama
+- configured/pulled OLLAMA_MODEL
+
+CALDERA-enabled:
+- Everything above as needed
+- CALDERA server
+- CALDERA API key
+- authorised agent
+- correct KALI_IP / AGENT_GROUP
+- ENABLE_CALDERA_EXECUTION=1
+
+Metasploit-enabled:
+- Everything above as needed
+- Metasploit Framework
+- msfrpcd running on configured RPC port
+- matching METASPLOIT_RPC_PASS
+- ENABLE_METASPLOIT=1
+- ENABLE_METASPLOIT_EXPLOITS=1 for exploit execution
+
+SMB-enabled:
+- Kali SMB tools
+- authorised SMB target/share
+- ENABLE_SMB_EXPLOITATION=1
+
+Web-enabled:
+- web validation/exploitation configuration
+- reachable authorised lab web target
+- callback address if the workflow requires one
+- corresponding ENABLE_WEB_* flag
+
+
+======================================================================
+15. VERIFY EVERYTHING BEFORE A DEMO
+======================================================================
+
+Run:
+
+    cd project
+    .venv/bin/python runtime_env.py
+
+Check Python imports/dependencies:
+
+    .venv/bin/python -c "import flask, requests, mysql.connector; print('Python dependencies OK')"
+
+Check required command-line tools:
+
+    nmap --version
+    smbclient --version
+    gobuster version
+    hydra -h >/dev/null
+
+Check MySQL:
+
+    systemctl is-active mysql
+
+Check Ollama:
+
+    ollama list
+
+Check CALDERA:
+
+    curl -I http://127.0.0.1:8888
+
+Check Metasploit RPC if enabled:
+
+    ss -lntp | grep 55552
+
+Then start AutoPenTest:
+
+    ./start.sh
+
+Before a real scan, confirm the operator token and verify that the intended
+lab target is inside the authorised scope.
+
+
+======================================================================
+16. TEST THE APPLICATION
+======================================================================
+
+With the virtual environment installed:
+
+    cd project
+    .venv/bin/pytest -q
+
+Run the tests before a handover or major code cleanup.
+
+
+======================================================================
+17. TROUBLESHOOTING
+======================================================================
+
+"OPERATOR_TOKEN is not configured"
+-----------------------------------
+Run:
+
+    cd project
+    .venv/bin/python runtime_env.py
+
+Then verify:
+
+    grep '^OPERATOR_TOKEN=' .env
+
+Restart Flask.
+
+
+"AI planner does not work"
+---------------------------
+Check:
+
+    ollama list
+
+Make sure the model in OLLAMA_MODEL is installed and Ollama is running.
+
+Check OLLAMA_URL in .env.
+
+
+"CALDERA unreachable"
+----------------------
+Check that CALDERA is running and listening on port 8888.
+Check CALDERA_URL and CALDERA_API_KEY.
+Check that the required CALDERA plugins were cloned recursively.
+Check that the authorised agent is online.
+
+
+"Metasploit RPC authentication failed"
+---------------------------------------
+Check that METASPLOIT_RPC_PASS in AutoPenTest's .env exactly matches the
+password used to start msfrpcd.
+Restart msfrpcd and AutoPenTest after changing the password.
+
+
+"Database connection failed"
+-----------------------------
+Check:
+
+    sudo systemctl status mysql
+
+Then verify MYSQL_HOST, MYSQL_USER, MYSQL_PASS and MYSQL_DB in .env.
+The MySQL account must have enough privileges to initialise the schema.
+
+
+"Application refuses to start when APP_HOST is not localhost"
+---------------------------------------------------------------
+The application deliberately rejects unsafe non-loopback startup when security
+requirements are not satisfied. Use:
+
+    DEBUG=false
+    SECRET_KEY=<strong generated value>
+    OPERATOR_TOKEN=<strong generated value>
+
+Do not bypass this check by enabling insecure operator access unless it is a
+controlled, temporary lab requirement.
+
+
+======================================================================
+18. NORMAL DAILY STARTUP
+======================================================================
+
+Once the machine has already been configured, you should normally only need:
+
+    sudo systemctl start mysql
+
+Start Ollama if it is not already running.
+
+Start CALDERA if CALDERA functionality is required.
+
+Start Metasploit RPC if Metasploit functionality is enabled.
+
+Then:
+
+    ./start.sh
+
+The application itself refreshes the local .env configuration when launched
+directly, but running runtime_env.py explicitly is useful when setting up or
+troubleshooting a new machine.
+
+
+======================================================================
+19. SECURITY / HANDOVER RULES
+======================================================================
+
+DO:
+- Keep .env out of Git.
+- Keep generated secrets private.
+- Use a separate lab environment for exploitation.
+- Keep execution flags disabled until the target environment is ready.
+- Use explicit authorised targets.
+- Keep CALDERA agents restricted to authorised lab hosts.
+- Keep Metasploit execution within the project's configured policy/allowlist.
+- Run tests before handing the repository to another developer.
+
+DO NOT:
+- Commit .env.
+- Commit OPERATOR_TOKEN or METASPLOIT_RPC_PASS.
+- Put real passwords into .env.example.
+- Point exploitation features at unauthorised systems.
+- Disable the operator gate merely to make a demo easier.
+- Assume that installing a tool means its service is configured correctly.
+
+
+======================================================================
+20. QUICK COMMAND CHEAT SHEET
+======================================================================
+
+One-time setup:
+
+    chmod +x install.sh start.sh
+    ./install.sh
+
+Refresh environment:
+
+    cd project
+    .venv/bin/python runtime_env.py
+
+Show secrets:
+
+    .venv/bin/python runtime_env.py --show-secrets
+
+Start AutoPenTest:
+
+    cd ..
+    ./start.sh
+
+Run tests:
+
+    cd project
+    .venv/bin/pytest -q
+
+Check Ollama:
+
+    ollama list
+
+Check CALDERA:
+
+    curl -I http://127.0.0.1:8888
+
+Check Metasploit RPC:
+
+    ss -lntp | grep 55552
+
+Dashboard:
+
+    http://127.0.0.1:5000
+
+
+END OF GUIDE
+
+Official external documentation:
+- MITRE CALDERA: https://caldera.readthedocs.io/
+- Ollama: https://ollama.com/

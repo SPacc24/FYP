@@ -90,29 +90,45 @@ def recovery_intensity_ladder(initial: Any, recovery_target: Any, attempts: Any)
     return values
 
 
+# ``open|filtered`` means no response was observed at all. Re-probing silence
+# with ``-sU -sV`` walks the full UDP probe set per port and reliably reaches the
+# command timeout without producing evidence, so uncertain UDP recovery is
+# bounded to a small budget instead of the entire selected UDP scope.
+UNCERTAIN_UDP_RECOVERY_MAX_PORTS = 4
+
+
 def recovery_candidates(
     rows: Iterable[Mapping[str, Any]],
     *,
     protocol: str,
     include_uncertain_udp: bool = False,
+    uncertain_udp_limit: int | None = None,
 ) -> list[dict[str, Any]]:
     """Return endpoint rows that still need identity/state evidence.
 
     TCP recovery is restricted to confirmed-open endpoints. UDP recovery may
-    additionally include ``open|filtered`` endpoints because that state is an
-    explicit uncertainty produced by UDP discovery, not an assumption of
-    openness.
+    additionally include a bounded number of ``open|filtered`` endpoints,
+    because that state is an explicit uncertainty produced by UDP discovery
+    rather than an assumption of openness. Confirmed-open UDP endpoints are
+    always eligible and are never displaced by the uncertain budget.
     """
     proto = str(protocol or "").strip().lower()
     out: list[dict[str, Any]] = []
+    uncertain: list[dict[str, Any]] = []
     seen: set[tuple[str, int, str]] = set()
+    budget = (
+        UNCERTAIN_UDP_RECOVERY_MAX_PORTS
+        if uncertain_udp_limit is None
+        else clamp_int(uncertain_udp_limit, 0, 256, UNCERTAIN_UDP_RECOVERY_MAX_PORTS)
+    )
     for source in rows or []:
         row = dict(source)
         observed_proto = str(row.get("protocol") or "").strip().lower()
         if observed_proto != proto:
             continue
         state = str(row.get("state") or "unknown").strip().lower()
-        allowed = state == "open" or (proto == "udp" and include_uncertain_udp and state == "open|filtered")
+        uncertain_udp = proto == "udp" and include_uncertain_udp and state == "open|filtered"
+        allowed = state == "open" or uncertain_udp
         if not allowed:
             continue
         missing = missing_evidence_types(row)
@@ -132,7 +148,19 @@ def recovery_candidates(
         row["port"] = port
         row["protocol"] = proto
         row["recovery_missing_evidence"] = sorted(missing)
+        if uncertain_udp:
+            row["recovery_selection_basis"] = "uncertain_udp_state"
+            uncertain.append(row)
+            continue
+        row["recovery_selection_basis"] = "confirmed_open_endpoint"
         out.append(row)
+
+    # Confirmed-open endpoints are never displaced by the uncertain budget.
+    # Uncertain endpoints are taken in deterministic port order so the selection
+    # is reproducible across runs.
+    if uncertain and budget > 0:
+        uncertain.sort(key=lambda item: (str(item.get("host") or ""), int(item.get("port") or 0)))
+        out.extend(uncertain[:budget])
     return out
 
 
@@ -188,7 +216,7 @@ def collector_needed(plan_entry: Mapping[str, Any], service: Mapping[str, Any]) 
 
 
 def recovery_snapshot(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
-    """Summarise unresolved evidence as counts only; no score is invented."""
+    """Summarise unresolved evidence as transparent counts only."""
     counts = {
         "endpoint_state": 0,
         "service_product": 0,
@@ -196,12 +224,21 @@ def recovery_snapshot(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "host_os": 0,
     }
     endpoints = 0
+    unresolved_endpoints = 0
     for row in rows or []:
         endpoints += 1
-        for key in missing_evidence_types(row):
+        missing = missing_evidence_types(row)
+        if missing:
+            unresolved_endpoints += 1
+        for key in missing:
             if key in counts:
                 counts[key] += 1
-    return {"endpoints_considered": endpoints, "missing": counts}
+    return {
+        "endpoints_considered": endpoints,
+        "unresolved_endpoint_count": unresolved_endpoints,
+        "missing_fact_count": sum(counts.values()),
+        "missing": counts,
+    }
 
 
 def merge_endpoint_observations(

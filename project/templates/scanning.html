@@ -1,35 +1,103 @@
 <!doctype html>
 <html>
 <head>
-  <title>Reconnaissance Running</title>
-  <link rel="stylesheet" href="/static/style.css?v=324">
+  <title>PenPilot Mission Running</title>
+
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <link rel="stylesheet" href="/static/style.css?v=325">
 </head>
 <body>
-<main class="shell">
-<header class="topbar">
-  <div>
-    <div class="eyebrow">Reconnaissance in Progress</div>
-    <h1>{{ target }}</h1>
-    <p class="muted">Configurable recon is running with the TCP/UDP coverage and evidence collectors selected by the operator. Policy stop conditions remain active throughout the scan.</p>
-  </div>
-  <a class="btn ghost" href="/">New Scan</a>
-</header>
 
+<main class="shell scanning-shell">
+
+  <nav class="main-navbar">
+
+    <div class="navbar-brand">
+  <span class="brand-icon">
+    <i class="bi bi-shield-check"></i>
+  </span>
+  <span>PenPilot</span>
+</div>
+
+    <div class="navbar-page-content">
+      <span class="scan-navbar-status">
+        <span class="scan-navbar-dot"></span>
+
+        {% if workflow_stage == 'assessment' %}
+          Vulnerability Assessment in Progress
+        {% else %}
+          Scan in Progress
+        {% endif %}
+      </span>
+    </div>
+
+    <div class="navbar-controls">
+
+      <a href="{{ url_for('index') }}" class="navbar-new-scan">
+        <i class="bi bi-plus-lg"></i>
+        <span>New Scan</span>
+      </a>
+
+      <button
+        class="theme-toggle"
+        type="button"
+        title="Light Mode"
+        aria-label="Light Mode">
+        <i class="bi bi-sun-fill"></i>
+      </button>
+
+    </div>
+
+  </nav>
+
+  <header class="topbar scanning-topbar">
+  <div>
+    <div class="eyebrow">
+      {% if workflow_stage == 'assessment' %}
+        PHASE 3 · VULNERABILITY ASSESSMENT
+      {% else %}
+        PHASE 1–2 · LAYERED NETWORK DISCOVERY
+      {% endif %}
+    </div>
+
+    <h1>{{ target }}</h1>
+  </div>
+</header>
 <section class="scan-live-grid">
   <aside class="scan-sidebar">
+    {% if workflow_stage == 'assessment' %}
+    <section class="panel phase3-heartbeat-panel">
+      <div class="section-head">
+        <div>
+          <h2>Live Assessment Status</h2>
+        </div>
+        <span id="heartbeatBadge" class="heartbeat-badge waiting"><span class="heartbeat-dot"></span><span id="heartbeatText">Connecting</span></span>
+      </div>
+      <div class="status-time-grid">
+        <div class="status-time-card"><span>Phase 3 elapsed</span><b id="phaseElapsed">00:00</b></div>
+        <div class="status-time-card"><span>Current stage visible</span><b id="stageElapsed">00:00</b></div>
+        <div class="status-time-card"><span>Last activity</span><b id="lastEventAge">Pending</b><small id="lastEventAt" class="muted"></small></div>
+        <div class="status-time-card"><span>Display timezone</span><b id="displayTimezone">Browser local</b></div>
+      </div>
+    </section>
+    {% endif %}
+
     <section class="panel progress-panel">
-    <div class="progress-head">
-      <h2>Task Progress</h2>
-      <div class="progress-meta"><span id="doneCount">0 / 0 tasks</span><span id="percent">0%</span></div>
-    </div>
-    <div class="progress-track"><div id="bar" class="progress-fill"></div></div>
-    <div id="summary" class="summary-grid"></div>
-    <div id="tasks" class="task-list wide"></div>
-  </section>
+      <div class="progress-head">
+        <h2>{% if workflow_stage == 'assessment' %}Phase 3 Progress{% else %}Task Progress{% endif %}</h2>
+        <div class="progress-meta"><span id="doneCount">0 / 0 tasks</span><span id="percent">0%</span></div>
+      </div>
+      <div class="progress-track"><div id="bar" class="progress-fill"></div></div>
+      <div id="summary" class="summary-grid"></div>
+      <div id="tasks" class="task-list wide"></div>
+    </section>
   </aside>
 
   <div class="scan-center">
-    <section class="panel overview-panel center-overview-panel">
+    <section class="panel overview-panel center-overview-panel {% if workflow_stage == 'assessment' %}phase3-overview{% endif %}">
       <div class="overview-card">
         <span>Target</span>
         <b>{{ target }}</b>
@@ -42,6 +110,7 @@
         <span>Next Task</span>
         <b id="next">No queued task</b>
       </div>
+      {% if workflow_stage == 'assessment' %}
       <div class="overview-card">
         <span>Selected TCP Scope</span>
         <b>{{ scan_options.port_selection.tcp.display if scan_options and scan_options.port_selection else 'Essentials' }}</b>
@@ -51,14 +120,39 @@
         <b>{{ scan_options.port_selection.udp.display if scan_options and scan_options.port_selection else 'Essentials' }}</b>
       </div>
       <div class="overview-card">
-        <span>Execution</span>
+        <span>Configured Execution</span>
         <b>{% if scan_options and scan_options.advanced_settings and scan_options.advanced_settings.parallel_scanning %}Parallel × {{ scan_options.advanced_settings.parallel_workers }}{% else %}Sequential{% endif %} · {{ scan_options.advanced_settings.ports_per_batch if scan_options and scan_options.advanced_settings else 5 }} ports/batch</b>
       </div>
+      {% endif %}
     </section>
 
+    {% if workflow_stage == 'assessment' %}
+    <section class="panel live-findings-panel">
+      <div class="section-head">
+        <div>
+          <h2>Live Findings</h2>
+        </div>
+        <span id="findingsUpdated" class="muted small">Waiting for partial results</span>
+      </div>
+      <div id="liveFindingCards" class="live-finding-grid"></div>
+      <div class="table-scroll live-findings-table-wrap">
+        <table class="command-table live-findings-table">
+          <thead><tr><th>Host</th><th>Port</th><th>Protocol</th><th>Service</th><th>Product</th><th>Version</th></tr></thead>
+          <tbody id="recentServices"><tr><td colspan="6" class="muted">No service findings have been published yet.</td></tr></tbody>
+        </table>
+      </div>
+      <p id="cveReviewStatus" class="muted small phase3-cve-status"></p>
+    </section>
+    {% endif %}
+
     <section class="panel command-panel scan-command-center">
-      <div class="section-head"><div><h2>Command Log</h2><p class="muted small">Open a row to view the full command and captured output.</p></div></div>
-      <div class="table-scroll command-table-wrap"><table class="command-table"><thead><tr><th>Time</th><th>Purpose</th><th>Exact Command</th><th>Output</th></tr></thead><tbody id="log"></tbody></table></div>
+      <div class="section-head">
+        <div>
+          <h2>Command Log</h2>
+        </div>
+        {% if workflow_stage == 'assessment' %}<span id="commandCount" class="muted small">0 completed command records</span>{% endif %}
+      </div>
+      <div class="table-scroll command-table-wrap"><table class="command-table"><thead><tr><th>Time</th><th>Purpose</th><th>Exact Command</th><th>Evidence</th></tr></thead><tbody id="log"></tbody></table></div>
     </section>
   </div>
 </section>
@@ -67,13 +161,16 @@
 <div id="outputModal" class="modal" aria-hidden="true">
   <div class="modal-backdrop" onclick="closeOutputModal()"></div>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <div class="modal-head"><h2 id="modalTitle">Command Output</h2><button class="icon-btn" onclick="closeOutputModal()">Close</button></div>
+    <div class="modal-head"><h2 id="modalTitle">Command Evidence</h2><button class="icon-btn" onclick="closeOutputModal()">Close</button></div>
     <div class="modal-body">
-      <h3>Exact Command</h3>
+      <div class="section-head"><h3>Exact Command</h3><button class="btn mini" type="button" id="modalCopyCommand" onclick="copyModalCommand(this)">Copy Command</button></div>
       <pre id="modalCommand"></pre>
       <h3>Purpose</h3>
       <p id="modalPurpose" class="modal-purpose"></p>
+      <h3>PenPilot Recorded At</h3>
+      <p id="modalRecordedAt" class="muted small"></p>
       <h3>Captured Output</h3>
+      <p class="muted small">Raw tool output is preserved exactly as emitted, including any timestamp or timezone text produced by the tool itself.</p>
       <pre id="modalOutput"></pre>
       <h3>Evidence File</h3>
       <p id="modalFile" class="muted small"></p>
@@ -82,90 +179,306 @@
 </div>
 
 <script>
-const scanId = "{{ scan_id }}";
+const scanId = {{ scan_id|tojson }};
+const isAssessment = {{ 'true' if workflow_stage == 'assessment' else 'false' }};
 const labels = {queued:'Queued', running:'In Progress', success:'Completed Successfully', empty:'Completed - No Relevant Information Returned', failed:'Failed - Error', timeout:'Timed Out - Partial Results Retained', skipped:'Skipped - Not Applicable'};
 let latestCommandLog = [];
+let redirecting = false;
+let phaseStartedMs = null;
+let currentStageName = '';
+let currentStageSeenAtMs = Date.now();
+let lastBackendEventMs = null;
+let lastPollReceivedMs = null;
+let lastFindingsSignature = '';
+let lastFindingsChangeMs = null;
+
 function cls(s){return {queued:'queued',running:'running',success:'done',empty:'empty',failed:'failed',timeout:'failed',skipped:'empty'}[s]||'queued'}
 function countTcp(services){return (Array.isArray(services)?services:[]).filter(s => (s.protocol||'tcp') === 'tcp').length}
 function countUdp(services){return (Array.isArray(services)?services:[]).filter(s => (s.protocol||'') === 'udp').length}
-function escapeHtml(s){return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function shortText(s, n=160){s=String(s||''); return s.length>n ? s.slice(0,n)+'...' : s}
-function logRow(l, idx){
-  const command = l.command ? `<code>${escapeHtml(shortText(l.command, 180))}</code>` : '<span class="muted">No shell command</span>';
-  const status = escapeHtml(l.status || l.level || '');
-  return `<tr class="logline ${escapeHtml(l.status || l.level || 'Completed')}"><td>${escapeHtml(l.time||'')}</td><td>${escapeHtml(l.purpose || l.message || '')}<div class="muted small">${status}</div></td><td class="cmd-cell">${command}</td><td><span class="small">${escapeHtml(shortText(l.output_summary || l.output || '', 140))}</span><br><button class="btn mini" onclick="openOutputModal(${idx})">View Raw Evidence</button></td></tr>`;
+function escapeHtml(s){return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function shortText(s, n=160){s=String(s ?? ''); return s.length>n ? s.slice(0,n)+'...' : s}
+function evidenceBasename(value){
+  const text=String(value||'').trim();
+  if(!text) return '';
+  return text.replaceAll('\\','/').split('/').filter(Boolean).pop() || text;
 }
-function openOutputModal(idx){
-  const l = latestCommandLog[idx] || {};
-  document.getElementById('modalCommand').textContent = l.command || 'No shell command recorded.';
-  document.getElementById('modalPurpose').textContent = l.purpose || l.message || '';
-  document.getElementById('modalOutput').textContent = l.output || '[no console output captured]';
-  document.getElementById('modalFile').textContent = l.output_file ? `Evidence file: ${l.output_file}` : '';
+function renderEvidenceFile(element, filename, url=''){
+  if(!element) return;
+  const name=evidenceBasename(filename);
+  element.replaceChildren();
+  if(!name){element.textContent='No evidence file recorded.'; return;}
+  if(url){const link=document.createElement('a'); link.href=url; link.target='_blank'; link.rel='noopener'; link.textContent=name; element.appendChild(link);}
+  else element.textContent=name;
+}
+async function copyCommandText(command, button){
+  const value=String(command||'');
+  if(!value) return;
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch (_) {
+    const area=document.createElement('textarea');
+    area.value=value; area.style.position='fixed'; area.style.opacity='0';
+    document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove();
+  }
+  if(button){const original=button.textContent; button.textContent='Copied'; setTimeout(()=>button.textContent=original,1200);}
+}
+function copyLogCommand(idx, button){ copyCommandText((latestCommandLog[idx]||{}).command||'', button); }
+function copyModalCommand(button){ copyCommandText(document.getElementById('modalCommand')?.textContent||'', button); }
+function friendlyTaskName(name){
+  const value=String(name||'');
+  if(isAssessment && value === 'TCP Service Discovery') return 'Service Discovery (TCP/UDP)';
+  return value;
+}
+function parseTimestamp(value){
+  if(!value) return null;
+  const ms=Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+function formatLocalTimestamp(value, fallback=''){
+  const ms=parseTimestamp(value);
+  if(ms === null) return fallback || 'Pending';
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      year:'numeric', month:'short', day:'2-digit',
+      hour:'2-digit', minute:'2-digit', second:'2-digit',
+      timeZoneName:'short'
+    }).format(new Date(ms));
+  } catch (_) {
+    return new Date(ms).toLocaleString();
+  }
+}
+function durationText(ms){
+  if(!Number.isFinite(ms) || ms < 0) ms=0;
+  const total=Math.floor(ms/1000);
+  const h=Math.floor(total/3600);
+  const m=Math.floor((total%3600)/60);
+  const s=total%60;
+  return h > 0 ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function ageText(ms){
+  if(!Number.isFinite(ms) || ms < 0) return 'just now';
+  const seconds=Math.floor(ms/1000);
+  if(seconds < 2) return 'just now';
+  if(seconds < 60) return `${seconds}s ago`;
+  const minutes=Math.floor(seconds/60);
+  if(minutes < 60) return `${minutes}m ${seconds%60}s ago`;
+  const hours=Math.floor(minutes/60);
+  return `${hours}h ${minutes%60}m ago`;
+}
+function updateLocalTimers(){
+  if(!isAssessment) return;
+  const now=Date.now();
+  const phaseElapsed=document.getElementById('phaseElapsed');
+  if(phaseElapsed) phaseElapsed.textContent=phaseStartedMs ? durationText(now-phaseStartedMs) : 'Pending';
+  const stageElapsed=document.getElementById('stageElapsed');
+  if(stageElapsed) stageElapsed.textContent=durationText(now-currentStageSeenAtMs);
+  const lastAge=document.getElementById('lastEventAge');
+  if(lastAge) lastAge.textContent=lastBackendEventMs ? ageText(now-lastBackendEventMs) : 'Pending';
+  const heartbeat=document.getElementById('heartbeatBadge');
+  const heartbeatText=document.getElementById('heartbeatText');
+  if(heartbeat && heartbeatText){
+    const pollAge=lastPollReceivedMs ? now-lastPollReceivedMs : Infinity;
+    heartbeat.classList.remove('healthy','delayed','waiting');
+    if(pollAge < 5000){heartbeat.classList.add('healthy'); heartbeatText.textContent='Connected';}
+    else if(pollAge < 15000){heartbeat.classList.add('delayed'); heartbeatText.textContent='Status delayed';}
+    else {heartbeat.classList.add('waiting'); heartbeatText.textContent=lastPollReceivedMs ? 'Reconnecting' : 'Connecting';}
+  }
+}
+setInterval(updateLocalTimers,1000);
+
+function logRow(l, idx){
+  const command = l.command ? `<code title="${escapeHtml(l.command)}">${escapeHtml(shortText(l.command, 180))}</code><div class="top-gap"><button class="btn mini" type="button" onclick="copyLogCommand(${idx}, this)">Copy Command</button></div>` : '<span class="muted">No shell command</span>';
+  const status = escapeHtml(l.status || l.level || '');
+  const displayTime = l.timestamp ? formatLocalTimestamp(l.timestamp, l.time||'') : (l.time||'');
+  return `<tr class="logline ${escapeHtml(l.status || l.level || 'Completed')}"><td>${escapeHtml(displayTime)}</td><td>${escapeHtml(l.purpose || l.message || '')}<div class="muted small">${status}</div></td><td class="cmd-cell">${command}</td><td><button class="btn mini" type="button" onclick="openOutputModal(${idx})">View Evidence</button></td></tr>`;
+}
+async function openOutputModal(idx){
+  const local = latestCommandLog[idx] || {};
+  document.getElementById('modalCommand').textContent = local.command || 'Loading command evidence...';
+  document.getElementById('modalPurpose').textContent = local.purpose || local.message || '';
+  document.getElementById('modalRecordedAt').textContent = local.timestamp ? formatLocalTimestamp(local.timestamp) : 'Timestamp unavailable';
+  document.getElementById('modalOutput').textContent = 'Loading retained evidence...';
+  renderEvidenceFile(document.getElementById('modalFile'), local.output_file || '');
   document.getElementById('outputModal').classList.add('open');
   document.getElementById('outputModal').setAttribute('aria-hidden','false');
+
+  if(Number.isInteger(local.command_index) === false){
+    document.getElementById('modalOutput').textContent = local.output || '[no console output captured]';
+    return;
+  }
+  try {
+    const r=await fetch(`/scan/command-evidence/${encodeURIComponent(scanId)}/${local.command_index}?t=${Date.now()}`, {cache:'no-store'});
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    const evidence=await r.json();
+    document.getElementById('modalCommand').textContent = evidence.command || local.command || 'No shell command recorded.';
+    document.getElementById('modalPurpose').textContent = evidence.purpose || local.purpose || '';
+    document.getElementById('modalRecordedAt').textContent = evidence.timestamp ? formatLocalTimestamp(evidence.timestamp) : (local.timestamp ? formatLocalTimestamp(local.timestamp) : 'Timestamp unavailable');
+    document.getElementById('modalOutput').textContent = evidence.output || '[no console output captured]';
+    renderEvidenceFile(document.getElementById('modalFile'), evidence.output_file || '', evidence.output_file_url || '');
+  } catch(err) {
+    document.getElementById('modalOutput').textContent = `Unable to load retained command evidence: ${err.message}`;
+  }
 }
 function closeOutputModal(){
   document.getElementById('outputModal').classList.remove('open');
   document.getElementById('outputModal').setAttribute('aria-hidden','true');
 }
 document.addEventListener('keydown', e => { if(e.key === 'Escape') closeOutputModal(); });
-let redirecting = false;
+
+function renderLiveFindings(findings){
+  if(!isAssessment) return;
+  const f=(findings && typeof findings === 'object') ? findings : {};
+  const cveUnavailable=String(f.cve_review_status||'').toLowerCase().includes('generation unavailable');
+  const cards=[
+    ['Hosts Observed', f.host_count||0],
+    ['TCP Services', f.tcp_service_count||0],
+    ['UDP Services', f.udp_service_count||0],
+    ['Products Identified', f.product_count||0],
+    ['Versioned Endpoints', f.versioned_endpoint_count||0],
+    ['Candidate CVEs', cveUnavailable ? 'Unavailable' : (f.cve_reference_count||0)],
+  ];
+  document.getElementById('liveFindingCards').innerHTML=cards.map(([label,value])=>`<div class="mini-card"><b>${escapeHtml(value)}</b><span>${escapeHtml(label)}</span></div>`).join('');
+  const rows=Array.isArray(f.recent_services) ? f.recent_services : [];
+  document.getElementById('recentServices').innerHTML=rows.length ? rows.map(row=>{
+    const port = row.port === '' || row.port === null || row.port === undefined ? '—' : row.port;
+    return `<tr><td>${escapeHtml(row.host||'—')}</td><td>${escapeHtml(port)}</td><td>${escapeHtml(row.protocol||'—')}</td><td>${escapeHtml(row.service||'—')}</td><td>${escapeHtml(row.product||'—')}</td><td>${escapeHtml(row.version||'—')}</td></tr>`;
+  }).join('') : '<tr><td colspan="6" class="muted">No service findings have been published yet.</td></tr>';
+  document.getElementById('cveReviewStatus').textContent=f.cve_review_status ? `CVE review status: ${f.cve_review_status}` : 'Candidate CVEs will appear when the correlation stage generates them; downstream validation remains separate.';
+
+  const signature=JSON.stringify({
+    h:f.host_count||0,t:f.tcp_service_count||0,u:f.udp_service_count||0,
+    p:f.product_count||0,v:f.versioned_endpoint_count||0,c:f.cve_reference_count||0,
+    recent:rows
+  });
+  if(signature !== lastFindingsSignature){
+    lastFindingsSignature=signature;
+    lastFindingsChangeMs=Date.now();
+  }
+  const updated=document.getElementById('findingsUpdated');
+  if(updated){
+    updated.textContent=lastFindingsChangeMs ? `Last updated ${ageText(Date.now()-lastFindingsChangeMs)}` : 'Waiting for partial results';
+  }
+}
+
+function renderTasksAndSummary(d){
+  const allTasks = Array.isArray(d.tasks) ? d.tasks : [];
+  const visibleTasks = isAssessment ? allTasks.filter(t => String(t.phase||'') === 'assessment') : allTasks;
+  const activeTasks = visibleTasks.filter(t => t.status === 'running');
+  const queuedTasks = visibleTasks.filter(t => t.status === 'queued');
+  const completedTasks = visibleTasks.filter(t => !['running','queued'].includes(t.status));
+  function taskBlock(title, items){
+    return `<div class="task-group"><h3>${title}</h3>` + (items.length ? items.map(t=>`<div class="task ${cls(t.status)}"><span>${escapeHtml(friendlyTaskName(t.name))}</span><b>${labels[t.status]||escapeHtml(t.status)}</b><small>${escapeHtml(t.summary||'')}</small></div>`).join('') : '<p class="muted small">None</p>') + '</div>';
+  }
+  document.getElementById('tasks').innerHTML = taskBlock('Running', activeTasks) + taskBlock('Queued', queuedTasks) + taskBlock('Completed', completedTasks);
+
+  if(isAssessment){
+    const done=d.assessment_task_done||0, total=d.assessment_task_total||0, pct=d.assessment_task_percent||0;
+    document.getElementById('doneCount').textContent=`${done} / ${total} tasks`;
+    document.getElementById('percent').textContent=`${pct}%`;
+    document.getElementById('bar').style.width=`${pct}%`;
+    document.getElementById('summary').innerHTML=`
+      <div class="mini-card"><b>${done}/${total}</b><span>Assessment Tasks Complete</span></div>
+      <div class="mini-card"><b>${d.command_log_total||0}</b><span>Completed Command Records</span></div>
+      <div class="mini-card"><b>${escapeHtml(String(d.status||'running').replaceAll('_',' '))}</b><span>Backend State</span></div>`;
+  } else {
+    document.getElementById('doneCount').textContent=`${d.task_done||0} / ${d.task_total||0} tasks`;
+    document.getElementById('percent').textContent=`${d.task_percent||0}%`;
+    document.getElementById('bar').style.width=`${d.task_percent||0}%`;
+    const res=(d.results && typeof d.results === 'object') ? d.results : {};
+    const services=Array.isArray(res.service_inventory) ? res.service_inventory : [];
+    const hosts=Array.isArray(res.hosts) ? res.hosts : [];
+    const cves=Array.isArray(res.cve_matches) ? res.cve_matches : [];
+    const cveUnavailable=String(res?.cve_review_summary?.candidate_generation_state||'') === 'unavailable';
+    document.getElementById('summary').innerHTML=`
+      <div class="mini-card"><b>${hosts.length}</b><span>Hosts Observed</span></div>
+      <div class="mini-card"><b>${countTcp(services)}</b><span>TCP Services</span></div>
+      <div class="mini-card"><b>${countUdp(services)}</b><span>UDP Services</span></div>
+      <div class="mini-card"><b>${cveUnavailable ? 'Unavailable' : cves.length}</b><span>Candidate CVEs</span></div>`;
+  }
+}
+
 async function poll(){
- if (redirecting) return;
- let d;
- try {
-   const r=await fetch(`/scan/status/${scanId}?t=${Date.now()}`, {cache:'no-store'});
-   if (!r.ok) throw new Error(`HTTP ${r.status}`);
-   d=await r.json();
- } catch (err) {
-   document.getElementById('current').textContent='Waiting for scan status';
-   setTimeout(poll,3000);
-   return;
- }
- document.getElementById('current').textContent=d.current_task||'Queued';
- document.getElementById('next').textContent=d.next_task||'No queued task';
- document.getElementById('doneCount').textContent=`${d.task_done||0} / ${d.task_total||0} tasks`;
- document.getElementById('percent').textContent=`${d.task_percent||0}%`;
- document.getElementById('bar').style.width=`${d.task_percent||0}%`;
- const allTasks = d.tasks || [];
- const activeTasks = allTasks.filter(t => t.status === 'running');
- const queuedTasks = allTasks.filter(t => t.status === 'queued');
- const completedTasks = allTasks.filter(t => !['running','queued'].includes(t.status));
- function taskBlock(title, items){
-   return `<div class="task-group"><h3>${title}</h3>` + (items.length ? items.map(t=>`<div class="task ${cls(t.status)}"><span>${escapeHtml(t.name)}</span><b>${labels[t.status]||escapeHtml(t.status)}</b><small>${escapeHtml(t.summary||'')}</small></div>`).join('') : '<p class="muted small">None</p>') + '</div>';
- }
- document.getElementById('tasks').innerHTML = taskBlock('Running', activeTasks) + taskBlock('Queued', queuedTasks) + taskBlock('Completed', completedTasks);
- latestCommandLog = (d.command_log || []).slice(-80);
- document.getElementById('log').innerHTML=latestCommandLog.map((entry, idx)=>logRow(entry, idx)).join('') || '<tr><td colspan="4" class="muted">No command has completed yet.</td></tr>';
- const res=(d.results && typeof d.results === 'object') ? d.results : {};
- const services=Array.isArray(res.service_inventory) ? res.service_inventory : [];
- const hosts=Array.isArray(res.hosts) ? res.hosts : [];
- const cves=Array.isArray(res.cve_matches) ? res.cve_matches : [];
- document.getElementById('summary').innerHTML=`
-   <div class="mini-card"><b>${hosts.length}</b><span>Hosts Observed</span></div>
-   <div class="mini-card"><b>${countTcp(services)}</b><span>TCP Services</span></div>
-   <div class="mini-card"><b>${countUdp(services)}</b><span>UDP Services</span></div>
-   <div class="mini-card"><b>${cves.length}</b><span>Validated CVE Findings</span></div>`;
- // The backend stores completed scans as success. Redirect only when a result
- // package exists; otherwise a failed pipeline would open an empty dashboard.
- const hasSavedResults = Boolean(
-   Object.keys(res).length || res.handoff_file || res.caldera_handoff
- );
- const terminalStatus = ['success','done','completed','empty'].includes(String(d.status||'').toLowerCase());
- if (terminalStatus || (['failed','error'].includes(String(d.status||'').toLowerCase()) && hasSavedResults)) {
-   redirecting = true;
-   document.getElementById('current').textContent='Opening results dashboard...';
-   window.location.assign(`/scan/results/${encodeURIComponent(scanId)}`);
-   return;
- }
- if(['failed', 'error'].includes(d.status)){
-   document.getElementById('current').textContent='Scan stopped before results were saved';
-   document.getElementById('next').textContent=d.error || 'Check the Flask terminal for the pipeline error.';
-   return;
- }
- setTimeout(poll,1500);
+  if (redirecting) return;
+  let d;
+  try {
+    const endpoint=isAssessment ? `/scan/status-lite/${encodeURIComponent(scanId)}` : `/scan/status/${encodeURIComponent(scanId)}`;
+    const r=await fetch(`${endpoint}?t=${Date.now()}`, {cache:'no-store'});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    d=await r.json();
+    lastPollReceivedMs=Date.now();
+  } catch (err) {
+    document.getElementById('current').textContent='Waiting for scan status';
+    setTimeout(poll,3000);
+    return;
+  }
+
+  const nextCurrent=friendlyTaskName(d.current_task||'Queued');
+  if(nextCurrent !== currentStageName){
+    currentStageName=nextCurrent;
+    currentStageSeenAtMs=Date.now();
+  }
+  document.getElementById('current').textContent=nextCurrent;
+  document.getElementById('next').textContent=friendlyTaskName(d.next_task||'No queued task');
+
+  if(isAssessment){
+    const phaseStart=parseTimestamp(d.assessment_started_at || d.started_at);
+    if(phaseStart !== null) phaseStartedMs=phaseStart;
+    const backendEvent=parseTimestamp(d.last_update_at);
+    if(backendEvent !== null) lastBackendEventMs=backendEvent;
+    const eventAt=document.getElementById('lastEventAt');
+    if(eventAt) eventAt.textContent=d.last_update_at ? formatLocalTimestamp(d.last_update_at) : '';
+    const tz=document.getElementById('displayTimezone');
+    if(tz){
+      try { tz.textContent=Intl.DateTimeFormat().resolvedOptions().timeZone || 'Browser local'; }
+      catch (_) { tz.textContent='Browser local'; }
+    }
+    renderLiveFindings(d.live_findings || {});
+    const commandCount=document.getElementById('commandCount');
+    if(commandCount) commandCount.textContent=`${d.command_log_total||0} completed command record${(d.command_log_total||0)===1?'':'s'}`;
+  }
+
+  renderTasksAndSummary(d);
+
+  const allCommandRows = Array.isArray(d.command_log) ? d.command_log : [];
+  const commandOffset = Math.max(0, allCommandRows.length - 80);
+  latestCommandLog = allCommandRows.slice(-80).map((entry, idx) => ({
+    ...entry,
+    command_index: Number.isInteger(entry?.command_index) ? entry.command_index : commandOffset + idx
+  }));
+  document.getElementById('log').innerHTML=latestCommandLog.map((entry, idx)=>logRow(entry, idx)).join('') || `<tr><td colspan="4" class="muted">No command has completed yet.${isAssessment ? ' Long-running commands appear here after the existing backend records their completion.' : ''}</td></tr>`;
+
+  if (['awaiting_subnet_selection','awaiting_layer_decision'].includes(String(d.status||''))) {
+    redirecting = true;
+    document.getElementById('current').textContent='Opening network-layer decision...';
+    window.location.assign(`/scan/layer/${encodeURIComponent(scanId)}`);
+    return;
+  }
+  if (String(d.status||'') === 'awaiting_assessment_configuration') {
+    redirecting = true;
+    document.getElementById('current').textContent='Opening Phase 3 configuration...';
+    window.location.assign(`/scan/configure/${encodeURIComponent(scanId)}`);
+    return;
+  }
+
+  const res=(d.results && typeof d.results === 'object') ? d.results : {};
+  const hasSavedResults = isAssessment ? Boolean(d.has_saved_results) : Boolean(Object.keys(res).length || res.handoff_file || res.caldera_handoff);
+  const terminalStatus = ['success','done','completed','empty'].includes(String(d.status||'').toLowerCase());
+  if (terminalStatus || (['failed','error'].includes(String(d.status||'').toLowerCase()) && hasSavedResults)) {
+    redirecting = true;
+    document.getElementById('current').textContent='Opening results dashboard...';
+    window.location.assign(`/scan/results/${encodeURIComponent(scanId)}`);
+    return;
+  }
+  if(['failed', 'error'].includes(String(d.status||'').toLowerCase())){
+    document.getElementById('current').textContent='Scan stopped before results were saved';
+    document.getElementById('next').textContent=d.error || 'Check the Flask terminal for the pipeline error.';
+    return;
+  }
+  updateLocalTimers();
+  setTimeout(poll,1500);
 }
 poll();
 </script>
+<script src="{{ url_for('static', filename='theme.js') }}"></script>
 </body>
 </html>

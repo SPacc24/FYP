@@ -9,7 +9,7 @@ DEFAULT_TIMEOUT_SECONDS = 300
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "")
 
-
+# ensure ollama url is in corect format 
 def _normalise_ollama_url(value: str = "") -> str:
     ollama_url = str(value or os.getenv("OLLAMA_URL", "")).strip()
     ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
@@ -37,7 +37,7 @@ def _ollama_timeout() -> int:
     except (TypeError, ValueError):
         return DEFAULT_TIMEOUT_SECONDS
 
-
+# gathers ollama settings like url, model and timeout
 def _ollama_settings() -> tuple[str, str, int]:
     return (
         _normalise_ollama_url(),
@@ -48,10 +48,7 @@ def _ollama_settings() -> tuple[str, str, int]:
 
 OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT = _ollama_settings()
 
-
-# ---------------------------------------------------
-# LOW-LEVEL OLLAMA CALL
-# ---------------------------------------------------
+# low level ollama communciation function
 
 def ask_ollama(
     prompt: str,
@@ -66,6 +63,7 @@ def ask_ollama(
     if timeout is None:
         timeout = default_timeout
 
+# data that is sent to ollama
     payload = {
         "model": ollama_model,
         "prompt": prompt,
@@ -80,6 +78,7 @@ def ask_ollama(
     if json_mode:
         payload["format"] = "json"
 
+# debuging for ollama
     try:
         print("==== OLLAMA DEBUG ====")
         print("OLLAMA_URL =", ollama_url)
@@ -89,16 +88,18 @@ def ask_ollama(
         print("prompt length =", len(prompt))
         print("num_predict =", num_predict)
         print("num_ctx =", payload["options"].get("num_ctx"))
-        print("======================")
 
+# send request to ollama 
         response = requests.post(
             ollama_url,
             json=payload,
             timeout=timeout,
         )
 
+# check for response
         response.raise_for_status()
 
+# converts to python dictionary
         data = response.json()
         return data.get("response", "").strip()
 
@@ -118,9 +119,7 @@ def ask_ollama(
         return f"Local LLM error: {e}"
 
 
-# ---------------------------------------------------
-# TEXT MODE - CHATBOX
-# ---------------------------------------------------
+# chatbox
 
 def ask_llm_text(prompt: str) -> str:
 
@@ -132,62 +131,58 @@ def ask_llm_text(prompt: str) -> str:
         json_mode=False,
     )
 
-
-# ---------------------------------------------------
-# JSON MODE - AI TECHNIQUE PLANNER
-# ---------------------------------------------------
+# ai returns in json format
 
 def ask_llm_json(prompt: str) -> dict:
 
-    # Keep the planner prompt smaller so Kali does not timeout
-    if len(prompt) > 8000:
-        prompt = prompt[:8000] + "\n...[prompt truncated for local LLM performance]"
+    # keep the prompt length
+    if len(prompt) > 7000:
+        prompt = (
+            prompt[:7000]
+            + "\n...[scan context truncated for local LLM performance]"
+        )
 
     json_prompt = f"""
-Return ONLY valid JSON.
-Do not include markdown.
-Do not include explanation outside the JSON.
-Do not wrap the JSON in code fences.
+You are an AI MITRE ATT&CK planning assistant.
 
-The JSON must be one object with this exact structure:
+Your ONLY task is to select the most relevant MITRE ATT&CK technique IDs
+from the allowed technique list provided in the input.
+
+Rules:
+- Return ONLY valid JSON.
+- Do not use markdown.
+- Do not use code fences.
+- Do not write anything before or after the JSON.
+- selected_technique_ids MUST contain only IDs from the allowed list.
+- Select between 2 and 5 techniques when possible.
+- reasoning MUST be based on the supplied scan evidence.
+- Do not invent CVEs, services, ports, vulnerabilities, or technique IDs.
+- Do not provide commands, payloads, or intrusion instructions.
+
+Return exactly this structure:
 
 {{
   "selected_technique_ids": [],
-  "reasoning": "",
-  "technique_explanations": [],
-  "next_steps": []
+  "reasoning": ""
 }}
 
-Rules:
-- selected_technique_ids must be a list of technique IDs from the allowed list only.
-- reasoning must be written using the actual scan context.
-- reasoning must not copy these instructions.
-- reasoning must mention the actual selected technique IDs and why they match the scan.
-- technique_explanations must contain one object per selected technique.
-- Each technique_explanations object must include:
-  - technique_id
-  - technique_name
-  - why_recommended
-  - caldera_validation
-- why_recommended must mention a detected service, port, severity, CVE, mapper reason, or scan finding where available.
-- caldera_validation must be a safe high-level validation goal only.
-- next_steps must contain 3 to 4 safe follow-up actions.
-- Do not use placeholder text.
-- Do not invent technique IDs, CVEs, ports, or services.
-- Do not provide exploit commands, payloads, or intrusion steps.
-
-Now use this input and return only the final JSON:
+INPUT:
 
 {prompt}
 """
-
+# call ollama for the planner
     text = ask_ollama(
         json_prompt,
-        timeout=300,
-        num_predict=650,
+        timeout=_ollama_timeout(),
+        num_predict=250,
         temperature=0.1,
         json_mode=True,
     )
+
+# debug
+    print("OLLAMA PLANNER RESPONSE")
+    print(repr(text))
+    
 
     if not text:
         return _json_fallback("Empty LLM response.")
@@ -195,7 +190,6 @@ Now use this input and return only the final JSON:
     error_prefixes = (
         "Local LLM unavailable",
         "Local LLM timeout",
-        "The local LLM took too long",
         "Local LLM request failed",
         "Local LLM error",
     )
@@ -203,21 +197,18 @@ Now use this input and return only the final JSON:
     if text.startswith(error_prefixes):
         return _json_fallback(text, raw=text)
 
+    # try normal JSON parsing first.
     try:
         parsed = json.loads(text)
 
         if isinstance(parsed, dict):
             return _repair_llm_json(parsed)
 
-        return _json_fallback(
-            "LLM returned JSON, but it was not a JSON object.",
-            raw=text,
-        )
+    except json.JSONDecodeError as e:
+        print("JSON parse failed:", e)
 
-    except json.JSONDecodeError:
-        pass
-
-    match = re.search(r"\{.*\}", text, re.DOTALL)
+    # try extracting a json object if model added more text
+    match = re.search(r"\{[\s\S]*\}", text)
 
     if match:
         try:
@@ -226,23 +217,15 @@ Now use this input and return only the final JSON:
             if isinstance(parsed, dict):
                 return _repair_llm_json(parsed)
 
-            return _json_fallback(
-                "Extracted JSON was not a JSON object.",
-                raw=text,
-            )
-
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as e:
+            print("Extracted JSON parse failed:", e)
 
     return _json_fallback(
         "LLM response was not valid JSON.",
         raw=text,
     )
 
-
-# ---------------------------------------------------
-# JSON REPAIR
-# ---------------------------------------------------
+# json repair
 
 def _repair_llm_json(parsed: dict) -> dict:
 
@@ -251,6 +234,7 @@ def _repair_llm_json(parsed: dict) -> dict:
     if not isinstance(selected, list):
         selected = []
 
+# normalised the ids
     selected = [
         _normalise_technique_id(item)
         for item in selected
@@ -277,8 +261,11 @@ def _repair_llm_json(parsed: dict) -> dict:
 
     parsed["selected_technique_ids"] = selected
 
+# if no resoning, print this
     if not parsed.get("reasoning"):
-        parsed["reasoning"] = "AI selected techniques based on the mapped scan context."
+        parsed["reasoning"] = (
+            "AI selected techniques are based on the mapped scan context."
+        )
 
     bad_reasoning_phrases = (
         "Brief reasoning based on the actual scan context",
@@ -290,8 +277,12 @@ def _repair_llm_json(parsed: dict) -> dict:
 
     reasoning = str(parsed.get("reasoning", ""))
 
+# check if ai reasoning is bad
     if any(phrase in reasoning for phrase in bad_reasoning_phrases):
-        parsed["reasoning"] = "AI selected techniques based on the mapped services, CVEs, and MITRE ATT&CK context."
+        parsed["reasoning"] = (
+            "AI selected techniques based on the mapped services, "
+            "CVEs, and MITRE ATT&CK context."
+        )
 
     if not isinstance(parsed.get("technique_explanations"), list):
         parsed["technique_explanations"] = []
@@ -311,18 +302,31 @@ def _repair_llm_json(parsed: dict) -> dict:
         if not technique_id:
             continue
 
-        technique_name = str(item.get("technique_name", "")).strip()
-        why_recommended = str(item.get("why_recommended", "")).strip()
-        caldera_validation = str(item.get("caldera_validation", "")).strip()
+        technique_name = str(
+            item.get("technique_name", "")
+        ).strip()
+
+        why_recommended = str(
+            item.get("why_recommended", "")
+        ).strip()
+
+        caldera_validation = str(
+            item.get("caldera_validation", "")
+        ).strip()
 
         if "REPLACE_WITH" in technique_name or not technique_name:
             technique_name = technique_id
 
         if "REPLACE_WITH" in why_recommended or not why_recommended:
-            why_recommended = "Recommended based on the mapped scan findings and available MITRE ATT&CK context."
+            why_recommended = (
+                "Recommended based on the mapped scan findings "
+                "and available MITRE ATT&CK context."
+            )
 
         if "REPLACE_WITH" in caldera_validation or not caldera_validation:
-            caldera_validation = "Use only safe authorised validation or reporting steps."
+            caldera_validation = (
+                "Use only safe authorised validation or reporting steps."
+            )
 
         cleaned_explanations.append({
             "technique_id": technique_id,
@@ -345,11 +349,49 @@ def _repair_llm_json(parsed: dict) -> dict:
         "REPLACE_WITH_ACTUAL_NEXT_STEP_3",
     }
 
-    if isinstance(parsed.get("next_steps"), list):
-        parsed["next_steps"] = [
-            step for step in parsed["next_steps"]
-            if step not in bad_steps and "REPLACE_WITH" not in str(step)
-        ]
+    cleaned_steps = []
+
+    for step in parsed["next_steps"]:
+
+        # LLM returned a normal string
+        if isinstance(step, str):
+            step_text = step.strip()
+
+            if not step_text:
+                continue
+
+            if step_text in bad_steps:
+                continue
+
+            if "REPLACE_WITH" in step_text:
+                continue
+
+            cleaned_steps.append(step_text)
+            continue
+
+        # LLM returned an object/dictionary
+        if isinstance(step, dict):
+            step_text = (
+                step.get("step")
+                or step.get("action")
+                or step.get("description")
+                or ""
+            )
+
+            step_text = str(step_text).strip()
+
+            if not step_text:
+                continue
+
+            if step_text in bad_steps:
+                continue
+
+            if "REPLACE_WITH" in step_text:
+                continue
+
+            cleaned_steps.append(step_text)
+
+    parsed["next_steps"] = cleaned_steps
 
     if not parsed["next_steps"]:
         parsed["next_steps"] = [
@@ -360,7 +402,7 @@ def _repair_llm_json(parsed: dict) -> dict:
 
     return parsed
 
-
+# helper that converts value to string, covert to uppercase etc
 def _normalise_technique_id(value) -> str:
     technique_id = str(value or "").strip().upper()
 
@@ -372,10 +414,7 @@ def _normalise_technique_id(value) -> str:
 
     return technique_id
 
-
-# ---------------------------------------------------
-# STATUS
-# ---------------------------------------------------
+# status
 
 def get_llm_settings() -> dict:
     ollama_url, ollama_model, _ = _ollama_settings()

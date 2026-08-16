@@ -201,7 +201,7 @@ def test_component_candidates_come_only_from_structured_affected_fields(tmp_path
         rows, diagnostics = mitre_cve.search_component_candidates('smb', '1', host_vendor='Example')
 
     assert [row['cve_id'] for row in rows] == ['CVE-2099-81001']
-    assert rows[0]['match_basis'] == 'structured_affected_component_exact_version'
+    assert rows[0]['match_basis'] == 'prose_affected_component_version_scrape'
     assert not any(row.get('cve_id') == 'CVE-2099-81002' for row in rows)
     assert diagnostics == ()
 
@@ -303,8 +303,6 @@ def test_component_cve_integration_requires_exact_id_corroboration():
     }
     with (
         patch('scanners.enumerator.mitre_search_component_candidates', return_value=((candidate,), ())),
-        patch('scanners.enumerator.resolve_official_cpes', return_value=(('cpe:2.3:o:example:operating_system_1507:10.0.12345.7:*:*:*:*:*:*:*',), ())),
-        patch('scanners.enumerator.nvd_corroborate_component_context', return_value=(True, 'nvd_configuration:test', {'reason': 'test', 'matcher_status': 'available'})),
         patch('scanners.enumerator.mitre_search_with_held', return_value=((), ())),
     ):
         rows, _ = _match_cves([], [], [host_identity], [], [component])
@@ -312,7 +310,9 @@ def test_component_cve_integration_requires_exact_id_corroboration():
     assert [row['cve_id'] for row in rows] == ['CVE-2099-81004']
     assert rows[0]['match_scope'] == 'platform_component'
     assert rows[0]['port'] == 445
-    assert rows[0]['applicability_corroboration']['source'].startswith('NVD exact-CVE')
+    assert rows[0]['candidate_status'] == 'candidate'
+    assert rows[0]['validation_state'] == 'not_performed'
+    assert 'applicability_corroboration' not in rows[0]
 
 
 def test_exact_id_host_only_corroboration_when_nvd_omits_application_cpe():

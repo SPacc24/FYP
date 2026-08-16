@@ -4,17 +4,37 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Technical Appendix</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 
 <body>
   <main class="page appendix-page">
+    <nav class="main-navbar">
+
+    <div class="navbar-brand">
+      <span class="brand-icon">
+        <i class="bi bi-shield-check"></i>
+      </span>
+      <span>PenPilot</span>
+    </div>
+
+    <div class="navbar-controls">
+      <button
+        class="theme-toggle"
+        type="button"
+        title="Light Mode"
+        aria-label="Light Mode"
+      >
+        <i class="bi bi-sun-fill"></i>
+      </button>
+    </div>
+
+  </nav>
+  
     <section class="hero compact-hero appendix-hero">
       <p class="eyebrow">TECHNICAL APPENDIX</p>
       <h1>Raw Scan Evidence and Execution Artefacts</h1>
-      <p class="muted">
-        Command history, service inventory, raw evidence captures, and scan state used by the final report.
-      </p>
     </section>
 
     <section class="appendix-box">
@@ -31,6 +51,65 @@
       </div>
     </section>
 
+    {% set mission_workflow = results.workflow|default(scan.workflow|default({})) %}
+    {% set mission_context = mission_workflow.get('network_context', {}) %}
+    {% set mission_targets = mission_workflow.get('assessment_targets', []) %}
+    {% set mission_segments = mission_workflow.get('segments', {}) %}
+    {% set mission_segment_order = mission_workflow.get('segment_order', []) %}
+    {% set current_segment = mission_segments.get(mission_workflow.get('current_segment_id'), mission_workflow.get('current_segment', {})) %}
+    {% set mission_hosts = mission_workflow.get('asset_inventory', mission_workflow.get('discovered_hosts',[])) %}
+    {% set entry_records = mission_hosts|selectattr('record_type','equalto','entry_target')|list %}
+    {% set independent_records = mission_hosts|selectattr('independently_discovered')|list %}
+    {% set mission_paths = mission_workflow.get('paths', {}) %}
+    {% set continuation_paths = mission_paths.values()|selectattr('destination_network','defined')|list if mission_paths else [] %}
+    {% set override_targets = mission_workflow.get('phase_results',{}).get('assessment',{}).get('override_targets', []) %}
+    {% if mission_workflow %}
+    <section class="appendix-box">
+      <div class="appendix-box-head">
+        <span class="label">Discovery Mission</span>
+        <h2>Entry Verification → Network Discovery → Phase 3</h2>
+      </div>
+      <div class="appendix-table-shell"><table><tbody>
+        <tr><th>Entry target</th><td>{{ mission_workflow.get('entry_target', mission_workflow.get('external_target','Unknown')) }}</td></tr>
+        <tr><th>Visited network layers</th><td>{{ mission_segment_order|length }}</td></tr>
+        <tr><th>Assessment interface</th><td>{{ current_segment.get('interface') or mission_context.get('interface') or 'Not established' }}</td></tr>
+        <tr><th>Scanner source address</th><td>{{ current_segment.get('source_address') or mission_context.get('scanner_ip') or 'Not established' }}</td></tr>
+        <tr><th>Assessed scope</th><td>{{ current_segment.get('network', mission_workflow.get('internal_subnet','Unknown')) }} · {{ 'Host' if current_segment.get('scope_kind') == 'entry_host' else 'Network' }}</td></tr>
+        <tr><th>Operator-supplied records</th><td>{{ entry_records|length }}</td></tr>
+        <tr><th>Additional hosts independently discovered</th><td>{{ independent_records|length }}</td></tr>
+        <tr><th>Continuation networks retained</th><td>{{ continuation_paths|length }}</td></tr>
+        <tr><th>Inconclusive-reachability Phase 3 overrides</th><td>{{ override_targets|join(', ') if override_targets else 'None' }}</td></tr>
+        <tr><th>Phase 2 stop reason</th><td>{{ mission_workflow.get('phase2_stop_reason') or 'Phase 2 has not been finished by the operator.' }}</td></tr>
+        <tr><th>Phase 3 targets selected</th><td>{{ mission_targets|join(', ') if mission_targets else 'None selected' }}</td></tr>
+      </tbody></table></div>
+      {% if mission_segment_order %}
+      <h3>Discovered Network Layers</h3>
+      <div class="appendix-table-shell"><table><thead><tr><th>Order</th><th>Segment ID</th><th>Scope type</th><th>Scope</th><th>Interface</th><th>Scanner source</th><th>Hosts</th></tr></thead><tbody>
+        {% for segment_id in mission_segment_order %}{% set segment = mission_segments.get(segment_id,{}) %}
+        <tr><td>{{ loop.index }}</td><td class="small mono">{{ segment_id }}</td><td>{{ 'Host' if segment.get('scope_kind') == 'entry_host' else 'Network' }}</td><td class="mono">{{ segment.get('network','Unknown') }}</td><td class="mono">{{ segment.get('interface') or 'Not established' }}</td><td class="mono">{{ segment.get('source_address') or 'Not established' }}</td><td>{{ segment.get('hosts',[])|length }}</td></tr>
+        {% endfor %}
+      </tbody></table></div>
+      {% endif %}
+      {% if continuation_paths %}
+      <h3>Device-to-Network Relationships</h3>
+      <div class="appendix-table-shell"><table><thead><tr><th>Source Device</th><th>Continuation Network</th><th>Device Interface</th><th>Reachability</th><th>Evidence</th></tr></thead><tbody>
+        {% for path in continuation_paths %}
+        <tr><td class="mono">{{ path.get('source_device_ip') or 'Not established' }}</td><td class="mono">{{ path.get('destination_network') or 'Unknown' }}</td><td class="mono">{{ path.get('device_interface') or 'Not established' }}</td><td>{{ path.get('reachability_state') or path.get('verification_state') or ('Visited' if path.get('visited') else 'Not yet verified') }}</td><td class="small soft-wrap">{{ path.get('evidence_sources',[])|join(', ') or 'Retained selected-device network evidence' }}</td></tr>
+        {% endfor %}
+      </tbody></table></div>
+      {% endif %}
+      {% if mission_workflow.get('operator_decisions') %}
+      <h3>Operator Decisions</h3>
+      <div class="appendix-table-shell"><table><thead><tr><th>Time</th><th>Decision</th><th>Segment / Path</th><th>Scope</th></tr></thead><tbody>
+        {% for decision in mission_workflow.get('operator_decisions',[]) %}
+        {% set decision_name = decision.get('decision','') %}
+        <tr><td>{{ decision.get('timestamp','Unknown') }}</td><td>{% if decision_name == 'query_infrastructure_topology' %}Collect Network Evidence{% else %}{{ decision_name|replace('_',' ')|title }}{% endif %}</td><td class="small mono">{{ decision.get('segment_id') or decision.get('path_id') or 'N/A' }}</td><td class="mono">{{ decision.get('network') or decision.get('destination_network') or 'N/A' }}</td></tr>
+        {% endfor %}
+      </tbody></table></div>
+      {% endif %}
+    </section>
+    {% endif %}
+
     {% set effective_options = results.scan_options|default(scan.scan_options|default({})) %}
     {% set port_selection = effective_options.get('port_selection', {}) %}
     {% set tcp_config = port_selection.get('tcp', {}) %}
@@ -40,7 +119,6 @@
       <div class="appendix-box-head">
         <span class="label">Operator Configuration</span>
         <h2>Effective Scan Configuration</h2>
-        <p class="muted">Normalized settings actually used by the scanner for this run.</p>
       </div>
       <div class="appendix-table-shell">
         <table>
@@ -61,12 +139,18 @@
       </div>
     </section>
 
+    <section class="appendix-box">
+      <div class="appendix-box-head"><span class="label">Data Sources</span><h2>Device / Asset Identity Evidence</h2></div>
+      <div class="appendix-table-shell"><table><thead><tr><th>Host</th><th>Hostname</th><th>MAC</th><th>MAC Vendor</th><th>Retained Role / Type</th><th>Origin</th></tr></thead><tbody>
+      {% for asset in mission_workflow.get('asset_inventory',[]) if not asset.get('is_scanner') %}<tr><td class="mono">{{ asset.get('ip') or asset.get('address') or 'Unknown' }}</td><td>{{ asset.get('hostname') or 'Not observed' }}</td><td class="mono">{{ asset.get('mac') or 'Not observed' }}</td><td>{{ asset.get('mac_vendor') or 'Not observed' }}</td><td>{{ asset.get('device_type') or asset.get('role') or 'Not established' }}</td><td>{{ asset.get('origin') or 'scanner observation' }}</td></tr>{% else %}<tr><td colspan="6" class="muted">No separate device/asset identity evidence was retained.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+
     {% set vuln_status = results.mitre_source|default({}) %}{% set msrc_status = results.msrc_source|default({}) %}
     <section class="appendix-box">
       <div class="appendix-box-head">
         <span class="label">Vulnerability Intelligence</span>
         <h2>Data Freshness Snapshot</h2>
-        <p class="muted">Source state captured with this assessment. Later database updates do not rewrite the scan-time snapshot.</p>
       </div>
       <div class="appendix-table-shell"><table><tbody>
         <tr><th>CVE source</th><td>{{ vuln_status.get('source','Unavailable') }}</td></tr>
@@ -76,7 +160,7 @@
         <tr><th>Records indexed</th><td>{{ vuln_status.get('records_indexed','N/A') }}</td></tr>
         <tr><th>CVSS 3.1 / 4.0 records</th><td>{{ vuln_status.get('records_with_cvss_metadata_by_version',{}).get('3.1','N/A') }} / {{ vuln_status.get('records_with_cvss_metadata_by_version',{}).get('4.0','N/A') }}</td></tr>
         <tr><th>CVE repository head</th><td>{{ vuln_status.get('repo_head_at') or 'Unknown' }}</td></tr>
-        <tr><th>NVD enrichment</th><td>{{ 'Enabled' if vuln_status.get('nvd_enrichment',{}).get('enabled') else 'Disabled' }} · cached CVE metrics {{ vuln_status.get('nvd_enrichment',{}).get('cached_cve_metric_queries',0) }}</td></tr>
+        <tr><th>NVD enrichment</th><td>{{ 'Enabled' if vuln_status.get('nvd_enrichment',{}).get('enabled') else 'Disabled' }} · exact Candidate CVE IDs only · CVSS/metadata queries {{ vuln_status.get('nvd_enrichment',{}).get('cached_cve_metric_queries',0) }} · cannot generate candidates</td></tr>
         <tr><th>Microsoft remediation intelligence</th><td>{{ 'Available' if msrc_status.get('available') else ('Enabled; cache empty' if msrc_status.get('enabled') else 'Disabled') }} · cached months {{ msrc_status.get('cached_month_documents',0) }} · cached CVE lookups {{ msrc_status.get('cached_cve_remediation_queries',0) }}</td></tr>
       </tbody></table></div>
     </section>
@@ -87,7 +171,6 @@
       <div class="appendix-box-head">
         <span class="label">Data Sources</span>
         <h2>Host &amp; Operating System Identity Evidence</h2>
-        <p class="muted">Independent cross-platform OS observations retained with provenance. Broad/range identities are not silently converted into an exact Windows, Linux, or macOS release.</p>
       </div>
       <div class="appendix-table-shell"><table>
         <thead><tr><th>Host</th><th>Vendor</th><th>Family</th><th>Product</th><th>Release</th><th>Build / Version</th><th>Quality</th><th>CPE</th><th>Sources</th></tr></thead>
@@ -110,7 +193,7 @@
 
     {% if results.windows_patch_inventory|default([]) %}
     <section class="appendix-box">
-      <div class="appendix-box-head"><span class="label">Operator Evidence</span><h2>Windows Patch Inventory</h2><p class="muted">Locally parsed operator-exported Windows inventory. No credentials or remote target session are used. Missing KB identifiers alone never establish vulnerability.</p></div>
+      <div class="appendix-box-head"><span class="label">Operator Evidence</span><h2>Windows Patch Inventory</h2></div>
       <div class="appendix-table-shell"><table><thead><tr><th>Host</th><th>Product</th><th>Release</th><th>Version</th><th>Build</th><th>UBR</th><th>Installed KB count</th><th>Registry</th><th>Lifecycle</th></tr></thead><tbody>
       {% for w in results.windows_patch_inventory %}<tr><td>{{ w.host }}</td><td>{{ w.product or '—' }}</td><td>{{ w.release or '—' }}</td><td>{{ w.version or '—' }}</td><td>{{ w.build or '—' }}</td><td>{{ w.ubr or '—' }}</td><td>{{ w.hotfix_count|default(0) }}</td><td>{{ w.registry_evidence_status or 'not attempted' }}</td><td>{{ w.lifecycle_state or w.status }}</td></tr>{% endfor %}
       </tbody></table></div>
@@ -119,7 +202,7 @@
     {% endif %}
 
     <section class="appendix-box">
-      <div class="appendix-box-head"><span class="label">Data Sources</span><h2>Platform &amp; Connector Identity Evidence</h2><p class="muted">Direct observations of distinct software layers, such as connectors, are kept separate from host OS and primary application identity.</p></div>
+      <div class="appendix-box-head"><span class="label">Data Sources</span><h2>Platform &amp; Connector Identity Evidence</h2></div>
       <div class="appendix-table-shell"><table><thead><tr><th>Host</th><th>Endpoint</th><th>Kind</th><th>Product</th><th>Version</th><th>CPE</th><th>Sources</th></tr></thead><tbody>
       {% for row in results.platform_component_identities|default([]) %}<tr><td>{{ row.host }}</td><td>{{ row.port }}/{{ row.protocol }}</td><td>{{ row.kind|replace('_',' ') }}</td><td>{{ row.product or 'Not established' }}</td><td>{{ row.version or '—' }}</td><td class="mono small soft-wrap">{{ row.cpe|default([])|join(', ') or '—' }}</td><td class="small soft-wrap">{{ row.sources|default([])|join(', ') or '—' }}</td></tr>{% else %}<tr><td colspan="7" class="muted">No distinct platform/component identity was directly observed.</td></tr>{% endfor %}
       </tbody></table></div>
@@ -129,7 +212,6 @@
       <div class="appendix-box-head">
         <span class="label">Collector Lifecycle</span>
         <h2>Host Discovery Execution</h2>
-        <p class="muted">Requested intent, execution and non-execution reasons are kept distinct.</p>
       </div>
       <div class="appendix-table-shell"><table>
         <thead><tr><th>Check</th><th>Status</th><th>Evidence Type</th><th>Reason / Result</th></tr></thead>
@@ -145,7 +227,6 @@
       <div class="appendix-box-head">
         <span class="label">Collector Coverage Matrix</span>
         <h2>Endpoint Evidence Coverage</h2>
-        <p class="muted">Only service-applicable collectors are listed. A collector being disabled, blocked or unavailable is not represented as an executed check with no evidence.</p>
       </div>
       <div class="appendix-table-shell"><table>
         <thead><tr><th>Host</th><th>Endpoint</th><th>Service</th><th>Collector</th><th>Requested Mode</th><th>Policy</th><th>Outcome</th></tr></thead>
@@ -161,7 +242,6 @@
       <div class="appendix-box-head">
         <span class="label">Evidence Gaps</span>
         <h2>Unresolved Identity Queue</h2>
-        <p class="muted">What recon could not establish after its configured evidence and recovery passes.</p>
       </div>
       <div class="appendix-table-shell"><table>
         <thead><tr><th>Host</th><th>Endpoint</th><th>Observed Service</th><th>Product</th><th>Version</th><th>Remaining Gap</th><th>Recovery Attempted</th></tr></thead>
@@ -180,7 +260,6 @@
       <div class="appendix-box-head">
         <span class="label">Execution History</span>
         <h2>Command Evidence</h2>
-        <p class="muted">Captured command history from the scan pipeline.</p>
       </div>
 
       <div class="appendix-table-shell">
@@ -189,8 +268,8 @@
             <tr>
               <th>Timestamp</th>
               <th>Purpose</th>
-              <th>Command</th>
-              <th>Output / Evidence</th>
+              <th>Exact Command</th>
+              <th>Evidence</th>
             </tr>
           </thead>
           <tbody>
@@ -198,9 +277,11 @@
               {% for entry in scan.command_log %}
                 <tr>
                   <td>{{ entry.timestamp or entry.time or 'Unknown' }}</td>
-                  <td>{{ entry.description or entry.purpose or 'Command execution' }}</td>
-                  <td class="mono small soft-wrap">{{ entry.command }}</td>
-                  <td class="small soft-wrap">{{ entry.output or entry.result or 'No captured output.' }}</td>
+                  <td>{{ entry.description or entry.purpose or entry.message or 'Command execution' }}</td>
+                  <td class="small soft-wrap">
+                    {% if entry.command %}<code class="mono">{{ entry.command }}</code><br><button class="button secondary mini" type="button" data-command-index="{{ loop.index0 }}" onclick="copyAppendixCommand({{ loop.index0 }}, this)">Copy Command</button>{% else %}<span class="muted">No shell command recorded</span>{% endif %}
+                  </td>
+                  <td><button class="button secondary mini" type="button" onclick="openAppendixEvidence({{ loop.index0 }})">View Evidence</button>{% if entry.output_file %}<div class="muted small top-gap">{{ entry.output_file }}</div>{% endif %}</td>
                 </tr>
               {% endfor %}
             {% else %}
@@ -215,7 +296,6 @@
       <div class="appendix-box-head">
         <span class="label">Data Sources</span>
         <h2>Service Inventory</h2>
-        <p class="muted">Host-level identity above and endpoint-level product/version evidence below are both used by the scope-aware CVE review.</p>
       </div>
 
       {% if results.service_inventory %}
@@ -256,7 +336,6 @@
       <div class="appendix-box-head">
         <span class="label">Observed Security Conditions</span>
         <h2>Protocol and Configuration Evidence</h2>
-        <p class="muted">Direct collector observations; no CVE or CVSS value is inferred by this table.</p>
       </div>
       <div class="appendix-table-shell">
         <table>
@@ -275,16 +354,39 @@
     
     <section class="appendix-box">
       <div class="appendix-box-head">
+        <span class="label">CVE Matching Diagnostics</span>
+        <h2>Candidate Search Audit</h2>
+      </div>
+      <div class="appendix-table-shell">
+        <table>
+          <thead><tr><th>Host / Endpoint</th><th>Identity</th><th>CVE</th><th>Source Stage</th><th>Status / Decision</th><th>Considered</th><th>Matched</th><th>Rejected</th></tr></thead>
+          <tbody>
+          {% for row in results.cve_matcher_audit|default([]) %}
+            <tr>
+              <td class="small mono">{{ row.host or '—' }}{% if row.endpoint %}<br>{{ row.endpoint }}{% endif %}</td>
+              <td class="small">{{ row.product or '—' }}{% if row.version %} <span class="mono">{{ row.version }}</span>{% endif %}{% if row.query_mode %}<br><span class="muted">{{ row.query_mode }}{% if row.query %}: {{ row.query }}{% endif %}</span>{% endif %}</td>
+              <td class="mono">{{ row.cve_id or '—' }}</td>
+              <td class="small">{{ row.source_stage|replace('_',' ') }}</td>
+              <td class="small">{{ row.status|replace('_',' ') }}{% if row.decision %}<br><span class="muted">{{ row.decision }}</span>{% endif %}</td>
+              <td>{{ row.considered if row.considered != '' else '—' }}</td><td>{{ row.matched if row.matched != '' else '—' }}</td><td>{{ row.rejected if row.rejected else '—' }}</td>
+            </tr>
+          {% else %}<tr><td colspan="8" class="small muted">No CVE matcher audit rows were retained.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="appendix-box">
+      <div class="appendix-box-head">
         <span class="label">CVE Metadata Provenance</span>
         <h2>CVSS Provider Source IDs</h2>
-        <p class="muted">Raw provider identifiers are retained here for auditability. User-facing CVE tables use published organisation/provider names when available.</p>
       </div>
       <div class="appendix-table-shell">
         <table>
           <thead><tr><th>CVE</th><th>CVSS Version</th><th>Provider Name / Role</th><th>Raw Source ID</th></tr></thead>
           <tbody>
             {% set ns = namespace(seen=[]) %}
-            {% set provenance_rows = results.cve_matches|default([]) %}
+            {% set provenance_rows = results.cve_review_candidates|default(results.cve_matches|default([])) %}
             {% for cve in provenance_rows %}
               {% if cve.cve_id not in ns.seen %}
                 {% if ns.seen.append(cve.cve_id) %}{% endif %}
@@ -309,17 +411,55 @@
       </div>
     </section>
 
-<section class="appendix-box">
-      <div class="appendix-box-head">
-        <span class="label">Appendix Notes</span>
-        <h2>How This Data Supports the Final Assessment</h2>
-      </div>
-      <div class="appendix-note-grid">
-        <article class="appendix-note-pill">Command history reflects live task execution.</article>
-        <article class="appendix-note-pill">Service inventory links hosts, ports, and products to CVE review.</article>
-        <article class="appendix-note-pill">Captured evidence remains available for audit and handoff.</article>
-      </div>
-    </section>
+
   </main>
+
+  <div id="appendixEvidenceModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeAppendixEvidence()"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="appendixEvidenceTitle">
+      <div class="modal-head"><h2 id="appendixEvidenceTitle">Command Evidence</h2><button class="icon-btn" type="button" onclick="closeAppendixEvidence()">Close</button></div>
+      <div class="modal-body">
+        <div class="section-head"><h3>Exact Command</h3><button class="button secondary mini" type="button" onclick="copyAppendixModalCommand(this)">Copy Command</button></div>
+        <pre id="appendixEvidenceCommand"></pre>
+        <h3>Purpose</h3><p id="appendixEvidencePurpose" class="modal-purpose"></p>
+        <h3>Captured Output</h3><pre id="appendixEvidenceOutput"></pre>
+        <h3>Evidence File</h3><p id="appendixEvidenceFile" class="muted small"></p>
+      </div>
+    </div>
+  </div>
+  <script>
+    const appendixScanId = {{ scan.scan_id|tojson }};
+    const appendixCommandRows = {{ scan.command_log|default([])|tojson }};
+    function appendixBasename(value){ const text=String(value||'').replaceAll('\\','/'); return text.split('/').filter(Boolean).pop() || ''; }
+    async function copyAppendixText(text, button){
+      const value=String(text||''); if(!value) return;
+      try{ await navigator.clipboard.writeText(value); }
+      catch(_){ const area=document.createElement('textarea'); area.value=value; area.style.position='fixed'; area.style.opacity='0'; document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove(); }
+      if(button){ const old=button.textContent; button.textContent='Copied'; setTimeout(()=>button.textContent=old,1200); }
+    }
+    function copyAppendixCommand(index, button){ copyAppendixText((appendixCommandRows[index]||{}).command||'', button); }
+    function copyAppendixModalCommand(button){ copyAppendixText(document.getElementById('appendixEvidenceCommand')?.textContent||'', button); }
+    async function openAppendixEvidence(index){
+      const local=appendixCommandRows[index]||{};
+      document.getElementById('appendixEvidenceCommand').textContent=local.command||'No shell command recorded.';
+      document.getElementById('appendixEvidencePurpose').textContent=local.purpose||local.description||local.message||'';
+      document.getElementById('appendixEvidenceOutput').textContent='Loading retained evidence…';
+      renderAppendixFile(local.output_file||'');
+      document.getElementById('appendixEvidenceModal').classList.add('open');
+      document.getElementById('appendixEvidenceModal').setAttribute('aria-hidden','false');
+      try{
+        const response=await fetch(`/scan/command-evidence/${encodeURIComponent(appendixScanId)}/${index}?t=${Date.now()}`, {cache:'no-store'});
+        if(!response.ok) throw new Error(`HTTP ${response.status}`);
+        const evidence=await response.json();
+        document.getElementById('appendixEvidenceCommand').textContent=evidence.command||local.command||'No shell command recorded.';
+        document.getElementById('appendixEvidencePurpose').textContent=evidence.purpose||local.purpose||local.description||'';
+        document.getElementById('appendixEvidenceOutput').textContent=evidence.output||'[no console output captured]';
+        renderAppendixFile(evidence.output_file||'', evidence.output_file_url||'');
+      }catch(error){ document.getElementById('appendixEvidenceOutput').textContent=`Unable to load retained command evidence: ${error.message}`; }
+    }
+    function closeAppendixEvidence(){ document.getElementById('appendixEvidenceModal').classList.remove('open'); document.getElementById('appendixEvidenceModal').setAttribute('aria-hidden','true'); }
+    document.addEventListener('keydown', event => { if(event.key==='Escape') closeAppendixEvidence(); });
+  </script>
+<script src="{{ url_for('static', filename='theme.js') }}"></script>
 </body>
 </html>

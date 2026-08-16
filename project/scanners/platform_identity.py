@@ -352,6 +352,13 @@ def _reported_accuracy(identity: Mapping[str, Any]) -> int | None:
     return int(value) if value.isdigit() else None
 
 
+# Authority tiers at or below this value were produced by direct observation or
+# authenticated/operator inventory rather than by probabilistic inference.  The
+# value is derived from the tiers assigned in ``_identity_authority`` and carries
+# no operating-system or product knowledge.
+DIRECT_IDENTITY_AUTHORITY_CEILING = 2
+
+
 def _identity_authority(identity: Mapping[str, Any]) -> int:
     """Return evidence authority based on collection semantics, not OS facts.
 
@@ -529,18 +536,20 @@ def _correlate_complementary_direct_identities(rows: list[dict[str, Any]]) -> li
 
 
 def reconcile_host_identities(identities: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Retain all evidence while selecting only defensible CVE identities.
+    """Retain host-OS evidence without converting a fingerprint into a fact.
 
-    Direct evidence outranks probabilistic fingerprints.  When only Nmap-style
-    probabilistic fingerprints exist, only the highest reported-accuracy,
-    unambiguous hypothesis is eligible.  Equal-confidence conflicting guesses
-    remain visible but are not promoted into CVE applicability.
+    ``cve_eligible`` remains reserved for directly observed, sufficiently
+    precise host identities. ``candidate_eligible`` is deliberately broader:
+    a precise probabilistic fingerprint may generate a Candidate CVE for
+    downstream validation, but it never establishes the displayed OS.
+
+    Broad/range fingerprints remain evidence only because they do not provide a
+    concrete version to correlate safely.
     """
     rows = [normalise_host_identity(x) for x in identities or []]
     if not rows:
         return []
     rows = _correlate_complementary_direct_identities(rows)
-    global_strongest = min(_identity_authority(row) for row in rows)
 
     by_family: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
@@ -551,30 +560,15 @@ def reconcile_host_identities(identities: Iterable[Mapping[str, Any]]) -> list[d
         strongest = min(_identity_authority(row) for row in family_rows)
         strongest_rows = [row for row in family_rows if _identity_authority(row) == strongest]
 
-        if global_strongest < 3 and strongest >= 3:
-            for row in family_rows:
-                row["cve_eligible"] = False
-                row["reconciliation_status"] = "supporting_only"
-                row["reconciliation_reason"] = (
-                    "Probabilistic OS fingerprint retained as evidence but excluded from CVE applicability because stronger directly observed host-OS evidence exists."
-                )
-                row["authority_tier"] = _identity_authority(row)
-            continue
-
         if strongest < 3:
-            # A stronger direct observation exists. Preserve all weaker rows as
-            # audit evidence, but do not let them expand CVE applicability. If
-            # complementary direct observations were correlated into a richer
-            # product+version identity, the unversioned component observation is
-            # supporting evidence rather than a second CVE lookup input.
             correlation_rows = [
                 row for row in strongest_rows
                 if _text(row.get("evidence_kind")) == "protocol_correlation"
             ]
             for row in family_rows:
-                eligible = _identity_authority(row) == strongest
+                authoritative = _identity_authority(row) == strongest
                 subsumed_by_correlation = False
-                if eligible and correlation_rows and not _text(row.get("build") or row.get("version")):
+                if authoritative and correlation_rows and not _text(row.get("build") or row.get("version")):
                     row_product = _norm(row.get("product") or row.get("name"))
                     row_cpes = set(os_cpes(row.get("cpe") or []))
                     for composite in correlation_rows:
@@ -586,100 +580,173 @@ def reconcile_host_identities(identities: Iterable[Mapping[str, Any]]) -> list[d
                             subsumed_by_correlation = True
                             break
                 if subsumed_by_correlation:
-                    eligible = False
+                    authoritative = False
 
-                row["cve_eligible"] = eligible
-                row["reconciliation_status"] = "authoritative" if eligible else "supporting_only"
-                if eligible:
-                    row["reconciliation_reason"] = "Highest-authority directly observed host identity for this OS family."
+                precise = identity_is_precise_for_cve(row)
+                row["cve_eligible"] = bool(authoritative and precise)
+                row["candidate_eligible"] = bool(authoritative and precise)
+                row["reconciliation_status"] = (
+                    "authoritative" if row["cve_eligible"]
+                    else ("identity_evidence_gap" if authoritative and not precise else "supporting_only")
+                )
+                if row["cve_eligible"]:
+                    row["reconciliation_reason"] = (
+                        "Highest-authority directly observed host identity; eligible for Candidate CVE correlation."
+                    )
                 elif subsumed_by_correlation:
                     row["reconciliation_reason"] = (
-                        "Direct host identity retained as source evidence; a correlated direct identity carries the same product/CPE plus the independently observed version/build for CVE applicability."
+                        "Direct source evidence is retained; a correlated direct identity carries the same product plus the independently observed version/build."
+                    )
+                elif authoritative and not precise:
+                    row["reconciliation_reason"] = (
+                        "Direct host identity retained, but product/version is too broad for version-specific Candidate CVE correlation."
                     )
                 else:
-                    row["reconciliation_reason"] = "Lower-authority host identity retained as evidence but excluded from CVE applicability."
+                    row["reconciliation_reason"] = (
+                        "Lower-authority host identity retained as supporting evidence."
+                    )
                 row["authority_tier"] = _identity_authority(row)
             continue
 
-        # Only probabilistic fingerprints are available.  Use Nmap's own
-        # reported accuracy ordering; do not invent an internal confidence score.
-        accuracies = [_reported_accuracy(row) for row in strongest_rows]
-        numeric = [value for value in accuracies if value is not None]
-        highest = max(numeric) if numeric else None
-        contenders = [
-            row for row in strongest_rows
-            if highest is None or _reported_accuracy(row) == highest
+        accuracies = [
+            value for value in (_reported_accuracy(row) for row in strongest_rows)
+            if value is not None
         ]
-        unambiguous = [row for row in contenders if not _fingerprint_is_ambiguous(row)]
-        signatures = {_identity_signature(row) for row in unambiguous}
-        uniquely_resolved = len(signatures) == 1
-        chosen_sig = next(iter(signatures)) if uniquely_resolved else None
-
+        highest = max(accuracies) if accuracies else None
         for row in family_rows:
-            eligible = bool(chosen_sig and _identity_signature(row) == chosen_sig)
-            row["cve_eligible"] = eligible
-            row["reconciliation_status"] = "fallback_fingerprint" if eligible else "supporting_only"
-            if eligible:
-                row["reconciliation_reason"] = "Highest reported-accuracy unambiguous OS fingerprint; no stronger direct identity was observed."
-            elif row in contenders and _fingerprint_is_ambiguous(row):
-                row["reconciliation_reason"] = "Ambiguous probabilistic OS fingerprint retained as evidence but excluded from CVE applicability."
-            elif row in contenders and not uniquely_resolved:
-                row["reconciliation_reason"] = "Conflicting equal-authority OS fingerprints retained as evidence; no single identity was promoted to CVE applicability."
+            precise = identity_is_precise_for_cve(row)
+            row["cve_eligible"] = False
+            row["candidate_eligible"] = bool(precise)
+            row["reconciliation_status"] = (
+                "candidate_fingerprint" if precise else "supporting_only"
+            )
+            accuracy = _reported_accuracy(row)
+            if precise:
+                rank_note = (
+                    "top-ranked" if highest is not None and accuracy == highest
+                    else "lower-ranked"
+                )
+                row["reconciliation_reason"] = (
+                    f"Precise {rank_note} probabilistic OS fingerprint retained as an unvalidated Candidate CVE input; "
+                    "it does not establish the host operating system."
+                )
             else:
-                row["reconciliation_reason"] = "Lower-ranked probabilistic OS fingerprint retained as evidence but excluded from CVE applicability."
+                row["reconciliation_reason"] = (
+                    "Broad or ambiguous probabilistic OS fingerprint retained as evidence only; "
+                    "no concrete version is available for Candidate CVE correlation."
+                )
             row["authority_tier"] = _identity_authority(row)
+
+    # Cross-family exclusivity.
+    #
+    # Per-family arbitration above cannot see a contradiction that spans two
+    # families: a probabilistic fingerprint in family B stays candidate-eligible
+    # even when family A holds a directly observed host identity.  A single host
+    # address runs one host operating system, so a directly observed identity in
+    # one family contradicts probabilistic identities in every other family.
+    #
+    # This reasons only from collection semantics already declared by
+    # ``_identity_authority``.  It contains no operating-system, product,
+    # release, build, CVE or target knowledge.  Nothing is deleted: contradicted
+    # rows are retained as evidence with an explicit reason, and only their
+    # Candidate CVE eligibility is withdrawn.  When two or more families each
+    # hold direct evidence the conflict is genuine, so no row is demoted and the
+    # disagreement is surfaced instead of being silently resolved.
+    direct_families = {
+        _norm(row.get("family"))
+        for row in rows
+        if _identity_authority(row) <= DIRECT_IDENTITY_AUTHORITY_CEILING
+        and _text(row.get("evidence_kind")) not in {"service_os_hint", "official_product_resolution"}
+        and not bool(row.get("resolution_candidate"))
+        and _norm(row.get("family"))
+    }
+    if len(direct_families) == 1:
+        observed_family = ", ".join(sorted(direct_families))
+        for row in rows:
+            if _norm(row.get("family")) in direct_families:
+                continue
+            if _identity_authority(row) <= DIRECT_IDENTITY_AUTHORITY_CEILING:
+                continue
+            if not row.get("candidate_eligible") and not row.get("cve_eligible"):
+                continue
+            row["cve_eligible"] = False
+            row["candidate_eligible"] = False
+            row["reconciliation_status"] = "contradicted_by_direct_identity"
+            row["reconciliation_reason"] = (
+                "Probabilistic OS fingerprint reports an operating-system family that is "
+                f"contradicted by a directly observed host identity ({observed_family}); "
+                "retained as evidence only and withheld from Candidate CVE correlation."
+            )
+    elif len(direct_families) > 1:
+        conflicting = ", ".join(sorted(direct_families))
+        for row in rows:
+            if _identity_authority(row) > DIRECT_IDENTITY_AUTHORITY_CEILING:
+                continue
+            if _norm(row.get("family")) not in direct_families:
+                continue
+            row["direct_identity_family_conflict"] = conflicting
 
     for row in rows:
         if _text(row.get("evidence_kind")) == "service_os_hint":
             row["cve_eligible"] = False
+            row["candidate_eligible"] = False
             row["reconciliation_status"] = "service_hint_only"
             row["reconciliation_reason"] = (
-                "Service-level OS/CPE fingerprint retained as endpoint context only; "
-                "it is not host operating-system evidence and cannot drive host CVE applicability."
+                "Service-level OS/CPE hint is endpoint context, not host operating-system evidence."
             )
-            row["authority_tier"] = _identity_authority(row)
-            row["quality"] = identity_quality(row)
-            continue
-        if bool(row.get("resolution_candidate")) or _text(row.get("evidence_kind")) == "official_product_resolution":
+        elif bool(row.get("resolution_candidate")) or _text(row.get("evidence_kind")) == "official_product_resolution":
             row["cve_eligible"] = False
+            row["candidate_eligible"] = False
             row["reconciliation_status"] = "advisory_context_only"
             row["reconciliation_reason"] = (
-                "Microsoft advisory product/build metadata is retained only as remediation context; "
-                "it is not observed host identity and cannot drive CVE applicability."
+                "Advisory product/build metadata is context only; it was not observed on the host."
             )
-            row["authority_tier"] = _identity_authority(row)
-            row["quality"] = identity_quality(row)
-            continue
-        if row.get("cve_eligible") and not identity_is_precise_for_cve(row):
-            row["cve_eligible"] = False
-            row["reconciliation_status"] = "identity_evidence_gap"
-            row["reconciliation_reason"] = (
-                "Host identity was retained as evidence but is too generic or "
-                "ambiguous for operating-system CVE applicability."
-            )
-            row["quality"] = identity_quality(row)
+        row["authority_tier"] = _identity_authority(row)
+        row["quality"] = identity_quality(row)
 
     return rows
 
 
 def host_identity_inventory(identity_map: Mapping[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """Build one host summary plus its complete evidence/hypothesis inventory."""
     rows: list[dict[str, Any]] = []
     for host in sorted(identity_map):
         identities = reconcile_host_identities(identity_map.get(host) or [])
         identities.sort(key=lambda x: (
             _identity_authority(x),
             0 if x.get("cve_eligible") else 1,
+            0 if x.get("candidate_eligible") else 1,
             0 if x.get("build") else 1,
             0 if x.get("version") else 1,
             -(_reported_accuracy(x) or 0),
             _norm(x.get("product")),
         ))
         cve_identities = [deepcopy(x) for x in identities if x.get("cve_eligible")]
+        candidate_identities = [deepcopy(x) for x in identities if x.get("candidate_eligible")]
+        established = next((
+            deepcopy(x) for x in identities
+            if x.get("cve_eligible")
+            and _identity_authority(x) < 3
+            and x.get("reconciliation_status") not in {"service_hint_only", "advisory_context_only"}
+        ), {})
+        probabilistic = [deepcopy(x) for x in identities if _identity_authority(x) >= 3]
+        reported_accuracy = [
+            value for value in (_reported_accuracy(x) for x in probabilistic)
+            if value is not None
+        ]
         rows.append({
             "host": host,
             "identities": identities,
             "cve_identities": cve_identities,
-            "best": cve_identities[0] if cve_identities else (identities[0] if identities else {}),
+            "candidate_identities": candidate_identities,
+            "best": established,
+            "probabilistic_candidates": probabilistic,
+            "probabilistic_candidate_count": len(probabilistic),
+            "top_nmap_accuracy": max(reported_accuracy) if reported_accuracy else None,
+            "identity_state": (
+                "established" if established
+                else ("unresolved_probabilistic" if probabilistic else "not_established")
+            ),
         })
     return rows
 
@@ -697,7 +764,26 @@ def host_identity_gaps(identity_map: Mapping[str, list[dict[str, Any]]], hosts: 
                 "quality": "Incomplete identity",
             })
             continue
-        best = host_identity_inventory({str(host): identities})[0]["best"]
+        inventory = host_identity_inventory({str(host): identities})[0]
+        best = inventory["best"]
+        if not best:
+            count = int(inventory.get("probabilistic_candidate_count") or 0)
+            top = inventory.get("top_nmap_accuracy")
+            accuracy_text = f"; top reported Nmap accuracy {top:g}%" if isinstance(top, (int, float)) else ""
+            gaps.append({
+                "host": str(host),
+                "scope": "host_os",
+                "observed_identity": (
+                    f"{count} probabilistic OS fingerprint candidate(s){accuracy_text}"
+                    if count else "Operating-system identity not established"
+                ),
+                "remaining_gap": (
+                    "Exact operating system was not established. Probabilistic fingerprints remain "
+                    "available as Candidate CVE inputs and audit evidence only."
+                ),
+                "quality": "Unresolved probabilistic OS identity" if count else "Incomplete identity",
+            })
+            continue
         missing: list[str] = []
         if not best.get("product"):
             missing.append("product")

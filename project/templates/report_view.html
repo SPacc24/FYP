@@ -20,34 +20,39 @@
 
   <main class="page report-page">
 
-    <!-- ==========================================
-         Main Navigation Bar
-         ========================================== -->
-
     <nav class="main-navbar">
 
-      <a href="{{ url_for('index') }}" class="navbar-brand">
-        <span class="brand-icon">
-          <i class="bi bi-shield-check"></i>
-        </span>
+    <div class="navbar-brand">
+  <span class="brand-icon">
+    <i class="bi bi-shield-check"></i>
+  </span>
+  <span>PenPilot</span>
+</div>
 
-        <span>AutoPenTest</span>
+    <div class="navbar-page-content">
+      <span class="report-navbar-title">
+        Assessment Report
+      </span>
+    </div>
+
+    <div class="navbar-controls">
+
+      <a href="{{ url_for('index') }}" class="navbar-new-scan">
+        <i class="bi bi-plus-lg"></i>
+        <span>New Scan</span>
       </a>
 
-      <div class="navbar-links"></div>
+      <button
+        class="theme-toggle"
+        type="button"
+        title="Light Mode"
+        aria-label="Light Mode">
+        <i class="bi bi-sun-fill"></i>
+      </button>
 
-      <div class="navbar-controls">
-        <button
-          class="theme-toggle"
-          type="button"
-          title="Light Mode (Coming Soon)"
-          aria-label="Light Mode"
-        >
-          <i class="bi bi-sun-fill"></i>
-        </button>
-      </div>
+    </div>
 
-    </nav>
+  </nav>
 
     <header class="hero compact-hero">
       <p class="eyebrow">AI-Assisted Assessment Report</p>
@@ -60,12 +65,25 @@
       </p>
 
       <div class="actions">
-        <a class="button secondary" href="{{ url_for('latest') }}">
+         <a
+          class="button secondary"
+          href="{{ url_for('latest') }}"
+        >
           Back to Dashboard
         </a>
 
-        <a class="button" href="{{ url_for('export_report') }}">
+        <a
+          class="button secondary"
+          href="{{ url_for('export_report') }}"
+        >
           Download Text Report
+        </a>
+
+        <a
+          class="button secondary"
+          href="{{ url_for('export_report_pdf') }}"
+        >
+          Download PDF Report
         </a>
       </div>
     </header>
@@ -81,12 +99,8 @@
 
   </main>
 
-  <div
-    class="nvd-attribution"
-    style="margin:18px auto;max-width:1200px;padding:10px 14px;font-size:.82rem;opacity:.72;text-align:center;"
-  >
-    This product uses the NVD API but is not endorsed or certified by the NVD.
-  </div>
+  <footer class="footer"><p>Automated Penetration Testing · Group 6 · Continuous Discovery Workflow</p></footer>
 
+<script src="{{ url_for('static', filename='theme.js') }}"></script>
 </body>
 </html>

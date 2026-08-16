@@ -183,6 +183,14 @@
     "--max-rate",
     "15"
   ],
+  "os_fingerprint_timing_note": "Nmap OS detection measures TCP ISN, timestamp and IP ID rates from probes sent at fixed intervals. --scan-delay overrides that interval and invalidates the timing-derived tests, so this profile deliberately omits it. Rate is bounded instead.",
+  "os_fingerprint_timing": [
+    "-T3",
+    "--max-retries",
+    "2",
+    "--max-rate",
+    "50"
+  ],
   "nmap_script_timing": [
     "-T1",
     "--max-retries",
@@ -366,7 +374,7 @@
   "tcp_discovery_strategy": "micro_batched_top100_plus_targeted_high_value",
   "tcp_micro_batching": {
     "enabled": true,
-    "description": "Inference-first Full Recon uses passive/context evidence first and preserves TCP coverage through very small -Pn micro-batches rather than broad bursts.",
+    "description": "Bounded operator-selected TCP discovery using small -Pn batches and a balanced authorised-lab packet-rate ceiling.",
     "batch_size_target": 5,
     "sleep_between_batches_seconds_min": 4.0,
     "sleep_between_batches_seconds_max": 8.0,
@@ -378,7 +386,7 @@
       "--max-retries",
       "1",
       "--max-rate",
-      "2"
+      "20"
     ]
   },
   "tcp_micro_batches": [
@@ -631,7 +639,12 @@
     "enabled": true,
     "nmap_version_intensity": 7,
     "max_ports_per_host": 64,
-    "description": "Targeted service-version re-probe for already-open TCP endpoints whose version is missing or range-valued. No new ports are added."
+    "include_uncertain_udp": false,
+    "uncertain_udp_max_ports": 4,
+    "tcp_command_timeout_seconds": 120,
+    "udp_command_timeout_seconds": 45,
+    "recovery_budget_seconds": 120,
+    "description": "Targeted service-version re-probe for already-selected confirmed-open endpoints with unresolved identity. Silent UDP states are not version-probed by default."
   },
   "host_discovery_controls": {
     "description": "Operator-controlled reachability evidence. Service discovery may still use -Pn so ICMP failure never suppresses authorised port discovery.",

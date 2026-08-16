@@ -272,7 +272,7 @@ class ScannerHardeningTests(unittest.TestCase):
         with patch("socket.create_connection", side_effect=socket.timeout("timeout")):
             self.assertIsNone(collect_ssh_cryptography("192.0.2.31", 22, 1))
 
-    def test_mitre_search_keeps_low_confidence_as_advisory_without_suppressing_lookup(self):
+    def test_mitre_search_does_not_grade_or_gate_candidate_confidence(self):
         with patch.object(type(mitre_cve.INDEX), "exists", return_value=True), patch.object(
             mitre_cve,
             "_search_cached",
@@ -286,8 +286,7 @@ class ScannerHardeningTests(unittest.TestCase):
                 recommended_for_cve=False,
             )
         self.assertEqual(confirmed, ())
-        self.assertEqual(held[0]["reason"], "fingerprint_confidence_advisory")
-        self.assertEqual(held[0]["effect"], "CVE applicability lookup was not suppressed")
+        self.assertFalse(any(item.get("reason") == "fingerprint_confidence_advisory" for item in held))
         lookup.assert_called_once()
 
     def test_enumerator_applies_consensus_and_dashboard_badge(self):

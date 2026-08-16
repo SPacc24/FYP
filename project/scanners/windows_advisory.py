@@ -5,12 +5,14 @@ import os
 import re
 import xml.etree.ElementTree as ET
 from datetime import date
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
 
 import requests
 
 from .cpe_utils import compare_versions, normalise_product
+from .windows_patch_applicability import microsoft_product_matches
 
 
 BASE = Path(__file__).resolve().parents[1] / "storage" / "msrc_windows"
@@ -515,6 +517,342 @@ def build_index(start_year: int | None = None) -> dict[str, Any]:
     }
 
 
+
+def _index_cache_signature() -> tuple[str, int, int] | None:
+    try:
+        stat = INDEX.stat()
+    except OSError:
+        return None
+    return (str(INDEX.resolve()), int(stat.st_mtime_ns), int(stat.st_size))
+
+
+@lru_cache(maxsize=128)
+def _match_cves_for_build_context_cached(
+    index_path: str,
+    index_mtime_ns: int,
+    index_size: int,
+    observed_product: str,
+    observed_build: str,
+    wanted_ids: tuple[str, ...],
+) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
+    # The mtime/size arguments intentionally participate in the cache key so a
+    # rebuilt advisory index is picked up without restarting PenPilot.
+    del index_mtime_ns, index_size
+    observed_line = _windows_build_line(observed_build)
+    wanted = set(wanted_ids)
+    matches: dict[tuple[str, str], dict[str, Any]] = {}
+    malformed = 0
+    with Path(index_path).open("r", encoding="utf-8", errors="ignore") as stream:
+        for line in stream:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                malformed += 1
+                continue
+            cve_id = str(row.get("cve_id") or "").upper()
+            if cve_id not in wanted:
+                continue
+            vendor_product = str(row.get("product") or "").strip()
+            if not microsoft_product_matches(observed_product, vendor_product):
+                continue
+            fixed_builds = [str(value) for value in row.get("fixed_builds") or [] if str(value).strip()]
+            same_line = sorted({
+                value for value in fixed_builds
+                if _windows_build_line(value) == observed_line
+            })
+            if not same_line:
+                continue
+            key = (cve_id, str(row.get("product_id") or vendor_product))
+            matches[key] = {
+                "cve_id": cve_id,
+                "product": vendor_product,
+                "product_id": str(row.get("product_id") or ""),
+                "document_id": str(row.get("document_id") or ""),
+                "observed_product": observed_product,
+                "observed_build": observed_build,
+                "observed_build_line": observed_line,
+                "fixed_build_examples": same_line[:20],
+                "kb_ids": sorted({str(value).upper() for value in row.get("kb_ids") or [] if str(value).strip()}),
+                "source": SOURCE,
+                "resolution_basis": "msrc_same_windows_build_line",
+                "patch_state": "unknown",
+            }
+
+    values = tuple(sorted(matches.values(), key=lambda row: (str(row.get("cve_id")), str(row.get("product")))))
+    diagnostic = {
+        "reason": "msrc_windows_build_context",
+        "matcher_status": "available",
+        "requested_cve_count": len(wanted),
+        "matched_cve_count": len({str(row.get("cve_id")) for row in values}),
+        "observed_product": observed_product,
+        "observed_build": observed_build,
+        "observed_build_line": observed_line,
+        "malformed_records_skipped": malformed,
+    }
+    return values, (diagnostic,)
+
+
+def match_cves_for_build_context(
+    product: str,
+    build: str,
+    cve_ids: Iterable[str],
+) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
+    """Corroborate already-known CVE IDs against Microsoft build-line data.
+
+    This function is deliberately *not* a Candidate CVE generator. ``cve_ids``
+    must already have come from the CVE Program matcher.  The MSRC index is
+    used only to decide whether the directly observed Windows product/build
+    family is represented in Microsoft's affected-product/remediation data.
+
+    A three-part network-observed major/minor/build value does not include
+    a UBR/revision, so this function never treats it as proof that a remediation
+    is missing or present.  It only establishes same-build-line context.
+    """
+    wanted = tuple(sorted({
+        str(value or "").strip().upper()
+        for value in cve_ids or []
+        if re.fullmatch(r"CVE-\d{4}-\d{4,}", str(value or "").strip().upper())
+    }))
+    observed_product = str(product or "").strip()
+    observed_build = str(build or "").strip()
+    observed_line = _windows_build_line(observed_build)
+    if not wanted or not observed_product or not observed_line:
+        return tuple(), ({
+            "reason": "msrc_windows_build_context_incomplete",
+            "matcher_status": "held",
+            "requested_cve_count": len(wanted),
+            "observed_product": observed_product,
+            "observed_build": observed_build,
+        },)
+
+    signature = _index_cache_signature()
+    if signature is None:
+        return tuple(), ({
+            "reason": "msrc_index_unavailable",
+            "matcher_status": "unavailable",
+            "requested_cve_count": len(wanted),
+            "observed_product": observed_product,
+            "observed_build": observed_build,
+            "rebuild_command": "python scripts/rebuild_msrc_windows_index.py",
+        },)
+
+    return _match_cves_for_build_context_cached(
+        signature[0], signature[1], signature[2],
+        observed_product, observed_build, wanted,
+    )
+
+
+def _windows_release_tokens(product: str) -> set[str]:
+    """Return explicit Microsoft release labels present in a product name.
+
+    This parses only labels published in the advisory product text (for example
+    ``Version 22H2`` or ``Version 1507``). It deliberately does not embed a
+    build-to-release lookup table.
+    """
+    text = normalise_product(product)
+    return {
+        match.group(1).lower()
+        for match in re.finditer(r"\bversion\s+([0-9]{4}|[0-9]{2}h[12])\b", text, re.I)
+    }
+
+
+def _resolved_product_compatible(resolved_product: str, affected_product: str) -> bool:
+    """Compare two Microsoft product names without guessing an unobserved release.
+
+    The existing generation matcher prevents Windows 10/11/Server cross-family
+    matches. When both official product names publish an explicit release label,
+    those labels must also agree. A broad affected-product name that does not
+    publish a release label remains non-contradictory rather than being treated
+    as evidence for a made-up release.
+    """
+    if not microsoft_product_matches(resolved_product, affected_product):
+        return False
+    resolved_releases = _windows_release_tokens(resolved_product)
+    affected_releases = _windows_release_tokens(affected_product)
+    if resolved_releases and affected_releases and resolved_releases.isdisjoint(affected_releases):
+        return False
+    return True
+
+
+@lru_cache(maxsize=128)
+def _corroborate_cves_for_observed_windows_context_cached(
+    index_path: str,
+    index_mtime_ns: int,
+    index_size: int,
+    observed_product: str,
+    observed_build: str,
+    wanted: tuple[str, ...],
+) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
+    """Single-pass cached MSRC corroboration for an existing Candidate set."""
+    del index_mtime_ns, index_size
+    observed_line = _windows_build_line(observed_build)
+    wanted_set = set(wanted)
+    rows_by_cve: dict[str, list[dict[str, Any]]] = {cve_id: [] for cve_id in wanted}
+    resolved_products_by_key: dict[str, dict[str, Any]] = {}
+    malformed = 0
+
+    with Path(index_path).open("r", encoding="utf-8", errors="ignore") as stream:
+        for line in stream:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                malformed += 1
+                continue
+
+            affected_product = str(row.get("product") or "").strip()
+            if not microsoft_product_matches(observed_product, affected_product):
+                continue
+
+            fixed_builds = [str(value) for value in row.get("fixed_builds") or [] if str(value).strip()]
+            same_line = sorted({value for value in fixed_builds if _windows_build_line(value) == observed_line})
+            if same_line:
+                product_key = str(row.get("product_normalised") or normalise_product(affected_product))
+                candidate = resolved_products_by_key.setdefault(product_key, {
+                    "product": affected_product,
+                    "product_normalised": product_key,
+                    "product_ids": set(),
+                    "document_ids": set(),
+                    "fixed_build_examples": set(),
+                    "source": SOURCE,
+                    "resolution_basis": "msrc_shared_windows_build_line",
+                    "observed_build": observed_build,
+                    "observed_build_line": observed_line,
+                })
+                if row.get("product_id"):
+                    candidate["product_ids"].add(str(row.get("product_id")))
+                if row.get("document_id"):
+                    candidate["document_ids"].add(str(row.get("document_id")))
+                candidate["fixed_build_examples"].update(same_line)
+
+            cve_id = str(row.get("cve_id") or "").upper()
+            if cve_id in wanted_set:
+                rows_by_cve[cve_id].append(dict(row))
+
+    resolved_products: list[dict[str, Any]] = []
+    for candidate in resolved_products_by_key.values():
+        resolved_products.append({
+            **candidate,
+            "product_ids": sorted(candidate["product_ids"]),
+            "document_ids": sorted(candidate["document_ids"]),
+            "fixed_build_examples": sorted(candidate["fixed_build_examples"])[:20],
+        })
+    resolved_products.sort(key=lambda row: normalise_product(str(row.get("product") or "")))
+
+    contexts: list[dict[str, Any]] = []
+    corroborated = contradicted = uncorroborated = 0
+    for cve_id in wanted:
+        affected_rows = rows_by_cve.get(cve_id) or []
+        compatible_pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        for resolved in resolved_products:
+            for affected in affected_rows:
+                if _resolved_product_compatible(
+                    str(resolved.get("product") or ""),
+                    str(affected.get("product") or ""),
+                ):
+                    compatible_pairs.append((resolved, affected))
+
+        if compatible_pairs:
+            state = "corroborated"
+            corroborated += 1
+        else:
+            resolved_release_tokens = {
+                token
+                for resolved in resolved_products
+                for token in _windows_release_tokens(str(resolved.get("product") or ""))
+            }
+            affected_release_tokens = {
+                token
+                for affected in affected_rows
+                for token in _windows_release_tokens(str(affected.get("product") or ""))
+            }
+            if resolved_release_tokens and affected_release_tokens and resolved_release_tokens.isdisjoint(affected_release_tokens):
+                state = "contradicted"
+                contradicted += 1
+            else:
+                state = "uncorroborated"
+                uncorroborated += 1
+
+        contexts.append({
+            "cve_id": cve_id,
+            "context_state": state,
+            "observed_product": observed_product,
+            "observed_build": observed_build,
+            "observed_build_line": observed_line,
+            "resolved_products": sorted({str(row.get("product") or "") for row in resolved_products if str(row.get("product") or "")}),
+            "affected_products": sorted({str(row.get("product") or "") for row in affected_rows if str(row.get("product") or "")}),
+            "source": SOURCE,
+            "resolution_basis": "msrc_affected_product_context_without_fixed_build_requirement",
+            "patch_state": "unknown",
+        })
+
+    diagnostics = ({
+        "reason": "msrc_windows_product_context",
+        "matcher_status": "available",
+        "requested_cve_count": len(wanted),
+        "corroborated_cve_count": corroborated,
+        "contradicted_cve_count": contradicted,
+        "uncorroborated_cve_count": uncorroborated,
+        "resolved_product_count": len(resolved_products),
+        "observed_product": observed_product,
+        "observed_build": observed_build,
+        "observed_build_line": observed_line,
+        "malformed_records_skipped": malformed,
+    },)
+    return tuple(contexts), diagnostics
+
+
+def corroborate_cves_for_observed_windows_context(
+    product: str,
+    build: str,
+    cve_ids: Iterable[str],
+) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
+    """Corroborate existing CVE Program candidates with MSRC affected products.
+
+    Candidate IDs must already exist before this function is called. MSRC never
+    creates or removes a Candidate CVE here. The observed build is mapped to
+    official MSRC product names by shared build-line evidence found anywhere in
+    the advisory index; no hardcoded build-to-release table is used. Those
+    scanner-derived product candidates are then compared only with Known
+    Affected product rows for the same pre-existing CVE IDs. A fixed build or KB
+    on the Candidate CVE itself is not required.
+
+    ``context_state=contradicted`` is emitted only when both the observed-build
+    product context and the Candidate CVE affected-product context publish
+    explicit, disjoint release labels. Missing or broad advisory context is
+    ``uncorroborated`` and is never treated as proof that a Candidate is absent.
+    """
+    wanted = tuple(sorted({
+        str(value or "").strip().upper()
+        for value in cve_ids or []
+        if re.fullmatch(r"CVE-\d{4}-\d{4,}", str(value or "").strip().upper())
+    }))
+    observed_product = str(product or "").strip()
+    observed_build = str(build or "").strip()
+    observed_line = _windows_build_line(observed_build)
+    if not wanted or not observed_product or not observed_line:
+        return tuple(), ({
+            "reason": "msrc_windows_product_context_incomplete",
+            "matcher_status": "held",
+            "requested_cve_count": len(wanted),
+            "observed_product": observed_product,
+            "observed_build": observed_build,
+        },)
+
+    signature = _index_cache_signature()
+    if signature is None:
+        return tuple(), ({
+            "reason": "msrc_index_unavailable",
+            "matcher_status": "unavailable",
+            "requested_cve_count": len(wanted),
+            "observed_product": observed_product,
+            "observed_build": observed_build,
+            "rebuild_command": "python scripts/rebuild_msrc_windows_index.py",
+        },)
+
+    return _corroborate_cves_for_observed_windows_context_cached(
+        signature[0], signature[1], signature[2], observed_product, observed_build, wanted,
+    )
+
 def status() -> dict[str, Any]:
     records = 0
     if INDEX.exists():
@@ -549,7 +887,7 @@ def search(
                 row = json.loads(line)
             except ValueError:
                 continue
-            if row.get("product_normalised") != product_key:
+            if not microsoft_product_matches(product, str(row.get("product") or "")):
                 continue
             remediation_kbs = {str(value).upper() for value in row.get("kb_ids") or []}
             if installed and remediation_kbs & installed:

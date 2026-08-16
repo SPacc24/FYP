@@ -99,13 +99,24 @@ async function loadAiStatus() {
     const data = await res.json();
     if (data.available) {
       statusText.textContent = data.model_installed === false
-        ? `Ollama reachable. Model ${data.model} is not pulled yet.`
-        : `Ollama reachable: ${data.model}`;
+        ? "Local AI assistant is available, but its configured model is not ready."
+        : "Local AI assistant is available.";
+      const input = document.getElementById("aiChatInput");
+      const sendBtn = document.getElementById("aiChatSendBtn");
+      if (input) input.disabled = data.model_installed === false;
+      if (sendBtn) sendBtn.disabled = data.model_installed === false;
     } else {
-      statusText.textContent = `Ollama unavailable at ${data.url}. Start Ollama and pull ${data.model}.`;
+      statusText.textContent = "Local AI assistant is unavailable in this environment.";
+      const input = document.getElementById("aiChatInput");
+      const sendBtn = document.getElementById("aiChatSendBtn");
+      if (input) {
+        input.disabled = true;
+        input.placeholder = "AI assistant unavailable";
+      }
+      if (sendBtn) sendBtn.disabled = true;
     }
   } catch (err) {
-    statusText.textContent = "Could not check local AI status.";
+    statusText.textContent = "Local AI assistant status could not be determined.";
   }
 }
 

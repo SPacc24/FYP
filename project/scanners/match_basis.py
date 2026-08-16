@@ -14,6 +14,9 @@ DISPLAY_LABELS: dict[str, str] = {
     'exact_affected_cpe_version': 'Observed version exactly matches the version in a published affected CPE',
     'structured_affected_component_version': 'Observed protocol component version is explicitly named in the published affected-version data',
     'structured_affected_component_exact_version': 'Observed protocol component version exactly matches the published affected component version',
+    'prose_affected_component_version_scrape': 'Observed component version is referenced in a narrative affected-version field',
+    'prose_component_version_with_windows_product_context': 'Observed component evidence is consistent with directly observed Windows context and Microsoft affected-product data',
+    'prose_component_version_with_windows_build_context': 'Observed component evidence and directly observed Windows build context were represented in Microsoft advisory data',
     'structured_component_default_status_affected': 'The published affected component record defines otherwise-unlisted component versions as affected',
 }
 

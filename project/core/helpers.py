@@ -13,7 +13,6 @@ from reports.report_generator import build_report_summary
 from scanners.nmap_parser import parse_nmap_xml
 from storage import scan_store
 
-from automation.mission_service import get_mission_service
 from core.services import caldera_client, risk_scorer
 
 log = logging.getLogger(__name__)
@@ -106,11 +105,6 @@ def _safe_risk_calculate(vulns, op_results):
 
 
 def _load_current_scan_results():
-    """
-    Prefer the persisted normalised scan package because it contains
-    web_inventory and the other post-Nmap evidence. Fall back to the raw Nmap
-    XML only when no stored result package is available.
-    """
     scan_id = session.get("scan_id")
     data = scan_store.load(scan_id) if scan_id else None
     results = (data or {}).get("results") or {}
@@ -128,15 +122,43 @@ def _load_current_scan_results():
         log.exception("Could not reload scan results for validation")
         return None
 
-
+# adapt persisted scanner results 
 def _stored_results_to_parsed_results(results: dict, scan_record: dict | None = None) -> dict:
+    """Adapt persisted scanner results without converting hypotheses into facts."""
     scan_record = scan_record or {}
     services = results.get("service_inventory") or []
+    workflow = results.get("workflow") or scan_record.get("workflow") or {}
+
+    assessment_target = (
+        workflow.get("assessment_target")
+        or results.get("target_input")
+        or scan_record.get("target")
+        or scan_record.get("target_ip")
+        or "Unknown"
+    )
+
+    established_os = "Unresolved"
+    target_text = str(assessment_target or "")
+    target_parts = {part.strip() for part in target_text.split(",") if part.strip()}
+    for host_row in results.get("host_identity_inventory") or []:
+        if not isinstance(host_row, dict):
+            continue
+        host = str(host_row.get("host") or "")
+        if target_parts and host not in target_parts:
+            continue
+        if str(host_row.get("identity_state") or "") != "established":
+            continue
+        best = host_row.get("best") or {}
+        product = str(best.get("product") or best.get("name") or best.get("family") or "").strip()
+        version = str(best.get("build") or best.get("version") or best.get("release") or "").strip()
+        if product:
+            established_os = product + (f" {version}" if version and version not in product else "")
+            break
+
     hosts = []
     grouped: dict[str, list[dict]] = {}
-
     for service in services:
-        host = str(service.get("host") or scan_record.get("target") or results.get("target_input") or "Unknown")
+        host = str(service.get("host") or assessment_target or "Unknown")
         grouped.setdefault(host, []).append({
             "port": service.get("port"),
             "protocol": service.get("protocol", "tcp"),
@@ -144,15 +166,17 @@ def _stored_results_to_parsed_results(results: dict, scan_record: dict | None = 
             "service": service.get("service", ""),
             "product": service.get("product", ""),
             "version": service.get("version", ""),
-            "extrainfo": service.get("extrainfo", ""),
+            "extrainfo": service.get("extrainfo", service.get("extra", "")),
             "cpe": service.get("cpe", []),
             "scripts": service.get("scripts", []),
+            "service_attributes": service.get("service_attributes", {}),
+            "transport_security": service.get("transport_security", ""),
         })
 
     for host, port_findings in grouped.items():
         hosts.append({
             "address": {"primary": host},
-            "os": {"name": results.get("os", "")},
+            "os": {"name": established_os if host in target_parts else "Unresolved"},
             "port_findings": port_findings,
         })
 
@@ -165,14 +189,15 @@ def _stored_results_to_parsed_results(results: dict, scan_record: dict | None = 
             "service": service.get("service", ""),
             "product": service.get("product", ""),
             "version": service.get("version", ""),
-            "extrainfo": service.get("extrainfo", ""),
+            "extrainfo": service.get("extrainfo", service.get("extra", "")),
+            "service_attributes": service.get("service_attributes", {}),
+            "transport_security": service.get("transport_security", ""),
         })
 
-    target = scan_record.get("target") or results.get("target_input") or (hosts[0]["address"]["primary"] if hosts else "Unknown")
     return {
         **results,
-        "target_ip": target,
-        "os": results.get("os") or "Unknown",
+        "target_ip": assessment_target,
+        "os": established_os,
         "hosts": hosts,
         "ports": ports,
         "cve_matches": results.get("cve_matches", []),
@@ -241,7 +266,7 @@ def _save_active_scan_fields(**fields):
     except OSError as exc:
         log.warning("Could not persist active scan fields for %s: %s", scan_id, exc)
 
-
+# create remediation guidance when caldera is not running
 def _fallback_remediations(parsed_results: dict, mapping_results: dict) -> list[dict]:
     """Create useful remediation guidance even when CALDERA has not run."""
     rows: list[dict] = []
@@ -283,7 +308,7 @@ def _fallback_remediations(parsed_results: dict, mapping_results: dict) -> list[
         fixes = ["Restrict access to authorised management hosts and network segments."]
         lowered = service.lower()
         if lowered in {"microsoft-ds", "netbios-ssn", "smb"}:
-            fixes = ["Disable SMBv1 where possible, apply current Windows patches, require SMB signing, and restrict ports 139/445 at firewalls."]
+            fixes = ["Disable SMBv1 where supported, update the device firmware or SMB implementation, require SMB signing where supported, and restrict ports 139/445 to trusted network segments."]
         elif lowered in {"msrpc", "epmap"}:
             fixes = ["Restrict RPC exposure to trusted administration networks and apply supported operating-system security updates."]
         rows.append({
@@ -297,7 +322,7 @@ def _fallback_remediations(parsed_results: dict, mapping_results: dict) -> list[
         })
     return rows[:20]
 
-
+# build report input
 def _build_active_report_context(data: dict | None = None) -> dict:
     """
     Build the same report inputs for the inline API, full report page, and
@@ -334,12 +359,6 @@ def _build_active_report_context(data: dict | None = None) -> dict:
     if not remediations:
         remediations = _fallback_remediations(parsed_results, mapping_results if isinstance(mapping_results, dict) else {})
 
-    try:
-        missions = get_mission_service().list_missions(limit=10)
-    except Exception:
-        log.warning("Could not load missions for report context", exc_info=True)
-        missions = []
-
     report = build_report_summary(
         scan=scan,
         mapping=mapping_results,
@@ -348,11 +367,12 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         remediations=remediations,
         validation=validation_results,
         pivot=pivot_results,
-        missions=missions,
+        results=parsed_results,
     )
 
     return {
         "scan": scan,
+        "results": parsed_results,
         "mapping": mapping_results,
         "operation": operation_results,
         "validation": validation_results,
@@ -362,7 +382,6 @@ def _build_active_report_context(data: dict | None = None) -> dict:
         "risk": risk,
         "remediations": remediations,
         "report": report,
-        "missions": missions,
     }
 
 
@@ -435,7 +454,7 @@ def _ensure_scan_analysis(data: dict) -> dict:
     session["target_os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
     return data
 
-
+# format nmap into a structured format
 def _normalise_target_os(os_value) -> dict:
     """
     Convert Nmap/pivot OS evidence into a consistent deployment platform.
@@ -617,7 +636,10 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
         row = cve_lookup.setdefault(cve_id, {
             "cve_id": cve_id,
             "severity": "Unknown",
-            "classification": "CVE Reference",
+            "classification": "Candidate CVE",
+            "candidate_status": "candidate",
+            "candidate_basis": "",
+            "candidate_evidence_note": "",
             "affected_services": [],
             "service_port": "Unknown",
             "description": "No CVE description available.",
@@ -637,6 +659,9 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
             "match_scopes": [],
             "affected_assets": [],
             "patch_states": [],
+            "applicability_state": "candidate_unvalidated",
+            "patch_state_status": "unknown",
+            "validation_state": "not_performed",
             "identity_qualities": [],
             "matched_product_tokens": [],
             "matched_version_tokens": [],
@@ -651,6 +676,9 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
             "nvd_url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
             "nvd_cvss_enrichment": {},
             "linked_techniques": [],
+            "candidate_sources": [],
+            "source_agreement": "",
+            "nvd_applicability": {},
         })
         return row
 
@@ -767,7 +795,7 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
 
     # Scanner results are canonical for CVE identity, applicability evidence and CVSS.
     parsed_results = parsed_results or {}
-    scanner_rows = list(parsed_results.get("cve_matches") or [])
+    scanner_rows = list(parsed_results.get("cve_review_candidates") or parsed_results.get("cve_matches") or [])
     for finding in scanner_rows:
         if not isinstance(finding, dict):
             continue
@@ -775,7 +803,10 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
         if not cve_id:
             continue
         row = ensure(cve_id)
-        row["classification"] = "CVE Reference"
+        row["classification"] = "Candidate CVE"
+        row["candidate_status"] = str(finding.get("candidate_status") or "candidate")
+        row["candidate_basis"] = str(finding.get("candidate_basis") or row.get("candidate_basis") or "")
+        row["candidate_evidence_note"] = str(finding.get("candidate_evidence_note") or row.get("candidate_evidence_note") or "")
         row["description"] = finding.get("vulnerability") or finding.get("description") or row["description"]
         raw_basis = str(finding.get("match_basis") or "").strip()
         row["raw_match_basis"] = raw_basis or row.get("raw_match_basis", "")
@@ -792,6 +823,15 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
         row["applicability_context"] = finding.get("applicability_context") or row.get("applicability_context") or {}
         row["cve_publisher"] = finding.get("cve_publisher") or row.get("cve_publisher") or "CVE Program CNA"
         row["cve_publisher_id"] = finding.get("cve_publisher_id") or row.get("cve_publisher_id", "")
+        row["applicability_state"] = str(finding.get("applicability_state") or "candidate_unvalidated")
+        row["patch_state_status"] = str(finding.get("patch_state_status") or "unknown")
+        row["validation_state"] = str(finding.get("validation_state") or "not_performed")
+        row["source_agreement"] = str(finding.get("source_agreement") or row.get("source_agreement") or "")
+        row["nvd_applicability"] = finding.get("nvd_applicability") or row.get("nvd_applicability") or {}
+        for source in finding.get("candidate_sources") or [finding.get("match_source")]:
+            source = str(source or "").strip()
+            if source and source not in row["candidate_sources"]:
+                row["candidate_sources"].append(source)
 
         for key in ("affected_vendors", "affected_products", "affected_versions", "affected_entries", "affected_cpes", "matched_product_tokens", "matched_version_tokens", "references", "evidence_sources", "evidence_references"):
             values = finding.get(key) or []

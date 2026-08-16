@@ -13,9 +13,27 @@ $SUDO apt-get update -y
 printf '[*] Installing required Kali enumeration tools...\n'
 $SUDO apt-get install -y --no-install-recommends \
   arp-scan nmap bind9-dnsutils jq gobuster enum4linux-ng smbclient smbmap \
-  snmp ldap-utils sslscan mtr-tiny traceroute hydra seclists git \
+  snmp sshpass proxychains4 ldap-utils sslscan mtr-tiny traceroute hydra seclists git \
   tshark rpcbind nfs-common postgresql-client curl openssl iputils-ping iputils-tracepath \
-  python3 python3-venv python3-pip libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libffi-dev shared-mime-info
+  python3 python3-venv python3-pip libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libffi-dev shared-mime-info libcap2-bin
+
+printf '[*] Preparing scoped ARP discovery capability...\n'
+ARP_SCAN_BIN="$(command -v arp-scan || true)"
+if [ -n "$ARP_SCAN_BIN" ]; then
+  $SUDO setcap cap_net_raw,cap_net_admin=eip "$ARP_SCAN_BIN" || \
+    printf '[WARN] Could not grant packet-socket capability to arp-scan. ARP execution will be reported as unavailable if privileges are insufficient.\n'
+else
+  printf '[WARN] arp-scan was not found after installation.\n'
+fi
+
+printf '[*] Preparing bounded packet-capture capability for supplemental topology evidence...\n'
+DUMPCAP_BIN="$(command -v dumpcap || true)"
+if [ -n "$DUMPCAP_BIN" ]; then
+  $SUDO setcap cap_net_raw,cap_net_admin=eip "$DUMPCAP_BIN" || \
+    printf '[WARN] Could not grant packet-capture capability to dumpcap. Supplemental passive topology evidence will be reported as unavailable if capture permission is denied.\n'
+else
+  printf '[WARN] dumpcap was not found after tshark installation. Supplemental passive topology evidence will be unavailable.\n'
+fi
 
 printf '[*] Installing optional Kali enumeration helpers where available...\n'
 $SUDO apt-get install -y --no-install-recommends snmp-mibs-downloader || printf '[WARN] snmp-mibs-downloader unavailable; SNMP enumeration still works without downloaded MIB names.\n'
@@ -34,9 +52,18 @@ printf '[*] Preparing storage directories...\n'
 mkdir -p storage/scans storage/results storage/mitre_cve storage/msrc storage/msrc_windows storage/nvd_cache
 
 printf '[*] Creating local runtime configuration...\n'
-python scripts/bootstrap_env.py
+python runtime_env.py
 
 printf '[*] Syncing official CVE List mirror from CVEProject/cvelistV5 if network is available...\n'
+# If a previous run was interrupted (Ctrl+C, no disk space, no network partway
+# through), storage/mitre_cve/cvelistV5 can be left behind without a .git
+# directory. sync_mitre_cve_database.py now auto-recovers from this itself,
+# but we also guard here so a re-run of install.sh never inherits a stale
+# half-cloned folder.
+if [ -d storage/mitre_cve/cvelistV5 ] && [ ! -d storage/mitre_cve/cvelistV5/.git ]; then
+  printf '[*] Removing incomplete CVE List clone from a previous run...\n'
+  rm -rf storage/mitre_cve/cvelistV5
+fi
 python scripts/sync_mitre_cve_database.py || {
   printf '[WARN] Official CVE List sync did not complete. The app still runs; run this later:\n'
   printf '       cd project && . .venv/bin/activate && python scripts/sync_mitre_cve_database.py\n'

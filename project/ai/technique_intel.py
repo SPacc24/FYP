@@ -30,11 +30,9 @@ CVE_CACHE_TTL_SECONDS = 60 * 60 * 24
 
 REQUEST_TIMEOUT = 120
 
+# mitre attack helper
 
-# ---------------------------------------------------
-# MITRE ATT&CK HELPERS
-# ---------------------------------------------------
-
+# build official mitre attack webpage url for technique
 def build_mitre_url(technique_id: str) -> str:
     technique_id = str(technique_id).strip()
 
@@ -44,7 +42,7 @@ def build_mitre_url(technique_id: str) -> str:
 
     return f"https://attack.mitre.org/techniques/{technique_id}/"
 
-
+# extract mitre technique
 def extract_external_id(obj: dict) -> str | None:
     for ref in obj.get("external_references", []):
         if ref.get("source_name") == "mitre-attack" and ref.get("external_id"):
@@ -52,7 +50,7 @@ def extract_external_id(obj: dict) -> str | None:
 
     return None
 
-
+# get official mite url
 def extract_mitre_reference_url(obj: dict, technique_id: str) -> str:
     for ref in obj.get("external_references", []):
         if ref.get("source_name") == "mitre-attack" and ref.get("url"):
@@ -60,7 +58,7 @@ def extract_mitre_reference_url(obj: dict, technique_id: str) -> str:
 
     return build_mitre_url(technique_id)
 
-
+# download mitre attack data
 def load_mitre_attack_lookup() -> dict:
     if cache_is_fresh(MITRE_CACHE_FILE, MITRE_CACHE_TTL_SECONDS):
         cached = read_json_file(MITRE_CACHE_FILE, {})
@@ -124,7 +122,7 @@ def load_mitre_attack_lookup() -> dict:
 
     return lookup
 
-
+# get info about specific mitre technique
 def get_mitre_technique_info(technique_id: str) -> dict:
     mitre_lookup = load_mitre_attack_lookup()
 
@@ -145,10 +143,7 @@ def get_mitre_technique_info(technique_id: str) -> dict:
         "mitre_url": build_mitre_url(technique_id),
     }
 
-
-# ---------------------------------------------------
 # CVE / NVD HELPERS
-# ---------------------------------------------------
 
 def load_cve_cache() -> dict:
     return read_json_file(CVE_CACHE_FILE, {})
@@ -157,7 +152,7 @@ def load_cve_cache() -> dict:
 def save_cve_cache(cache: dict) -> None:
     write_json_file(CVE_CACHE_FILE, cache, CACHE_DIR)
 
-
+# extracts the CVSS version, score, severity, and vector from NVD vulnerability data.
 def get_cvss_from_nvd(vulnerability: dict) -> dict:
     metrics = vulnerability.get("metrics", {})
 
@@ -193,7 +188,6 @@ def get_cvss_from_nvd(vulnerability: dict) -> dict:
         "severity": "",
         "vector": "",
     }
-
 
 def fetch_cve_from_nvd(cve_id: str) -> dict:
     cve_id = str(cve_id).strip().upper()

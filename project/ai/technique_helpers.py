@@ -17,11 +17,11 @@ ATTACK_PATH_PRIORITY = {
 
 DISCOVERY_ONLY_TECHNIQUES = {"T1046", "T1135", "T1018"}
 
-
+# create cache folder 
 def ensure_cache_dir(cache_dir: str) -> None:
     os.makedirs(cache_dir, exist_ok=True)
 
-
+# reads a json file and return default value if failed
 def read_json_file(path: str, default: Any) -> Any:
     try:
         if not os.path.exists(path):
@@ -33,7 +33,7 @@ def read_json_file(path: str, default: Any) -> Any:
     except Exception:
         return default
 
-
+# save data as json file n handle errors
 def write_json_file(path: str, data: Any, cache_dir: str) -> None:
     try:
         ensure_cache_dir(cache_dir)
@@ -44,7 +44,7 @@ def write_json_file(path: str, data: Any, cache_dir: str) -> None:
     except Exception:
         pass
 
-
+# check cached file is within allowed period
 def cache_is_fresh(path: str, ttl_seconds: int) -> bool:
     if not os.path.exists(path):
         return False
@@ -52,7 +52,7 @@ def cache_is_fresh(path: str, ttl_seconds: int) -> bool:
     age = time.time() - os.path.getmtime(path)
     return age < ttl_seconds
 
-
+# clean up text n shorten
 def shorten_text(text: str, max_chars: int = 950) -> str:
     if not text:
         return ""
@@ -64,7 +64,7 @@ def shorten_text(text: str, max_chars: int = 950) -> str:
 
     return cleaned[:max_chars].rsplit(" ", 1)[0] + "..."
 
-
+# make reply short 
 def clean_text_list(value: Any, fallback: list[str]) -> list[str]:
     if not isinstance(value, list):
         return fallback
@@ -90,7 +90,7 @@ def clean_text_list(value: Any, fallback: list[str]) -> list[str]:
 
     return cleaned or fallback
 
-
+# make severity lvls into nums
 def severity_rank(severity: str) -> int:
     ranks = {
         "critical": 5,
@@ -105,7 +105,7 @@ def severity_rank(severity: str) -> int:
 
     return ranks.get(str(severity).lower(), 0)
 
-
+#select 5 attack techniques when ai doent provide 
 def choose_fallback_selected_ids(allowed_techniques: list[dict]) -> list[str]:
     selected = []
 
@@ -130,7 +130,7 @@ def choose_fallback_selected_ids(allowed_techniques: list[dict]) -> list[str]:
 
     return selected
 
-
+# validate ai techniques n add related techniques to create a more complete path
 def expand_attack_path_selection(
     selected_ids: list[str],
     allowed_techniques: list[dict],

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Select Internal Subnet · PenPilot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  {% include "navbar.html" %}
+  <main class="shell hero index-shell">
+    <section class="hero-card wide-hero index-card">
+      <div class="index-head">
+        <p class="eyebrow">PHASE 1 · ROUTE SELECTION</p>
+        <h1>Select the internal assessment subnet</h1>
+        <p class="muted">
+          More than one bounded private subnet has a route relationship to the selected mission interface.
+          Choose one of the discovered candidates before Phase 2 host discovery starts.
+        </p>
+      </div>
+
+      <section class="mini-panel scan-config-panel">
+        <div class="scan-assurance-grid">
+          <article class="scan-assurance-card">
+            <span class="label">External target</span>
+            <strong class="mono">{{ workflow.get('external_target','Unknown') }}</strong>
+          </article>
+          <article class="scan-assurance-card">
+            <span class="label">Selected interface</span>
+            <strong class="mono">{{ workflow.get('network_context',{}).get('interface','Unknown') }}</strong>
+          </article>
+          <article class="scan-assurance-card">
+            <span class="label">Scanner source IP</span>
+            <strong class="mono">{{ workflow.get('network_context',{}).get('scanner_ip','Unknown') or 'Not reported' }}</strong>
+          </article>
+          <article class="scan-assurance-card">
+            <span class="label">Candidates</span>
+            <strong>{{ candidates|length }}</strong>
+          </article>
+        </div>
+      </section>
+
+      <form action="{{ url_for('scan_select_subnet', scan_id=scan_id) }}" method="POST" id="subnetSelectionForm">
+        <input type="hidden" name="_csrf_token" value="{{ operator_csrf_token }}" />
+        <fieldset class="target-checkbox-fieldset">
+          <legend class="label">ROUTE-DERIVED SUBNET CANDIDATES</legend>
+          <div class="target-checkbox-grid subnet-candidate-grid">
+            {% for candidate in candidates %}
+            <label class="target-checkbox-card">
+              <input type="radio" name="internal_subnet" value="{{ candidate.subnet }}" required />
+              <span class="target-checkbox-content">
+                <strong class="mono">{{ candidate.subnet }}</strong>
+                <small>
+                  {{ candidate.access_mode|default('routed')|replace('_',' ')|title }}
+                  · interface {{ candidate.interface }}
+                  {% if candidate.gateway %} · gateway {{ candidate.gateway }}{% endif %}
+                </small>
+                <small class="muted">Evidence: {{ candidate.evidence_source|replace('_',' ') }}</small>
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <div class="form-actions top-gap">
+          <button class="btn" type="submit">Continue to Phase 2</button>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
