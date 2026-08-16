@@ -1,16 +1,12 @@
 $ErrorActionPreference = "Stop"
+$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Project = Join-Path $Root "project"
+$Python = Join-Path $Project ".venv\Scripts\python.exe"
 
-$RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectVenvPython = Join-Path $RootDir "project\.venv\Scripts\python.exe"
-$RootVenvPython = Join-Path $RootDir ".venv\Scripts\python.exe"
-
-if (Test-Path $ProjectVenvPython) {
-    $PythonBin = $ProjectVenvPython
-} elseif (Test-Path $RootVenvPython) {
-    $PythonBin = $RootVenvPython
-} else {
-    $PythonBin = "python"
+if (-not (Test-Path $Python)) {
+    throw "Python virtual environment is missing. Run .\install_windows.ps1 first."
 }
 
-Set-Location (Join-Path $RootDir "project")
-& $PythonBin app.py @args
+Set-Location $Project
+& $Python runtime_env.py | Out-Null
+& $Python app.py @args

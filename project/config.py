@@ -427,7 +427,7 @@ class Config:
 
     LAB_WEB_EXPLOIT_PARAMETER = (
         os.getenv("LAB_WEB_EXPLOIT_PARAMETER")
-        or os.getenv("LAB_WEB_EXPzLOIT_PARAMETER")
+        or os.getenv("LAB_WEB_EXPLOIT_PARAMETER")
         or "host"
     )
 
