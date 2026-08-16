@@ -22,8 +22,6 @@ def build_mitre_url(technique_id: str) -> str:
         return f"https://attack.mitre.org/techniques/{main_id}/{sub_id}/"
     return f"https://attack.mitre.org/techniques/{technique_id}/"
 
-# ── Tactic weights (how dangerous each ATT&CK tactic is) ───────────────────
-# Based on MITRE ATT&CK impact assessment + industry standards
 TACTIC_WEIGHTS = {
     'initial-access': 1.5,
     'execution': 1.5,
@@ -48,7 +46,6 @@ SEVERITY_SCORE = {
     'info': 0.0,
 }
 
-# Risk label thresholds 
 def get_risk_label(score: float) -> dict:
     if score >= 8.0:
         return {'label': 'CRITICAL', 'colour': '#e85555', 'badge': 'danger'}
@@ -127,7 +124,6 @@ class RiskScorer:
             'breakdown': breakdown,
         }
 
-    # CVE scoring
     def _score_cve(self, vulnerabilities: list) -> float:
         """
         Calculate risk contribution from CVE findings.
@@ -143,13 +139,11 @@ class RiskScorer:
         if not scores:
             return 0.0
         
-        # Weighted average: highest score counts most
         weights = [1 / (i + 1) for i in range(len(scores))]
         weighted = sum(s * w for s, w in zip(scores, weights))
         total_w = sum(weights)
         avg = weighted / total_w if total_w else 0.0
 
-        # Normalize to 0-5 (CVE contributes up to 50% of final score)
         return min(avg / 2.0, 5.0)
 
     def _finding_score(self, finding: dict) -> float:
@@ -207,7 +201,6 @@ class RiskScorer:
                 score += min(len(finding.get('attack_techniques', [])) * 0.12, 0.45)
         return min(score, 2.0)
 
-    # ATT&CK technique scoring
     def _score_attack(self, operation_results: dict) -> float:
         """
         Calculate risk contribution from successful ATT&CK techniques.
@@ -260,7 +253,6 @@ class RiskScorer:
 
         return min(score, 2.0)
 
-     # Combination
     def _combine(
         self,
         cve_score: float,
@@ -275,7 +267,6 @@ class RiskScorer:
         """
         return min(cve_score + exposure_score + attack_score + validation_score + exploitability_score, 10.0)
 
-    # Remediation hints (rule-based advice for common techniques)
     def get_remediation_for_technique(self, technique_id: str) -> dict:
         """
         Rule-based remediation advice for common ATT&CK techniques.
@@ -369,14 +360,12 @@ class RiskScorer:
             },
         }
 
-        # Match on partial technique ID
         for key, advice in remediation.items():
             if technique_id.startswith(key):
                 advice_copy = advice.copy()
                 advice_copy['mitre_url'] = build_mitre_url(technique_id)
                 return advice_copy
             
-        # Default generic advice
         return {
             'title': f'Technique {technique_id} Succeeded',
             'summary': 'Review this technique and apply relevant mitigations.',
