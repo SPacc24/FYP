@@ -45,7 +45,6 @@ web_validation_service = WebValidationService(
     operating_system=Config.LAB_WEB_OS,
 )
 
-
 # controlled web lab service 
 
 web_exploiter = WebExploiter(

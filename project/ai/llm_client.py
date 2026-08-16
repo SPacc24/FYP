@@ -9,7 +9,7 @@ DEFAULT_TIMEOUT_SECONDS = 300
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "")
 
-
+# ensure ollama url is in corect format 
 def _normalise_ollama_url(value: str = "") -> str:
     ollama_url = str(value or os.getenv("OLLAMA_URL", "")).strip()
     ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
@@ -37,7 +37,7 @@ def _ollama_timeout() -> int:
     except (TypeError, ValueError):
         return DEFAULT_TIMEOUT_SECONDS
 
-
+# gathers ollama settings like url, model and timeout
 def _ollama_settings() -> tuple[str, str, int]:
     return (
         _normalise_ollama_url(),
@@ -48,7 +48,7 @@ def _ollama_settings() -> tuple[str, str, int]:
 
 OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT = _ollama_settings()
 
-# LOW-LEVEL OLLAMA CALL
+# low level ollama communciation function
 
 def ask_ollama(
     prompt: str,
@@ -63,6 +63,7 @@ def ask_ollama(
     if timeout is None:
         timeout = default_timeout
 
+# data that is sent to ollama
     payload = {
         "model": ollama_model,
         "prompt": prompt,
@@ -77,6 +78,7 @@ def ask_ollama(
     if json_mode:
         payload["format"] = "json"
 
+# debuging for ollama
     try:
         print("==== OLLAMA DEBUG ====")
         print("OLLAMA_URL =", ollama_url)
@@ -86,16 +88,18 @@ def ask_ollama(
         print("prompt length =", len(prompt))
         print("num_predict =", num_predict)
         print("num_ctx =", payload["options"].get("num_ctx"))
-        print("======================")
 
+# send request to ollama 
         response = requests.post(
             ollama_url,
             json=payload,
             timeout=timeout,
         )
 
+# check for response
         response.raise_for_status()
 
+# converts to python dictionary
         data = response.json()
         return data.get("response", "").strip()
 
@@ -127,11 +131,11 @@ def ask_llm_text(prompt: str) -> str:
         json_mode=False,
     )
 
-# JSON MODE - AI TECHNIQUE PLANNER
+# ai returns in json format
 
 def ask_llm_json(prompt: str) -> dict:
 
-    # Keep the prompt manageable for the local 1B model.
+    # keep the prompt length
     if len(prompt) > 7000:
         prompt = (
             prompt[:7000]
@@ -166,7 +170,7 @@ INPUT:
 
 {prompt}
 """
-
+# call ollama for the planner
     text = ask_ollama(
         json_prompt,
         timeout=_ollama_timeout(),
@@ -193,7 +197,7 @@ INPUT:
     if text.startswith(error_prefixes):
         return _json_fallback(text, raw=text)
 
-    # Try normal JSON parsing first.
+    # try normal JSON parsing first.
     try:
         parsed = json.loads(text)
 
@@ -203,7 +207,7 @@ INPUT:
     except json.JSONDecodeError as e:
         print("JSON parse failed:", e)
 
-    # Try extracting a JSON object if the model added extra text.
+    # try extracting a json object if model added more text
     match = re.search(r"\{[\s\S]*\}", text)
 
     if match:
@@ -221,7 +225,7 @@ INPUT:
         raw=text,
     )
 
-# JSON REPAIR
+# json repair
 
 def _repair_llm_json(parsed: dict) -> dict:
 
@@ -230,6 +234,7 @@ def _repair_llm_json(parsed: dict) -> dict:
     if not isinstance(selected, list):
         selected = []
 
+# normalised the ids
     selected = [
         _normalise_technique_id(item)
         for item in selected
@@ -256,9 +261,10 @@ def _repair_llm_json(parsed: dict) -> dict:
 
     parsed["selected_technique_ids"] = selected
 
+# if no resoning, print this
     if not parsed.get("reasoning"):
         parsed["reasoning"] = (
-            "AI selected techniques based on the mapped scan context."
+            "AI selected techniques are based on the mapped scan context."
         )
 
     bad_reasoning_phrases = (
@@ -271,6 +277,7 @@ def _repair_llm_json(parsed: dict) -> dict:
 
     reasoning = str(parsed.get("reasoning", ""))
 
+# check if ai reasoning is bad
     if any(phrase in reasoning for phrase in bad_reasoning_phrases):
         parsed["reasoning"] = (
             "AI selected techniques based on the mapped services, "
@@ -395,7 +402,7 @@ def _repair_llm_json(parsed: dict) -> dict:
 
     return parsed
 
-
+# helper that converts value to string, covert to uppercase etc
 def _normalise_technique_id(value) -> str:
     technique_id = str(value or "").strip().upper()
 
@@ -407,7 +414,7 @@ def _normalise_technique_id(value) -> str:
 
     return technique_id
 
-# STATUS
+# status
 
 def get_llm_settings() -> dict:
     ollama_url, ollama_model, _ = _ollama_settings()
