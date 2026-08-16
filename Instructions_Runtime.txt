@@ -1,0 +1,124 @@
+# ==========================================
+# 1. FIRST-TIME PROJECT SETUP
+# ==========================================
+
+chmod +x install.sh start.sh
+
+./install.sh
+
+# ==========================================
+# 2. ACTIVATE PYTHON ENVIRONMENT
+# ==========================================
+
+cd project
+source .venv/bin/activate
+
+# ==========================================
+# 3. CHECK / CREATE .ENV
+# ==========================================
+
+python runtime_env.py
+
+# View current generated secrets
+
+python runtime_env.py --show-secrets
+
+# ==========================================
+# 4. MYSQL
+# ==========================================
+
+sudo systemctl start mysql
+sudo systemctl enable mysql
+
+mysql -u root -p
+
+# Create database/user if not already created:
+CREATE DATABASE FYP;
+CREATE USER 'autopentest'@'localhost' IDENTIFIED BY '<PASSWORD>';
+GRANT ALL PRIVILEGES ON autopentest.* TO 'autopentest'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+
+# ==========================================
+# 5. OLLAMA / AI
+# ==========================================
+
+ollama --version
+
+ollama serve
+
+# In another terminal:
+ollama pull llama3.2:1b
+
+ollama list
+
+# ==========================================
+# 7. CALDERA
+# ==========================================
+
+cd ~/caldera
+nano conf/default.yml
+# Change the api red key to your .env value
+python3 server.py --insecure
+
+# Check Caldera:
+curl http://127.0.0.1:8888
+
+# Configure the API key in:
+# project/.env
+
+# CALDERA_API_KEY=<your-caldera-api-key>
+
+# Enable:
+# ENABLE_CALDERA_EXECUTION=1
+
+# ==========================================
+# 8. METASPLOIT
+# ==========================================
+
+# Configure project/.env:
+# ENABLE_METASPLOIT=1
+# ENABLE_METASPLOIT_EXPLOITS=1
+# METASPLOIT_RPC_URL=https://127.0.0.1:55552
+# METASPLOIT_RPC_USER=msf
+# METASPLOIT_RPC_PASS=<same-password>
+
+msfrpcd -U msf -P <METASPLOIT_RPC_PASS> -a 127.0.0.1 -p 55552
+
+# ==========================================
+# 10. SMB EXPLOITATION
+# ==========================================
+
+# project/.env
+
+# ENABLE_SMB_EXPLOITATION=1
+# SMB_DEFAULT_USERNAME=smbtest
+# SMB_DEFAULT_SHARE=PrivEscLab
+# SMB_HYDRA_TIMEOUT=90
+
+# ==========================================
+# 11. WEB VALIDATION / EXPLOITATION
+# ==========================================
+
+# project/.env
+
+# ENABLE_WEB_VALIDATION=1
+# ENABLE_WEB_EXPLOITATION=1
+
+# Configure authorised lab target values:
+# LAB_WEB_OS=windows
+# LAB_WEB_SCHEME=http
+# LAB_WEB_PORT=80
+# LAB_WEB_EXPECTED_TITLE=AutoPentest Lab Diagnostics
+# LAB_WEB_EXPLOIT_ENDPOINT=/diagnostics.php
+# LAB_WEB_EXPLOIT_PARAMETER=host
+
+# ==========================================
+# 12. START AUTOPENTEST
+# ==========================================
+
+cd ~/FYP
+
+./start.sh
+
+# Get Operator token from the .env values
