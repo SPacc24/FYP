@@ -11,17 +11,20 @@ from typing import Callable
 PROJECT_DIR = Path(__file__).resolve().parent
 ENV_PATH = PROJECT_DIR / ".env"
 
+
 PLACEHOLDER_VALUES = {
     "",
     "change-me",
     "replace-me",
     "replace-with-at-least-32-random-characters",
+    "replace-with-a-random-password",
     "<generated-secret-key>",
     "<generated-operator-token>",
     "<generated-rpc-password>",
     "<generated-proof-secret>",
     "<password>",
 }
+
 
 SECRET_FACTORIES: tuple[tuple[str, Callable[[], str]], ...] = (
     ("SECRET_KEY", lambda: secrets.token_urlsafe(32)),
@@ -30,17 +33,39 @@ SECRET_FACTORIES: tuple[tuple[str, Callable[[], str]], ...] = (
     ("METASPLOIT_RPC_PASS", lambda: secrets.token_hex(24)),
 )
 
+
+# Every application configuration value should be represented here.
+# Existing non-placeholder values in .env are preserved.
 DEFAULT_VALUES: tuple[tuple[str, str], ...] = (
+    # ------------------------------------------------------------------
+    # Application
+    # ------------------------------------------------------------------
     ("DEBUG", "false"),
-    ("APP_HOST", "0.0.0.0"),
+    ("APP_HOST", "127.0.0.1"),
+    ("PORT", "5000"),
+    ("ALLOW_INSECURE_OPERATOR_ACCESS", "0"),
+
+    # ------------------------------------------------------------------
+    # AI / Ollama
+    # ------------------------------------------------------------------
     ("OLLAMA_URL", "http://localhost:11434/api/generate"),
     ("OLLAMA_MODEL", "llama3.2:1b"),
     ("OLLAMA_TIMEOUT", "180"),
-    ("ENABLE_CALDERA_EXECUTION", "0"),
+
+    # ------------------------------------------------------------------
+    # CALDERA
+    # ------------------------------------------------------------------
     ("CALDERA_URL", "http://127.0.0.1:8888"),
+    ("CALDERA_API_KEY", ""),
+    ("ENABLE_CALDERA_EXECUTION", "0"),
+    ("MAX_EXPANDED_TARGETS", "256"),
     ("AGENT_GROUP", "red"),
     ("KALI_IP", "127.0.0.1"),
     ("OPERATION_TIMEOUT", "180"),
+
+    # ------------------------------------------------------------------
+    # Metasploit
+    # ------------------------------------------------------------------
     ("ENABLE_METASPLOIT", "0"),
     ("ENABLE_METASPLOIT_EXPLOITS", "0"),
     ("METASPLOIT_RPC_URL", "https://127.0.0.1:55552"),
@@ -52,13 +77,110 @@ DEFAULT_VALUES: tuple[tuple[str, str], ...] = (
     ("METASPLOIT_LPORT", "4445"),
     ("METASPLOIT_SESSION_TIMEOUT", "45"),
     ("METASPLOIT_SESSION_POLL_INTERVAL", "2"),
+
+    # ------------------------------------------------------------------
+    # Web callback
+    # ------------------------------------------------------------------
+    ("WEB_CALLBACK_BIND_HOST", "0.0.0.0"),
+    ("WEB_CALLBACK_ADVERTISE_HOST", ""),
+    ("WEB_CALLBACK_PORT", "4444"),
+    ("WEB_CALLBACK_TIMEOUT", "15"),
+    ("WEB_CALLBACK_MAX_BYTES", "8192"),
+
+    # ------------------------------------------------------------------
+    # Proof of access
+    # ------------------------------------------------------------------
     ("PROOF_OF_ACCESS_ENABLED", "false"),
     ("PROOF_OF_ACCESS_TTL", "300"),
+
+    # ------------------------------------------------------------------
+    # Database
+    # ------------------------------------------------------------------
+    ("MYSQL_HOST", "127.0.0.1"),
+    ("MYSQL_USER", "autopentest"),
+    ("MYSQL_PASS", ""),
+    ("MYSQL_DB", "autopentest"),
+
+    # ------------------------------------------------------------------
+    # Reconnaissance / enumeration
+    # ------------------------------------------------------------------
+    ("ENABLE_CONTEXT_FOOTPRINTING", "0"),
+    ("ENABLE_ARP_SCAN", "0"),
+    ("ENABLE_HTTPX", "0"),
+    ("ENABLE_DEEP_WEB_DISCOVERY", "0"),
+    ("ENABLE_SMBMAP", "0"),
+    ("ENABLE_HYDRA", "0"),
+    (
+        "GOBUSTER_WORDLIST",
+        "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt",
+    ),
+    ("HYDRA_CREDENTIAL_FILE", ""),
+    ("MITRE_CVE_REPO", "https://github.com/CVEProject/cvelistV5.git"),
+
+    # ------------------------------------------------------------------
+    # Nmap
+    # ------------------------------------------------------------------
+    ("NMAP_DEFAULT_PORTS", "1-1024"),
+    ("NMAP_DEFAULT_INTENSITY", "3"),
+    ("NMAP_DEFAULT_PROFILE", "basic"),
+
+    # ------------------------------------------------------------------
+    # Web validation
+    # ------------------------------------------------------------------
     ("ENABLE_WEB_VALIDATION", "0"),
     ("WEB_VALIDATION_TIMEOUT", "5"),
     ("WEB_VALIDATION_MAX_RESPONSE_BYTES", "65536"),
     ("WEB_VALIDATION_MAX_REDIRECTS", "2"),
     ("LAB_WEB_OS", "windows"),
+    ("LAB_WEB_EXPECTED_TITLE", "AutoPentest Lab Diagnostics"),
+    ("LAB_WEB_SCHEME", "http"),
+    ("LAB_WEB_PORT", "80"),
+
+    # ------------------------------------------------------------------
+    # Web exploitation
+    # ------------------------------------------------------------------
+    ("ENABLE_WEB_EXPLOITATION", "0"),
+    ("LAB_WEB_EXPLOIT_ENDPOINT", ""),
+    ("LAB_WEB_EXPLOIT_PARAMETER", "host"),
+    ("LAB_WEB_EXPLOIT_METHOD", "POST"),
+    ("LAB_WEB_EXPLOIT_PLATFORM", "linux"),
+
+    # ------------------------------------------------------------------
+    # SMB exploitation
+    # ------------------------------------------------------------------
+    ("ENABLE_SMB_EXPLOITATION", "0"),
+    ("SMB_DEFAULT_USERNAME", "smbtest"),
+    ("SMB_DEFAULT_SHARE", "PrivEscLab"),
+    ("SMB_HYDRA_TIMEOUT", "90"),
+
+    # ------------------------------------------------------------------
+    # Controlled lab credential audit
+    # ------------------------------------------------------------------
+    ("ENABLE_LAB_CREDENTIAL_AUDIT", "0"),
+    ("LAB_CREDENTIAL_AUDIT_FILE", ""),
+    ("LAB_CREDENTIAL_AUDIT_MAX_ATTEMPTS", "8"),
+    ("LAB_CREDENTIAL_AUDIT_DELAY_SECONDS", "1.5"),
+
+    # ------------------------------------------------------------------
+    # NVD / CVE enrichment
+    # ------------------------------------------------------------------
+    ("NVD_ENRICHMENT_ENABLED", "1"),
+    ("NVD_CPE_RESOLUTION_ENABLED", "0"),
+    ("NVD_API_KEY", ""),
+    ("NVD_REQUEST_DELAY_SECONDS", "6.5"),
+    ("NVD_REQUEST_TIMEOUT_SECONDS", "20"),
+    ("NVD_CACHE_TTL_SECONDS", "604800"),
+
+    # ------------------------------------------------------------------
+    # Windows / Microsoft Security Response Center
+    # ------------------------------------------------------------------
+    ("WINDOWS_INVENTORY_DIR", ""),
+    ("MSRC_REQUEST_TIMEOUT_SECONDS", "45"),
+    ("MSRC_HISTORY_YEARS", "15"),
+
+    # ------------------------------------------------------------------
+    # Infrastructure topology
+    # ------------------------------------------------------------------
     ("INFRA_TOPOLOGY_PROFILES_JSON", "{}"),
 )
 
@@ -74,42 +196,58 @@ class EnvBootstrapResult:
 
 def _strip_quotes(value: str) -> str:
     value = value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+
+    if (
+        len(value) >= 2
+        and value[0] == value[-1]
+        and value[0] in {"'", '"'}
+    ):
         return value[1:-1]
+
     return value
 
 
 def _parse_env_line(line: str) -> tuple[str, str] | None:
     stripped = line.strip()
+
     if not stripped or stripped.startswith("#") or "=" not in line:
         return None
 
     key, value = line.split("=", 1)
+
     key = key.strip()
+
     if key.startswith("export "):
-        key = key[len("export "):].strip()
+        key = key[len("export ") :].strip()
+
     if not key:
         return None
+
     return key, _strip_quotes(value.strip())
 
 
 def read_env_values(env_path: Path | None = None) -> dict[str, str]:
     path = env_path or ENV_PATH
+
     if not path.exists():
         return {}
 
     values: dict[str, str] = {}
+
     for line in path.read_text(encoding="utf-8").splitlines():
         parsed = _parse_env_line(line)
+
         if parsed:
             key, value = parsed
             values[key] = value
+
     return values
 
 
 def _needs_value(value: str | None) -> bool:
     if value is None:
         return True
+
     return _strip_quotes(value) in PLACEHOLDER_VALUES
 
 
@@ -120,28 +258,42 @@ def _line_for(key: str, value: str) -> str:
 def _restrict_env_file(path: Path) -> None:
     if os.name == "nt":
         return
+
     try:
         os.chmod(path, 0o600)
     except OSError:
         pass
 
 
-def ensure_env_file(env_path: Path | None = None) -> EnvBootstrapResult:
+def ensure_env_file(
+    env_path: Path | None = None,
+) -> EnvBootstrapResult:
     path = env_path or ENV_PATH
+
     created_file = not path.exists()
-    lines = path.read_text(encoding="utf-8").splitlines(keepends=True) if path.exists() else []
+
+    lines = (
+        path.read_text(
+            encoding="utf-8",
+        ).splitlines(keepends=True)
+        if path.exists()
+        else []
+    )
 
     if not lines:
         lines = [
             "# Auto-generated local configuration for AutoPenTest.\n",
             "# Existing non-placeholder values are preserved when this file is refreshed.\n",
+            "# Do not commit this file to source control.\n",
             "\n",
         ]
 
     values: dict[str, str] = {}
     indexes: dict[str, int] = {}
+
     for index, line in enumerate(lines):
         parsed = _parse_env_line(line)
+
         if parsed:
             key, value = parsed
             values[key] = value
@@ -151,12 +303,14 @@ def ensure_env_file(env_path: Path | None = None) -> EnvBootstrapResult:
     defaulted: dict[str, str] = {}
     updates: dict[str, str] = {}
 
+    # Generate missing/placeholder secrets.
     for key, factory in SECRET_FACTORIES:
         if _needs_value(values.get(key)):
             value = factory()
             generated[key] = value
             updates[key] = value
 
+    # Add every missing/placeholder configuration value.
     for key, value in DEFAULT_VALUES:
         if _needs_value(values.get(key)):
             defaulted[key] = value
@@ -165,19 +319,33 @@ def ensure_env_file(env_path: Path | None = None) -> EnvBootstrapResult:
     if updates:
         if lines and lines[-1].strip():
             lines.append("\n")
-        missing_keys = [key for key in updates if key not in indexes]
+
+        missing_keys = [
+            key for key in updates
+            if key not in indexes
+        ]
+
         if missing_keys:
-            lines.append("# Auto-generated runtime defaults\n")
+            lines.append("# Auto-generated configuration defaults\n")
 
         for key, value in updates.items():
             new_line = _line_for(key, value)
+
             if key in indexes:
                 lines[indexes[key]] = new_line
             else:
                 lines.append(new_line)
 
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("".join(lines), encoding="utf-8")
+        path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        path.write_text(
+            "".join(lines),
+            encoding="utf-8",
+        )
+
         _restrict_env_file(path)
 
     return EnvBootstrapResult(
@@ -189,49 +357,98 @@ def ensure_env_file(env_path: Path | None = None) -> EnvBootstrapResult:
     )
 
 
-def startup_messages(result: EnvBootstrapResult) -> list[str]:
+def startup_messages(
+    result: EnvBootstrapResult,
+) -> list[str]:
     if not result.changed:
         return []
 
-    action = "Created" if result.created_file else "Updated"
-    lines = [f"[*] {action} {result.env_path} with local runtime defaults."]
+    action = (
+        "Created"
+        if result.created_file
+        else "Updated"
+    )
+
+    lines = [
+        f"[*] {action} {result.env_path} with complete local configuration."
+    ]
 
     if result.generated:
-        lines.append("[*] Generated secrets: " + ", ".join(result.generated))
+        lines.append(
+            "[*] Generated secrets: "
+            + ", ".join(result.generated)
+        )
+
         if "OPERATOR_TOKEN" in result.generated:
-            lines.append(f"[*] Operator unlock token: {result.generated['OPERATOR_TOKEN']}")
+            lines.append(
+                "[*] Operator unlock token: "
+                f"{result.generated['OPERATOR_TOKEN']}"
+            )
+
         if "METASPLOIT_RPC_PASS" in result.generated:
-            lines.append(f"[*] Metasploit RPC password: {result.generated['METASPLOIT_RPC_PASS']}")
+            lines.append(
+                "[*] Metasploit RPC password: "
+                f"{result.generated['METASPLOIT_RPC_PASS']}"
+            )
 
     if result.defaulted:
-        lines.append("[*] Added defaults: " + ", ".join(result.defaulted))
+        lines.append(
+            "[*] Added configuration defaults: "
+            + ", ".join(result.defaulted)
+        )
 
-    lines.append("[*] These values were written to project/.env and will be reused.")
+    lines.append(
+        "[*] All generated values were written to "
+        "project/.env and will be reused."
+    )
+
     return lines
 
 
 def _print_secret_values(env_path: Path) -> None:
     values = read_env_values(env_path)
-    for key in ("SECRET_KEY", "OPERATOR_TOKEN", "METASPLOIT_RPC_PASS", "PROOF_OF_ACCESS_SECRET"):
+
+    for key in (
+        "SECRET_KEY",
+        "OPERATOR_TOKEN",
+        "METASPLOIT_RPC_PASS",
+        "PROOF_OF_ACCESS_SECRET",
+    ):
         value = values.get(key)
+
         if value:
             print(f"{key}={value}")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Create or refresh project/.env for AutoPenTest.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Create or refresh project/.env with all "
+            "AutoPenTest configuration values."
+        )
+    )
+
     parser.add_argument(
         "--show-secrets",
         action="store_true",
-        help="Print generated/current local secrets. Use only in a trusted terminal.",
+        help=(
+            "Print generated/current local secrets. "
+            "Use only in a trusted terminal."
+        ),
     )
+
     args = parser.parse_args(argv)
 
     result = ensure_env_file()
+
     for line in startup_messages(result):
         print(line)
+
     if not result.changed:
-        print(f"[*] {result.env_path} already contains the required local runtime values.")
+        print(
+            f"[*] {result.env_path} already contains "
+            "the required configuration values."
+        )
 
     if args.show_secrets:
         print("\n[!] Current local secrets:")
