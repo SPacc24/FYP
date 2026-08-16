@@ -36,11 +36,8 @@ def contains_unsafe_content(text: str, patterns: list[str]) -> bool:
 def is_unsafe_user_request(message: str) -> bool:
     return contains_unsafe_content(message, UNSAFE_REQUEST_PATTERNS)
 
-
+# Keep chat output in the decision-support lane if the local model drifts.
 def sanitize_llm_reply(reply: str) -> str:
-    """
-    Keep chat output in the decision-support lane if the local model drifts.
-    """
     if contains_unsafe_content(reply, UNSAFE_RESPONSE_PATTERNS):
         return SAFE_REFUSAL
 
