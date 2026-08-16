@@ -1,12 +1,18 @@
 import json
+import logging
 from typing import Optional
 
-from ai import technique_context as technique_context_module
-from ai import technique_intel as technique_intel_module
 from ai.llm_client import ask_llm_json
-from ai.technique_intel import build_mitre_url, fetch_cve_from_nvd, get_mitre_technique_info
+from ai.technique_intel import (
+    build_mitre_url,
+    extract_cves_from_mapping,
+    get_cves_for_technique,
+    get_mitre_technique_info,
+)
 from ai.technique_helpers import (
+    ATTACK_PATH_PRIORITY,
     MAX_SELECTED_TECHNIQUES,
+    severity_rank,
     shorten_text,
     clean_text_list,
     choose_fallback_selected_ids,
@@ -25,20 +31,92 @@ DEFAULT_AI_NEXT_STEPS = [
 
 
 def extract_allowed_techniques(mapping_result: dict) -> list[dict]:
-    old_fetch_cve = technique_intel_module.fetch_cve_from_nvd
-    old_mitre_info = technique_context_module.get_mitre_technique_info
-    old_mitre_url = technique_context_module.build_mitre_url
+    allowed = []
+    cve_context = extract_cves_from_mapping(mapping_result)
 
-    technique_intel_module.fetch_cve_from_nvd = fetch_cve_from_nvd
-    technique_context_module.get_mitre_technique_info = get_mitre_technique_info
-    technique_context_module.build_mitre_url = build_mitre_url
+    for tech in mapping_result.get("recommended_techniques", []):
+        technique_id = tech.get("id") or tech.get("technique_id")
 
-    try:
-        return technique_context_module.extract_allowed_techniques(mapping_result)
-    finally:
-        technique_intel_module.fetch_cve_from_nvd = old_fetch_cve
-        technique_context_module.get_mitre_technique_info = old_mitre_info
-        technique_context_module.build_mitre_url = old_mitre_url
+        if not technique_id:
+            continue
+
+        technique_id = str(technique_id).strip()
+        mitre_info = get_mitre_technique_info(technique_id)
+
+        linked_cve_ids = get_cves_for_technique(
+            technique_id,
+            mapping_result,
+        )
+
+        linked_cves = []
+
+        for cve_id in linked_cve_ids:
+            if cve_id in cve_context:
+                linked_cves.append(cve_context[cve_id])
+
+        max_severity = tech.get("max_severity", "Info")
+
+        allowed.append({
+            "id": technique_id,
+            "name": (
+                tech.get("name")
+                or tech.get("technique_name")
+                or mitre_info.get("name")
+                or "MITRE ATT&CK Technique"
+            ),
+            "count": tech.get("count", 0),
+            "max_severity": max_severity,
+            "severity_rank": severity_rank(max_severity),
+            "mitre_url": mitre_info.get(
+                "mitre_url",
+                build_mitre_url(technique_id),
+            ),
+            "mitre_description": mitre_info.get("description", ""),
+            "mitre_tactics": mitre_info.get("tactics", []),
+            "mitre_platforms": mitre_info.get("platforms", []),
+            "mitre_data_sources": mitre_info.get(
+                "data_sources",
+                [],
+            )[:8],
+            "mitre_detection": mitre_info.get(
+                "detection",
+                "",
+            ),
+            "linked_cves": linked_cves,
+            "linked_cve_ids": linked_cve_ids,
+            "cve_ids": linked_cve_ids,
+            "attack_path_stage": tech.get(
+                "attack_path_stage",
+                "Validation / Discovery",
+            ),
+            "supporting_services": tech.get(
+                "supporting_services",
+                [],
+            ),
+            "mapper_reason": tech.get(
+                "reason",
+                " ".join(tech.get("reasons", [])[:2])
+                or (
+                    f"This technique appeared in "
+                    f"{tech.get('count', 0)} mapped finding(s), "
+                    f"with maximum severity {max_severity}."
+                ),
+            ),
+        })
+
+    allowed.sort(
+        key=lambda item: (
+            ATTACK_PATH_PRIORITY.get(
+                item.get("id"),
+                999,
+            ),
+            -item.get("severity_rank", 0),
+            -len(item.get("linked_cves", [])),
+            -item.get("count", 0),
+        ),
+    )
+
+    return allowed
 
 
 def safe_json_loads(value) -> dict:
@@ -48,7 +126,10 @@ def safe_json_loads(value) -> dict:
     if not isinstance(value, str):
         return {
             "selected_technique_ids": [],
-            "reasoning": "The LLM response could not be parsed because it had an unexpected JSON shape.",
+            "reasoning": (
+                "The LLM response could not be parsed because "
+                "it had an unexpected JSON shape."
+            ),
             "technique_explanations": [],
             "next_steps": DEFAULT_AI_NEXT_STEPS,
         }
@@ -58,7 +139,10 @@ def safe_json_loads(value) -> dict:
     except json.JSONDecodeError:
         return {
             "selected_technique_ids": [],
-            "reasoning": "The LLM response could not be parsed as valid JSON.",
+            "reasoning": (
+                "The LLM response could not be parsed "
+                "as valid JSON."
+            ),
             "technique_explanations": [],
             "next_steps": DEFAULT_AI_NEXT_STEPS,
         }
@@ -68,16 +152,25 @@ def safe_json_loads(value) -> dict:
 
     return {
         "selected_technique_ids": [],
-        "reasoning": "The LLM response could not be parsed because it had an unexpected JSON shape.",
+        "reasoning": (
+            "The LLM response could not be parsed because "
+            "it had an unexpected JSON shape."
+        ),
         "technique_explanations": [],
         "next_steps": DEFAULT_AI_NEXT_STEPS,
     }
+
+
 def normalise_technique_explanations(
     plan: dict,
     selected_ids: list[str],
     allowed_techniques: list[dict],
 ) -> list[dict]:
-    explanations = plan.get("technique_explanations", [])
+
+    explanations = plan.get(
+        "technique_explanations",
+        [],
+    )
 
     if not isinstance(explanations, list):
         explanations = []
@@ -102,47 +195,89 @@ def normalise_technique_explanations(
     final_explanations = []
 
     for technique_id in selected_ids:
-        allowed = allowed_lookup.get(technique_id, {})
-        existing = explanation_lookup.get(technique_id, {})
+        allowed = allowed_lookup.get(
+            technique_id,
+            {},
+        )
 
-        linked_cves = allowed.get("linked_cves", [])
-        linked_cve_ids = [cve.get("id") for cve in linked_cves if cve.get("id")]
+        existing = explanation_lookup.get(
+            technique_id,
+            {},
+        )
+
+        linked_cves = allowed.get(
+            "linked_cves",
+            [],
+        )
+
+        linked_cve_ids = [
+            cve.get("id")
+            for cve in linked_cves
+            if cve.get("id")
+        ]
+
+        mitre_description = allowed.get(
+            "mitre_description",
+            "This technique was mapped from the detected attack surface.",
+        )
 
         final_explanations.append({
             "technique_id": technique_id,
+
             "technique_name": existing.get(
                 "technique_name",
-                allowed.get("name", "MITRE ATT&CK Technique"),
-            ),
-            "mitre_url": allowed.get("mitre_url", build_mitre_url(technique_id)),
-            "mitre_tactics": allowed.get("mitre_tactics", []),
-            "attack_path_stage": allowed.get("attack_path_stage", "Validation / Discovery"),
-            "linked_cves": linked_cves,
-            "linked_cve_ids": linked_cve_ids,
-            "cve_ids": linked_cve_ids,
-            "mitre_summary": shorten_text(
                 allowed.get(
-                    "mitre_description",
-                    "This technique was mapped from the detected attack surface.",
+                    "name",
+                    "MITRE ATT&CK Technique",
                 ),
+            ),
+
+            "mitre_url": allowed.get(
+                "mitre_url",
+                build_mitre_url(technique_id),
+            ),
+
+            "mitre_tactics": allowed.get(
+                "mitre_tactics",
+                [],
+            ),
+
+            "attack_path_stage": allowed.get(
+                "attack_path_stage",
+                "Validation / Discovery",
+            ),
+
+            "linked_cves": linked_cves,
+
+            "linked_cve_ids": linked_cve_ids,
+
+            "cve_ids": linked_cve_ids,
+
+            "mitre_summary": shorten_text(
+                mitre_description,
                 180,
             ),
-            "mitre_full_description": allowed.get(
-            "mitre_description",
-            "This technique was mapped from the detected attack surface.",
-            ),
+
+            "mitre_full_description": mitre_description,
+
             "why_recommended": shorten_text(
                 existing.get("why_recommended")
                 or allowed.get(
                     "mapper_reason",
-                    "Recommended because it matches the detected services, vulnerabilities, or attack surface.",
+                    (
+                        "Recommended because it matches "
+                        "the detected services, vulnerabilities, "
+                        "or attack surface."
+                    ),
                 ),
                 120,
             ),
+
             "caldera_validation": shorten_text(
                 existing.get("caldera_validation")
                 or (
-                    "Check whether CALDERA has a matching ability for this technique and use it "
+                    "Check whether CALDERA has a matching "
+                    "ability for this technique and use it "
                     "only for safe authorised emulation."
                 ),
                 180,
@@ -163,25 +298,52 @@ def enrich_explanations_with_coverage(
                 "supported": None,
                 "ability_count": None,
                 "abilities": [],
-                "note": "Coverage status could not be determined. Check CALDERA manually.",
+                "note": (
+                    "Coverage status could not be determined. "
+                    "Check CALDERA manually."
+                ),
             }
 
         return technique_explanations
 
-    techniques_coverage = coverage_info.get("techniques", {})
+    techniques_coverage = coverage_info.get(
+        "techniques",
+        {},
+    )
 
     for explanation in technique_explanations:
-        technique_id = explanation.get("technique_id", "").upper()
-        coverage_data = techniques_coverage.get(technique_id, {})
+        technique_id = explanation.get(
+            "technique_id",
+            "",
+        ).upper()
+
+        coverage_data = techniques_coverage.get(
+            technique_id,
+            {},
+        )
 
         explanation["caldera_coverage"] = {
-            "supported": coverage_data.get("supported", False),
-            "ability_count": coverage_data.get("ability_count", 0),
-            "abilities": coverage_data.get("abilities", []),
+            "supported": coverage_data.get(
+                "supported",
+                False,
+            ),
+            "ability_count": coverage_data.get(
+                "ability_count",
+                0,
+            ),
+            "abilities": coverage_data.get(
+                "abilities",
+                [],
+            ),
             "note": (
-                f"CALDERA has {coverage_data.get('ability_count', 0)} ability/ies for this technique."
+                f"CALDERA has "
+                f"{coverage_data.get('ability_count', 0)} "
+                f"ability/ies for this technique."
                 if coverage_data.get("supported")
-                else "This technique has no matching abilities in CALDERA. Consider manual validation."
+                else (
+                    "This technique has no matching abilities "
+                    "in CALDERA. Consider manual validation."
+                )
             ),
         }
 
@@ -193,12 +355,17 @@ def generate_ai_technique_plan(
     preferred_mode: str = "hybrid",
     caldera_client=None,
 ) -> dict:
-    preferred_mode = str(preferred_mode).lower()
+
+    preferred_mode = str(
+        preferred_mode
+    ).lower()
 
     if preferred_mode not in ALLOWED_MODES:
         preferred_mode = "hybrid"
 
-    allowed_techniques = extract_allowed_techniques(mapping_result)
+    allowed_techniques = extract_allowed_techniques(
+        mapping_result
+    )
 
     llm_techniques = []
 
@@ -208,19 +375,51 @@ def generate_ai_technique_plan(
             "name": tech.get("name"),
             "max_severity": tech.get("max_severity"),
             "count": tech.get("count"),
-            "mitre_tactics": tech.get("mitre_tactics", []),
-            "linked_cve_ids": tech.get("linked_cve_ids", []),
-            "supporting_services": tech.get("supporting_services", []),
-            "attack_path_stage": tech.get("attack_path_stage"),
-            "mapper_reason": shorten_text(tech.get("mapper_reason", ""), 250),
-            "mitre_description": shorten_text(tech.get("mitre_description", ""), 300),
+            "mitre_tactics": tech.get(
+                "mitre_tactics",
+                [],
+            ),
+            "linked_cve_ids": tech.get(
+                "linked_cve_ids",
+                [],
+            ),
+            "supporting_services": tech.get(
+                "supporting_services",
+                [],
+            ),
+            "attack_path_stage": tech.get(
+                "attack_path_stage"
+            ),
+            "mapper_reason": shorten_text(
+                tech.get(
+                    "mapper_reason",
+                    "",
+                ),
+                250,
+            ),
+            "mitre_description": shorten_text(
+                tech.get(
+                    "mitre_description",
+                    "",
+                ),
+                300,
+            ),
         })
 
     safe_input = {
         "selected_mode_by_user": preferred_mode,
-        "top_risks": mapping_result.get("top_risks", [])[:5],
-        "severity_counts": mapping_result.get("severity_counts", {}),
-        "attack_chain": mapping_result.get("attack_chain", [])[:5],
+        "top_risks": mapping_result.get(
+            "top_risks",
+            [],
+        )[:5],
+        "severity_counts": mapping_result.get(
+            "severity_counts",
+            {},
+        ),
+        "attack_chain": mapping_result.get(
+            "attack_chain",
+            [],
+        )[:5],
         "allowed_techniques": llm_techniques,
     }
 
@@ -273,27 +472,22 @@ Field requirements:
 - next_steps: 3 to 4 safe follow-up actions.
 """
 
-    plan = safe_json_loads(ask_llm_json(prompt))
+    plan = safe_json_loads(
+        ask_llm_json(prompt)
+    )
 
-    if not isinstance(plan, dict):
-        plan = {
-            "selected_technique_ids": [],
-            "reasoning": (
-                "The LLM response could not be parsed. Falling back to the highest-priority "
-                "mapped techniques for analyst review."
-            ),
-            "technique_explanations": [],
-            "next_steps": DEFAULT_AI_NEXT_STEPS,
-        }
-
-    llm_available = plan.get("llm_available", True)
+    llm_available = plan.get(
+        "llm_available",
+        True,
+    )
 
     if not llm_available:
         plan["reasoning"] = (
-            f"AutoPenTest could not receive a live Ollama response, so the selected "
-            f"{preferred_mode.upper()} mode was applied using the mapped MITRE ATT&CK "
-            f"techniques from the scan results. The final recommendations were prioritised "
-            f"using service exposure, linked CVEs, severity, and mapper relevance."
+            f"AutoPenTest could not receive a live Ollama response, "
+            f"so the selected {preferred_mode.upper()} mode was applied "
+            f"using the mapped MITRE ATT&CK techniques from the scan "
+            f"results. The final recommendations were prioritised using "
+            f"service exposure, linked CVEs, severity, and mapper relevance."
         )
 
         plan["next_steps"] = [
@@ -310,9 +504,15 @@ Field requirements:
         if tech.get("id")
     }
 
-    raw_selected_ids = plan.get("selected_technique_ids", [])
+    raw_selected_ids = plan.get(
+        "selected_technique_ids",
+        [],
+    )
 
-    if not isinstance(raw_selected_ids, list):
+    if not isinstance(
+        raw_selected_ids,
+        list,
+    ):
         raw_selected_ids = []
 
     selected_ids = []
@@ -320,59 +520,97 @@ Field requirements:
     for tid in raw_selected_ids:
         technique_id = str(tid).strip()
 
-        if technique_id in allowed_ids and technique_id not in selected_ids:
-            selected_ids.append(technique_id)
+        if (
+            technique_id in allowed_ids
+            and technique_id not in selected_ids
+        ):
+            selected_ids.append(
+                technique_id
+            )
 
-        if len(selected_ids) >= MAX_SELECTED_TECHNIQUES:
+        if (
+            len(selected_ids)
+            >= MAX_SELECTED_TECHNIQUES
+        ):
             break
 
     if not selected_ids:
-        selected_ids = choose_fallback_selected_ids(allowed_techniques)
+        selected_ids = choose_fallback_selected_ids(
+            allowed_techniques
+        )
 
-    if len(selected_ids) == 1 and len(allowed_techniques) > 1:
-        selected_ids = choose_fallback_selected_ids(allowed_techniques[:3])
+    if (
+        len(selected_ids) == 1
+        and len(allowed_techniques) > 1
+    ):
+        selected_ids = choose_fallback_selected_ids(
+            allowed_techniques[:3]
+        )
 
-    selected_ids = expand_attack_path_selection(selected_ids, allowed_techniques)
+    selected_ids = expand_attack_path_selection(
+        selected_ids,
+        allowed_techniques,
+    )
 
-    technique_explanations = normalise_technique_explanations(
-        plan=plan,
-        selected_ids=selected_ids,
-        allowed_techniques=allowed_techniques,
+    technique_explanations = (
+        normalise_technique_explanations(
+            plan=plan,
+            selected_ids=selected_ids,
+            allowed_techniques=allowed_techniques,
+        )
     )
 
     coverage_info = None
 
     if caldera_client:
         try:
-            from caldera.coverage_checker import CoverageChecker
+            from caldera.coverage_checker import (
+                CoverageChecker,
+            )
 
-            checker = CoverageChecker(caldera_client)
-            coverage_info = checker.check_technique_coverage(selected_ids)
+            checker = CoverageChecker(
+                caldera_client
+            )
+
+            coverage_info = (
+                checker.check_technique_coverage(
+                    selected_ids
+                )
+            )
 
         except Exception as e:
-            import logging
-            logging.warning(f"Could not check CALDERA coverage: {e}")
+            logging.warning(
+                f"Could not check CALDERA coverage: {e}"
+            )
+
             coverage_info = None
 
-    technique_explanations = enrich_explanations_with_coverage(
-        technique_explanations,
-        coverage_info,
+    technique_explanations = (
+        enrich_explanations_with_coverage(
+            technique_explanations,
+            coverage_info,
+        )
     )
 
     return {
         "recommended_mode": preferred_mode,
+
         "selected_technique_ids": selected_ids,
+
         "reasoning": shorten_text(
             plan.get(
                 "reasoning",
                 (
-                    "The selected techniques were prioritised because they match the mapped scan "
-                    "findings, linked CVE context, and MITRE ATT&CK relevance."
+                    "The selected techniques were prioritised "
+                    "because they match the mapped scan findings, "
+                    "linked CVE context, and MITRE ATT&CK relevance."
                 ),
             ),
             900,
         ),
+
         "technique_explanations": technique_explanations,
+
         "next_steps": clean_text_list(
             plan.get("next_steps"),
             [
@@ -382,6 +620,8 @@ Field requirements:
                 "Document unsupported techniques as manual validation or reporting items.",
             ],
         ),
+
         "allowed_techniques": allowed_techniques,
+
         "caldera_coverage": coverage_info,
     }

@@ -2873,15 +2873,9 @@ def _apply_service_fingerprints(
             'version': fingerprint.primary_version,
             'confidence': fingerprint.confidence_score,
             'reason': (
-<<<<<<< HEAD
-                'eligible_for_confirmed_cve_matching'
-                if fingerprint.recommended_for_cve
-                else 'candidate_enrichment_only'
-=======
                 'structured_cve_correlation_supported'
                 if fingerprint.recommended_for_cve
                 else 'identity_evidence_retained'
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
             ),
         })
         fingerprints.append(fingerprint_dict)
@@ -2893,21 +2887,13 @@ def _apply_service_fingerprints(
         row['contradictions'] = list(fingerprint.contradictions)
         row['recommended_for_cve'] = fingerprint.recommended_for_cve
         # Never discard a product/version recovered from corroborating scripts or
-<<<<<<< HEAD
-        # native protocol evidence merely because it has not crossed the strict
-        # confirmation threshold.  It remains candidate evidence and is labelled
-        # as such downstream.
-=======
         # Retain native protocol identity evidence even when it is not selected
         # as the primary display fingerprint.  Alternate observations remain
         # available with provenance for scope-aware CVE correlation.
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
         if fingerprint.primary_product and not str(row.get('product') or '').strip():
             row['product'] = fingerprint.primary_product
         if fingerprint.primary_version and not str(row.get('version') or '').strip():
             row['version'] = fingerprint.primary_version
-<<<<<<< HEAD
-=======
         if fingerprint.primary_product or fingerprint.primary_version:
             _append_observed_identity(row, {
                 'kind': 'fingerprint_consensus',
@@ -2916,7 +2902,6 @@ def _apply_service_fingerprints(
                 'version': fingerprint.primary_version,
                 'source': [item.tool for item in fingerprint.evidence_sources],
             })
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
         if fingerprint.recommended_for_cve:
             current_product = str(row.get('product') or '').strip()
             if fingerprint.primary_product and not current_product:
@@ -2950,26 +2935,6 @@ def _classify_cve_match(service: dict[str, Any], match: dict[str, Any]) -> tuple
     """Verify that a Candidate CVE came from structured CVE Program evidence."""
     if match.get('source') != OFFICIAL_CVE_SOURCE:
         return 'Excluded - Non Official CVE Source', 'CVE source is not the official CVE Program / MITRE CVE List index.'
-<<<<<<< HEAD
-    basis = str(match.get('match_basis') or '')
-    description = str(match.get('description') or '')
-    product = str(service.get('product') or '')
-    service_name = str(service.get('service') or '')
-    cve_id = str(match.get('cve_id') or '')
-    if match.get('low_confidence_candidate') or match.get('nvd_candidate'):
-        return RELEVANT_VERSION_INFORMATION, 'Product/version was observed but the fingerprint is not corroborated enough for confirmation; retain as an analyst-review candidate.'
-    context_classification, context_reason = _context_gate_for_cve(description, product, service_name)
-    if context_classification == NOT_APPLICABLE_TO_CONTEXT:
-        return context_classification, context_reason
-    if context_classification:
-        return context_classification, context_reason
-    if not _strict_version_basis(basis):
-        return RELEVANT_VERSION_INFORMATION, 'Observed version falls within an official affected range; additional context was not established.'
-    if re.search(r'\bdenial of service\b|\bcrash\b|\bterminate\b|\bassertion\b|\bcontext-dependent\b|\brange header\b|\bcrafted input\b', description, re.I):
-        return RELEVANT_VERSION_INFORMATION, 'Exact product/version evidence was observed, but the CVE requires contextual validation and remains a candidate reference.'
-    return STRICT_CVE_MATCH, 'Official CVE product/version evidence matched the observed service; product/version condition is directly supported by recon evidence.'
-
-=======
     matched_products = list(match.get('matched_product_tokens') or [])
     matched_versions = list(match.get('matched_version_tokens') or [])
     basis = str(match.get('match_basis') or '').strip()
@@ -2983,7 +2948,6 @@ def _classify_cve_match(service: dict[str, Any], match: dict[str, Any]) -> tuple
         'product/platform identity and concrete version. This is a Candidate CVE only; '
         'target applicability and exploitability are not validated here.'
     )
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
 
 
 
@@ -3655,47 +3619,6 @@ def _match_cves(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Generate an evidence-backed *Candidate CVE* queue.
 
-<<<<<<< HEAD
-    for s in services:
-        cpe_text = ' '.join(s.get('cpe') or [])
-        product_text = str(s.get('product',''))
-        version_text = str(s.get('version',''))
-        service_text = str(s.get('service',''))
-
-        # Nmap often identifies legacy Windows editions in the product field but
-        # leaves the version column blank. Preserve the observed edition while
-        # deriving the OS version needed for targeted NVD enrichment.
-        edition_text = f"{product_text} {service_text} {cpe_text}".lower()
-        if not version_text.strip():
-            windows_versions = (
-                ('windows xp', '5.1'), ('windows server 2003', '5.2'),
-                ('windows vista', '6.0'), ('windows 7', '6.1'),
-                ('windows 8.1', '6.3'), ('windows 8', '6.2'),
-                ('windows 10', '10.0'), ('windows 11', '10.0'),
-            )
-            for edition, derived in windows_versions:
-                if edition in edition_text:
-                    version_text = derived
-                    break
-
-        edition_is_concrete = any(token in edition_text for token in (
-            'windows xp', 'windows server 2003', 'windows vista',
-            'windows 7', 'windows 8', 'windows 10', 'windows 11'
-        ))
-        effective_confidence = s.get('confidence_score', 0.0)
-        effective_recommended = bool(s.get('recommended_for_cve', False))
-        if edition_is_concrete and version_text:
-            effective_confidence = max(float(effective_confidence or 0.0), 0.85)
-            effective_recommended = True
-
-        matches, held_refs = mitre_search_with_held(
-            product_text,
-            version_text,
-            service_text,
-            cpe_text,
-            confidence_score=effective_confidence,
-            recommended_for_cve=effective_recommended,
-=======
     Candidate generation is owned exclusively by the local CVE Program
     (cvelistV5) structured affected-data index. NVD is intentionally absent
     from this function: it may enrich an already-generated CVE ID later, but it
@@ -3736,7 +3659,6 @@ def _match_cves(
             str(service.get('version') or '').lower(),
             str(scope or ''),
             str(service.get('protocol') or '').lower(),
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
         )
 
     def add_candidate(row: dict[str, Any], service: dict[str, Any], match: dict[str, Any], scope: str) -> None:

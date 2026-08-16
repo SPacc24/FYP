@@ -48,10 +48,7 @@ def _ollama_settings() -> tuple[str, str, int]:
 
 OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT = _ollama_settings()
 
-
-# ---------------------------------------------------
 # LOW-LEVEL OLLAMA CALL
-# ---------------------------------------------------
 
 def ask_ollama(
     prompt: str,
@@ -118,9 +115,7 @@ def ask_ollama(
         return f"Local LLM error: {e}"
 
 
-# ---------------------------------------------------
-# TEXT MODE - CHATBOX
-# ---------------------------------------------------
+# chatbox
 
 def ask_llm_text(prompt: str) -> str:
 
@@ -132,10 +127,7 @@ def ask_llm_text(prompt: str) -> str:
         json_mode=False,
     )
 
-
-# ---------------------------------------------------
 # JSON MODE - AI TECHNIQUE PLANNER
-# ---------------------------------------------------
 
 def ask_llm_json(prompt: str) -> dict:
 
@@ -183,9 +175,10 @@ INPUT:
         json_mode=True,
     )
 
-    print("==== OLLAMA PLANNER RESPONSE ====")
+# debug
+    print("OLLAMA PLANNER RESPONSE")
     print(repr(text))
-    print("=================================")
+    
 
     if not text:
         return _json_fallback("Empty LLM response.")
@@ -228,9 +221,7 @@ INPUT:
         raw=text,
     )
 
-# ---------------------------------------------------
 # JSON REPAIR
-# ---------------------------------------------------
 
 def _repair_llm_json(parsed: dict) -> dict:
 
@@ -416,10 +407,7 @@ def _normalise_technique_id(value) -> str:
 
     return technique_id
 
-
-# ---------------------------------------------------
 # STATUS
-# ---------------------------------------------------
 
 def get_llm_settings() -> dict:
     ollama_url, ollama_model, _ = _ollama_settings()

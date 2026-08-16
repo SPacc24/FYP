@@ -10,11 +10,6 @@ from typing import Any
 
 import requests
 
-<<<<<<< HEAD
-NVD_API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-CACHE_DIR = Path("storage/nvd_cache")
-CACHE_FILE = CACHE_DIR / "service_queries.json"
-=======
 from .cpe_utils import (
     concrete,
     evaluate_configurations,
@@ -37,15 +32,11 @@ CACHE_DIR = Path("storage/nvd_cache")
 CACHE_FILE = CACHE_DIR / "service_queries.json"
 CVE_METRIC_CACHE_FILE = CACHE_DIR / "cve_metric_queries.json"
 CVE_CONTEXT_CACHE_FILE = CACHE_DIR / "cve_context_queries.json"
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
 DEFAULT_TTL_SECONDS = 7 * 24 * 60 * 60
 DEFAULT_DELAY_SECONDS = 6.5
 DEFAULT_TIMEOUT_SECONDS = 20
 ATTRIBUTION = "This product uses the NVD API but is not endorsed or certified by the NVD."
-<<<<<<< HEAD
-=======
 CACHE_SCHEMA_VERSION = "cve-review-v16-structured-v3"
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
 
 _lock = threading.Lock()
 _last_request_at = 0.0
@@ -93,10 +84,6 @@ def _save_cache(cache: dict[str, Any]) -> None:
     tmp.replace(CACHE_FILE)
 
 
-<<<<<<< HEAD
-def _cache_key(product: str, version: str, service: str, cpe: str) -> str:
-    raw = "|".join((product.strip().lower(), version.strip().lower(), service.strip().lower(), cpe.strip().lower()))
-=======
 def _cache_key(
     product: str,
     version: str,
@@ -112,7 +99,6 @@ def _cache_key(
         cpe.strip().lower(),
         context_cpe.strip().lower(),
     ))
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -123,24 +109,6 @@ def _english_description(cve: dict[str, Any]) -> str:
     return ""
 
 
-<<<<<<< HEAD
-def _metric(cve: dict[str, Any]) -> dict[str, Any]:
-    metrics = cve.get("metrics") or {}
-    for group in ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
-        rows = metrics.get(group) or []
-        if not rows:
-            continue
-        row = rows[0] or {}
-        data = row.get("cvssData") or {}
-        return {
-            "cvss_score": data.get("baseScore"),
-            "cvss_severity": str(row.get("baseSeverity") or data.get("baseSeverity") or "").upper(),
-            "cvss_vector": data.get("vectorString") or "",
-            "cvss_source": row.get("source") or "NVD",
-            "cvss_version": data.get("version") or "",
-        }
-    return {}
-=======
 def _metrics(cve: dict[str, Any]) -> dict[str, dict[str, Any]]:
     metrics = cve.get("metrics") or {}
     output: dict[str, dict[str, Any]] = {}
@@ -207,7 +175,6 @@ def _metric(cve: dict[str, Any]) -> dict[str, Any]:
     """Backward-compatible preferred metric (3.1, then 4.0)."""
     metrics = _metrics(cve)
     return dict(metrics.get("3.1") or metrics.get("4.0") or {})
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
 
 
 def _references(cve: dict[str, Any]) -> list[str]:
@@ -227,12 +194,6 @@ def _config_nodes(cve: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _cpe_matches(cve: dict[str, Any], observed_cpe: str) -> bool:
-<<<<<<< HEAD
-    observed = [x.strip().lower() for x in observed_cpe.split() if x.strip().startswith("cpe:")]
-    if not observed:
-        return False
-    stack = list(_config_nodes(cve))
-=======
     matched, _basis = evaluate_configurations(cve, extract_cpes(observed_cpe))
     return matched
 
@@ -268,23 +229,12 @@ def _configuration_match(
     # invented, so clauses requiring those attributes remain unsatisfied.
     stack = list(_config_nodes(cve))
     synthetic: list[str] = []
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
     while stack:
         node = stack.pop()
         if not isinstance(node, dict):
             continue
         stack.extend(node.get("nodes") or [])
         for match in node.get("cpeMatch") or []:
-<<<<<<< HEAD
-            criteria = str(match.get("criteria") or match.get("cpe23Uri") or "").lower()
-            if not criteria:
-                continue
-            for item in observed:
-                # Exact CPE or same vendor/product/version prefix.
-                if criteria == item or criteria.startswith(item.rstrip("*")) or item.startswith(criteria.rstrip("*")):
-                    return True
-    return False
-=======
             if not isinstance(match, dict) or not bool(match.get("vulnerable", False)):
                 continue
             criteria = parse_cpe(str(match.get("criteria") or match.get("cpe23Uri") or ""))
@@ -313,60 +263,27 @@ def _configuration_match(
     if synthetic:
         return evaluate_configurations(cve, synthetic, observed_version=version)
     return False, ""
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
 
 
 
 
 def _normalise_query_identity(product: str, version: str, service: str) -> tuple[str, str, str]:
-<<<<<<< HEAD
-    """Reduce noisy Nmap identities to stable NVD search terms.
-
-    Nmap commonly emits values such as ``Microsoft Windows 7 - 10
-    microsoft-ds``.  Passing that literal string to NVD returns no results,
-    even when the detected OS/version is useful.  This function keeps the
-    observation auditable while producing a conservative query identity.
-=======
     """Normalise only formatting/protocol suffix noise from an observed identity.
 
     No OS edition, release, or build is derived in code. NVD candidate search
     remains structured-CPE/configuration gated; this helper only removes
     formatting/protocol suffix noise from concrete observed identities.
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
     """
     raw_product = " ".join(str(product or "").split())
     raw_version = " ".join(str(version or "").split())
     raw_service = " ".join(str(service or "").split())
-<<<<<<< HEAD
-    text = f"{raw_product} {raw_service}".lower()
-
-    windows = (
-        ("windows xp", "Microsoft Windows XP", "5.1"),
-        ("windows server 2003", "Microsoft Windows Server 2003", "5.2"),
-        ("windows vista", "Microsoft Windows Vista", "6.0"),
-        ("windows 7", "Microsoft Windows 7", "6.1"),
-        ("windows 8.1", "Microsoft Windows 8.1", "6.3"),
-        ("windows 8", "Microsoft Windows 8", "6.2"),
-        ("windows 10", "Microsoft Windows 10", "10.0"),
-        ("windows 11", "Microsoft Windows 11", "10.0"),
-    )
-    for token, canonical, derived_version in windows:
-        if token in text:
-            return canonical, raw_version or derived_version, raw_service
-
-    # Remove protocol suffixes frequently appended to an OS/product identity.
-=======
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
     cleaned = raw_product
     for suffix in (" microsoft-ds", " netbios-ssn", " ms-wbt-server", " wsman", " httpapi"):
         if cleaned.lower().endswith(suffix):
             cleaned = cleaned[: -len(suffix)].strip()
     return cleaned, raw_version, raw_service
 
-<<<<<<< HEAD
-=======
 
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
 def _keyword(product: str, version: str, service: str) -> str:
     product = " ".join(product.split())
     version = " ".join(version.split())
@@ -417,18 +334,6 @@ def _request(params: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, A
         return None, {"reason": "nvd_invalid_json", "matcher_status": "error"}
 
 
-<<<<<<< HEAD
-def search(product: str, version: str, service: str, cpe: str = "") -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
-    if not enabled():
-        return tuple(), ({"reason": "nvd_enrichment_disabled", "matcher_status": "disabled"},)
-
-    product, version, service = _normalise_query_identity(product, version, service)
-    query = _keyword(product, version, service)
-    if not query or not version:
-        return tuple(), ({"reason": "observed_version_missing", "matcher_status": "held"},)
-
-    key = _cache_key(product, version, service, cpe)
-=======
 def _concrete_query_cpe(cpe: str, version: str = "") -> str:
     """Return one concrete CPE suitable for NVD's cpeName parameter."""
     for raw in extract_cpes(cpe):
@@ -517,26 +422,12 @@ def search(
         return tuple(), ({"reason": "observed_product_missing", "matcher_status": "held"},)
 
     key = _cache_key(product, version, service, cpe, context_cpe)
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
     cache = _load_cache()
     cached = cache.get(key) if isinstance(cache.get(key), dict) else None
     now = time.time()
     if cached and now - float(cached.get("cached_at") or 0) < _cache_ttl():
         return tuple(cached.get("results") or []), tuple(cached.get("diagnostics") or [])
 
-<<<<<<< HEAD
-    params: dict[str, Any] = {"keywordSearch": query, "resultsPerPage": 200}
-    data, diagnostic = _request(params)
-    if data is None:
-        if cached:
-            fallback_diag = list(cached.get("diagnostics") or []) + [{**diagnostic, "cache_fallback": True}]
-            return tuple(cached.get("results") or []), tuple(fallback_diag)
-        return tuple(), (diagnostic,)
-
-    rows: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for wrapper in data.get("vulnerabilities") or []:
-=======
     concrete_cpe = _concrete_query_cpe(cpe, version)
     query_mode = "cpeName" if concrete_cpe else "keywordSearch"
     query_value = concrete_cpe if concrete_cpe else (product or service)
@@ -558,15 +449,11 @@ def search(
     seen: set[str] = set()
     rejected_by_configuration = 0
     for wrapper in wrappers:
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
         cve = wrapper.get("cve") or {}
         cve_id = str(cve.get("id") or "")
         if not cve_id or cve_id in seen:
             continue
         seen.add(cve_id)
-<<<<<<< HEAD
-        exact_cpe = _cpe_matches(cve, cpe)
-=======
         applicable, match_basis = _configuration_match(
             cve,
             product,
@@ -579,31 +466,10 @@ def search(
             continue
         cvss_metrics = _metrics(cve)
         preferred_metric = cvss_metrics.get("3.1") or cvss_metrics.get("4.0") or {}
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
         rows.append({
             "cve_id": cve_id,
             "description": _english_description(cve),
             "references": _references(cve),
-<<<<<<< HEAD
-            "source": "Official CVE List via CVEProject/cvelistV5 (MITRE/CVE Program)",
-            "upstream_source": "NVD CVE API 2.0",
-            "matched_product_tokens": [product or service],
-            "matched_version_tokens": [version],
-            "match_basis": "nvd_exact_cpe" if exact_cpe else "nvd_keyword_product_version_candidate",
-            "product_match_basis": "exact_cpe" if exact_cpe else "keyword_product_version",
-            "nvd_candidate": not exact_cpe,
-            **_metric(cve),
-        })
-
-    diagnostics: list[dict[str, Any]] = [{
-        "reason": "nvd_targeted_enrichment",
-        "matcher_status": "available",
-        "query": query,
-        "result_count": len(rows),
-        "cache": "miss",
-    }]
-    cache[key] = {"cached_at": now, "query": query, "results": rows, "diagnostics": diagnostics}
-=======
             "source": NVD_SOURCE,
             "upstream_source": NVD_SOURCE,
             "identity_scope": "application_service",
@@ -639,15 +505,10 @@ def search(
         "results": rows,
         "diagnostics": diagnostics,
     }
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
     _save_cache(cache)
     return tuple(rows), tuple(diagnostics)
 
 
-<<<<<<< HEAD
-def status() -> dict[str, Any]:
-    cache = _load_cache()
-=======
 def _same_observed_product_rule(
     match: dict[str, Any],
     product: str,
@@ -1051,15 +912,11 @@ def status() -> dict[str, Any]:
                     timestamps.append(ts)
     latest = max(timestamps) if timestamps else 0.0
     now = time.time()
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
     return {
         "enabled": enabled(),
         "api_url": NVD_API_URL,
         "api_key_configured": bool(os.getenv("NVD_API_KEY", "").strip()),
         "cache_file": str(CACHE_FILE),
-<<<<<<< HEAD
-        "cached_queries": len(cache),
-=======
         "cve_metric_cache_file": str(CVE_METRIC_CACHE_FILE),
         "cve_context_cache_file": str(CVE_CONTEXT_CACHE_FILE),
         "cached_queries": len(cache),
@@ -1068,7 +925,6 @@ def status() -> dict[str, Any]:
         "cached_cve_context_queries": len(context_cache),
         "last_successful_cache_at_epoch": latest or None,
         "cache_age_seconds": int(max(0, now - latest)) if latest else None,
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
         "request_delay_seconds": _delay_seconds(),
         "cache_ttl_seconds": _cache_ttl(),
         "attribution": ATTRIBUTION,

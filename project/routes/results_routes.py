@@ -31,30 +31,6 @@ from core.services import db
 
 
 
-<<<<<<< HEAD
-
-def _append_scan_cve_rows(rows, parsed_results):
-    """Expose strict and NVD candidate CVEs in the Results modal."""
-    output = list(rows or [])
-    seen = {str(item.get("cve_id")) for item in output if isinstance(item, dict)}
-    candidates = list(parsed_results.get("cve_matches") or []) + list(parsed_results.get("relevant_cve_information") or [])
-    for item in candidates:
-        if not isinstance(item, dict):
-            continue
-        cve_id = str(item.get("cve_id") or "").strip()
-        if not cve_id or cve_id in seen:
-            continue
-        seen.add(cve_id)
-        severity = item.get("source_cvss_severity") or item.get("severity") or "Unknown"
-        output.append({
-            "cve_id": cve_id,
-            "severity": severity,
-            "confidence": item.get("classification") or "Candidate / Needs validation",
-            "service_port": f"{item.get('service', 'Unknown')}/{item.get('port', 'Unknown')}",
-            "description": item.get("vulnerability") or item.get("description") or "Official CVE candidate linked to the observed product/version.",
-            "official_cve_url": f"https://www.cve.org/CVERecord?id={cve_id}",
-            "nvd_url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
-=======
 def _sanitise_client_evidence_paths(value):
     """Hide local project storage prefixes on client-facing appendix pages."""
     if not isinstance(value, str):
@@ -257,7 +233,6 @@ def _append_scan_cve_rows(rows, parsed_results):
             "candidate_status": item.get("candidate_status") or "candidate",
             "candidate_basis": item.get("candidate_basis") or "",
             "validation_state": item.get("validation_state") or "not_performed",
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
             "linked_techniques": [],
         })
     return output
@@ -268,15 +243,9 @@ def _fallback_result_remediations(parsed_results):
     fixes = []
     if any(x in text for x in ("microsoft-ds", "netbios-ssn", "smb", "445", "139")):
         fixes.extend([
-<<<<<<< HEAD
-            "Disable SMBv1 where possible and apply supported Microsoft security updates.",
-            "Restrict ports 139 and 445 to trusted network segments.",
-            "Require SMB signing and strong unique credentials.",
-=======
             "Disable SMBv1 where supported and update the device firmware or SMB implementation.",
             "Restrict ports 139 and 445 to trusted network segments.",
             "Require SMB signing where supported and review guest/anonymous access separately from protocol negotiation.",
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
         ])
     if any(x in text for x in ("ms-wbt-server", "rdp", "3389")):
         fixes.append("Restrict RDP to approved management paths and enable NLA/MFA where supported.")
@@ -303,17 +272,6 @@ def register_routes(app):
                 mapping_result = data.get("mapping") or {}
 
                 parsed_for_view = _stored_results_to_parsed_results(data.get("results") or {}, data)
-<<<<<<< HEAD
-                detected_cves = _append_scan_cve_rows(
-                    _build_detected_cve_rows(ai_plan, mapping_result),
-                    parsed_for_view,
-                )
-
-                return render_template(
-                    "results.html",
-                    scan=data,
-                    results=parsed_for_view,
-=======
                 detected_cves = _build_detected_cve_rows(ai_plan, mapping_result, parsed_for_view)
 
                 return render_template(
@@ -321,7 +279,6 @@ def register_routes(app):
                     scan=_client_safe_scan_record(data),
                     results=parsed_for_view,
                     discovery_identity=_discovery_identity_for_target(data),
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
                     mapping=data.get("mapping") or {},
                     ai_plan=ai_plan,
                     detected_cves=detected_cves,
@@ -367,14 +324,7 @@ def register_routes(app):
 
         ai_plan = session.get("ai_plan", {})
 
-<<<<<<< HEAD
-        detected_cves = _append_scan_cve_rows(
-            _build_detected_cve_rows(ai_plan, mapping_results),
-            parsed_results or {},
-        )
-=======
         detected_cves = _build_detected_cve_rows(ai_plan, mapping_results, parsed_results or {})
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
 
         return render_template(
             "results.html",
