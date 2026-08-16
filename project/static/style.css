@@ -7210,3 +7210,30 @@ html[data-theme="light"] .operator-status-bar.is-error {
   align-items: center;
   justify-content: center;
 }
+
+/* ==========================================
+   TECHNICAL APPENDIX NAVBAR
+   ========================================== */
+.appendix-page .main-navbar {
+  margin-bottom: 24px;
+}
+
+.appendix-page .appendix-hero {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* ==========================================
+   TECHNICAL APPENDIX NAVBAR ALIGNMENT
+   ========================================== */
+
+.appendix-page .main-navbar {
+  width: 100% !important;
+  max-width: none !important;
+
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  margin-bottom: 24px;
+
+  box-sizing: border-box;
+}
