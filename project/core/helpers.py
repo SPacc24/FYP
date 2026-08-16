@@ -13,6 +13,7 @@ from reports.report_generator import build_report_summary
 from scanners.nmap_parser import parse_nmap_xml
 from storage import scan_store
 
+from automation.mission_service import get_mission_service
 from core.services import caldera_client, risk_scorer
 
 log = logging.getLogger(__name__)
@@ -67,26 +68,8 @@ def _allowed_technique_ids_for_mode(
 def _as_list(value) -> list:
     return value if isinstance(value, list) else []
 
-def _scan_summary(scan_result, parsed_results):
-    return {
-        "target_ip": session.get("target_ip", ""),
-        "port_range": session.get("port_range", "1-1024"),
-        "output_file": scan_result.get("output_file", "")
-        if isinstance(scan_result, dict)
-        else "",
-        "os": parsed_results.get("os", "Unknown")
-        if isinstance(parsed_results, dict)
-        else "Unknown",
-        "ports": parsed_results.get("ports", [])
-        if isinstance(parsed_results, dict)
-        else [],
-    }
-
-
+# handles missing risk score
 def _safe_risk_calculate(vulns, op_results):
-    """
-    Handles missing / broken risk scorer gracefully.
-    """
     try:
         op_results = dict(op_results or {})
         op_results.setdefault("scan_context", {
@@ -105,11 +88,6 @@ def _safe_risk_calculate(vulns, op_results):
 
 
 def _load_current_scan_results():
-    """
-    Prefer the persisted normalised scan package because it contains
-    web_inventory and the other post-Nmap evidence. Fall back to the raw Nmap
-    XML only when no stored result package is available.
-    """
     scan_id = session.get("scan_id")
     data = scan_store.load(scan_id) if scan_id else None
     results = (data or {}).get("results") or {}
@@ -127,9 +105,8 @@ def _load_current_scan_results():
         log.exception("Could not reload scan results for validation")
         return None
 
-
+# adapt persisted scanner results 
 def _stored_results_to_parsed_results(results: dict, scan_record: dict | None = None) -> dict:
-    """Adapt persisted scanner results without converting hypotheses into facts."""
     scan_record = scan_record or {}
     services = results.get("service_inventory") or []
     workflow = results.get("workflow") or scan_record.get("workflow") or {}
@@ -271,9 +248,8 @@ def _save_active_scan_fields(**fields):
     except OSError as exc:
         log.warning("Could not persist active scan fields for %s: %s", scan_id, exc)
 
-
+# create remediation guidance when caldera is not running
 def _fallback_remediations(parsed_results: dict, mapping_results: dict) -> list[dict]:
-    """Create useful remediation guidance even when CALDERA has not run."""
     rows: list[dict] = []
     seen: set[tuple] = set()
     cves = parsed_results.get("cve_matches") or []
@@ -327,12 +303,8 @@ def _fallback_remediations(parsed_results: dict, mapping_results: dict) -> list[
         })
     return rows[:20]
 
-
+# build report input dor inline api
 def _build_active_report_context(data: dict | None = None) -> dict:
-    """
-    Build the same report inputs for the inline API, full report page, and
-    download route so all three surfaces show the same assessment state.
-    """
     active = data or _active_scan_record()
     scan = {
         "target_ip": active.get("target") or session.get("target_ip", "Unknown"),
@@ -363,6 +335,12 @@ def _build_active_report_context(data: dict | None = None) -> dict:
     remediations = active.get("remediations") or session.get("remediations", [])
     if not remediations:
         remediations = _fallback_remediations(parsed_results, mapping_results if isinstance(mapping_results, dict) else {})
+
+    try:
+        missions = get_mission_service().list_missions(limit=10)
+    except Exception:
+        log.warning("Could not load missions for report context", exc_info=True)
+        missions = []
 
     report = build_report_summary(
         scan=scan,
@@ -459,18 +437,8 @@ def _ensure_scan_analysis(data: dict) -> dict:
     session["target_os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
     return data
 
-
+# format nmap into a structured format
 def _normalise_target_os(os_value) -> dict:
-    """
-    Convert Nmap/pivot OS evidence into a consistent deployment platform.
-
-    Returns:
-        {
-            "name": original human-readable OS name,
-            "platform": windows | windows_legacy | linux | darwin | unknown,
-            "confidence": optional accuracy value
-        }
-    """
     confidence = ""
 
     if isinstance(os_value, dict):
@@ -566,7 +534,6 @@ def _current_target_context():
         )
         source = "external_scan"
 
-        # Fall back to the first host's OS evidence.
         if (
             raw_os in {"Unknown", "", None}
             and isinstance(parsed_results.get("hosts"), list)
@@ -603,11 +570,6 @@ def _official_cve_url(cve_id):
 
 
 def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=None):
-    """Build the user-facing CVE/CVSS review from scanner-owned evidence.
-
-    Mapping/AI data may contribute linked ATT&CK context, but CVSS metadata and
-    match evidence are taken from canonical scanner CVE rows whenever present.
-    """
     cve_lookup: dict[str, dict] = {}
 
     def humanise_match_basis(basis: str, fallback: str = "") -> str:
@@ -770,8 +732,6 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
                 verified.append(f"CVSS {version}: vector recomputed, matches")
             else:
                 verified.append(f"CVSS {version}: not independently verified")
-        # Table 1 publication provenance belongs to the CVE record/CNA, not
-        # to the CVSS metric.  CVSS publisher/source stays separate for Table 2.
         row["published_by"] = humanise_publisher(row)
         row["score_sources"] = "; ".join(publishers) if publishers else "Not published"
         row["verified_by"] = "; ".join(verified) if verified else "Not published"
@@ -874,7 +834,7 @@ def _build_detected_cve_rows(ai_plan=None, mapping_result=None, parsed_results=N
             finding.get("protocol", "tcp"),
         )
 
-    # AI may enrich linked technique context only; it must not invent CVSS data.
+    # AI may enrich linked technique context only, it must not invent CVSS data.
     for tech in (ai_plan or {}).get("allowed_techniques", []):
         technique_id = tech.get("id") or tech.get("technique_id")
         technique_name = tech.get("name") or tech.get("technique_name", "")
