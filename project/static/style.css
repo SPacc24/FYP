@@ -1,5 +1,3 @@
-/* done by nao & mat */
-
 /* Compatibility for newer live-scan and workbench components */
 .shell {
   max-width: 1380px;
@@ -1240,7 +1238,7 @@ body:has(.input-page) .footer {
 
 .index-card {
   width: min(1180px, 96vw);
-  padding: 30px;
+  padding: 22px;
 }
 
 .index-head {
@@ -1295,7 +1293,7 @@ body:has(.input-page) .footer {
 }
 
 .index-card .tool-grid {
-  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   max-height: 420px;
   overflow: auto;
   padding-right: 4px;
@@ -1341,7 +1339,7 @@ body:has(.index-shell) .footer {
 }
 
 .sidebar-summary-panel {
-  margin-top: 18px;
+  margin-top: 0;
 }
 
 .sidebar-summary-grid {
@@ -1423,7 +1421,7 @@ body:has(.index-shell) .footer {
 
 @media (max-width: 720px) {
   .index-card {
-    padding: 22px;
+    padding: 30px;
   }
 
   .index-card .profile-select,
@@ -1666,7 +1664,7 @@ body:has(.index-shell) {
 
 .index-shell {
   display: block;
-  padding: 36px 22px 28px;
+  padding: 24px 22px 28px;
 }
 
 .index-card {
@@ -1770,14 +1768,24 @@ body:has(.index-shell) {
 
 .tool-picker-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+.tool-picker-actions.wrap-actions {
+  flex-wrap: nowrap;
+}
+
+.tool-picker-actions .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .index-card .tool-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
   max-height: 430px;
   overflow: auto;
@@ -2008,12 +2016,6 @@ body:has(.index-shell) {
     margin: 6px 0 0;
 }
 
-.tool-picker-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
-}
 
 .tool-picker > .muted.small {
     margin: 0 0 20px;
@@ -2047,9 +2049,23 @@ body:has(.index-shell) {
 
 .recon-output-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
+    width: 100%;
 }
+
+@media (max-width: 900px) {
+  .recon-output-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .recon-output-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ==========================================
    Start Recon Action Panel
    ========================================== */
@@ -2102,29 +2118,112 @@ body:has(.index-shell) {
   line-height: 1.5;
 }
 
+
+
 /* ==========================================
-   Main Navigation Bar
+   Main Navbar
    ========================================== */
 
 .main-navbar {
-    position: sticky;
-    top: 16px;
-    z-index: 1000;
+  position: sticky;
+  top: 16px;
+  z-index: 1000;
 
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
 
-    margin-bottom: 24px;
-    padding: 12px 18px;
+  width: min(1260px, calc(96vw - 44px));
+  box-sizing: border-box;
 
-    background: rgba(8, 14, 26, .82);
-    border: 1px solid rgba(77,155,255,.16);
-    border-radius: 16px;
+  margin: 16px auto 24px;
+  padding: 12px 18px;
 
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+  background: #08101a;
+  border: 1px solid rgba(77, 155, 255, .18);
+  border-radius: 16px;
+
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .28);
+}
+
+/* ==========================================
+   Scanning Page Navbar Alignment
+   ========================================== */
+
+.scanning-shell > .main-navbar {
+  position: sticky;
+  top: 12px;
+  z-index: 1000;
+
+  width: 100%;
+  max-width: none;
+
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 5px;
+
+  box-sizing: border-box;
+}
+
+
+/* ==========================================
+   Scanning Navbar
+   ========================================== */
+
+.scan-navbar-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.scan-navbar-dot {
+  width: 8px;
+  height: 8px;
+
+  border-radius: 50%;
+  background: #22c55e;
+
+  box-shadow: 0 0 10px rgba(34, 197, 94, .55);
+}
+
+/* ==========================================
+   Scanning Navbar - New Scan Button
+   ========================================== */
+
+.navbar-new-scan {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  min-height: 36px;
+  padding: 0 13px;
+
+  border: 1px solid rgba(77, 155, 255, .24);
+  border-radius: 9px;
+
+  background: rgba(77, 155, 255, .08);
+  color: var(--text, #ffffff);
+
+  font-size: .82rem;
+  font-weight: 700;
+  text-decoration: none;
+
+  transition:
+    background .15s ease,
+    border-color .15s ease;
+}
+
+.navbar-new-scan:hover {
+  background: rgba(77, 155, 255, .14);
+  border-color: rgba(77, 155, 255, .42);
+  text-decoration: none;
 }
 
 /* ==========================================
@@ -2507,13 +2606,26 @@ html {
   display: flex;
   align-items: center;
   justify-content: center;
+
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+
   min-height: 40px;
-  padding: .55rem .65rem;
+  padding: .55rem .3rem;
+
   border: 1px solid var(--line, rgba(148, 163, 184, .25));
   border-radius: 10px;
-  font-size: .82rem;
+
+  font-size: clamp(.68rem, 1.3vw, .82rem);
   font-weight: 700;
-  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+  text-align: center;
+  white-space: nowrap;
+
+  transition:
+    border-color .15s ease,
+    background .15s ease,
+    transform .15s ease;
 }
 
 .segmented-control label:hover span {
@@ -2575,7 +2687,7 @@ html {
 }
 
 .setting-input-row {
-  margin-top: .65rem;
+  margin: .65rem 0;
   justify-content: flex-start;
 }
 
@@ -2710,8 +2822,25 @@ html {
 .preset-card input { margin-top: .25rem; }
 .preset-card span { display: grid; gap: .25rem; }
 .preset-card small { color: var(--muted); line-height: 1.35; }
-.collector-plan-toolbar { justify-content: space-between; flex-wrap: wrap; margin: 1rem 0 1.2rem; }
-.collector-plan-counts { flex-wrap: wrap; font-size: .82rem; color: var(--muted); }
+
+.collector-plan-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin: 1rem 0 1.2rem;
+    width: 100%;
+}
+
+.collector-plan-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    font-size: .82rem;
+    color: var(--muted);
+}
+
 .collector-plan-counts span { padding: .35rem .55rem; border-radius: 9px; background: rgba(15,23,42,.28); }
 .wrap-actions { flex-wrap: wrap; justify-content: flex-end; }
 .mini-select { min-height: 36px; max-width: 180px; }
@@ -2754,3 +2883,4330 @@ html {
 }
 .runtime-unavailable { border-style: dashed; }
 .runtime-unavailable-badge { display:inline-flex; align-items:center; gap:.3rem; font-size:.78rem; font-weight:700; padding:.2rem .45rem; border:1px solid currentColor; border-radius:999px; }
+
+/* Phase workflow target/subnet selection */
+.target-selection-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.target-selection-head h2 { margin: 0 0 .35rem; }
+.target-selection-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.target-checkbox-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.target-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: .75rem;
+}
+.target-checkbox-card {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: .9rem 1rem;
+  border: 1px solid var(--border, #334155);
+  border-radius: .75rem;
+  cursor: pointer;
+  background: var(--panel, rgba(15, 23, 42, .55));
+  box-sizing: border-box;
+  min-height: 118px;
+}
+.target-checkbox-card:hover { border-color: var(--accent, #38bdf8); }
+.target-checkbox-card:has(input:checked) {
+  border-color: var(--accent, #38bdf8);
+  box-shadow: 0 0 0 1px var(--accent, #38bdf8);
+}
+.target-checkbox-card input { margin-top: .25rem; flex: 0 0 auto; }
+.target-checkbox-content { display: grid; gap: .2rem; min-width: 0; }
+.target-checkbox-content strong,
+.target-checkbox-content small { overflow-wrap: anywhere; }
+.subnet-candidate-grid { grid-template-columns: 1fr; }
+.form-error { margin: .75rem 0 0; color: #ef4444; font-weight: 700; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 720px) {
+  .target-selection-head { flex-direction: column; }
+}
+.cve-host-group-row th {
+  text-align: left;
+  background: rgba(56, 189, 248, .10);
+  border-top: 2px solid rgba(56, 189, 248, .55);
+  padding: .7rem .8rem;
+}
+.cve-assurance-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .8rem;
+  margin-top: .55rem;
+  padding-top: .45rem;
+  border-top: 1px dashed rgba(148, 163, 184, .35);
+  color: var(--muted, #94a3b8);
+}
+
+/* Scope-aware route authorisation controls (v5). */
+.route-radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  cursor: pointer;
+  min-width: 4.6rem;
+}
+.route-radio-label input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.route-radio-indicator {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--blue);
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  background: #07101c;
+  box-shadow: 0 0 0 2px rgba(77,155,255,.08);
+}
+.route-radio-label input:checked + .route-radio-indicator::after {
+  content: "";
+  width: .5rem;
+  height: .5rem;
+  border-radius: 50%;
+  background: var(--blue);
+}
+.route-radio-label input:focus-visible + .route-radio-indicator {
+  outline: 2px solid rgba(77,155,255,.65);
+  outline-offset: 2px;
+}
+.operator-override-card {
+  display: flex;
+  align-items: flex-start;
+  gap: .8rem;
+  border: 1px solid rgba(245, 158, 11, .45);
+  background: rgba(245, 158, 11, .08);
+  border-radius: 12px;
+  padding: .9rem 1rem;
+  cursor: pointer;
+}
+.operator-override-card input {
+  margin-top: .25rem;
+  flex: 0 0 auto;
+}
+.operator-override-card span {
+  display: grid;
+  gap: .25rem;
+}
+.operator-override-card small {
+  color: var(--muted);
+}
+
+
+/* ==========================================
+   Sticky Navbar Fix
+   ========================================== */
+
+.index-nav-wrap {
+    position: sticky;
+    top: 16px;
+    z-index: 1000;
+
+    width: min(1260px, calc(96vw - 60px));
+    margin: 0 auto 24px;
+}
+
+
+
+
+
+/* ==========================================
+   Index Navbar Alignment
+   ========================================== */
+
+.index-nav-wrap {
+    width: min(1260px, calc(96vw - 60px));
+    margin: 0 auto;
+}
+
+
+
+
+
+.input-unit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.input-unit input {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+}
+
+.input-unit .unit {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    pointer-events: none;
+}
+
+
+
+/* ==========================================
+   Evidence Toolbar
+========================================== */
+
+.tool-picker-toolbar{
+    display:grid;
+    grid-template-columns:auto 260px auto;
+    gap:32px;
+    align-items:end;
+    margin-top:18px;
+}
+
+
+
+.toolbar-group{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+
+
+.toolbar-label{
+    font-size:.72rem;
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-muted);
+}
+
+
+
+.toolbar-buttons{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+
+
+.toolbar-buttons .btn{
+    white-space:nowrap;
+}
+
+
+
+.toolbar-group select{
+    width:100%;
+    min-width:220px;
+}
+
+
+
+    .tool-picker-toolbar{
+        grid-template-columns:1fr;
+        gap:18px;
+    }
+
+
+
+    .toolbar-group select{
+        min-width:0;
+    }
+
+
+.collector-plan-toolbar .mini-select{
+    height: 32px;
+    min-height: 32px;
+    padding: 0 14px;
+    line-height: 32px;
+    box-sizing: border-box;
+}
+
+
+
+/* ==========================================
+   Collector Card Layout Improvements
+   ========================================== */
+
+/* Give each collector card more horizontal space */
+.collector-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    width: 100%;
+}
+
+
+
+/* Prevent cards from overflowing the grid */
+.collector-card {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+
+
+/* Allow the content inside cards to shrink properly */
+.collector-card-main,
+.collector-enable-row,
+.collector-enable-row > span,
+.collector-mode-wrap {
+    min-width: 0;
+}
+
+
+
+/* ==========================================
+   Collector Grid Layout
+   ========================================== */
+
+.index-card .tool-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  width: 100%;
+  max-height: 430px;
+  overflow: auto;
+  padding: 2px 6px 2px 2px;
+  box-sizing: border-box;
+}
+
+
+
+.index-card .collector-card {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+
+
+/* ==========================================
+   Collector Card Stacked Layout
+   ========================================== */
+
+/* Make every card stretch to the same row height */
+.index-card .collector-grid {
+    align-items: stretch;
+}
+
+
+
+/* Stack each card vertically */
+.index-card .collector-card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+
+
+/* Remove the cramped left/right layout */
+.index-card .collector-card-main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 16px;
+    width: 100%;
+    min-width: 0;
+}
+
+
+
+/* Collector title and description use the full card width */
+.index-card .collector-enable-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+}
+
+
+
+.index-card .collector-enable-row > span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+
+
+.index-card .collector-enable-row b {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
+
+
+.index-card .collector-enable-row small {
+    display: block;
+    margin-top: 6px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+
+
+/* Push execution controls towards the bottom */
+.index-card .collector-mode-wrap {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    margin-top: auto;
+}
+
+
+
+/* Execution label and dropdown */
+.index-card .collector-mode-wrap label {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    gap: 7px;
+}
+
+
+
+.index-card .collector-mode {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+
+
+/* Keep availability badge inside the card */
+.index-card .runtime-unavailable-badge,
+.index-card .policy-lock {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 10px;
+    padding: 5px 10px;
+    box-sizing: border-box;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+
+
+/* Missing dependency text */
+.index-card .collector-mode-wrap > small {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+
+
+/* Configure collector stays beneath the controls */
+.index-card .collector-config {
+    width: 100%;
+    min-width: 0;
+    margin-top: 14px;
+    box-sizing: border-box;
+}
+
+
+
+.index-card .collector-config summary {
+    width: fit-content;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+
+
+/* ==========================================
+   Operator Access Status Bar
+   ========================================== */
+
+.operator-status {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+
+    margin-top: 14px;
+    padding: 11px 13px;
+
+    border: 1px solid transparent;
+    border-radius: 10px;
+
+    transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease;
+}
+
+
+
+.operator-status > i {
+    margin-top: 3px;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+}
+
+
+
+.operator-status > div {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+
+
+.operator-status-label {
+    margin-bottom: 2px;
+
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+
+    opacity: 0.72;
+}
+
+
+
+.operator-status strong {
+    font-size: 0.86rem;
+    line-height: 1.3;
+}
+
+
+
+.operator-status small {
+    display: block;
+    margin-top: 3px;
+
+    font-size: 0.76rem;
+    line-height: 1.4;
+
+    opacity: 0.8;
+}
+
+
+
+/* Not activated */
+.operator-status.is-inactive {
+    color: #94a3b8;
+    background: rgba(148, 163, 184, 0.06);
+    border-color: rgba(148, 163, 184, 0.18);
+}
+
+
+
+/* Checking */
+.operator-status.is-checking {
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.22);
+}
+
+
+
+.operator-status.is-checking > i {
+    animation: operator-status-spin 0.8s linear infinite;
+}
+
+
+
+/* Wrong token or blocked launch */
+.operator-status.is-error {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.24);
+}
+
+
+
+/* Correct token */
+.operator-status.is-active {
+    color: #86efac;
+    background: rgba(34, 197, 94, 0.08);
+    border-color: rgba(34, 197, 94, 0.24);
+}
+
+
+.status-shake {
+    animation: operator-status-shake 0.35s ease;
+}
+
+@keyframes operator-status-shake {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-4px);
+    }
+
+    75% {
+        transform: translateX(4px);
+    }
+}
+
+
+
+/* ==========================================
+   Report View
+   ========================================== */
+
+.flow-card {
+    border-radius: 24px 24px 24px 24px;
+}
+
+
+
+/* ==========================================
+   CALDERA Readiness Layout
+   ========================================== */
+
+.caldera-readiness-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: stretch;
+}
+
+
+
+.caldera-full-row,
+.caldera-status-banner,
+.caldera-operation-row {
+    grid-column: 1 / -1;
+}
+
+
+
+/* Full-width readiness status */
+.caldera-status-banner {
+    min-height: 0;
+    margin: 0;
+    padding: 18px 20px;
+}
+
+
+
+.caldera-status-banner p {
+    margin: 0;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+
+
+/* Target details */
+.caldera-info-card,
+.caldera-agent-card {
+    margin: 0;
+    height: 100%;
+}
+
+
+
+.caldera-info-card h4,
+.caldera-agent-card h4 {
+    margin: 0 0 16px;
+}
+
+
+
+.caldera-detail-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+
+
+.caldera-detail-list > div {
+    min-width: 0;
+    padding: 11px 12px;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    border-radius: 11px;
+    background: rgba(5, 10, 18, 0.38);
+}
+
+
+
+.caldera-detail-list span {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--muted);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+
+
+
+.caldera-detail-list strong {
+    display: block;
+    font-size: 0.88rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+
+
+.caldera-rejection-box {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid rgba(248, 113, 113, 0.18);
+    border-radius: 11px;
+    background: rgba(127, 29, 29, 0.08);
+}
+
+
+
+.caldera-rejection-box span {
+    display: block;
+    margin-bottom: 5px;
+    color: #fca5a5;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+
+
+
+.caldera-rejection-box p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+
+
+/* Agent status */
+.caldera-agent-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+
+
+.caldera-agent-card .button {
+    width: fit-content;
+    margin-top: auto;
+}
+
+
+
+/* Operation result and action */
+.caldera-operation-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: center;
+}
+
+
+
+.caldera-operation-row #operationBox {
+    margin: 0;
+}
+
+
+
+.caldera-operation-row .caldera-actions {
+    margin: 0;
+}
+
+
+
+.caldera-operation-row #runCalderaBtn {
+    min-width: 180px;
+}
+
+
+    .caldera-readiness-layout,
+    .caldera-operation-row {
+        grid-template-columns: 1fr;
+    }
+
+
+
+    .caldera-detail-list {
+        grid-template-columns: 1fr;
+    }
+
+
+
+    .caldera-operation-row #runCalderaBtn,
+    .caldera-agent-card .button {
+        width: 100%;
+    }
+
+
+
+/* ==========================================
+   CALDERA Status Header Spacing
+   ========================================== */
+
+.caldera-status-heading {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+
+
+
+.caldera-status-heading h4 {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+
+
+.caldera-status-banner {
+    margin-top: -10px;
+}
+
+
+/* ==========================================
+   Flow Card Spacing
+   ========================================== */
+
+.flow-card {
+    margin-bottom: 16px;
+}
+
+
+
+.flow-card:last-child {
+    margin-bottom: 0;
+}
+
+
+
+/* ==========================================
+   Technical Appendix Summary
+   ========================================== */
+
+.appendix-summary {
+    display: list-item;
+    cursor: pointer;
+    padding: 2px 0;
+}
+
+
+
+.appendix-summary::marker {
+    color: var(--text);
+}
+
+
+
+.appendix-summary-text {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+    vertical-align: middle;
+}
+
+
+
+.appendix-summary-text strong {
+    font-size: 1rem;
+    line-height: 1.25;
+    color: var(--text);
+}
+
+
+
+.appendix-summary-text small {
+    font-size: 0.8rem;
+    line-height: 1.4;
+    color: var(--muted);
+}
+
+
+
+.appendix-content {
+    margin-top: 16px;
+}
+
+
+
+.appendix-content p {
+    margin: 0 0 16px;
+    font-size: 0.9rem;
+    line-height: 1.55;
+}
+
+
+
+.appendix-details[open] .appendix-summary {
+    margin-bottom: 4px;
+}
+
+
+/* ==========================================
+   Technical Appendix Content Alignment
+   ========================================== */
+
+.appendix-content {
+    margin-top: 16px;
+    margin-left: 18px;
+}
+
+
+
+.appendix-content p {
+    margin: 0 0 14px;
+    font-size: 0.9rem;
+    line-height: 1.55;
+}
+
+
+
+.appendix-content .button {
+    display: inline-flex;
+    width: auto;
+    min-width: 0;
+    padding: 9px 14px;
+    font-size: 0.84rem;
+}
+
+
+
+/* ==========================================
+   Report Page Navbar Alignment
+   ========================================== */
+
+.report-page .main-navbar {
+    width: 100%;
+    margin: 16px 0 24px;
+}
+
+
+/* ==========================================
+   Operator Access Notification
+   ========================================== */
+
+.operator-toast {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 99999;
+
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+
+    width: min(360px, calc(100vw - 32px));
+    padding: 14px 16px;
+
+    color: #ffffff;
+    background: rgba(17, 24, 39, 0.98);
+
+    border: 1px solid rgba(248, 113, 113, 0.38);
+    border-left: 4px solid #ef4444;
+    border-radius: 12px;
+
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.4);
+
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-14px);
+
+    transition:
+        opacity 0.25s ease,
+        visibility 0.25s ease,
+        transform 0.25s ease;
+}
+
+
+
+.operator-toast.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+
+
+.operator-toast > i {
+    flex-shrink: 0;
+    margin-top: 2px;
+
+    color: #f87171;
+    font-size: 1.15rem;
+}
+
+
+
+.operator-toast strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.9rem;
+}
+
+
+
+.operator-toast span {
+    display: block;
+
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+
+    .operator-toast {
+        top: 14px;
+        right: 16px;
+        left: 16px;
+        width: auto;
+    }
+
+
+.tool-picker-actions .btn,
+.tool-picker-actions .mini-select {
+    flex: 0 0 auto;
+}
+
+.tool-picker-actions .mini-select {
+  flex: 0 1 170px;
+  min-width: 130px;
+  width: 170px;
+}
+
+/* ==========================================
+   Vulnerability Intelligence - Data Freshness
+   ========================================== */
+
+#vulnerability-data-freshness .scan-assurance-grid {
+    min-width: 0;
+}
+
+#vulnerability-data-freshness .scan-assurance-card {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+#vulnerability-data-freshness .scan-assurance-card .label,
+#vulnerability-data-freshness .scan-assurance-card strong,
+#vulnerability-data-freshness .scan-assurance-card .small,
+#vulnerability-data-freshness .scan-assurance-card span {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+/* ==========================================
+   Scope-Aware Scan Mission
+   ========================================== */
+
+section[aria-label="Layered scan mission"] .scan-assurance-grid {
+    min-width: 0;
+}
+
+section[aria-label="Layered scan mission"] .scan-assurance-card {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+section[aria-label="Layered scan mission"] .scan-assurance-card .label,
+section[aria-label="Layered scan mission"] .scan-assurance-card strong,
+section[aria-label="Layered scan mission"] .scan-assurance-card .small,
+section[aria-label="Layered scan mission"] .scan-assurance-card span {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+/* ==========================================
+   CVE Reference Links
+   ========================================== */
+
+.cve-link-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+/* Phase 3 live-status presentation (v13). Assessment execution is unchanged. */
+.scan-live-grid .phase3-overview {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.phase3-heartbeat-panel {
+  border-color: rgba(77, 155, 255, 0.34);
+}
+
+.heartbeat-badge {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 7px;
+  padding: 7px 10px;
+}
+
+.heartbeat-dot {
+  border-radius: 50%;
+  display: inline-block;
+  height: 8px;
+  width: 8px;
+}
+
+.heartbeat-badge.healthy {
+  border-color: rgba(61, 214, 140, 0.42);
+  color: var(--green);
+}
+
+.heartbeat-badge.healthy .heartbeat-dot {
+  background: var(--green);
+  box-shadow: 0 0 10px rgba(61, 214, 140, 0.65);
+}
+
+.heartbeat-badge.delayed {
+  border-color: rgba(255, 200, 87, 0.42);
+  color: var(--yellow);
+}
+
+.heartbeat-badge.delayed .heartbeat-dot {
+  background: var(--yellow);
+}
+
+.heartbeat-badge.waiting {
+  color: var(--muted);
+}
+
+.heartbeat-badge.waiting .heartbeat-dot {
+  background: var(--muted);
+}
+
+.status-time-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.status-time-card {
+  background: rgba(5, 10, 18, 0.65);
+  border: 1px solid rgba(77, 155, 255, 0.16);
+  border-radius: 12px;
+  min-width: 0;
+  padding: 11px;
+}
+
+.status-time-card span,
+.status-time-card small {
+  display: block;
+}
+
+.status-time-card span {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+}
+
+.status-time-card b {
+  display: block;
+  font-size: 16px;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.status-time-card small {
+  font-size: 10px;
+  line-height: 1.35;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.live-findings-panel {
+  overflow: hidden;
+}
+
+.live-finding-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 16px 0;
+}
+
+.live-finding-grid .mini-card b {
+  font-size: 22px;
+}
+
+.live-findings-table-wrap {
+  max-height: 310px;
+}
+
+.live-findings-table td,
+.live-findings-table th {
+  white-space: nowrap;
+}
+
+.phase3-cve-status {
+  margin: 12px 0 0;
+}
+
+@media (max-width: 1450px) {
+  .live-finding-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
+  .scan-live-grid .phase3-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .scan-live-grid .phase3-overview,
+  .live-finding-grid,
+  .status-time-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.operator-grid > div:nth-child(2) > h3 {
+  margin-bottom: 42px;
+}
+
+.operator-column-head {
+  min-height: 62px;
+}
+
+.operator-column-head h3 {
+  margin-top: 0;
+}
+
+.operator-column-head p {
+  margin-bottom: 0;
+}
+
+.target-checkbox-card,
+.next-network-card {
+  box-sizing: border-box;
+  min-height: 118px;
+}
+
+.continuation-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.continuation-actions .decision-row {
+  margin: 0;
+}
+
+
+.selected-device-card {
+  margin-top: -4px;
+}
+
+#deviceQueryForm .decision-row {
+  margin-top: 4px;
+}
+
+/* ==========================================
+   Technique Mapping Options
+   ========================================== */
+
+.mapping-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.mapping-options > .label {
+  margin-bottom: 2px;
+}
+
+.mapping-option {
+  position: relative;
+  width: 100%;
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+
+  padding: 14px 16px 14px 20px;
+
+  border: 1px solid rgba(77, 155, 255, .18);
+  border-radius: 12px;
+
+  background: rgba(255, 255, 255, .025);
+  color: inherit;
+
+  text-align: left;
+  cursor: pointer;
+
+  overflow: hidden;
+
+  transition:
+    border-color .2s ease,
+    background .2s ease,
+    transform .2s ease;
+}
+
+/* Small accent line on the left */
+.mapping-option::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+
+  background: rgba(77, 155, 255, .25);
+}
+
+.mapping-option:hover {
+  border-color: rgba(77, 155, 255, .45);
+  background: rgba(77, 155, 255, .045);
+  transform: translateX(2px);
+}
+
+/* Selected option */
+.mapping-option.active {
+  border-color: rgba(77, 155, 255, .7);
+  background: rgba(77, 155, 255, .09);
+}
+
+.mapping-option.active::before {
+  background: #4d9bff;
+}
+
+.mapping-option-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mapping-option-heading strong {
+  font-size: .95rem;
+}
+
+.mapping-option-description {
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.45;
+}
+
+.mapping-badge {
+  padding: 3px 8px;
+
+  border: 1px solid rgba(77, 155, 255, .35);
+  border-radius: 999px;
+
+  background: rgba(77, 155, 255, .12);
+  color: #9fc8ff;
+
+  font-size: .68rem;
+  font-weight: 700;
+}
+
+.phase3-head {
+  max-width: none;
+}
+
+.phase3-head .muted {
+  max-width: 850px;
+}
+
+.phase3-head h1 {
+  max-width: none;
+}
+
+.discovery-toggle-card .switch-row + .switch-row {
+  margin-top: 18px;
+}
+
+/* ==========================================
+   Evidence Collection Plan Toolbar
+   ========================================== */
+
+.collector-plan-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 1rem 0 1.2rem;
+  width: 100%;
+}
+
+.collector-plan-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+.tool-picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.tool-picker-actions.wrap-actions {
+  justify-content: center;
+  flex-wrap: nowrap;
+}
+
+.index-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  margin-top: 12px;
+  padding: 12px 0 8px;
+
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.index-actions .btn {
+  min-width: 300px;
+}
+
+/* ==========================================
+   Phase 3 Final Assessment Action
+   ========================================== */
+
+.scan-plan-section {
+  margin-bottom: 0;
+}
+
+.scan-plan-section + .index-actions {
+  margin-top: 6px;
+  padding: 8px 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+/* ==========================================
+   Discovery & Assessment Mission Summary
+   ========================================== */
+
+.mission-summary-panel {
+  padding: 22px;
+}
+
+.mission-summary-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(77, 155, 255, .12);
+}
+
+.mission-summary-head h3 {
+  margin: 5px 0 6px;
+  font-size: 1.25rem;
+}
+
+.mission-summary-head p {
+  margin: 0;
+}
+
+.mission-summary-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+
+  border: 1px solid rgba(77, 155, 255, .4);
+  border-radius: 14px;
+
+  background: rgba(77, 155, 255, .1);
+  color: #69a9ff;
+
+  font-size: 1.25rem;
+}
+
+.mission-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.mission-summary-card {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  min-height: 170px;
+  padding: 16px;
+
+  border: 1px solid rgba(77, 155, 255, .16);
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(17, 25, 39, .92),
+      rgba(11, 17, 28, .96)
+    );
+
+  overflow: hidden;
+}
+
+.mission-summary-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+
+  width: 3px;
+  background: #4d9bff;
+}
+
+.mission-card-icon {
+  display: grid;
+  place-items: center;
+
+  width: 38px;
+  height: 38px;
+  margin-bottom: 2px;
+
+  border-radius: 11px;
+
+  background: rgba(77, 155, 255, .1);
+  color: #69a9ff;
+
+  font-size: 1rem;
+}
+
+.mission-summary-card > .label {
+  font-size: .68rem;
+  line-height: 1.35;
+}
+
+.mission-summary-card > strong {
+  font-size: 1.3rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.mission-summary-card > .small {
+  line-height: 1.45;
+}
+
+.mission-summary-card.accent-green::before {
+  background: #22c55e;
+}
+
+.mission-summary-card.accent-green .mission-card-icon {
+  background: rgba(34, 197, 94, .11);
+  color: #4ade80;
+}
+
+.mission-summary-card.accent-purple::before {
+  background: #a855f7;
+}
+
+.mission-summary-card.accent-purple .mission-card-icon {
+  background: rgba(168, 85, 247, .11);
+  color: #c084fc;
+}
+
+.mission-summary-card.accent-amber::before {
+  background: #f59e0b;
+}
+
+.mission-summary-card.accent-amber .mission-card-icon {
+  background: rgba(245, 158, 11, .11);
+  color: #fbbf24;
+}
+
+.mission-summary-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  margin-top: 18px;
+  padding: 12px 14px;
+
+  border: 1px solid rgba(77, 155, 255, .16);
+  border-radius: 12px;
+
+  background: rgba(77, 155, 255, .04);
+  color: var(--muted);
+}
+
+.mission-summary-note i {
+  color: #60a5fa;
+}
+
+.mission-summary-table {
+  margin-top: 18px;
+}
+
+@media (max-width: 1100px) {
+  .mission-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .mission-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mission-summary-head {
+    align-items: center;
+  }
+}
+
+/* ==========================================
+   Effective Recon Settings
+   ========================================== */
+
+.recon-settings-panel {
+  padding: 22px;
+}
+
+.recon-settings-panel .stage-head-with-actions {
+  margin-bottom: 18px;
+}
+
+.recon-settings-panel .stage-head-with-actions h3 {
+  margin: 5px 0 6px;
+}
+
+.recon-settings-panel .stage-head-with-actions p {
+  margin: 0;
+}
+
+.recon-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.recon-setting-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  min-width: 0;
+  min-height: 150px;
+  padding: 16px;
+
+  border: 1px solid rgba(77, 155, 255, .16);
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(17, 25, 39, .92),
+      rgba(11, 17, 28, .96)
+    );
+}
+
+.recon-setting-icon {
+  display: grid;
+  place-items: center;
+
+  width: 36px;
+  height: 36px;
+
+  margin-bottom: 2px;
+
+  border-radius: 10px;
+
+  background: rgba(77, 155, 255, .10);
+  color: #69a9ff;
+
+  font-size: 1rem;
+}
+
+.recon-setting-card > .label {
+  font-size: .68rem;
+}
+
+.recon-setting-card > strong {
+  font-size: 1.1rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.recon-setting-card > .small {
+  line-height: 1.45;
+}
+
+.recon-setting-card-wide {
+  grid-column: auto;
+}
+
+@media (max-width: 1050px) {
+  .recon-settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .recon-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.surface-section + .surface-section {
+  margin-top: 24px;
+}
+
+/* ==========================================
+   Vulnerability Data Freshness Timestamps
+   ========================================== */
+
+.freshness-time-card {
+  gap: 6px;
+}
+
+.freshness-date {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.freshness-time {
+  font-family: "JetBrains Mono", monospace;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+/* ==========================================
+   Layer Decision Navbar
+   ========================================== */
+
+.layer-decision-shell > .main-navbar {
+  position: sticky;
+  top: 12px;
+  z-index: 1000;
+
+  width: 100%;
+  max-width: none;
+
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 10px;
+
+  box-sizing: border-box;
+}
+
+.layer-decision-shell .navbar-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  min-width: 0;
+}
+
+.layer-decision-shell .navbar-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 7px 10px;
+
+  border-radius: 8px;
+
+  color: var(--muted);
+  font-size: .8rem;
+  font-weight: 700;
+  text-decoration: none;
+
+  transition:
+    color .15s ease,
+    background .15s ease;
+}
+
+.layer-decision-shell .navbar-link:hover {
+  color: var(--text);
+  background: rgba(77, 155, 255, .08);
+}
+
+#current-layer,
+#retained-assets,
+#visited-layers {
+  scroll-margin-top: 95px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ==========================================
+   Assessment Config - Match Results Width
+   ========================================== */
+
+.assessment-page .assessment-shell {
+  width: min(1480px, 96vw) !important;
+  max-width: 1480px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.assessment-page .assessment-shell > .index-card {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  box-sizing: border-box;
+}
+
+/* ==========================================
+   Assessment Navbar - Match Content Border
+   ========================================== */
+
+.assessment-shell > .main-navbar {
+  position: sticky;
+  top: 12px;
+  z-index: 1000;
+
+  width: calc(100% - 44px) !important;
+  max-width: none !important;
+
+  margin-left: auto !important;
+  margin-right: auto !important;
+  margin-bottom: 10px;
+
+  box-sizing: border-box;
+}
+/* ==========================================
+   Results Navbar
+   ========================================== */
+
+.results-navbar-title {
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+/* ==========================================
+   Results Navbar Alignment
+   ========================================== */
+
+.results-shell > .main-navbar {
+  width: 100% !important;
+  max-width: none !important;
+
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  margin-bottom: 24px;
+
+  box-sizing: border-box;
+}
+/* ==========================================
+   Correlation Queue Grid
+   ========================================== */
+
+.correlation-queue-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.correlation-queue-grid .scan-assurance-card {
+  min-width: 0;
+  height: 100%;
+}
+
+@media (max-width: 1000px) {
+  .correlation-queue-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .correlation-queue-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================
+   Data Freshness Grid
+   ========================================== */
+
+.freshness-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.freshness-grid .scan-assurance-card {
+  min-width: 0;
+  height: 100%;
+}
+
+@media (max-width: 1000px) {
+  .freshness-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .freshness-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================
+   Global Application Background
+   ========================================== */
+
+html {
+  background: #080d17;
+}
+
+body {
+  background:
+    radial-gradient(
+      circle at 18% 12%,
+      rgba(45, 85, 145, 0.20),
+      transparent 38%
+    ),
+    radial-gradient(
+      circle at 88% 8%,
+      rgba(88, 69, 130, 0.13),
+      transparent 36%
+    ),
+    linear-gradient(
+      135deg,
+      #0b1423 0%,
+      #101a2c 48%,
+      #14182b 100%
+    ) !important;
+
+  background-attachment: fixed !important;
+  background-size: 100vw 100vh !important;
+  background-repeat: no-repeat !important;
+}
+
+/* ==========================================
+   Metasploit RPC Actions
+   ========================================== */
+
+.results-page #exploitability-validation .metasploit-actions-table {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(1),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) {
+  width: 30%;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(2),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(2) {
+  width: 25%;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(3),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(3) {
+  width: 15%;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(4),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(4) {
+  width: 6%;
+  white-space: nowrap;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(5),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(5) {
+  width: 14%;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(6),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(6) {
+  width: 10%;
+  white-space: nowrap;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table th {
+  padding: 12px 14px;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table td {
+  padding: 16px 14px;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) {
+  font-size: 14px;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) strong,
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) b {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) small,
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) .small,
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(1) .muted {
+  font-size: 13px !important;
+  line-height: 1.55;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(2),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(2) code {
+  font-size: 13px !important;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(3) {
+  font-size: 13px;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(5) {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+
+.results-page #exploitability-validation
+.metasploit-actions-table th:nth-child(6),
+.results-page #exploitability-validation
+.metasploit-actions-table td:nth-child(6) {
+  text-align: right;
+}
+/* ==========================================
+   CALDERA Execution Results
+   ========================================== */
+
+.results-page #execution-results .execution-results-table {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+.results-page #execution-results
+.execution-results-table th:nth-child(1),
+.results-page #execution-results
+.execution-results-table td:nth-child(1) {
+  width: 11%;
+}
+
+.results-page #execution-results
+.execution-results-table th:nth-child(2),
+.results-page #execution-results
+.execution-results-table td:nth-child(2) {
+  width: 15%;
+}
+
+.results-page #execution-results
+.execution-results-table th:nth-child(3),
+.results-page #execution-results
+.execution-results-table td:nth-child(3) {
+  width: 12%;
+}
+
+.results-page #execution-results
+.execution-results-table th:nth-child(4),
+.results-page #execution-results
+.execution-results-table td:nth-child(4) {
+  width: 9%;
+  white-space: nowrap;
+}
+
+
+.results-page #execution-results
+.execution-results-table th:nth-child(5),
+.results-page #execution-results
+.execution-results-table td:nth-child(5) {
+  width: 18%;
+}
+
+
+.results-page #execution-results
+.execution-results-table th:nth-child(6),
+.results-page #execution-results
+.execution-results-table td:nth-child(6) {
+  width: 35%;
+}
+
+
+/* ==========================================
+   Cell readability
+   ========================================== */
+
+.results-page #execution-results
+.execution-results-table th {
+  padding: 12px 14px;
+  vertical-align: middle;
+}
+
+.results-page #execution-results
+.execution-results-table td {
+  padding: 16px 14px;
+  vertical-align: top;
+
+  font-size: 13px;
+  line-height: 1.55;
+
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+
+.results-page #execution-results
+.execution-results-table td:nth-child(1) {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.results-page #execution-results
+.execution-results-table td:nth-child(2) {
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+
+.results-page #execution-results
+.execution-results-table td:nth-child(3) {
+  font-size: 13px;
+}
+
+
+.results-page #execution-results
+.execution-results-table td:nth-child(5) {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+
+.results-page #execution-results
+.execution-results-table td:nth-child(6) {
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.results-page #execution-results
+.execution-results-table td:nth-child(6) small,
+.results-page #execution-results
+.execution-results-table td:nth-child(6) .small,
+.results-page #execution-results
+.execution-results-table td:nth-child(6) .muted {
+  font-size: 13px !important;
+  line-height: 1.6;
+}
+
+.task-list .task-group .task {
+    margin-bottom: 6px;
+}
+
+.task-list .task-group .task:last-child {
+    margin-bottom: 0;
+}
+/* ==========================================
+   GLOBAL LIGHT MODE
+   ========================================== */
+
+html[data-theme="light"] {
+  --bg: #e8eef6;
+
+  --surface: #f8fafc;
+  --surface2: #eef3f8;
+  --surface3: #e5ecf4;
+
+  --border: #c7d3e1;
+  --border-strong: #aebfd3;
+
+  --text: #17243a;
+  --muted: #607089;
+
+  --blue: #3478c8;
+  --line: #c9d6e4;
+  --text-muted: #607089;
+
+  background: #e8eef6;
+}
+
+
+/* PAGE BACKGROUND */
+
+html[data-theme="light"] body {
+  color: var(--text) !important;
+
+  background:
+    radial-gradient(
+      circle at 16% 8%,
+      rgba(75, 133, 196, 0.14),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 88% 4%,
+      rgba(111, 99, 170, 0.09),
+      transparent 32%
+    ),
+    linear-gradient(
+      135deg,
+      #e3ebf4 0%,
+      #edf2f7 48%,
+      #e7eaf2 100%
+    ) !important;
+
+  background-attachment: fixed !important;
+}
+
+
+/* NAVBAR */
+
+html[data-theme="light"] .main-navbar {
+  background: #f7f9fc !important;
+  border-color: #c5d2e1 !important;
+
+  box-shadow:
+    0 8px 24px rgba(38, 61, 89, 0.09) !important;
+}
+
+
+/* MAIN PANELS */
+
+html[data-theme="light"] .flow-card,
+html[data-theme="light"] .mini-panel,
+html[data-theme="light"] .index-section,
+html[data-theme="light"] .operator-panel {
+  background: #f6f8fb !important;
+  border-color: #c5d2e1 !important;
+
+  box-shadow:
+    0 10px 26px rgba(39, 59, 84, 0.08) !important;
+}
+
+
+/* KEEP INDEX OUTER CONTAINER INVISIBLE */
+
+html[data-theme="light"] .index-card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+
+/* INNER CARDS */
+
+html[data-theme="light"] .tool-toggle {
+  background: #e3ebf4 !important;
+  border-color: #b9c9da !important;
+}
+
+html[data-theme="light"] .tool-toggle:hover {
+  background: #e2ebf4 !important;
+  border-color: #8eafd2 !important;
+}
+
+
+/* INPUTS */
+
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea {
+  background: #edf2f7 !important;
+  color: #17243a !important;
+  border-color: #c1cfde !important;
+}
+
+html[data-theme="light"] input::placeholder,
+html[data-theme="light"] textarea::placeholder {
+  color: #74859b !important;
+}
+
+
+/* TEXT */
+
+html[data-theme="light"] h1,
+html[data-theme="light"] h2,
+html[data-theme="light"] h3,
+html[data-theme="light"] h4,
+html[data-theme="light"] b,
+html[data-theme="light"] strong,
+html[data-theme="light"] label {
+  color: #17243a;
+}
+
+html[data-theme="light"] .muted,
+html[data-theme="light"] .small,
+html[data-theme="light"] .note,
+html[data-theme="light"] .tool-toggle small {
+  color: #607089 !important;
+}
+
+
+/* BLUE LABELS */
+
+html[data-theme="light"] .eyebrow,
+html[data-theme="light"] .label {
+  color: #3478c8 !important;
+}
+
+
+/* THEME BUTTON */
+
+html[data-theme="light"] .theme-toggle {
+  background: #edf2f7 !important;
+  border-color: #c5d2e1 !important;
+  color: #36516f !important;
+}
+html[data-theme="light"] .navbar-brand {
+  color: #172033 !important;
+}
+/* ==========================================
+   LIGHT MODE - ICON CONTRAST
+   ========================================== */
+
+/* PenPilot shield */
+html[data-theme="light"] .brand-icon {
+  color: #2f73c9 !important;
+  background: #e1edfb !important;
+  border-color: #a9c8eb !important;
+}
+
+/* Phase number box */
+html[data-theme="light"] .step-number {
+  color: #2469bd !important;
+  background: #dceafb !important;
+  border-color: #a8c8ec !important;
+  font-weight: 700;
+}
+/* ==========================================
+   Light Mode - Remove Index Outer Box
+   ========================================== */
+
+html[data-theme="light"] .index-card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+/* ==========================================
+   LIGHT MODE - FOOTER / BOTTOM AREA
+   ========================================== */
+
+html[data-theme="light"] .footer {
+  background: transparent !important;
+  color: #607089 !important;
+  border-color: #c9d6e4 !important;
+}
+
+html[data-theme="light"] .footer p {
+  color: #607089 !important;
+}
+/* ==========================================
+   LIGHT MODE - PRIMARY ACTION BUTTON
+   ========================================== */
+
+html[data-theme="light"] .index-actions .btn {
+  background: #3f7fc8 !important;
+  border-color: #3f7fc8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px rgba(47, 115, 201, 0.16) !important;
+}
+
+html[data-theme="light"] .index-actions .btn:hover {
+  background: #346fae !important;
+  border-color: #346fae !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .index-actions .btn i,
+html[data-theme="light"] .index-actions .btn span {
+  color: #ffffff !important;
+}
+
+/* ==========================================
+   LIGHT MODE - SCANNING PAGE PANELS
+   ========================================== */
+
+html[data-theme="light"] .scanning-shell .panel {
+  background: #f6f8fb !important;
+  border-color: #c5d2e1 !important;
+  box-shadow: 0 10px 26px rgba(39, 59, 84, 0.08) !important;
+}
+
+html[data-theme="light"] .scanning-shell .overview-card,
+html[data-theme="light"] .scanning-shell .mini-card,
+html[data-theme="light"] .scanning-shell .task {
+  background: #e3ebf4 !important;
+  border-color: #b9c9da !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .scanning-shell h1,
+html[data-theme="light"] .scanning-shell h2,
+html[data-theme="light"] .scanning-shell h3,
+html[data-theme="light"] .scanning-shell b,
+html[data-theme="light"] .scanning-shell strong {
+  color: #17243a;
+}
+
+html[data-theme="light"] .scanning-shell .overview-card span,
+html[data-theme="light"] .scanning-shell .mini-card span,
+html[data-theme="light"] .scanning-shell .task span,
+html[data-theme="light"] .scanning-shell .task small {
+  color: #607089;
+}
+/* ==========================================
+   LIGHT MODE - SCANNING FINISHING TOUCHES
+   ========================================== */
+
+/* Left Task Progress panel */
+html[data-theme="light"] .scanning-shell .scan-sidebar .panel {
+  background: #f6f8fb !important;
+  border-color: #c5d2e1 !important;
+}
+
+/* Progress bar track */
+html[data-theme="light"] .scanning-shell .progress-track {
+  background: #d5dfeb !important;
+  border-color: #b9c9da !important;
+}
+
+/* Keep completed portion blue */
+html[data-theme="light"] .scanning-shell .progress-fill {
+  background: linear-gradient(
+    90deg,
+    #3f7fc8,
+    #7b6fd6
+  ) !important;
+}
+
+/* Command Log table */
+html[data-theme="light"] .scanning-shell .command-table {
+  background: #f6f8fb !important;
+  border-color: #b9c9da !important;
+}
+
+html[data-theme="light"] .scanning-shell .command-table th {
+  background: #dfe9f4 !important;
+  color: #2469bd !important;
+  border-color: #b9c9da !important;
+}
+
+html[data-theme="light"] .scanning-shell .command-table td {
+  background: #edf2f7 !important;
+  color: #17243a !important;
+  border-color: #c5d2e1 !important;
+}
+
+/* Exact command text */
+html[data-theme="light"] .scanning-shell .command-table code {
+  color: #314b6b !important;
+}
+
+/* Copy Command + View Evidence */
+html[data-theme="light"] .scanning-shell .btn.mini {
+  background: #3f7fc8 !important;
+  border-color: #3f7fc8 !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .scanning-shell .btn.mini:hover {
+  background: #346fae !important;
+  border-color: #346fae !important;
+  color: #ffffff !important;
+}
+
+/* ==========================================
+   LIGHT MODE - LAYER DECISION REFINED
+   ========================================== */
+
+/* Workflow step cards */
+html[data-theme="light"] .layer-decision-shell .mission-summary-card,
+html[data-theme="light"] .layer-decision-shell .recon-setting-card {
+  background: #e8eef5 !important;
+  border-color: #b9c8d8 !important;
+  box-shadow: 0 6px 16px rgba(35, 58, 86, 0.06) !important;
+}
+
+/* Step number badges */
+html[data-theme="light"] .layer-decision-shell .mission-card-icon,
+html[data-theme="light"] .layer-decision-shell .recon-setting-icon {
+  background: #d9e8f8 !important;
+  color: #286dbb !important;
+  border: 1px solid #aac5e3 !important;
+}
+
+/* Large content panels */
+html[data-theme="light"] .layer-decision-shell .mission-summary-panel,
+html[data-theme="light"] .layer-decision-shell .flow-card,
+html[data-theme="light"] .layer-decision-shell .panel {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  box-shadow: 0 10px 24px rgba(36, 58, 83, 0.07) !important;
+}
+
+/* Device / continuation inner boxes */
+html[data-theme="light"] .layer-decision-shell .target-checkbox-card,
+html[data-theme="light"] .layer-decision-shell .route-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+/* Empty continuation box */
+html[data-theme="light"] .layer-decision-shell .continuation-empty,
+html[data-theme="light"] .layer-decision-shell .empty-state {
+  background: #edf2f7 !important;
+  border-color: #c1cedc !important;
+}
+
+/* Main titles */
+html[data-theme="light"] .layer-decision-shell h1,
+html[data-theme="light"] .layer-decision-shell h2,
+html[data-theme="light"] .layer-decision-shell h3 {
+  color: #17243a !important;
+}
+
+/* Secondary text */
+html[data-theme="light"] .layer-decision-shell p,
+html[data-theme="light"] .layer-decision-shell small,
+html[data-theme="light"] .layer-decision-shell .muted {
+  color: #5f7087 !important;
+}
+
+/* ==========================================
+   LIGHT MODE - ASSESSMENT CONFIG
+   ========================================== */
+
+/* Main assessment panels */
+html[data-theme="light"] .assessment-shell .panel,
+html[data-theme="light"] .assessment-shell .mini-panel,
+html[data-theme="light"] .assessment-shell .assessment-card {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  box-shadow: 0 10px 24px rgba(36, 58, 83, 0.07) !important;
+}
+
+/* Inner cards / configuration boxes */
+html[data-theme="light"] .assessment-shell .tool-toggle,
+html[data-theme="light"] .assessment-shell .config-card,
+html[data-theme="light"] .assessment-shell .target-card,
+html[data-theme="light"] .assessment-shell .scan-assurance-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* Inputs / selects */
+html[data-theme="light"] .assessment-shell input,
+html[data-theme="light"] .assessment-shell select,
+html[data-theme="light"] .assessment-shell textarea {
+  background: #edf2f7 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .assessment-shell input::placeholder,
+html[data-theme="light"] .assessment-shell textarea::placeholder {
+  color: #7a899c !important;
+}
+
+/* Main text */
+html[data-theme="light"] .assessment-shell h1,
+html[data-theme="light"] .assessment-shell h2,
+html[data-theme="light"] .assessment-shell h3,
+html[data-theme="light"] .assessment-shell h4,
+html[data-theme="light"] .assessment-shell strong,
+html[data-theme="light"] .assessment-shell b {
+  color: #17243a !important;
+}
+
+/* Secondary text */
+html[data-theme="light"] .assessment-shell p,
+html[data-theme="light"] .assessment-shell small,
+html[data-theme="light"] .assessment-shell .muted {
+  color: #5f7087 !important;
+}
+
+/* Labels / eyebrows */
+html[data-theme="light"] .assessment-shell .label,
+html[data-theme="light"] .assessment-shell .eyebrow {
+  color: #3478c8 !important;
+}
+
+/* Tables */
+html[data-theme="light"] .assessment-shell table {
+  background: #f3f6fa !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .assessment-shell th {
+  background: #dfe9f4 !important;
+  color: #2469bd !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .assessment-shell td {
+  background: #edf2f7 !important;
+  color: #17243a !important;
+  border-color: #c3cfdd !important;
+}
+
+/* Main buttons */
+html[data-theme="light"] .assessment-shell .btn:not(.ghost) {
+  background: #4f96ed !important;
+  border-color: #4f96ed !important;
+  color: #ffffff !important;
+}
+
+/* Secondary buttons */
+html[data-theme="light"] .assessment-shell .btn.ghost {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .assessment-shell .btn.ghost:hover {
+  background: #e2ebf4 !important;
+}
+
+.assessment-page .navbar-link {
+  color: var(--muted);
+  background: transparent;
+  border-radius: 10px;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.assessment-page .navbar-link:hover {
+  color: var(--text);
+  background: rgba(59, 130, 246, 0.10);
+}
+
+.assessment-page .navbar-link:focus-visible {
+  color: var(--text);
+  background: rgba(59, 130, 246, 0.10);
+  outline: 2px solid rgba(59, 130, 246, 0.35);
+  outline-offset: 2px;
+}
+
+/* ==========================================
+   LIGHT MODE - ASSESSMENT GREY CARD FIXES
+   ========================================== */
+
+/* Retained target cards */
+html[data-theme="light"] .assessment-page .target-checkbox-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* TCP / UDP strategy cards */
+html[data-theme="light"] .assessment-page .port-strategy-card {
+  background: #e8eef5 !important;
+  border-color: #b9c8d8 !important;
+}
+
+/* Port preview boxes */
+html[data-theme="light"] .assessment-page .port-selection-preview {
+  background: #edf2f7 !important;
+  border-color: #c1cedc !important;
+}
+
+/* Host discovery / service identification / advanced settings */
+html[data-theme="light"] .assessment-page .setting-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* Evidence preset cards */
+html[data-theme="light"] .assessment-page .preset-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+/* Collector cards */
+html[data-theme="light"] .assessment-page .collector-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+/* Scan plan review cards */
+html[data-theme="light"] .assessment-page .scan-plan-grid article {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+/* Mapping options */
+html[data-theme="light"] .assessment-page .mapping-option {
+  background: #edf2f7 !important;
+  border-color: #c1cedc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .assessment-page .mapping-option.active {
+  background: #dbe9f8 !important;
+  border-color: #7da9d8 !important;
+}
+
+/* Collector count chips */
+html[data-theme="light"] .assessment-page .collector-plan-counts span {
+  background: #dfe8f2 !important;
+  color: #53657b !important;
+}
+/* ==========================================
+   LIGHT MODE - PHASE 3 STATUS CARDS
+   ========================================== */
+
+html[data-theme="light"] .scanning-shell .status-time-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .scanning-shell .status-time-card span,
+html[data-theme="light"] .scanning-shell .status-time-card small {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .scanning-shell .status-time-card b {
+  color: #17243a !important;
+}
+
+/* ==========================================
+   LIGHT MODE - RESULTS PAGE
+   ========================================== */
+
+/* Top overview cards */
+html[data-theme="light"] .results-page .results-overview .overview-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .overview-card strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .overview-card small,
+html[data-theme="light"] .results-page .overview-label {
+  color: #5f7087 !important;
+}
+
+
+/* Discovery & Assessment Mission outer panel */
+html[data-theme="light"] .results-page .mission-summary-panel,
+html[data-theme="light"] .results-page .recon-settings-panel {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  box-shadow: 0 10px 24px rgba(36, 58, 83, 0.07) !important;
+}
+
+
+/* Mission summary cards */
+html[data-theme="light"] .results-page .mission-summary-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .mission-summary-card strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .mission-summary-card .muted {
+  color: #5f7087 !important;
+}
+
+
+/* Mission card icons */
+html[data-theme="light"] .results-page .mission-card-icon,
+html[data-theme="light"] .results-page .mission-summary-icon {
+  background: #dceafb !important;
+  color: #2469bd !important;
+}
+
+
+/* Effective Recon Settings cards */
+html[data-theme="light"] .results-page .recon-setting-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .recon-setting-card strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .recon-setting-icon {
+  background: #dceafb !important;
+  color: #2469bd !important;
+}
+
+
+/* Mission note */
+html[data-theme="light"] .results-page .mission-summary-note {
+  background: #edf2f7 !important;
+  border-color: #bfd0e1 !important;
+  color: #465a72 !important;
+}
+
+
+/* Mission table */
+html[data-theme="light"] .results-page .mission-summary-table table {
+  background: #f6f8fb !important;
+}
+
+html[data-theme="light"] .results-page .mission-summary-table th {
+  background: #dfe9f4 !important;
+  color: #2469bd !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .results-page .mission-summary-table td {
+  background: #edf2f7 !important;
+  color: #17243a !important;
+  border-color: #c3cfdd !important;
+}
+
+
+/* Assessment workflow strip */
+html[data-theme="light"] .results-page .assessment-flow {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .flow-node {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page .flow-node span {
+  background: #dce5ef !important;
+  border-color: #b6c5d6 !important;
+  color: #496178 !important;
+}
+
+html[data-theme="light"] .results-page .flow-node.complete span {
+  background: #dceafb !important;
+  border-color: #78aee8 !important;
+  color: #2469bd !important;
+}
+
+
+/* Results navigation tabs */
+html[data-theme="light"] .results-page .results-tabs {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .results-tab {
+  color: #5f7087 !important;
+  background: transparent !important;
+}
+
+html[data-theme="light"] .results-page .results-tab:hover {
+  background: #dceafb !important;
+  color: #2469bd !important;
+}
+
+html[data-theme="light"] .results-page .results-tab.is-active {
+  background: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+
+/* Results workspace general panels */
+html[data-theme="light"] .results-page .results-workspace .panel,
+html[data-theme="light"] .results-page .results-workspace .mini-panel {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* Generic text inside results */
+html[data-theme="light"] .results-page h1,
+html[data-theme="light"] .results-page h2,
+html[data-theme="light"] .results-page h3,
+html[data-theme="light"] .results-page h4,
+html[data-theme="light"] .results-page strong,
+html[data-theme="light"] .results-page b {
+  color: #17243a;
+}
+
+html[data-theme="light"] .results-page .muted,
+html[data-theme="light"] .results-page .small {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page .label,
+html[data-theme="light"] .results-page .eyebrow {
+  color: #3478c8 !important;
+}
+
+/* =========================================================
+   LIGHT MODE — ATTACK SURFACE WORKBENCH
+   ========================================================= */
+
+body.light-mode .left-workbench {
+  background: #f8fbff;
+  border-color: #bfd1e5;
+  color: #14233b;
+}
+
+body.light-mode .left-workbench h2,
+body.light-mode .left-workbench h3,
+body.light-mode .left-workbench h4 {
+  color: #14233b;
+}
+
+body.light-mode .left-workbench .muted {
+  color: #617694;
+}
+
+body.light-mode .left-workbench .label {
+  color: #2f78d8;
+}
+
+
+/* Service cards */
+
+body.light-mode .left-workbench .service-card {
+  background: #eaf2fb;
+  border-color: #b9cee4;
+  color: #14233b;
+}
+
+body.light-mode .left-workbench .service-card h4,
+body.light-mode .left-workbench .service-card b,
+body.light-mode .left-workbench .service-card li {
+  color: #14233b;
+}
+
+
+/* Service metadata */
+
+body.light-mode .left-workbench .service-meta {
+  color: #617694;
+}
+
+body.light-mode .left-workbench .service-meta b {
+  color: #14233b;
+}
+
+
+/* Service state */
+
+body.light-mode .left-workbench .service-state {
+  background: #dce9f7;
+  border-color: #b9cee4;
+  color: #2f78d8;
+}
+
+
+/* Pills */
+
+body.light-mode .left-workbench .pill,
+body.light-mode .left-workbench .muted-pill {
+  background: #dce9f7;
+  border-color: #b9cee4;
+  color: #315f94;
+}
+
+
+/* Evidence sections */
+
+body.light-mode .left-workbench .service-block {
+  background: #f5f9fe;
+  border-color: #c6d7e8;
+  color: #14233b;
+}
+
+body.light-mode .left-workbench .service-block b {
+  color: #14233b;
+}
+
+body.light-mode .left-workbench .service-block .muted {
+  color: #617694;
+}
+
+
+/* Expandable service evidence */
+
+body.light-mode .left-workbench .mini-details {
+  background: #f5f9fe;
+  border-color: #c6d7e8;
+  color: #14233b;
+}
+
+body.light-mode .left-workbench .mini-details summary {
+  color: #2f78d8;
+}
+
+body.light-mode .left-workbench .mini-details li {
+  color: #14233b;
+}
+/* =========================================================
+   LIGHT MODE — RECON SNAPSHOT SIDEBAR
+   ========================================================= */
+
+html[data-theme="light"] .results-page .sidebar-summary-panel {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-summary-panel h2 {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-summary-panel .label {
+  color: #3478c8 !important;
+}
+
+
+/* Snapshot metric cards */
+
+html[data-theme="light"] .results-page .sidebar-summary-grid .mini-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-summary-grid .mini-card b {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-summary-grid .mini-card span {
+  color: #5f7087 !important;
+}
+
+
+/* Target / mode / operating system */
+
+html[data-theme="light"] .results-page .sidebar-facts {
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-facts p {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-facts strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .sidebar-facts .label {
+  color: #3478c8 !important;
+}
+/* =========================================================
+   LIGHT MODE — FINDINGS / CVE REVIEW
+   ========================================================= */
+
+/* Main Findings container */
+html[data-theme="light"] .results-page #scan-vuln {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* Inner sections:
+   Data Freshness
+   Correlation Queue
+   Host Identity
+   Platform Identity
+   Coverage & Assurance
+   Collector Coverage
+   Evidence Gaps
+*/
+html[data-theme="light"] .results-page #scan-vuln .mini-panel {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* =========================================================
+   ASSURANCE / SUMMARY CARDS
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln .scan-assurance-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .scan-assurance-card strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .scan-assurance-card .muted {
+  color: #5f7087 !important;
+}
+
+
+/* =========================================================
+   TABLES
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln .table-wrap {
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln table {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln th {
+  background: #dfe9f4 !important;
+  color: #284f7d !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln td {
+  background: #f5f8fb !important;
+  color: #17243a !important;
+  border-color: #d1dbe6 !important;
+}
+
+/* Slight alternating rows */
+html[data-theme="light"] .results-page #scan-vuln tbody tr:nth-child(even) td {
+  background: #edf2f7 !important;
+}
+
+
+/* CVE host separator rows */
+html[data-theme="light"] .results-page #scan-vuln .cve-host-group-row th {
+  background: #d7e5f4 !important;
+  color: #2469bd !important;
+}
+
+
+/* =========================================================
+   INPUTS / FILTERS
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln input,
+html[data-theme="light"] .results-page #scan-vuln select {
+  background: #ffffff !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln input::placeholder {
+  color: #7a899c !important;
+}
+
+
+/* =========================================================
+   CVSS 3.1 / 4.0 / BOTH SWITCH
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln .cvss-view-switch {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .cvss-view-switch button {
+  background: transparent !important;
+  color: #5f7087 !important;
+  border-color: transparent !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .cvss-view-switch button:hover {
+  background: #dceafb !important;
+  color: #2469bd !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .cvss-view-switch button.active {
+  background: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+
+/* =========================================================
+   CVE LINKS
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln a {
+  color: #2469bd;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .cve-link-actions .button {
+  background: #e4ebf3 !important;
+  border-color: #aabed4 !important;
+  color: #2469bd !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .cve-link-actions .button:hover {
+  background: #d7e6f7 !important;
+  border-color: #8eafd2 !important;
+}
+
+
+/* =========================================================
+   CVE ASSURANCE STATE
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln .cve-assurance-state {
+  background: #e9eff6 !important;
+  border-color: #c3cfdd !important;
+  color: #465a72 !important;
+}
+
+
+/* =========================================================
+   DETAILS / EXPANDABLE EVIDENCE
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln details {
+  background: #edf2f7 !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln summary {
+  color: #2469bd !important;
+}
+
+
+/* =========================================================
+   SCAN ASSURANCE FOOTER
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln .scan-assurance-foot {
+  background: #edf2f7 !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* =========================================================
+   TEXT
+   ========================================================= */
+
+html[data-theme="light"] .results-page #scan-vuln h2,
+html[data-theme="light"] .results-page #scan-vuln h3,
+html[data-theme="light"] .results-page #scan-vuln h4,
+html[data-theme="light"] .results-page #scan-vuln strong,
+html[data-theme="light"] .results-page #scan-vuln b {
+  color: #17243a;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .muted {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page #scan-vuln .label {
+  color: #3478c8 !important;
+}
+/* =========================================================
+   LIGHT MODE — AI PLAN / TECHNIQUE SELECTION
+   ========================================================= */
+
+/* Main AI Plan container */
+html[data-theme="light"] .results-page #ai-techniques {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* AI reasoning summary panel */
+html[data-theme="light"] .results-page #ai-techniques .mini-panel {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+
+/* Expandable sections */
+html[data-theme="light"] .results-page #ai-techniques .details-block {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques .details-block > summary {
+  background: #e4ebf3 !important;
+  color: #2469bd !important;
+  border-color: #b7c6d7 !important;
+}
+
+
+/* MITRE reasoning panel */
+html[data-theme="light"] .results-page #ai-techniques .attack-explanation-panel {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+}
+
+
+/* Technique-selection area */
+html[data-theme="light"] .results-page #ai-techniques #attackPlanForm {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+
+/* =========================================================
+   TABLES
+   ========================================================= */
+
+html[data-theme="light"] .results-page #ai-techniques .table-wrap {
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques table {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques th {
+  background: #dfe9f4 !important;
+  color: #284f7d !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques td {
+  background: #f5f8fb !important;
+  color: #17243a !important;
+  border-color: #d1dbe6 !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques tbody tr:nth-child(even) td {
+  background: #edf2f7 !important;
+}
+
+
+/* MITRE links */
+html[data-theme="light"] .results-page #ai-techniques a {
+  color: #2469bd !important;
+}
+
+
+/* Checkbox area */
+html[data-theme="light"] .results-page #ai-techniques input[type="checkbox"] {
+  accent-color: #3478c8;
+}
+
+
+/* Text */
+html[data-theme="light"] .results-page #ai-techniques h2,
+html[data-theme="light"] .results-page #ai-techniques h3,
+html[data-theme="light"] .results-page #ai-techniques strong,
+html[data-theme="light"] .results-page #ai-techniques b,
+html[data-theme="light"] .results-page #ai-techniques li {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques .muted,
+html[data-theme="light"] .results-page #ai-techniques .small {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page #ai-techniques .label {
+  color: #3478c8 !important;
+}
+
+/* =========================================================
+   LIGHT MODE — VALIDATION
+   ========================================================= */
+
+/* Main Validation container */
+html[data-theme="light"] .results-page #exploitability-validation {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* Inner panels */
+html[data-theme="light"] .results-page #exploitability-validation .mini-panel {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+
+/* =========================================================
+   EXPANDABLE SECTIONS
+   ========================================================= */
+
+html[data-theme="light"] .results-page #exploitability-validation .details-block {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation .details-block > summary {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #2469bd !important;
+}
+
+
+/* =========================================================
+   TABLES
+   ========================================================= */
+
+html[data-theme="light"] .results-page #exploitability-validation .table-wrap {
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation table {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation th {
+  background: #dfe9f4 !important;
+  color: #284f7d !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation td {
+  background: #f5f8fb !important;
+  color: #17243a !important;
+  border-color: #d1dbe6 !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation tbody tr:nth-child(even) td {
+  background: #edf2f7 !important;
+}
+
+
+/* =========================================================
+   SMB EXPLOITATION
+   ========================================================= */
+
+html[data-theme="light"] .results-page #smbExploitationSection {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #smbActionsList,
+html[data-theme="light"] .results-page #smbChainProgress {
+  color: #17243a !important;
+}
+
+
+/* BEFORE / AFTER output
+   Overrides inline background:#1a1a1a */
+html[data-theme="light"] .results-page #smbBeforeFiles,
+html[data-theme="light"] .results-page #smbAfterFiles {
+  background: #e8eef5 !important;
+  border: 1px solid #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+
+/* Other SMB output */
+html[data-theme="light"] .results-page #smbFingerprintOutput,
+html[data-theme="light"] .results-page #smbHydraOutput {
+  background: #e8eef5 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+
+/* =========================================================
+   VALIDATION SUMMARY
+   ========================================================= */
+
+html[data-theme="light"] .results-page #validationSummary {
+  background: transparent !important;
+}
+
+html[data-theme="light"] .results-page #validationSummary article {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #validationSummary article strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #validationSummary .label {
+  color: #3478c8 !important;
+}
+
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+html[data-theme="light"] .results-page #exploitability-validation .button.secondary {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation .button.secondary:hover {
+  background: #dceafb !important;
+  border-color: #8eafd2 !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation .button.primary {
+  background: #3478c8 !important;
+  border-color: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+
+/* =========================================================
+   TEXT
+   ========================================================= */
+
+html[data-theme="light"] .results-page #exploitability-validation h2,
+html[data-theme="light"] .results-page #exploitability-validation h3,
+html[data-theme="light"] .results-page #exploitability-validation strong,
+html[data-theme="light"] .results-page #exploitability-validation b {
+  color: #17243a;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation .muted,
+html[data-theme="light"] .results-page #exploitability-validation .small {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page #exploitability-validation .label {
+  color: #3478c8 !important;
+}
+/* =========================================================
+   LIGHT MODE — CONTROLLED WEB VALIDATION
+   ========================================================= */
+
+html[data-theme="light"] .results-page #webValidationPanel {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #webValidationPanel .label {
+  color: #3478c8 !important;
+}
+
+html[data-theme="light"] .results-page #webValidationPanel .muted {
+  color: #5f7087 !important;
+}
+
+
+/* Find Web Validation Actions button */
+html[data-theme="light"] .results-page #webValidationPanel .button.secondary {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .results-page #webValidationPanel .button.secondary:hover {
+  background: #dceafb !important;
+  border-color: #8eafd2 !important;
+  color: #2469bd !important;
+}
+/* =========================================================
+   LIGHT MODE — CALDERA
+   ========================================================= */
+
+/* Main CALDERA section */
+html[data-theme="light"] .results-page #caldera-execution,
+html[data-theme="light"] .results-page #execution-results {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+/* General CALDERA cards */
+html[data-theme="light"] .results-page #caldera-execution .mini-panel,
+html[data-theme="light"] .results-page #caldera-execution .status-card,
+html[data-theme="light"] .results-page #caldera-execution .caldera-info-card,
+html[data-theme="light"] .results-page #caldera-execution .caldera-agent-card {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* CALDERA status banner */
+html[data-theme="light"] .results-page #calderaStatusBox {
+  background: #e8eef5 !important;
+  border-color: #b7c6d7 !important;
+}
+
+/* Target details rows */
+html[data-theme="light"] .results-page .caldera-detail-list > div {
+  background: #edf2f7 !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .caldera-detail-list span {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page .caldera-detail-list strong {
+  color: #17243a !important;
+}
+
+/* Rejection box */
+html[data-theme="light"] .results-page .caldera-rejection-box {
+  background: #f8eaea !important;
+  border-color: #e4b7b7 !important;
+}
+
+html[data-theme="light"] .results-page .caldera-rejection-box span {
+  color: #b84a4a !important;
+}
+
+html[data-theme="light"] .results-page .caldera-rejection-box p {
+  color: #7f3333 !important;
+}
+
+/* Deploy command */
+html[data-theme="light"] .results-page #deployCommandBox {
+  background: #e8eef5 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #deployCommandText {
+  background: #dfe8f2 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* Coverage warning */
+html[data-theme="light"] .results-page #coverageWarningBox {
+  background: #fff6df !important;
+  border-color: #e7c975 !important;
+  color: #6d571f !important;
+}
+
+/* Operation box */
+html[data-theme="light"] .results-page #operationBox {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* Buttons */
+html[data-theme="light"] .results-page #caldera-execution .button.secondary {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .results-page #caldera-execution .button.secondary:hover {
+  background: #dceafb !important;
+  border-color: #8eafd2 !important;
+}
+
+html[data-theme="light"] .results-page #caldera-execution .button:not(.secondary) {
+  background: #3478c8 !important;
+  border-color: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+/* =========================================================
+   EXECUTION SUMMARY
+   ========================================================= */
+
+html[data-theme="light"] .results-page #executionSummary article {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #executionSummary .label {
+  color: #3478c8 !important;
+}
+
+/* Keep semantic result colours */
+html[data-theme="light"] .results-page #successfulTechniques {
+  color: #2f8f57 !important;
+}
+
+html[data-theme="light"] .results-page #failedTechniques {
+  color: #c94c4c !important;
+}
+
+html[data-theme="light"] .results-page #discardedTechniques {
+  color: #c98225 !important;
+}
+
+/* =========================================================
+   EXECUTION RESULTS TABLE
+   ========================================================= */
+
+html[data-theme="light"] .results-page #executionResults {
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .execution-results-table {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .execution-results-table th {
+  background: #dfe9f4 !important;
+  color: #284f7d !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .results-page .execution-results-table td {
+  background: #f5f8fb !important;
+  color: #17243a !important;
+  border-color: #d1dbe6 !important;
+}
+
+html[data-theme="light"] .results-page .execution-results-table tbody tr:nth-child(even) td {
+  background: #edf2f7 !important;
+}
+
+/* Text */
+html[data-theme="light"] .results-page #caldera-execution h2,
+html[data-theme="light"] .results-page #caldera-execution h4,
+html[data-theme="light"] .results-page #execution-results h2,
+html[data-theme="light"] .results-page #caldera-execution strong,
+html[data-theme="light"] .results-page #execution-results strong {
+  color: #17243a;
+}
+
+html[data-theme="light"] .results-page #caldera-execution .muted,
+html[data-theme="light"] .results-page #execution-results .muted {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page #caldera-execution .label,
+html[data-theme="light"] .results-page #execution-results .label {
+  color: #3478c8 !important;
+}
+/* =========================================================
+   LIGHT MODE — AI CHAT CONTENT
+   ========================================================= */
+
+/* Chat message area */
+html[data-theme="light"] .results-page .ai-chat-box {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+}
+
+/* All message bubbles */
+html[data-theme="light"] .results-page .ai-message {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+/* AI message */
+html[data-theme="light"] .results-page .ai-message-assistant {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .results-page .ai-message-assistant strong {
+  color: #3478c8 !important;
+}
+
+html[data-theme="light"] .results-page .ai-message-assistant p {
+  color: #17243a !important;
+}
+
+/* User message, if JS generates this class */
+html[data-theme="light"] .results-page .ai-message-user {
+  background: #dceafb !important;
+  border-color: #a8c8ec !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page .ai-message-user strong {
+  color: #2469bd !important;
+}
+
+/* Input row */
+html[data-theme="light"] .results-page .ai-input-row {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+}
+
+/* Input */
+html[data-theme="light"] .results-page #aiChatInput {
+  background: #edf2f7 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #aiChatInput::placeholder {
+  color: #7a899c !important;
+}
+
+html[data-theme="light"] .results-page #aiChatInput:focus {
+  border-color: #78aee8 !important;
+  box-shadow: 0 0 0 3px rgba(52, 120, 200, 0.12) !important;
+}
+
+/* Ask button */
+html[data-theme="light"] .results-page #aiChatSendBtn {
+  background: #3478c8 !important;
+  border-color: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .results-page #aiChatSendBtn:hover {
+  background: #2f6fb8 !important;
+  border-color: #2f6fb8 !important;
+}
+
+/* Status / intro text */
+html[data-theme="light"] .results-page #ai-assistant .muted {
+  color: #5f7087 !important;
+}
+/* =========================================================
+   LIGHT MODE — AI DRAWER OUTER SHELL
+   ========================================================= */
+
+html[data-theme="light"] .ai-chat-drawer,
+html[data-theme="light"] #aiChatDrawer {
+  background: #f3f6fa !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+  box-shadow: 0 18px 45px rgba(36, 58, 83, 0.16) !important;
+}
+
+
+/* Drawer header */
+html[data-theme="light"] .ai-chat-drawer-head,
+html[data-theme="light"] #aiChatDrawer .ai-chat-drawer-head {
+  background: #f3f6fa !important;
+  border-bottom: 1px solid #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] #aiChatDrawer .ai-chat-drawer-head .label {
+  color: #3478c8 !important;
+}
+
+html[data-theme="light"] #aiChatDrawer .ai-chat-drawer-head h2,
+html[data-theme="light"] #aiChatDrawer .ai-chat-drawer-head strong {
+  color: #17243a !important;
+}
+
+
+/* Main AI content area */
+html[data-theme="light"] #aiChatDrawer .ai-sidebar,
+html[data-theme="light"] #aiChatDrawer .ai-sidebar-inner {
+  background: #f3f6fa !important;
+  color: #17243a !important;
+}
+
+
+/* Intro + unavailable status */
+html[data-theme="light"] #aiChatDrawer .ai-chat-intro,
+html[data-theme="light"] #aiChatDrawer #aiStatusText {
+  color: #5f7087 !important;
+}
+
+
+/* Close button */
+html[data-theme="light"] #aiChatDrawer button[id*="Close"],
+html[data-theme="light"] #aiChatDrawer .ai-chat-close,
+html[data-theme="light"] #aiChatDrawer .drawer-close {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] #aiChatDrawer button[id*="Close"]:hover,
+html[data-theme="light"] #aiChatDrawer .ai-chat-close:hover,
+html[data-theme="light"] #aiChatDrawer .drawer-close:hover {
+  background: #dceafb !important;
+}
+/* =========================================================
+   LIGHT MODE — REPORT
+   ========================================================= */
+
+/* Main report section */
+html[data-theme="light"] .results-page #report {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+
+/* Risk summary cards */
+html[data-theme="light"] .results-page #report .summary-strip article {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #report .summary-strip article strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #report .summary-strip .label {
+  color: #3478c8 !important;
+}
+
+
+/* Generated report output */
+html[data-theme="light"] .results-page #reportBox {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #reportBox p,
+html[data-theme="light"] .results-page #reportBox li,
+html[data-theme="light"] .results-page #reportBox strong,
+html[data-theme="light"] .results-page #reportBox b {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .results-page #reportBox .muted {
+  color: #5f7087 !important;
+}
+
+
+/* Generate Report */
+html[data-theme="light"] .results-page #generateReportBtn {
+  background: #3478c8 !important;
+  border-color: #3478c8 !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .results-page #generateReportBtn:hover {
+  background: #2f6fb8 !important;
+  border-color: #2f6fb8 !important;
+}
+
+
+/* Download buttons */
+html[data-theme="light"] .results-page #downloadReportBtn,
+html[data-theme="light"] .results-page #downloadPdfReportBtn {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .results-page #downloadReportBtn:hover,
+html[data-theme="light"] .results-page #downloadPdfReportBtn:hover {
+  background: #dceafb !important;
+  border-color: #8eafd2 !important;
+}
+
+
+/* Text */
+html[data-theme="light"] .results-page #report h2,
+html[data-theme="light"] .results-page #report strong {
+  color: #17243a;
+}
+
+html[data-theme="light"] .results-page #report > .muted {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .results-page #report .label {
+  color: #3478c8 !important;
+}
+/* ==========================================
+   TECHNICAL APPENDIX - LIGHT MODE
+   ========================================== */
+
+html[data-theme="light"] .appendix-page {
+  color: #17243a !important;
+}
+
+
+/* Main appendix sections */
+html[data-theme="light"] .appendix-page .appendix-box {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+  box-shadow: 0 10px 24px rgba(36, 58, 83, 0.07) !important;
+}
+
+
+/* Headings */
+html[data-theme="light"] .appendix-page .appendix-box h2,
+html[data-theme="light"] .appendix-page .appendix-box h3,
+html[data-theme="light"] .appendix-page .appendix-box strong {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-box .label,
+html[data-theme="light"] .appendix-page .appendix-box-head .label {
+  color: #3478c8 !important;
+}
+
+
+/* Scan metadata cards */
+html[data-theme="light"] .appendix-page .appendix-chip {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-chip strong {
+  color: #17243a !important;
+}
+
+
+/* ==========================================
+   TABLES
+   ========================================== */
+
+html[data-theme="light"] .appendix-page .appendix-table-shell {
+  background: #f8fafc !important;
+  border-color: #c3cfdd !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-table-shell table {
+  background: #f8fafc !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-table-shell th {
+  background: #dfe9f4 !important;
+  color: #2469bd !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-table-shell td {
+  background: #f5f8fb !important;
+  color: #17243a !important;
+  border-color: #cbd7e3 !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-table-shell tbody tr:nth-child(even) td {
+  background: #edf2f7 !important;
+}
+
+html[data-theme="light"] .appendix-page .appendix-table-shell tbody tr:hover td {
+  background: #e4edf7 !important;
+}
+
+
+/* Muted text */
+html[data-theme="light"] .appendix-page .muted,
+html[data-theme="light"] .appendix-page .small {
+  color: #5f7087 !important;
+}
+
+
+/* Code / monospace */
+html[data-theme="light"] .appendix-page code,
+html[data-theme="light"] .appendix-page .mono {
+  color: #294766 !important;
+}
+
+
+/* Buttons */
+html[data-theme="light"] .appendix-page .button.secondary {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .appendix-page .button.secondary:hover {
+  background: #dceafb !important;
+}
+
+
+/* ==========================================
+   EVIDENCE MODAL
+   ========================================== */
+
+html[data-theme="light"] #appendixEvidenceModal .modal-card {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] #appendixEvidenceModal .modal-head {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+}
+
+html[data-theme="light"] #appendixEvidenceModal .modal-head h2,
+html[data-theme="light"] #appendixEvidenceModal .modal-body h3 {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] #appendixEvidenceModal pre {
+  background: #e4ebf3 !important;
+  border-color: #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+html[data-theme="light"] #appendixEvidenceModal .icon-btn {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+/* ==========================================
+   REPORT VIEW - LIGHT MODE
+   ========================================== */
+
+html[data-theme="light"] .report-page {
+  color: #17243a !important;
+}
+
+
+/* Main report card */
+html[data-theme="light"] .report-page #assessment-summary {
+  background: #f3f6fa !important;
+  border-color: #c3cfdd !important;
+  color: #17243a !important;
+  box-shadow: 0 10px 24px rgba(36, 58, 83, 0.07) !important;
+}
+
+
+/* Report heading */
+html[data-theme="light"] .report-page #assessment-summary h2 {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .report-page #assessment-summary .label {
+  color: #3478c8 !important;
+}
+
+
+/* Actual generated report text */
+html[data-theme="light"] .report-page .report-preview {
+  background: #e4ebf3 !important;
+  border: 1px solid #b7c6d7 !important;
+  color: #17243a !important;
+}
+
+
+/* Hero text */
+html[data-theme="light"] .report-page .hero h1 {
+  color: #17243a !important;
+}
+
+html[data-theme="light"] .report-page .hero .muted {
+  color: #5f7087 !important;
+}
+
+html[data-theme="light"] .report-page .hero .eyebrow {
+  color: #3478c8 !important;
+}
+
+
+/* Report action buttons */
+html[data-theme="light"] .report-page .button.secondary {
+  background: #edf2f7 !important;
+  border-color: #9fb7d1 !important;
+  color: #2f6fb8 !important;
+}
+
+html[data-theme="light"] .report-page .button.secondary:hover {
+  background: #dceafb !important;
+  border-color: #8eafd2 !important;
+  color: #2469bd !important;
+}
+
+/* ==========================================
+   OPERATOR ACCESS STATUS
+   ========================================== */
+
+.operator-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 10px;
+  padding: 9px 12px;
+
+  border: 1px solid;
+  border-radius: 8px;
+
+  font-size: 0.82rem;
+  font-weight: 600;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.operator-status-bar i {
+  font-size: 0.9rem;
+}
+
+
+/* Not activated */
+.operator-status-bar.is-idle {
+  background: rgba(148, 163, 184, 0.08);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #94a3b8;
+}
+
+
+/* Checking token */
+.operator-status-bar.is-checking {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+}
+
+.operator-status-bar.is-checking i {
+  animation: operator-spin 0.8s linear infinite;
+}
+
+
+/* Activated */
+.operator-status-bar.is-success {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+}
+
+
+/* Wrong token / blocked */
+.operator-status-bar.is-error {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+
+@keyframes operator-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==========================================
+   LIGHT MODE — OPERATOR STATUS
+   ========================================== */
+
+html[data-theme="light"] .operator-status-bar.is-idle {
+  background: #edf2f7;
+  border-color: #c3cfdd;
+  color: #66788f;
+}
+
+html[data-theme="light"] .operator-status-bar.is-checking {
+  background: #e6f0fb;
+  border-color: #a9c8e9;
+  color: #2f6fb8;
+}
+
+html[data-theme="light"] .operator-status-bar.is-success {
+  background: #e8f5ed;
+  border-color: #add5bc;
+  color: #287a49;
+}
+
+html[data-theme="light"] .operator-status-bar.is-error {
+  background: #faeaea;
+  border-color: #e4b5b5;
+  color: #b33f3f;
+}
+/* ==========================================
+   OPERATOR TOKEN BUTTON
+   ========================================== */
+.operator-unlock-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.operator-unlock-row input {
+  flex: 1;
+}
+
+.operator-unlock-row #operatorUnlockBtn {
+  height: auto;
+  min-height: 46px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

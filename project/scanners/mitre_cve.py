@@ -32,7 +32,6 @@ REPO_DIR = BASE / 'cvelistV5'
 INDEX = BASE / 'official_mitre_cve_index.jsonl'
 OFFICIAL_CVE_REPO = 'https://github.com/CVEProject/cvelistV5.git'
 OFFICIAL_CVE_SOURCE = 'Official CVE List via CVEProject/cvelistV5 (MITRE/CVE Program)'
-MIN_FINGERPRINT_CONFIDENCE = 0.7
 _LOOKUP_BUILD_LOCK = threading.Lock()
 
 
@@ -166,6 +165,23 @@ def _numeric_equivalent(left: str, right: str) -> bool:
     return bool(a and b and a == b)
 
 
+def _narrative_version_value(value: str) -> bool:
+    """Return whether a structured version value is actually narrative prose.
+
+    Older CVE records sometimes place a sentence describing both a protocol
+    component and affected host releases in the ``version`` field.  A numeric
+    token adjacent to the component may still be useful evidence, but it must
+    not be labelled as a clean structured point-version match.
+    """
+    text = str(value or '').strip()
+    if not text:
+        return False
+    words = re.findall(r'[A-Za-z0-9]+', text)
+    if len(words) > 4:
+        return True
+    return bool(re.search(r'\b(?:server|client|running|affected|systems?|versions?|in|on|and|or)\b', text, re.I))
+
+
 def _structured_component_version_match(
     entry: dict[str, Any],
     component: str,
@@ -228,8 +244,17 @@ def _structured_component_version_match(
         point = adjacent.group(1) if adjacent else _first_version(raw)
         if (product_matches or raw_mentions_component) and point and _numeric_equivalent(point, version):
             if status == 'affected':
-                return True, 'structured_affected_component_exact_version'
-            return False, f'structured_component_exact_version:status={status or "unknown"}'
+                return True, (
+                    'prose_affected_component_version_scrape'
+                    if _narrative_version_value(raw)
+                    else 'structured_affected_component_exact_version'
+                )
+            basis = (
+                'prose_component_version_scrape'
+                if _narrative_version_value(raw)
+                else 'structured_component_exact_version'
+            )
+            return False, f'{basis}:status={status or "unknown"}'
 
     if unresolved:
         return False, unresolved[0]
@@ -416,7 +441,7 @@ def status() -> dict[str, Any]:
         'cvss_metadata_warning': 'CVE catalogue is available, but no CVSS 3.1/4.0 metadata is present. Rebuild the CVE catalogue.' if stale_cvss else '',
         'index_file': str(INDEX),
         'repo_dir': str(REPO_DIR),
-        'minimum_fingerprint_confidence': MIN_FINGERPRINT_CONFIDENCE,
+        'rebuild_command': 'python scripts/sync_mitre_cve_database.py',
         'lookup_index_available': lookup_ready,
         'lookup_index_file': str(_lookup_path()),
     }
@@ -1008,12 +1033,15 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '', scop
             'identity_scope': scope,
             'evidence_requirement': (
                 'A concrete observed product/platform version or versioned CPE '
-                'is required for a baseline CVE reference.'
+                'is required for a version-specific Candidate CVE.'
             ),
         },)
 
     matches: list[dict[str, Any]] = []
     malformed_records = 0
+    candidate_records_considered = 0
+    product_or_cpe_candidates = 0
+    version_rejected = 0
     version_missing_seen = False
     held_version_rules: list[dict[str, Any]] = []
     held_cpe_context: list[dict[str, Any]] = []
@@ -1033,11 +1061,13 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '', scop
                     continue
                 if str(rec.get('record_state') or 'PUBLISHED').upper() != 'PUBLISHED':
                     continue
+                candidate_records_considered += 1
 
                 product_ok, product_hits, product_basis = _product_ok_for_record(rec, spec, scope)
                 cpe_ok, cpe_hit = _cpe_match(rec, scoped_cpe_text, scope)
                 if not (cpe_ok or product_ok):
                     continue
+                product_or_cpe_candidates += 1
 
                 cpe_identity_entries = _entries_for_cpe_identity(rec, scoped_cpe_text, scope)
                 candidate_entries = list(cpe_identity_entries) if cpe_ok else []
@@ -1103,6 +1133,7 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '', scop
                             'identity_scope': scope,
                         })
                 if not version_ok:
+                    version_rejected += 1
                     continue
 
                 metrics = copy.deepcopy(rec.get('cvss_metrics') or {})
@@ -1167,6 +1198,16 @@ def _search_cached(product: str, version: str, service: str, cpe: str = '', scop
             seen.add(cve_id)
             dedup.append(row)
     diagnostics: list[dict[str, Any]] = list(record_errors)
+    diagnostics.append({
+        'reason': 'cve_program_candidate_search_summary',
+        'matcher_status': 'available',
+        'identity_scope': scope,
+        'candidate_records_considered': candidate_records_considered,
+        'product_or_cpe_candidates': product_or_cpe_candidates,
+        'version_rejected': version_rejected,
+        'cpe_context_rejected': len({str(item.get('cve_id') or '') for item in held_cpe_context if item.get('cve_id')}),
+        'matched_count': len(dedup),
+    })
     if not obs_version and not dedup and version_missing_seen:
         diagnostics.append({'reason': 'observed_version_missing', 'matcher_status': 'held', 'identity_scope': scope})
     if malformed_records:
@@ -1342,43 +1383,23 @@ def search_with_held(
     recommended_for_cve: bool | None = None,
     scope: str = 'application_service',
     context_cpe: str = '',
+    include_search_summary: bool = False,
 ) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
-    """Correlate observed identity against canonical CVE affected data.
+    """Generate Candidate CVEs from canonical CVE Program affected data.
 
-    Fingerprint confidence is retained as diagnostic metadata only. It cannot
-    manufacture or suppress an applicability result. Keyword-only NVD search is
-    not used as a baseline CVE reference generator because it does not prove affected
-    product/version applicability.
+    Candidate generation has no confidence tier or confidence gate. If a
+    concrete software product/version identity is supplied, structured CVE
+    Program affected data decides whether a Candidate CVE is generated.
+    Evidence provenance remains attached to the identity itself. NVD is not a
+    candidate source; callers may enrich exact Candidate CVE IDs after this
+    function returns.
     """
-    advisory: list[dict[str, Any]] = []
-    if confidence_score is not None or recommended_for_cve is not None:
-        score: float | None = None
-        if confidence_score is not None:
-            try:
-                score = float(confidence_score)
-            except (TypeError, ValueError):
-                score = 0.0
-        low_confidence = score is not None and score < MIN_FINGERPRINT_CONFIDENCE
-        explicitly_not_recommended = (
-            recommended_for_cve is not None
-            and not bool(recommended_for_cve)
-        )
-        if low_confidence or explicitly_not_recommended:
-            advisory.append({
-                'reason': 'fingerprint_confidence_advisory',
-                'matcher_status': 'advisory',
-                'confidence_score': round(score, 2) if score is not None else None,
-                'recommended_for_cve': recommended_for_cve,
-                'effect': 'CVE applicability lookup was not suppressed',
-            })
-
     if not INDEX.exists():
-        # Applicability is owned exclusively by the canonical CVE Program index.
-        # NVD remains optional exact-ID CVSS enrichment after a canonical CVE
-        # reference exists; it must never become a fallback match generator.
+        # Candidate generation depends on the local CVE Program index. NVD
+        # enrichment cannot create a replacement candidate when this source is unavailable.
         return (
             tuple(),
-            tuple(copy.deepcopy(advisory + [{
+            tuple(copy.deepcopy([{
                 'reason': 'cve_index_unavailable',
                 'matcher_status': 'unavailable',
                 'index_file': str(INDEX),
@@ -1386,9 +1407,15 @@ def search_with_held(
         )
 
     matched, diagnostics = _search_cached(product, version, service, cpe, scope)
+    visible_diagnostics = list(diagnostics)
+    if not include_search_summary:
+        visible_diagnostics = [
+            item for item in visible_diagnostics
+            if str(item.get('reason') or '') != 'cve_program_candidate_search_summary'
+        ]
     return (
         tuple(copy.deepcopy(list(matched))),
-        tuple(copy.deepcopy(advisory + list(diagnostics))),
+        tuple(copy.deepcopy(visible_diagnostics)),
     )
 
 
@@ -1404,9 +1431,11 @@ def lookup_by_ids(cve_ids: set[str] | list[str] | tuple[str, ...]) -> tuple[dict
         return tuple()
 
     rows: list[dict[str, Any]] = []
+    id_pattern = re.compile(r'\"cve_id\"\s*:\s*\"(CVE-\d{4}-\d{4,})\"', re.I)
     with INDEX.open("r", encoding="utf-8", errors="ignore") as stream:
         for line in stream:
-            if not any(cve_id in line for cve_id in wanted):
+            id_match = id_pattern.search(line)
+            if not id_match or id_match.group(1).upper() not in wanted:
                 continue
             try:
                 record = json.loads(line)
@@ -1441,6 +1470,125 @@ def lookup_by_ids(cve_ids: set[str] | list[str] | tuple[str, ...]) -> tuple[dict
                 "affected_cpes": record.get("cpes") or [],
             })
     return tuple(rows)
+
+
+def resolve_held_version_candidates_by_ids(
+    product: str,
+    version: str,
+    service: str,
+    cpe: str,
+    allowed_cve_ids: Iterable[str],
+    *,
+    scope: str = 'host_os',
+    resolution_basis: str = 'cve_program_custom_version_resolved_by_external_build_context',
+) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
+    """Resolve only CVE Program records previously held on version semantics.
+
+    ``allowed_cve_ids`` is an external *applicability-context* allow-set (for
+    example, Microsoft build-line evidence).  It cannot introduce a CVE ID
+    that the CVE Program matcher did not already encounter for the observed
+    product identity.  This preserves cvelistV5 as the sole Candidate CVE
+    source while allowing a vendor-specific comparator to resolve a version
+    scheme the generic matcher intentionally refuses to guess.
+    """
+    wanted = {
+        str(value or '').strip().upper()
+        for value in allowed_cve_ids or []
+        if re.fullmatch(r'CVE-\d{4}-\d{4,}', str(value or '').strip().upper())
+    }
+    if not wanted:
+        return tuple(), tuple()
+
+    _existing, search_diagnostics = _search_cached(product, version, service, cpe, scope)
+    held_ids = {
+        str(item.get('cve_id') or '').upper()
+        for item in search_diagnostics
+        if str(item.get('reason') or '') == 'published_version_rule_not_comparable'
+        and str(item.get('cve_id') or '').strip()
+    }
+    eligible_ids = wanted & held_ids
+    if not eligible_ids:
+        return tuple(), ({
+            'reason': 'external_version_context_did_not_intersect_cve_program_holds',
+            'matcher_status': 'held',
+            'requested_cve_count': len(wanted),
+            'cve_program_held_count': len(held_ids),
+            'identity_scope': scope,
+        },)
+
+    scoped_cpe_text = ' '.join(_cpe_values(cpe, scope))
+    ident, spec = _identity(product, service, scoped_cpe_text, scope)
+    if not ident:
+        return tuple(), ({
+            'reason': 'unsupported_product_identity',
+            'matcher_status': 'held',
+            'identity_scope': scope,
+        },)
+
+    resolved: list[dict[str, Any]] = []
+    for canonical in lookup_by_ids(eligible_ids):
+        rec = dict(canonical)
+        rec['cpes'] = list(canonical.get('affected_cpes') or [])
+        product_ok, product_hits, product_basis = _product_ok_for_record(rec, spec, scope)
+        cpe_ok, cpe_hit = _cpe_match(rec, scoped_cpe_text, scope)
+        if not (product_ok or cpe_ok):
+            continue
+        cpe_identity_entries = _entries_for_cpe_identity(rec, scoped_cpe_text, scope)
+        candidate_entries = list(cpe_identity_entries) if cpe_ok else []
+        if not candidate_entries:
+            product_entries = [
+                entry for entry in _affected_entries(rec)
+                if _entry_matches_product(entry, product_hits)
+            ]
+            candidate_entries = [
+                entry for entry in product_entries
+                if not scoped_cpe_text or not (entry.get('cpes') or []) or entry in cpe_identity_entries
+            ]
+        matched_entry: dict[str, Any] | None = None
+        held_reason = ''
+        for entry in candidate_entries:
+            ok, _token, why = _entry_version_match(entry, version)
+            if ok:
+                # The generic matcher would already have emitted this row; do
+                # not duplicate it through the external-resolution path.
+                matched_entry = None
+                held_reason = ''
+                break
+            if (
+                why.startswith('unsupported_or_custom_version_range:')
+                or why.startswith('wildcard_range_requires_')
+                or why.endswith('_unparseable')
+            ):
+                matched_entry = entry
+                held_reason = why
+                break
+        if matched_entry is None or not held_reason:
+            continue
+        row = dict(canonical)
+        row.update({
+            'identity_scope': scope,
+            'matched_product_tokens': product_hits or [ident],
+            'matched_version_tokens': [str(version or '').strip()],
+            'match_basis': resolution_basis,
+            'product_match_basis': _cpe_basis_label(scope) if cpe_ok else product_basis,
+            'matched_affected_entry': copy.deepcopy(matched_entry),
+            'externally_resolved_version_rule': held_reason,
+            'structured_requirements': {
+                'modules': list(matched_entry.get('modules') or []),
+                'platforms': list(matched_entry.get('platforms') or []),
+                'package_name': str(matched_entry.get('packageName') or ''),
+            },
+        })
+        resolved.append(row)
+
+    resolved.sort(key=_sort_key)
+    return tuple(resolved), ({
+        'reason': 'held_version_candidates_resolved_by_external_build_context',
+        'matcher_status': 'available',
+        'resolved_cve_count': len(resolved),
+        'identity_scope': scope,
+        'resolution_basis': resolution_basis,
+    },)
 
 
 def _validated_metric(version: str, data: dict[str, Any], source: str, role: str) -> dict[str, Any]:

@@ -208,7 +208,11 @@ def test_nvd_cvss_enrichment_fills_only_the_missing_version(monkeypatch):
     assert effective['3.1']['cvss_score'] == 7.5  # canonical source preserved
     assert effective['4.0']['cvss_score'] == 8.0  # only missing version filled
     assert rows[0]['nvd_cvss_metrics'] == {'4.0': nvd['4.0']}
+    # PenPilot requests only the supported missing CVSS 4.0 metric here; the
+    # existing CVSS 3.1 source remains untouched and unsupported legacy CVSS versions are not used.
     assert rows[0]['nvd_cvss_enrichment']['requested_versions'] == ['4.0']
+    assert '3.0' not in rows[0]['nvd_cvss_metrics']
+    assert effective['3.1']['cvss_score'] == 7.5
 
 
 def test_secondary_nmap_parser_preserves_udp_open_filtered_state(tmp_path):

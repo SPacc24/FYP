@@ -53,12 +53,14 @@
             <div class="split-row">
                 <div>
                     <label>Target Range</label>
-                    <select id="scanRange" class="input-small">
-                        <option value="10.10.20.0/24">USERS VLAN (10.10.20.0/24)</option>
-                        <option value="10.10.10.0/24">ADMIN VLAN (10.10.10.0/24)</option>
-                        <option value="172.16.0.0/24">External FW (172.16.0.0/24)</option>
-                        <option value="172.16.1.0/24">Internal FW (172.16.1.0/24)</option>
+                    <select id="scanRange" class="input-small" {% if not pivot_networks %}disabled{% endif %}>
+                        {% for network in pivot_networks %}
+                        <option value="{{ network }}">{{ network }}</option>
+                        {% else %}
+                        <option value="">No Phase 2 discovered network is available</option>
+                        {% endfor %}
                     </select>
+                    <p class="muted small">Only exact networks discovered by the active Phase 2 mission are offered here.</p>
                     <label>Ports</label>
                     <input type="text" id="scanPorts" value="21,22,80,445,3389,5985,5986" class="input-small">
                 </div>
@@ -84,7 +86,7 @@
             <div class="split-row">
                 <div>
                     <label>Target IP</label>
-                    <input type="text" id="latTarget" placeholder="10.10.20.x" class="input-small">
+                    <input type="text" id="latTarget" placeholder="Discovered host IP" class="input-small">
                     <label>Technique</label>
                     <select id="latTechnique" class="input-small">
                         <option value="ms17_010">MS17-010 EternalBlue</option>

@@ -218,6 +218,13 @@ def parse_ports(host: ET.Element) -> list[dict[str, Any]]:
                 "ostype": _attr(service, "ostype"),
                 "method": _attr(service, "method"),
                 "confidence": _attr(service, "conf"),
+                "tunnel": _attr(service, "tunnel"),
+                "transport_security": "tls" if _attr(service, "tunnel").lower() in {"ssl", "tls"} else "",
+                "service_attributes": {
+                    "method": _attr(service, "method"),
+                    "conf": _attr(service, "conf"),
+                    "tunnel": _attr(service, "tunnel"),
+                },
                 "cpe": parse_cpe(service),
                 "scripts": parse_scripts(port),
             }

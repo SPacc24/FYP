@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <title>Network Discovery Summary · PenPilot</title>
+  <link rel="stylesheet" href="/static/style.css?v=layered-1">
+</head>
+<body>
+<main class="shell">
+  <header class="topbar"><div><div class="eyebrow">NETWORK DISCOVERY STOPPED</div><h1>Layered Discovery Summary</h1><p class="muted">The operator stopped before Phase 3. No vulnerability assessment was started.</p></div><a class="btn" href="/">New Scan</a></header>
+  {% set segments = workflow.get('segments', {}) %}
+  {% set order = workflow.get('segment_order', []) %}
+  <section class="panel">
+    <div class="scan-assurance-grid">
+      <article class="scan-assurance-card"><span class="label">Entry Target</span><strong class="mono">{{ workflow.get('entry_target', workflow.get('external_target','Unknown')) }}</strong></article>
+      <article class="scan-assurance-card"><span class="label">Visited Layers</span><strong>{{ order|length }}</strong></article>
+      <article class="scan-assurance-card"><span class="label">Assessment</span><strong>Not started</strong></article>
+    </div>
+  </section>
+  <section class="panel"><div class="section-head"><div><span class="label">TRAVERSAL</span><h2>Visited Network Layers</h2></div></div><div class="table-scroll"><table><thead><tr><th>Order</th><th>Network</th><th>Interface</th><th>Source</th><th>Next hop</th><th>Host observations</th></tr></thead><tbody>
+  {% for segment_id in order %}{% set segment = segments.get(segment_id,{}) %}<tr><td>{{ loop.index }}</td><td class="mono">{{ segment.get('network','Unknown') }}</td><td class="mono">{{ segment.get('interface','Unknown') }}</td><td class="mono">{{ segment.get('source_address') or 'Not reported' }}</td><td class="mono">{{ segment.get('next_hop') or 'None observed' }}</td><td>{{ segment.get('hosts',[])|length }}</td></tr>{% else %}<tr><td colspan="6">No layer record retained.</td></tr>{% endfor %}
+  </tbody></table></div></section>
+</main>
+</body>
+</html>

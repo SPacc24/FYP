@@ -26,9 +26,11 @@ class PublishedMetricInconsistencyError(ScoringPolicyError):
 
 
 _SUPPORTED = ("3.1", "4.0")
+_RETAINABLE = _SUPPORTED
 _POLICY = {
     "default_version": "3.1",
     "supported_versions": list(_SUPPORTED),
+    "retainable_versions": list(_RETAINABLE),
     "allow_conversion": False,
     "missing_metric_label": "Not present in CVE Program record",
 }
@@ -47,13 +49,21 @@ def scoring_choices() -> list[dict[str, str]]:
 
 def normalise_cvss_version(value: str | None) -> str:
     version = str(value or _POLICY["default_version"]).strip()
+    if version not in _RETAINABLE:
+        raise ScoringPolicyError(f"Unsupported CVSS version: {version}")
+    return version
+
+
+def normalise_rankable_cvss_version(value: str | None) -> str:
+    """Return a supported CVSS version that may be used to order findings."""
+    version = str(value or _POLICY["default_version"]).strip()
     if version not in _SUPPORTED:
         raise ScoringPolicyError(f"Unsupported CVSS version: {version}")
     return version
 
 
 def cvss_selection(value: str | None) -> dict[str, str]:
-    version = normalise_cvss_version(value)
+    version = normalise_rankable_cvss_version(value)
     return {"version": version, "label": f"CVSS {version}"}
 
 
@@ -175,7 +185,9 @@ def validate_published_metric(version: str, score: Any, severity: Any, vector: A
         "cvss_verified": True,
         "cvss_verification_status": "verified",
         "cvss_verification_method": (
-            "internal_cvss31_formula" if version == "3.1" else "python_cvss4_library"
+            "internal_cvss31_formula" if version == "3.1"
+            else "python_cvss4_library" if version == "4.0"
+            else "none"
         ),
     }
 

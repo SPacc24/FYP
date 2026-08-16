@@ -163,14 +163,14 @@ class OperatorScanCustomizationTests(unittest.TestCase):
         html = (PROJECT_DIR / 'templates' / 'scan_vul.html').read_text(encoding='utf-8')
         self.assertIn('Table 3 — Scan Findings', html)
         self.assertIn('Coverage &amp; Assurance', html)
-        self.assertIn('Observed Security Conditions', html)
+        self.assertNotIn('Configuration / Security Findings', html)
         self.assertIn('CVSS Integrity', html)
         self.assertIn('Selected TCP Scope', html)
         self.assertIn('scanFindingsSearch', html)
         self.assertNotIn('Information Dump', html)
 
     def test_index_contains_requested_operator_controls(self):
-        html = (PROJECT_DIR / 'templates' / 'index.html').read_text(encoding='utf-8')
+        html = (PROJECT_DIR / 'templates' / 'assessment_config.html').read_text(encoding='utf-8')
         for field in (
             'tcp_port_mode', 'tcp_custom_ports', 'udp_port_mode', 'udp_custom_ports',
             'command_timeout_seconds', 'retry_failed_batches', 'retry_count',

@@ -17,14 +17,12 @@ from .acl_mapper import detect_firewall_acl
 from .ssh_crypto_intel import collect_ssh_cryptography
 from .mitre_cve import (
     OFFICIAL_CVE_SOURCE,
-    lookup_by_ids as mitre_lookup_by_ids,
     search_with_held as mitre_search_with_held,
     search_component_candidates as mitre_search_component_candidates,
     status as mitre_status,
 )
 from .nvd_client import (
     lookup_cve_metrics as nvd_lookup_cve_metrics,
-    corroborate_cve_component_context as nvd_corroborate_component_context,
     status as nvd_status,
 )
 from .msrc_client import lookup_cve_remediations as msrc_lookup_cve_remediations, status as msrc_status
@@ -33,8 +31,9 @@ from .windows_patch_inventory import collect_windows_patch_inventory, inventory_
 from .windows_patch_applicability import enrich_windows_patch_states
 from .windows_advisory import (
     status as windows_advisory_status,
+    corroborate_cves_for_observed_windows_context as windows_advisory_corroborate_cves_for_observed_windows_context,
 )
-from .cpe_resolver import resolve as resolve_official_cpes
+from .cpe_utils import parse_cpe
 from .scan_profiles import normalise_scan_options, is_tool_enabled, selected_ports
 from .collector_plan import setting as collector_setting, nse_script_preflight
 from .result_contracts import (
@@ -44,7 +43,6 @@ from .result_contracts import (
     build_selected_plan_readiness,
     derive_result_state,
     execution_lifecycle,
-    raw_packet_socket_readiness,
 )
 from .scoring_policy import cvss_verifier_status, apply_cvss_selection
 from .evidence_recovery import (
@@ -76,6 +74,112 @@ from enumeration import build_enumeration_intelligence, build_operational_maturi
 _CURRENT_SCAN_ID = contextvars.ContextVar('current_scan_id', default='')
 
 logger = logging.getLogger(__name__)
+
+# Phase 3 can contain targets reached only through the operator-established
+# SOCKS pivot. Keep the access map keyed by scan ID because TCP discovery
+# batches run in worker threads where ContextVar values are not inherited.
+_PIVOT_TARGETS_BY_SCAN: dict[str, set[str]] = {}
+_PIVOT_TARGETS_LOCK = threading.Lock()
+
+
+def _register_pivot_targets(scan_id: str, targets: Iterable[str]) -> set[str]:
+    normalised: set[str] = set()
+    for value in targets or []:
+        try:
+            normalised.add(str(ipaddress.ip_address(str(value).strip())))
+        except ValueError:
+            continue
+    with _PIVOT_TARGETS_LOCK:
+        if normalised:
+            _PIVOT_TARGETS_BY_SCAN[str(scan_id)] = normalised
+        else:
+            _PIVOT_TARGETS_BY_SCAN.pop(str(scan_id), None)
+    return normalised
+
+
+def _pivot_targets(scan_id: str) -> set[str]:
+    with _PIVOT_TARGETS_LOCK:
+        return set(_PIVOT_TARGETS_BY_SCAN.get(str(scan_id)) or set())
+
+
+def _clear_pivot_targets(scan_id: str) -> None:
+    with _PIVOT_TARGETS_LOCK:
+        _PIVOT_TARGETS_BY_SCAN.pop(str(scan_id), None)
+
+
+def _command_mentions_target(cmd: list[str], target: str) -> bool:
+    """Match an IP in argv without relying on shell parsing."""
+    pattern = re.compile(rf'(?<![0-9A-Fa-f:.]){re.escape(target)}(?![0-9A-Fa-f:.])')
+    return any(pattern.search(str(arg)) for arg in cmd)
+
+
+def _pivot_wrap_command(scan_id: str, cmd: list[str]) -> tuple[list[str] | None, str]:
+    """Adapt one TCP-capable target command for the established SOCKS pivot.
+
+    Returns ``(None, reason)`` when the collector cannot produce truthful
+    evidence through a TCP SOCKS transport. Direct-target commands are returned
+    unchanged.
+    """
+    targets = _pivot_targets(scan_id)
+    if not targets or not cmd:
+        return cmd, ''
+    matched = {target for target in targets if _command_mentions_target(cmd, target)}
+    if not matched:
+        return cmd, ''
+
+    exe = Path(str(cmd[0])).name.lower()
+    # Local/passive commands can contain target strings in a filter or filename;
+    # they are not data-plane connections and must not be proxy-wrapped.
+    if exe in {'tshark', 'p0f', 'git', 'jq'}:
+        return cmd, ''
+
+    proxychains = which('proxychains4')
+    if not proxychains:
+        return None, 'proxychains4_unavailable_for_pivot_target'
+    try:
+        from pivot.runtime import get_pivot_engine
+        engine = get_pivot_engine()
+        if not engine.is_socks_ready():
+            return None, 'operator_established_socks_pivot_not_ready'
+        config_path = getattr(
+            engine,
+            'proxychains_config_path',
+            str(Path(__file__).resolve().parent.parent / 'proxychains4.conf'),
+        )
+    except Exception:
+        config_path = str(Path(__file__).resolve().parent.parent / 'proxychains4.conf')
+
+    if exe == 'nmap':
+        args = [str(value) for value in cmd]
+        # These evidence types need raw IP/UDP/L2 semantics and cannot be
+        # represented honestly through a TCP SOCKS tunnel.
+        if '-sU' in args:
+            return None, 'udp_scanning_not_supported_through_socks_pivot'
+        if '-O' in args:
+            return None, 'active_os_fingerprinting_not_supported_through_socks_pivot'
+        if '-sn' in args:
+            return None, 'nmap_host_discovery_not_supported_through_socks_pivot'
+        args = [value for value in args if value != '-sS']
+        insert_at = 1
+        if '-Pn' not in args:
+            args.insert(insert_at, '-Pn')
+            insert_at += 1
+        if '-sT' not in args:
+            args.insert(insert_at, '-sT')
+        return [proxychains, '-q', '-f', config_path, *args], ''
+
+    # These tools use ordinary TCP sockets and can be routed by ProxyChains.
+    proxy_compatible = {
+        'curl', 'openssl', 'ssh-audit', 'smbclient', 'smbmap', 'ldapsearch',
+        'rpcinfo', 'showmount', 'pg_isready', 'telnet', 'nc', 'netcat',
+        'enum4linux-ng',
+    }
+    if exe in proxy_compatible:
+        return [proxychains, '-q', '-f', config_path, *[str(value) for value in cmd]], ''
+
+    # Never silently fall back to direct traffic for a target whose retained
+    # Phase 2 access method is pivot-only.
+    return None, f'{exe or "collector"}_not_proxy_compatible'
 
 def _describe_command(cmd: list[str]) -> str:
     if not cmd:
@@ -290,11 +394,52 @@ def _active_command_delay() -> None:
 
 def run_cmd(cmd: list[str], output_file: Path | None = None, timeout: int = 300, tool_writes_file: bool = False) -> dict[str, Any]:
     sid = _CURRENT_SCAN_ID.get()
-    command_text = ' '.join(map(str, cmd))
+    original_cmd = [str(value) for value in cmd]
+    purpose = _describe_command(original_cmd)
+    adapted_cmd, pivot_skip_reason = _pivot_wrap_command(sid, original_cmd) if sid else (original_cmd, '')
+    if adapted_cmd is None:
+        if output_file:
+            try:
+                Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+                if not Path(output_file).exists():
+                    Path(output_file).write_text('', encoding='utf-8')
+            except OSError:
+                pass
+        result = {
+            'success': True,
+            'returncode': 0,
+            'stdout': '',
+            'stderr': '',
+            'error': '',
+            'output_file': str(output_file or ''),
+            'pivot_transport': 'socks_proxy',
+            'pivot_not_applicable': True,
+            'pivot_skip_reason': pivot_skip_reason,
+            'lifecycle_state': 'not_applicable',
+        }
+        if sid:
+            command_text = ' '.join(original_cmd)
+            scan_store.log_command(
+                sid,
+                command=command_text,
+                purpose=purpose,
+                output='',
+                output_summary=f'Not applicable through SOCKS pivot: {pivot_skip_reason}',
+                status='Not Applicable - Pivot Transport',
+                exit_code=0,
+                output_file=str(output_file or ''),
+                output_truncated=False,
+            )
+        return result
+
+    cmd = [str(value) for value in adapted_cmd]
+    command_text = ' '.join(cmd)
     exe = Path(str(cmd[0])).name.lower() if cmd else ''
-    purpose = _describe_command(cmd)
     _active_command_delay()
     result = _run_cmd(cmd, output_file=output_file, timeout=timeout, tool_writes_file=tool_writes_file)
+    if cmd != original_cmd:
+        result['pivot_transport'] = 'socks_proxy'
+        result['pivot_wrapped'] = True
     if not result.get('success'):
         result['lifecycle_state'] = execution_lifecycle(result, False)
     diagnosis = detect_tool_error(
@@ -357,8 +502,9 @@ def _run_cmd_with_retry(
     """Run one discovery command with bounded command-level retries.
 
     This is deliberately separate from Nmap's packet retransmission setting.
-    A retry happens only when the command itself fails/times out, never merely
-    because a port is closed or no open ports were observed.
+    A retry may follow a non-zero command failure, but an already timed-out
+    command is never retried because that simply multiplies the timeout cost.
+    Closed ports or zero open ports are not retry conditions.
     """
     token = _CURRENT_SCAN_ID.set(scan_id)
     try:
@@ -368,6 +514,13 @@ def _run_cmd_with_retry(
             last = run_cmd(cmd, output_file, int(timeout_seconds), True)
             last['attempts'] = attempt
             if last.get('success'):
+                return last
+            if last.get('timed_out'):
+                scan_store.log(
+                    scan_id,
+                    f'Discovery batch timed out on attempt {attempt}/{attempts}; timeout results are not retried.',
+                    'WARN',
+                )
                 return last
             if attempt < attempts:
                 scan_store.log(
@@ -749,8 +902,12 @@ def _collect_passive_local_inventory(
         coverage.append(_coverage('passive_os_fingerprinting', scan_store.STATUS_EMPTY, 'Passive OS fingerprinting disabled', 'Listen-only p0f fingerprinting disabled by policy.', '', {'success': True, 'lifecycle_state': 'disabled_policy'}))
         return result
     collector_plan = (scan_options or {}).get('collector_plan') or {}
+    workflow_context = (scan_options or {}).get('workflow_context') or {}
+    workflow_iface = str(workflow_context.get('route_interface') or '').strip()
     requested_iface = str(collector_setting(collector_plan, 'passive_packet_inventory', 'interface', '') or '').strip()
-    iface = requested_iface or _default_capture_interface()
+    # Phased missions bind interface-dependent collectors to the Phase 1 route.
+    # Legacy/non-phased scans retain the existing explicit/default behaviour.
+    iface = workflow_iface or requested_iface or _default_capture_interface()
     if not iface:
         msg = 'No approved capture interface configured; set AUTOPENTEST_PASSIVE_INTERFACE to enable listen-only passive inventory.'
         if enabled_fn('passive_packet_inventory'):
@@ -1099,7 +1256,7 @@ def _build_exploit_validation_candidates(services: list[dict[str, Any]], cves: l
                 'service': o.get('service'),
                 'evidence': o.get('evidence'),
                 'handoff_stage': 'controlled_validation_candidate',
-                'recon_boundary': 'Baseline reference prepared for downstream classification; recon does not attempt access.',
+                'recon_boundary': 'Candidate CVE input prepared for downstream validation; recon does not attempt access.',
             })
     return candidates
 
@@ -1292,9 +1449,20 @@ def _extract_samba_versions_from_smb(smb_items: list[dict[str, Any]]) -> dict[st
         host = str(item.get('host') or '')
         if not host:
             continue
-        text = '\n'.join(item.get('lines') or [])
+        text_parts: list[str] = []
+        text_parts.extend(str(value) for value in (item.get('lines') or []) if str(value).strip())
+        text_parts.extend(str(value) for value in (item.get('script_evidence') or []) if str(value).strip())
+        for row in item.get('rows') or []:
+            if isinstance(row, dict):
+                for key in ('product', 'version', 'extrainfo', 'fingerprint', 'banner', 'output'):
+                    value = str(row.get(key) or '').strip()
+                    if value:
+                        text_parts.append(value)
+            elif str(row).strip():
+                text_parts.append(str(row))
         if item.get('output_file'):
-            text += '\n' + _read_text(item.get('output_file'))
+            text_parts.append(_read_text(item.get('output_file')))
+        text = '\n'.join(text_parts)
         m = re.search(r'Samba\s+([0-9][A-Za-z0-9._~:+-]+)', text, flags=re.I)
         if m:
             versions[host] = m.group(1).strip(') ,.;')
@@ -1711,6 +1879,42 @@ def _build_observed_security_conditions(
     ]
 
 
+def _direct_windows_identity_contexts(host_identities: list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
+    """Return the strongest directly observed precise Windows identity per host.
+
+    This adapter is deliberately evidence-semantic rather than target-specific:
+    probabilistic fingerprints, service hints, and advisory-resolution metadata
+    never qualify as direct Windows build context.
+    """
+    contexts: dict[str, dict[str, Any]] = {}
+    for identity in host_identities or []:
+        if str(identity.get('scope') or 'host_os') != 'host_os':
+            continue
+        host = str(identity.get('host') or '').strip()
+        product = str(identity.get('product') or identity.get('name') or '').strip()
+        family = str(identity.get('family') or '').strip().lower()
+        vendor = str(identity.get('vendor') or '').strip().lower()
+        build = str(identity.get('build') or identity.get('version') or identity.get('release') or '').strip()
+        kind = str(identity.get('evidence_kind') or '').strip().lower()
+        if not host or not product or not build:
+            continue
+        if family != 'windows' and 'microsoft' not in vendor and 'windows' not in product.lower():
+            continue
+        if kind in {'probabilistic_fingerprint', 'service_os_hint', 'official_product_resolution'} or bool(identity.get('resolution_candidate')):
+            continue
+        authority = int(identity.get('authority_tier') if str(identity.get('authority_tier') or '').isdigit() else 2)
+        if authority > 2:
+            continue
+        if not identity_is_precise_for_cve(identity):
+            continue
+        candidate = dict(identity)
+        candidate['_authority'] = authority
+        current = contexts.get(host)
+        if current is None or (authority, 0 if candidate.get('build') else 1) < (int(current.get('_authority') or 9), 0 if current.get('build') else 1):
+            contexts[host] = candidate
+    return contexts
+
+
 def _observed_version_is_range(value: str) -> bool:
     text = str(value or '').strip()
     if not text:
@@ -1862,6 +2066,7 @@ def _attach_discovery_observed_identities(services: list[dict[str, Any]], discov
                     'service': service_name,
                     'source': 'operator_selected_discovery',
                 })
+                _refresh_transport_security(row)
     return services
 
 
@@ -1884,8 +2089,60 @@ def _identity_context_text(row: dict[str, Any]) -> str:
     return '; '.join(parts)
 
 
+
+def _service_identity_authority(row: dict[str, Any]) -> int:
+    """Rank service identity evidence; lower is stronger."""
+    attrs = row.get('service_attributes') or {}
+    method = str(attrs.get('method') or '').strip().lower()
+    product = str(row.get('product') or '').strip()
+    version = str(row.get('version') or '').strip()
+    service = str(row.get('service') or '').strip().lower()
+    if method == 'probed' and (product or version):
+        return 0
+    if method == 'probed':
+        return 1
+    sources = {str(x).strip().lower() for x in row.get('evidence_sources') or [] if str(x).strip()}
+    if (product or version) and any(token in source for source in sources for token in ('native', 'httpx', 'banner', 'protocol')):
+        return 1
+    if method == 'table':
+        return 4
+    if service in {'', 'unknown', 'unidentified'}:
+        return 5
+    if product or version:
+        return 2
+    return 3
+
+
+def _refresh_transport_security(row: dict[str, Any]) -> dict[str, Any]:
+    """Derive TLS transport from observed evidence, never from a port number."""
+    attrs = row.get('service_attributes') or {}
+    tunnel = str(attrs.get('tunnel') or '').strip().lower()
+    tokens: list[str] = [
+        str(row.get('service') or '').strip().lower(),
+        str(row.get('identity_context') or '').strip().lower(),
+    ]
+    for identity in row.get('observed_identities') or []:
+        tokens.extend([
+            str(identity.get('service') or '').strip().lower(),
+            str(identity.get('product') or '').strip().lower(),
+        ])
+    text = ' '.join(tokens).replace('_', ' ').replace('-', ' ')
+    if tunnel in {'ssl', 'tls'} or re.search(r'(?<![a-z0-9])(https|ssl|tls)(?![a-z0-9])', text):
+        row['transport_security'] = 'tls'
+        row['transport_security_evidence'] = (
+            f'nmap service tunnel={tunnel}' if tunnel in {'ssl', 'tls'}
+            else 'observed HTTPS/TLS service identity'
+        )
+    elif row.get('transport_security') == 'tls':
+        # Never erase stronger evidence established by an earlier merge.
+        pass
+    else:
+        row.setdefault('transport_security', '')
+    return row
+
+
 def _merge_service_identity_rows(base_rows: list[dict[str, Any]], recovery_rows: list[dict[str, Any]], evidence_source: str) -> list[dict[str, Any]]:
-    """Merge a targeted re-probe without overwriting a different identity layer."""
+    """Merge targeted re-probes using evidence authority, not first non-empty text."""
     by_key: dict[tuple[str, int, str], dict[str, Any]] = {}
     for row in base_rows or []:
         try:
@@ -1893,7 +2150,9 @@ def _merge_service_identity_rows(base_rows: list[dict[str, Any]], recovery_rows:
         except (TypeError, ValueError):
             continue
         _append_observed_identity(row, _current_identity(row, 'pre_recovery', 'existing_scan_evidence'))
+        _refresh_transport_security(row)
         by_key[key] = row
+
     for extra in recovery_rows or []:
         try:
             key = (str(extra.get('host') or ''), int(extra.get('port') or 0), str(extra.get('protocol') or 'tcp').lower())
@@ -1901,42 +2160,69 @@ def _merge_service_identity_rows(base_rows: list[dict[str, Any]], recovery_rows:
             continue
         current = by_key.get(key)
         if current is None:
+            _refresh_transport_security(extra)
             base_rows.append(extra)
-            current = extra
-            by_key[key] = current
-        _append_observed_identity(current, _current_identity(extra, 'version_recovery', evidence_source))
+            by_key[key] = extra
+            continue
 
-        current_service = str(current.get('service') or '').strip()
-        recovered_service = str(extra.get('service') or '').strip()
-        if recovered_service and current_service.lower() in {'', 'unknown', 'unidentified'}:
-            current['service'] = recovered_service
+        _append_observed_identity(current, _current_identity(extra, 'version_recovery', evidence_source))
+        current_authority = _service_identity_authority(current)
+        recovered_authority = _service_identity_authority(extra)
+        recovered_is_stronger = recovered_authority < current_authority
 
         current_product = str(current.get('product') or '').strip()
         recovered_product = str(extra.get('product') or '').strip()
         current_version = str(current.get('version') or '').strip()
         recovered_version = str(extra.get('version') or '').strip()
 
-        if recovered_product and not current_product:
-            current['product'] = recovered_product
-            current_product = recovered_product
-        if recovered_version and (not current_version or _observed_version_is_range(current_version)):
-            # Only replace the canonical version when the recovered product is
-            # the same identity (or no product identity existed). Different
-            # product layers are retained in observed_identities instead.
-            if not recovered_product or not current_product or _same_product_identity(current_product, recovered_product):
+        if recovered_is_stronger:
+            recovered_service = str(extra.get('service') or '').strip()
+            if recovered_service:
+                current['service'] = recovered_service
+            if recovered_product:
+                current['product'] = recovered_product
+                current_product = recovered_product
+            if recovered_version:
                 current['version'] = recovered_version
+            if str(extra.get('extra') or extra.get('extrainfo') or '').strip():
+                current['extra'] = extra.get('extra') or extra.get('extrainfo')
+            if extra.get('service_attributes'):
+                merged_attrs = dict(current.get('service_attributes') or {})
+                merged_attrs.update({k: v for k, v in (extra.get('service_attributes') or {}).items() if str(v or '').strip()})
+                current['service_attributes'] = merged_attrs
+        else:
+            recovered_service = str(extra.get('service') or '').strip()
+            if recovered_service and str(current.get('service') or '').strip().lower() in {'', 'unknown', 'unidentified'}:
+                current['service'] = recovered_service
+            if recovered_product and not current_product:
+                current['product'] = recovered_product
+                current_product = recovered_product
+            if recovered_version and (not current_version or _observed_version_is_range(current_version)):
+                if not recovered_product or not current_product or _same_product_identity(current_product, recovered_product):
+                    current['version'] = recovered_version
+            if str(extra.get('extra') or extra.get('extrainfo') or '').strip() and not str(current.get('extra') or current.get('extrainfo') or '').strip():
+                current['extra'] = extra.get('extra') or extra.get('extrainfo')
+            merged_attrs = dict(current.get('service_attributes') or {})
+            for key_name, value in (extra.get('service_attributes') or {}).items():
+                if str(value or '').strip() and not str(merged_attrs.get(key_name) or '').strip():
+                    merged_attrs[key_name] = value
+            if merged_attrs:
+                current['service_attributes'] = merged_attrs
 
-        if str(extra.get('extra') or extra.get('extrainfo') or '').strip() and not str(current.get('extra') or current.get('extrainfo') or '').strip():
-            current['extra'] = extra.get('extra') or extra.get('extrainfo')
-        current['cpe'] = list(dict.fromkeys(list(current.get('cpe') or []) + list(extra.get('cpe') or [])))
+        for cpe_field in ('cpe', 'os_cpe', 'hardware_cpe'):
+            current[cpe_field] = list(dict.fromkeys(list(current.get(cpe_field) or []) + list(extra.get(cpe_field) or [])))
         sources = list(current.get('evidence_sources') or [])
         for source in list(extra.get('evidence_sources') or []) + [evidence_source]:
             if source and source not in sources:
                 sources.append(source)
         current['evidence_sources'] = sources
         if extra.get('scripts'):
-            current['scripts'] = list(current.get('scripts') or []) + [x for x in extra.get('scripts') or [] if x not in (current.get('scripts') or [])]
+            current['scripts'] = list(current.get('scripts') or []) + [
+                item for item in extra.get('scripts') or []
+                if item not in (current.get('scripts') or [])
+            ]
         current['identity_context'] = _identity_context_text(current)
+        _refresh_transport_security(current)
     return base_rows
 
 
@@ -1948,7 +2234,7 @@ def _structured_prerequisite_context(match: dict[str, Any], service: dict[str, A
     published = {'modules': modules, 'platforms': platforms, 'package_name': package_name}
     tokens = modules + platforms + ([package_name] if package_name else [])
     if not tokens:
-        return {'status': 'not_published', 'published': published, 'observed': [], 'note': 'No structured module, platform, or package prerequisite was published in the matched affected entry.'}
+        return {'status': 'not_published', 'published': published, 'observed': [], 'note': 'No machine-readable prerequisite field was available in the matched affected entry. Narrative applicability conditions may still exist.'}
     evidence_text = ' '.join([
         str(service.get('service') or ''), str(service.get('product') or ''), str(service.get('version') or ''),
         str(service.get('extra') or service.get('extrainfo') or ''),
@@ -1960,7 +2246,7 @@ def _structured_prerequisite_context(match: dict[str, Any], service: dict[str, A
         'status': status,
         'published': published,
         'observed': observed,
-        'note': 'Structured prerequisites are reported separately from product/version applicability; absence of evidence is not treated as proof of absence.',
+        'note': 'Structured prerequisites are reported separately from Candidate CVE correlation; absence of evidence is not treated as proof of absence.',
     }
 
 
@@ -1969,8 +2255,11 @@ def _enrich_missing_cvss_from_nvd(rows: list[dict[str, Any]], diagnostics: list[
 
     CVE Program metrics always have precedence. NVD may fill a *missing* 3.1
     and/or 4.0 metric independently, but never overwrites, converts, or treats
-    one CVSS version as a fallback for the other. Applicability is unchanged.
+    one CVSS version as a fallback for the other. Candidate generation and validation state are unchanged.
     """
+    # PenPilot intentionally supports only CVSS 3.1 and CVSS 4.0. Each version
+    # remains independent; neither is converted into or used as a fallback for
+    # the other.
     supported_versions = ('3.1', '4.0')
     cache: dict[str, tuple[dict[str, dict[str, Any]], dict[str, Any]]] = {}
     nvd_unavailable = False
@@ -2036,13 +2325,17 @@ def _enrich_missing_cvss_from_nvd(rows: list[dict[str, Any]], diagnostics: list[
         else:
             enrichment_status = 'no_metric_published'
             enrichment_reason = (
-                'NVD was queried by exact CVE ID but did not publish the missing supported CVSS version(s).'
+                'NVD was queried by exact CVE ID and returned no metric for the requested CVSS '
+                f"version(s) ({', '.join(missing_versions)}). Versions outside this set are not "
+                'requested by this pipeline and their absence here is not evidence that no metric exists.'
             )
         row['nvd_cvss_enrichment'] = {
             'status': enrichment_status,
             'reason': enrichment_reason,
             'versions': sorted(retained_nvd.keys()),
             'requested_versions': missing_versions,
+            'parser_supported_versions': list(supported_versions),
+            'lookup_state': matcher_status or 'available',
         }
         row['effective_cvss_metrics'] = effective
 
@@ -2631,7 +2924,7 @@ def _apply_service_fingerprints(
         output.append(row)
     return output, fingerprints
 
-BASELINE_CVE_REFERENCE = 'Baseline CVE Reference'
+BASELINE_CVE_REFERENCE = 'Candidate CVE'
 RELEVANT_VERSION_INFORMATION = 'Held CVE Matching Diagnostic'
 
 def _normalise_product_name(value: str) -> str:
@@ -2639,24 +2932,21 @@ def _normalise_product_name(value: str) -> str:
 
 
 def _classify_cve_match(service: dict[str, Any], match: dict[str, Any]) -> tuple[str, str]:
-    """Describe a strict, classification-neutral baseline CVE reference.
-
-    Applicability is decided only by CVE Program structured affected data.
-    The scanner does not require or assign a separate CVE status label.
-    """
+    """Verify that a Candidate CVE came from structured CVE Program evidence."""
     if match.get('source') != OFFICIAL_CVE_SOURCE:
         return 'Excluded - Non Official CVE Source', 'CVE source is not the official CVE Program / MITRE CVE List index.'
     matched_products = list(match.get('matched_product_tokens') or [])
     matched_versions = list(match.get('matched_version_tokens') or [])
     basis = str(match.get('match_basis') or '').strip()
     if not matched_products or not matched_versions or not basis:
-        return 'Excluded - Incomplete Baseline Evidence', (
-            'A baseline CVE reference requires a structured product match, a concrete '
-            'matched version, and a retained official applicability basis.'
+        return 'Excluded - Incomplete Candidate Evidence', (
+            'A Candidate CVE requires a structured product match, a concrete '
+            'matched version, and a retained structured CVE Program basis.'
         )
     return BASELINE_CVE_REFERENCE, (
-        'Official structured affected data matched the observed product/platform '
-        'identity and concrete version. No separate CVE status label is assigned.'
+        'CVE Program structured affected data matched the observed or hypothesised '
+        'product/platform identity and concrete version. This is a Candidate CVE only; '
+        'target applicability and exploitability are not validated here.'
     )
 
 
@@ -2669,20 +2959,84 @@ def _cve_finding_type(product: str, cve_id: str, description: str) -> str:
         return 'Command-execution related CVE'
     if 'denial of service' in text or 'crash' in text:
         return 'Availability-impact CVE'
-    return 'Version-linked CVE'
+    return 'Version-linked Candidate CVE'
 def _display_match_reason(match_basis: str, fallback: str = '') -> str:
     return match_basis_registry.display_match_reason(match_basis, fallback)
 
 
+
+def _candidate_evidence_profile(service: dict[str, Any]) -> tuple[str, str]:
+    """Describe why a software identity produced a Candidate CVE.
+
+    Candidate CVEs deliberately have no scanner-side confidence tier. The
+    retained basis/provenance explains the observed or hypothesised software
+    identity that entered structured CVE Program matching. Published CVSS is
+    separate severity metadata, and downstream validation decides target
+    applicability/exploitability.
+    """
+    scope = str(service.get('identity_scope') or 'application_service').strip().lower()
+    kind = str(service.get('identity_kind') or '').strip().lower()
+    evidence_kind = str(service.get('evidence_kind') or '').strip().lower()
+    sources = {
+        str(value).strip()
+        for value in (service.get('evidence_sources') or service.get('sources') or [])
+        if str(value).strip()
+    }
+    attrs = service.get('service_attributes') or {}
+    method = str(attrs.get('method') or '').strip().lower()
+
+    if scope == 'host_os':
+        if evidence_kind == 'probabilistic_fingerprint' or 'nmap_os_identity' in sources:
+            accuracy = service.get('accuracy')
+            suffix = f" (Nmap accuracy {accuracy}%)" if str(accuracy or '').strip() else ''
+            return (
+                'Probabilistic OS fingerprint',
+                'Candidate generated from a probabilistic host-OS fingerprint'
+                + suffix + '; the fingerprint remains a hypothesis until downstream validation.',
+            )
+        return (
+            'Direct host operating-system identity',
+            'Candidate generated from directly observed host operating-system product/version evidence.',
+        )
+
+    if scope == 'platform_component' or kind in {'connector','platform_component','runtime_component','protocol_component'}:
+        return (
+            'Observed platform/protocol component version',
+            'Candidate generated from an observed component product/version; downstream validation must confirm target applicability.',
+        )
+
+    if len(sources) >= 2:
+        return (
+            'Corroborated service product/version',
+            'Candidate generated from a service product/version corroborated by multiple evidence sources.',
+        )
+    if method == 'probed' or sources:
+        return (
+            'Direct service product/version',
+            'Candidate generated from a directly observed service product/version.',
+        )
+    return (
+        'Service product/version observation',
+        'Candidate generated from an observed service product/version.',
+    )
+
+
 def _build_cve_row(service: dict[str, Any], match: dict[str, Any], reference_type: str, reason: str) -> dict[str, Any]:
     observed_port = f"{service.get('port')}/{service.get('protocol')}"
+    basis, evidence_note = _candidate_evidence_profile(service)
     return {
         'host': service.get('host'), 'port': service.get('port'), 'protocol': service.get('protocol'),
         'observed_ports': [observed_port],
         'service': service.get('service'), 'product': service.get('product'), 'version': service.get('version'),
         'cve_id': match.get('cve_id'), 'vulnerability': match.get('description'),
-        'reference_type': reference_type,
-        'match_source': OFFICIAL_CVE_SOURCE,
+        'reference_type': 'Candidate CVE',
+        'candidate_status': 'candidate',
+        'validation_state': 'not_performed',
+        'validation_status': 'not_validated',
+        'candidate_basis': basis,
+        'candidate_evidence_note': evidence_note,
+        'candidate_source': OFFICIAL_CVE_SOURCE,
+        'match_source': match.get('source') or OFFICIAL_CVE_SOURCE,
         'match_reason': reason,
         'display_match_reason': _display_match_reason(str(match.get('match_basis') or ''), reason),
         'identity_kind': service.get('identity_kind') or 'primary_service',
@@ -2707,8 +3061,8 @@ def _build_cve_row(service: dict[str, Any], match: dict[str, Any], reference_typ
         'remediation_direction': _remediation_direction(str(service.get('product','')), str(match.get('cve_id',''))),
         'finding_type': _cve_finding_type(str(service.get('product','')), str(match.get('cve_id','')), str(match.get('description',''))),
         'evidence_sources': service.get('evidence_sources',[]), 'references': match.get('references',[]),
-        'fingerprint_confidence': service.get('confidence_score', 0.0),
         'fingerprint_evidence': (service.get('service_fingerprint') or {}).get('evidence_sources', []),
+        'applicability_state': 'candidate_unvalidated',
         'applicability_context': _structured_prerequisite_context(match, service),
         'applicability_evidence': {
             'affected_host': str(service.get('host') or ''),
@@ -2729,6 +3083,7 @@ def _build_cve_row(service: dict[str, Any], match: dict[str, Any], reference_typ
                 'product_match_basis': str(match.get('product_match_basis') or ''),
             },
         },
+        'validation_boundary': 'Candidate correlation only. Applicability/exploitability is not asserted by recon and must be decided by the downstream validation stage.',
     }
 
 
@@ -2737,6 +3092,13 @@ def _build_host_cve_row(identity: dict[str, Any], match: dict[str, Any]) -> dict
     version = str(identity.get('build') or identity.get('version') or identity.get('release') or '').strip()
     sources = list(identity.get('sources') or [])
     refs = list(identity.get('evidence_references') or [])
+    candidate_service = {
+        **dict(identity),
+        'identity_scope': 'host_os',
+        'identity_kind': 'host_os',
+        'evidence_sources': sources,
+    }
+    basis, evidence_note = _candidate_evidence_profile(candidate_service)
     prerequisite_context = _structured_prerequisite_context(match, {
         'service': 'host operating system',
         'product': product,
@@ -2764,15 +3126,21 @@ def _build_host_cve_row(identity: dict[str, Any], match: dict[str, Any]) -> dict
         'cpe': list(identity.get('cpe') or []),
         'identity_quality': identity.get('quality') or '',
         'match_scope': 'host_os',
-        'affected_asset': 'Host operating system',
+        'affected_asset': 'Host operating system hypothesis' if str(identity.get('evidence_kind') or '') == 'probabilistic_fingerprint' else 'Host operating system',
         'patch_state': 'Not established by unauthenticated reconnaissance',
-        'component_exposure': 'Specific vulnerable component state is not independently asserted unless collector evidence explicitly establishes it.',
+        'component_exposure': 'Specific vulnerable component state is not independently asserted by Candidate CVE correlation.',
         'cve_id': match.get('cve_id'),
         'vulnerability': match.get('description'),
-        'reference_type': BASELINE_CVE_REFERENCE,
-        'match_source': OFFICIAL_CVE_SOURCE,
-        'match_reason': 'Official CVE affected data matched the observed host operating-system identity using structured applicability.',
-        'display_match_reason': _display_match_reason(str(match.get('match_basis') or ''), 'Official affected data matched the observed host operating-system identity.'),
+        'reference_type': 'Candidate CVE',
+        'candidate_status': 'candidate',
+        'validation_state': 'not_performed',
+        'validation_status': 'not_validated',
+        'candidate_basis': basis,
+        'candidate_evidence_note': evidence_note,
+        'candidate_source': OFFICIAL_CVE_SOURCE,
+        'match_source': match.get('source') or OFFICIAL_CVE_SOURCE,
+        'match_reason': 'CVE Program structured affected data matched the observed/hypothesised host-OS product and version.',
+        'display_match_reason': _display_match_reason(str(match.get('match_basis') or ''), 'CVE Program affected data matched the host-OS Candidate CVE input.'),
         'identity_kind': 'host_os',
         'matched_product_tokens': match.get('matched_product_tokens', []),
         'matched_version_tokens': match.get('matched_version_tokens', []),
@@ -2797,8 +3165,8 @@ def _build_host_cve_row(identity: dict[str, Any], match: dict[str, Any]) -> dict
         'evidence_sources': sources,
         'evidence_references': refs,
         'references': match.get('references', []),
-        'fingerprint_confidence': None,
         'fingerprint_evidence': refs,
+        'applicability_state': 'candidate_unvalidated',
         'applicability_context': prerequisite_context,
         'applicability_evidence': {
             'affected_host': str(identity.get('host') or ''),
@@ -2819,13 +3187,60 @@ def _build_host_cve_row(identity: dict[str, Any], match: dict[str, Any]) -> dict
                 'product_match_basis': str(match.get('product_match_basis') or ''),
             },
         },
-        'validation_boundary': 'Recon correlation only; exploitability and exact patch/component state remain downstream validation responsibilities.',
+        'validation_boundary': 'Candidate correlation only. Exact OS identity, patch state, applicability and exploitability remain downstream validation responsibilities.',
     }
 
 
+def _generic_patch_state(raw_value: Any) -> str:
+    """Map evidence wording to a stable generic state without product rules."""
+    text = str(raw_value or '').strip().lower()
+    if not text:
+        return 'unknown'
+    if 'supersed' in text:
+        return 'superseded'
+    if 'not applicable' in text:
+        return 'not_applicable'
+    if any(token in text for token in ('remediation observed', 'installed', 'already patched', 'fixed build observed')):
+        return 'installed'
+    if any(token in text for token in ('applicable update not observed', 'missing update', 'unpatched')):
+        return 'missing'
+    return 'unknown'
+
+
+def _generic_validation_state(row: dict[str, Any]) -> str:
+    raw = str(
+        row.get('validation_state')
+        or row.get('validation_status')
+        or row.get('safe_validation_state')
+        or ''
+    ).strip().lower().replace(' ', '_')
+    allowed = {'validated', 'not_validated', 'not_performed', 'unavailable'}
+    if raw in allowed:
+        return raw
+    if row.get('validated') is True or row.get('validation_evidence'):
+        return 'validated'
+    if row.get('validation_attempted') is True:
+        return 'not_validated'
+    if row.get('validation_available') is False:
+        return 'unavailable'
+    return 'not_performed'
+
+
 def _refresh_cve_display_context(rows: list[dict[str, Any]]) -> None:
-    """Expose assurance context without changing CVE applicability decisions."""
+    """Expose assurance context without changing Candidate CVE generation decisions."""
     for row in rows or []:
+        applicability_state = str(row.get('applicability_state') or 'matched').strip().lower().replace(' ', '_')
+        allowed_applicability_states = {
+            'matched', 'version_match_prerequisite_unknown',
+            'conflicting_authoritative_metadata', 'disputed',
+            'not_applicable', 'insufficient_identity', 'not_established', 'held', 'candidate_unvalidated',
+        }
+        if applicability_state not in allowed_applicability_states:
+            applicability_state = 'not_established'
+        row['applicability_state'] = applicability_state
+        row['patch_state_status'] = _generic_patch_state(row.get('patch_state'))
+        row['validation_state'] = _generic_validation_state(row)
+
         base = str(row.get('display_match_reason') or row.get('match_reason') or row.get('match_basis') or '').strip()
         notes: list[str] = [base] if base else []
         corroboration = row.get('applicability_corroboration') or {}
@@ -2835,6 +3250,17 @@ def _refresh_cve_display_context(rows: list[dict[str, Any]]) -> None:
                 notes.append('Host/platform context was corroborated by the exact-CVE NVD configuration; the CVE Program affected entry supplied the component identity.')
             else:
                 notes.append('Observed component and host/platform context were corroborated by exact-CVE NVD configuration/CPE data.')
+        source_agreement = str(row.get('source_agreement') or '').strip()
+        if source_agreement:
+            notes.append(source_agreement)
+        if applicability_state == 'candidate_unvalidated':
+            notes.append('Candidate only: recon correlation has not established target applicability or exploitability; downstream validation is required.')
+        elif applicability_state == 'conflicting_authoritative_metadata':
+            notes.append('Applicability is held for review because authoritative structured sources disagree; this item is not a strict vulnerability match.')
+        elif applicability_state == 'version_match_prerequisite_unknown':
+            notes.append('The observed product/version is within structured affected data, but required feature/configuration prerequisites were not fully established; this item remains a review candidate.')
+        elif applicability_state == 'disputed':
+            notes.append('The published vulnerability record is disputed; this item remains a review candidate rather than a strict match.')
         patch_state = str(row.get('patch_state') or '').strip()
         if patch_state:
             notes.append(f'Patch state: {patch_state}.')
@@ -2844,7 +3270,10 @@ def _refresh_cve_display_context(rows: list[dict[str, Any]]) -> None:
         applicability = row.get('applicability_evidence')
         if isinstance(applicability, dict):
             applicability['corroboration'] = copy.deepcopy(row.get('applicability_corroboration') or {})
+            applicability['applicability_state'] = row.get('applicability_state')
             applicability['patch_state'] = str(row.get('patch_state') or '')
+            applicability['patch_state_status'] = row.get('patch_state_status')
+            applicability['validation_state'] = row.get('validation_state')
             applicability['kev_listed'] = bool(row.get('kev_listed') is True)
 
 
@@ -2940,6 +3369,182 @@ def _group_cve_matches_by_host(rows: list[dict[str, Any]]) -> dict[str, list[dic
     return dict(sorted(grouped.items(), key=lambda item: item[0]))
 
 
+
+def _build_cve_review_summary(
+    candidate_matches: list[dict[str, Any]],
+    review_candidates: list[dict[str, Any]],
+    diagnostics: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Summarise Candidate CVE generation without implying validation."""
+    rows = review_candidates or candidate_matches or []
+    candidate_ids = {str(row.get('cve_id') or '').upper() for row in rows if row.get('cve_id')}
+    bases: dict[str, set[str]] = {}
+    for row in rows:
+        cve_id = str(row.get('cve_id') or '').upper()
+        if not cve_id:
+            continue
+        basis = str(row.get('candidate_basis') or 'Unclassified evidence')
+        bases.setdefault(basis, set()).add(cve_id)
+
+    identity_keys: set[tuple[str, str, str, str]] = set()
+    for row in rows:
+        applicability = row.get('applicability_evidence') or {}
+        host = str(row.get('host') or (applicability.get('affected_host') if isinstance(applicability, dict) else '') or '').strip()
+        product = str(row.get('product') or (applicability.get('observed_product') if isinstance(applicability, dict) else '') or '').strip().lower()
+        version = str(row.get('version') or (applicability.get('observed_version') if isinstance(applicability, dict) else '') or '').strip().lower()
+        scope = str(row.get('match_scope') or (applicability.get('identity_scope') if isinstance(applicability, dict) else '') or '').strip().lower()
+        if product and version:
+            identity_keys.add((host, product, version, scope))
+    unmatched_software_identities: set[tuple[str, str, str, str]] = set()
+    evaluated_records = 0
+    rejected = 0
+    vendor_resolved = 0
+    source_unavailable = False
+    matcher_degraded = False
+    seen_summary: set[tuple[str, str, str, str, str]] = set()
+    for item in diagnostics or []:
+        product = str(item.get('product') or '').strip().lower()
+        version = str(item.get('version') or item.get('observed_version') or '').strip().lower()
+        scope = str(item.get('identity_scope') or '').strip().lower()
+        host = str(item.get('host') or '').strip()
+        if product and version:
+            identity_keys.add((host, product, version, scope))
+        reason = str(item.get('reason') or '')
+        if reason == 'cve_candidate_coverage_gap':
+            unmatched_software_identities.add((host, product, version, scope))
+        if reason in {'cve_index_unavailable', 'cve_program_index_unavailable'}:
+            source_unavailable = True
+        if str(item.get('matcher_status') or '').lower() in {'error', 'degraded'}:
+            matcher_degraded = True
+        if reason == 'cve_program_candidate_search_summary':
+            signature = (reason, product, version, scope, str(item.get('query') or ''))
+            if signature in seen_summary:
+                continue
+            seen_summary.add(signature)
+            evaluated_records += int(item.get('candidate_records_considered') or 0)
+            rejected += int(item.get('version_rejected') or 0) + int(item.get('cpe_context_rejected') or 0)
+        elif reason == 'held_version_candidates_resolved_by_external_build_context':
+            vendor_resolved += int(item.get('resolved_cve_count') or 0)
+
+    rejected = max(0, rejected - vendor_resolved)
+    generation_state = 'unavailable' if source_unavailable else ('degraded' if matcher_degraded else 'available')
+
+    # CVSS is published severity/triage metadata attached *after* a Candidate
+    # CVE exists. Preserve 3.1 and 4.0 independently and report coverage for
+    # the actual candidate set; neither version is a candidate-confidence tier
+    # and neither can create, reject, promote or validate a candidate.
+    cvss_candidate_ids: dict[str, set[str]] = {'3.1': set(), '4.0': set()}
+    for row in rows:
+        cve_id = str(row.get('cve_id') or '').upper()
+        if not cve_id:
+            continue
+        metrics = row.get('effective_cvss_metrics') or row.get('source_cvss_metrics') or row.get('cvss_metrics') or {}
+        if not isinstance(metrics, dict):
+            continue
+        for version in ('3.1', '4.0'):
+            metric = metrics.get(version)
+            if isinstance(metric, dict) and metric.get('cvss_score') is not None:
+                cvss_candidate_ids[version].add(cve_id)
+
+    cvss_summary = {
+        version: {
+            'published_candidates': len(cvss_candidate_ids[version]),
+            'missing_candidates': max(0, len(candidate_ids) - len(cvss_candidate_ids[version])),
+        }
+        for version in ('3.1', '4.0')
+    }
+    cvss_summary['role'] = (
+        'Published severity/triage metadata only. CVSS is not Candidate CVE confidence, '
+        'does not generate or remove candidates, and does not perform validation.'
+    )
+
+    target_candidate_records = {
+        (
+            str(row.get('host') or ((row.get('applicability_evidence') or {}).get('affected_host') if isinstance(row.get('applicability_evidence'), dict) else '') or '').strip(),
+            str(row.get('cve_id') or '').upper(),
+        )
+        for row in rows
+        if row.get('cve_id')
+    }
+
+    return {
+        'candidate_generation_state': generation_state,
+        'identities_reviewed': len(identity_keys),
+        'candidate_cves_considered': len(candidate_ids),
+        'candidate_cves_retained': len(candidate_ids),
+        'unique_candidate_ids': len(candidate_ids),
+        'target_candidate_records': len(target_candidate_records),
+        'identity_correlations_retained': len(rows),
+        'unvalidated': len(candidate_ids),
+        'candidate_basis': {name: len(ids) for name, ids in sorted(bases.items())},
+        'structured_records_evaluated': evaluated_records,
+        'rejected_during_structured_filtering': rejected,
+        'vendor_version_resolutions': vendor_resolved,
+        'windows_build_context_candidates': len({str(row.get('cve_id') or '').upper() for row in rows if row.get('windows_advisory_context')}),
+        'unmatched_software_identities': len(unmatched_software_identities),
+        'candidate_sources': {OFFICIAL_CVE_SOURCE: len(candidate_ids)},
+        'cvss': cvss_summary,
+        'nvd_role': 'Exact-ID enrichment only; NVD may fill missing published CVSS/metadata but cannot create, reject, promote or suppress Candidate CVEs.',
+        'validation_boundary': 'All rows are unvalidated candidates. Applicability/exploitability is decided by the downstream validation stage.',
+        'state_semantics': {
+            'candidate': 'Evidence-backed CVE correlation requiring downstream validation.',
+            'unavailable': 'Candidate generation could not run because the configured CVE Program index was unavailable.',
+        },
+    }
+
+
+def _build_cve_matcher_audit(diagnostics: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Condense Candidate CVE matcher diagnostics into an audit trail."""
+    keep_reasons = {
+        'cve_program_candidate_search_summary',
+        'cve_candidate_coverage_gap',
+        'affected_cpe_context_not_satisfied',
+        'published_version_rule_not_comparable',
+        'candidate_evidence_incomplete',
+        'cve_index_unavailable',
+        'cve_program_index_unavailable',
+        'windows_release_context_not_observed',
+        'windows_build_context_not_satisfied',
+        'windows_release_context_contradicted',
+        'msrc_windows_build_context',
+        'msrc_windows_build_context_incomplete',
+        'msrc_windows_product_context',
+        'msrc_windows_product_context_incomplete',
+        'msrc_windows_build_product_resolution',
+        'msrc_index_unavailable',
+        'held_version_candidates_resolved_by_external_build_context',
+        'external_version_context_did_not_intersect_cve_program_holds',
+    }
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for item in diagnostics or []:
+        reason = str(item.get('reason') or '')
+        if reason not in keep_reasons and not item.get('cve_id'):
+            continue
+        row = {
+            'host': str(item.get('host') or ''),
+            'endpoint': '/'.join(filter(None, [str(item.get('port') or ''), str(item.get('protocol') or '')])),
+            'product': str(item.get('product') or item.get('component') or ''),
+            'version': str(item.get('version') or item.get('observed_version') or ''),
+            'cve_id': str(item.get('cve_id') or ''),
+            'source_stage': reason,
+            'status': str(item.get('matcher_status') or ''),
+            'decision': str(item.get('detail') or item.get('version_rule_reason') or item.get('effect') or ''),
+            'query_mode': str(item.get('query_mode') or ''),
+            'query': str(item.get('query') or ''),
+            'considered': item.get('candidate_records_considered', ''),
+            'matched': item.get('matched_count', ''),
+            'rejected': int(item.get('version_rejected') or 0) + int(item.get('cpe_context_rejected') or 0),
+        }
+        sig = tuple(row.get(key) for key in ('host','endpoint','product','version','cve_id','source_stage','query','decision'))
+        if sig in seen:
+            continue
+        seen.add(sig)
+        rows.append(row)
+        if len(rows) >= 250:
+            break
+    return rows
+
 def _is_service(s: dict[str, Any], *, ports: set[int] | None = None, terms: set[str] | None = None, products: set[str] | None = None, protocol: str | None = None) -> bool:
     try:
         port = int(s.get('port') or 0)
@@ -3009,19 +3614,97 @@ def _match_cves(
     host_identities: list[dict[str, Any]] | None = None,
     windows_inventories: list[dict[str, Any]] | None = None,
     component_observations: list[dict[str, Any]] | None = None,
+    *,
+    return_review_candidates: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Correlate service and host-OS identities through one scope-aware engine."""
-    strict_matches: list[dict[str, Any]] = []
-    relevant_information: list[dict[str, Any]] = []
-    strict_index: dict[tuple[Any, ...], dict[str, Any]] = {}
-    relevant_index: dict[tuple[Any, ...], dict[str, Any]] = {}
-    inventory_by_host = {
-        str(row.get("host") or ""): row
-        for row in windows_inventories or []
-        if str(row.get("host") or "")
-    }
+    """Generate an evidence-backed *Candidate CVE* queue.
 
-    for base_service in services:
+    Candidate generation is owned exclusively by the local CVE Program
+    (cvelistV5) structured affected-data index. NVD is intentionally absent
+    from this function: it may enrich an already-generated CVE ID later, but it
+    cannot add, reject, promote or suppress Candidate CVEs.
+
+    Downstream validation is a separate stage. Therefore a precise
+    probabilistic OS hypothesis may generate Candidate CVEs while remaining an
+    unresolved OS identity in the recon/reporting layer.
+    """
+    candidates: list[dict[str, Any]] = []
+    index: dict[tuple[Any, ...], dict[str, Any]] = {}
+    direct_windows_by_host = _direct_windows_identity_contexts(host_identities)
+
+    def append_diagnostics(
+        service: dict[str, Any],
+        identity_scope: str,
+        items: Iterable[dict[str, Any]],
+        *,
+        identity_kind: str = '',
+    ) -> None:
+        if diagnostics is None:
+            return
+        for item in items or []:
+            diagnostics.append({
+                'host': service.get('host'), 'port': service.get('port'), 'protocol': service.get('protocol'),
+                'service': service.get('service'), 'product': service.get('product'), 'version': service.get('version'),
+                'identity_kind': identity_kind or service.get('identity_kind') or 'primary_service',
+                'identity_scope': identity_scope,
+                **dict(item),
+            })
+
+    def key_for(service: dict[str, Any], match: dict[str, Any], scope: str) -> tuple[Any, ...]:
+        matched_product = str((match.get('matched_product_tokens') or [service.get('product')])[0] or service.get('product') or '')
+        return (
+            str(service.get('host') or ''),
+            str(match.get('cve_id') or '').upper(),
+            _normalise_product_name(matched_product),
+            str(service.get('version') or '').lower(),
+            str(scope or ''),
+            str(service.get('protocol') or '').lower(),
+        )
+
+    def add_candidate(row: dict[str, Any], service: dict[str, Any], match: dict[str, Any], scope: str) -> None:
+        key = key_for(service, match, scope)
+        if key in index:
+            existing = index[key]
+            if scope == 'host_os':
+                _merge_host_cve_duplicate(existing, service)
+            else:
+                _merge_cve_duplicate(existing, service)
+            existing['candidate_sources'] = sorted(set(existing.get('candidate_sources') or []) | {OFFICIAL_CVE_SOURCE})
+            # Multiple observations may support the same candidate. Preserve all
+            # provenance without grading the candidate into confidence tiers.
+            bases = [
+                str(value).strip()
+                for value in (existing.get('candidate_bases') or [existing.get('candidate_basis')])
+                if str(value or '').strip()
+            ]
+            row_basis = str(row.get('candidate_basis') or '').strip()
+            if row_basis and row_basis not in bases:
+                bases.append(row_basis)
+            existing['candidate_bases'] = bases
+            if bases:
+                existing['candidate_basis'] = bases[0]
+            notes = [
+                str(value).strip()
+                for value in (existing.get('candidate_evidence_notes') or [existing.get('candidate_evidence_note')])
+                if str(value or '').strip()
+            ]
+            row_note = str(row.get('candidate_evidence_note') or '').strip()
+            if row_note and row_note not in notes:
+                notes.append(row_note)
+            existing['candidate_evidence_notes'] = notes
+            if notes:
+                existing['candidate_evidence_note'] = ' '.join(notes)
+            return
+        row['candidate_sources'] = [OFFICIAL_CVE_SOURCE]
+        row['applicability_state'] = 'candidate_unvalidated'
+        row['candidate_status'] = 'candidate'
+        row['validation_state'] = 'not_performed'
+        row['validation_status'] = 'not_validated'
+        index[key] = row
+        candidates.append(row)
+
+    # Service/application and directly observed connector/component identities.
+    for base_service in services or []:
         primary = dict(base_service)
         primary['identity_scope'] = 'application_service'
         variants: list[dict[str, Any]] = [primary]
@@ -3038,8 +3721,8 @@ def _match_cves(
             if not product or not version:
                 continue
             kind = str(identity.get('kind') or 'observed_identity').strip().lower()
-            identity_scope = 'platform_component' if kind in {'connector', 'platform_component', 'runtime_component', 'protocol_component'} else 'application_service'
-            sig = (_identity_text(service_name), _identity_text(product), version.lower(), identity_scope)
+            scope = 'platform_component' if kind in {'connector','platform_component','runtime_component','protocol_component'} else 'application_service'
+            sig = (_identity_text(service_name), _identity_text(product), version.lower(), scope)
             if sig in seen_variants:
                 continue
             seen_variants.add(sig)
@@ -3050,285 +3733,303 @@ def _match_cves(
                 'version': version,
                 'cpe': list(identity.get('cpe') or []),
                 'identity_kind': identity.get('kind') or 'observed_identity',
-                'identity_scope': identity_scope,
-                'identity_sources': identity.get('sources') or [],
+                'identity_scope': scope,
+                'evidence_sources': list(dict.fromkeys(
+                    list(base_service.get('evidence_sources') or [])
+                    + list(identity.get('sources') or ([] if not identity.get('source') else [identity.get('source')]))
+                )),
             })
             variants.append(variant)
 
-        for s in variants:
-            cpe_text = ' '.join(s.get('cpe') or [])
-            product_text = str(s.get('product',''))
-            version_text = str(s.get('version',''))
-            service_text = str(s.get('service',''))
-            effective_confidence = s.get('confidence_score', 0.0)
-            effective_recommended = bool(s.get('recommended_for_cve', False))
-
-            identity_scope = str(s.get('identity_scope') or 'application_service')
-            matches, held_refs = mitre_search_with_held(
-                product_text,
-                version_text,
-                service_text,
+        for service in variants:
+            product = str(service.get('product') or '').strip()
+            version = str(service.get('version') or '').strip()
+            service_name = str(service.get('service') or '').strip()
+            scope = str(service.get('identity_scope') or 'application_service')
+            cpe_text = ' '.join(str(value) for value in service.get('cpe') or [] if str(value).strip())
+            # An exact observed application CPE is itself structured product/version
+            # evidence. Do not discard it merely because the human-readable product
+            # field is blank. The CVE Program matcher remains responsible for
+            # deciding whether the CPE/product/version has an affected-data match.
+            if not cpe_text and not product:
+                continue
+            matches, held = mitre_search_with_held(
+                product,
+                version,
+                service_name,
                 cpe_text,
-                confidence_score=effective_confidence,
-                recommended_for_cve=effective_recommended,
-                scope=identity_scope,
-                context_cpe=' '.join(s.get('os_cpe') or []),
+                scope=scope,
+                context_cpe=' '.join(str(value) for value in service.get('os_cpe') or [] if str(value).strip()),
+                include_search_summary=True,
             )
-            if diagnostics is not None:
-                for held in held_refs:
-                    diagnostics.append({
-                        'host': s.get('host'), 'port': s.get('port'), 'protocol': s.get('protocol'),
-                        'service': s.get('service'), 'product': s.get('product'), 'version': s.get('version'),
-                        'identity_kind': s.get('identity_kind') or 'primary_service', 'identity_scope': identity_scope,
-                        **dict(held),
-                    })
-            for m in matches:
-                if m.get('source') != OFFICIAL_CVE_SOURCE:
+            append_diagnostics(service, scope, held)
+            held_reasons = {str(item.get('reason') or '') for item in held or [] if isinstance(item, dict)}
+            input_gap_reasons = {
+                'observed_version_missing', 'observed_version_is_range',
+                'unsupported_product_identity', 'cve_index_unavailable',
+                'cve_program_index_unavailable',
+            }
+            if diagnostics is not None and not matches and not (held_reasons & input_gap_reasons):
+                diagnostics.append({
+                    'host': service.get('host'), 'port': service.get('port'), 'protocol': service.get('protocol'),
+                    'service': service_name, 'product': product, 'version': version,
+                    'identity_kind': service.get('identity_kind') or 'primary_service',
+                    'identity_scope': scope,
+                    'reason': 'cve_candidate_coverage_gap',
+                    'matcher_status': 'no_candidate',
+                    'detail': 'Observed product/version produced no structured Candidate CVE in the configured CVE Program index.',
+                })
+            for match in matches:
+                if match.get('source') != OFFICIAL_CVE_SOURCE:
                     continue
-                reference_type, reason = _classify_cve_match(s, m)
+                candidate_service = dict(service)
+                if not str(candidate_service.get('product') or '').strip():
+                    candidate_service['product'] = str((match.get('matched_product_tokens') or [''])[0] or '').strip()
+                if not str(candidate_service.get('version') or '').strip():
+                    candidate_service['version'] = str((match.get('matched_version_tokens') or [''])[0] or '').strip()
+                reference_type, reason = _classify_cve_match(candidate_service, match)
                 if reference_type.startswith('Excluded'):
-                    if diagnostics is not None:
-                        diagnostics.append({
-                            'host': s.get('host'), 'port': s.get('port'),
-                            'protocol': s.get('protocol'), 'service': s.get('service'),
-                            'product': s.get('product'), 'version': s.get('version'),
-                            'cve_id': m.get('cve_id'),
-                            'reason': 'baseline_evidence_incomplete',
-                            'matcher_status': 'evidence_gap',
-                            'detail': reason,
-                        })
+                    append_diagnostics(service, scope, [{
+                        'cve_id': match.get('cve_id'),
+                        'reason': 'candidate_evidence_incomplete',
+                        'matcher_status': 'held',
+                        'detail': reason,
+                    }])
                     continue
-                row = _build_cve_row(s, m, reference_type, reason)
-                row['match_scope'] = identity_scope
+                row = _build_cve_row(candidate_service, match, 'Candidate CVE', reason)
+                row['match_scope'] = scope
                 row['affected_asset'] = (
-                    f"Platform component on {s.get('port')}/{s.get('protocol')}"
-                    if identity_scope == 'platform_component'
-                    else f"Service endpoint {s.get('port')}/{s.get('protocol')}"
+                    f"Platform component on {service.get('port')}/{service.get('protocol')}"
+                    if scope == 'platform_component'
+                    else f"Service endpoint {service.get('port')}/{service.get('protocol')}"
                 )
-                # Dedupe aliases of the same canonical affected product/CVE while retaining all observed ports.
-                canonical_product = _normalise_product_name(str((m.get('matched_product_tokens') or [s.get('product')])[0] or s.get('product') or ''))
-                key = (
-                    str(s.get('host') or ''),
-                    str(m.get('cve_id') or ''),
-                    canonical_product,
-                    str(s.get('version') or '').lower(),
-                    str(s.get('protocol') or '').lower(),
-                )
-                if key in strict_index:
-                    _merge_cve_duplicate(strict_index[key], s)
-                else:
-                    strict_index[key] = row
-                    strict_matches.append(row)
+                add_candidate(row, candidate_service, match, scope)
 
-    # Protocol/component CVEs require two independent facts: a component version
-    # directly observed by a protocol collector, and authoritative host/platform
-    # context.  CVE Program affected entries generate candidates; NVD is queried
-    # only by exact canonical CVE ID to corroborate its CPE configuration.
-    host_identity_by_host: dict[str, list[dict[str, Any]]] = {}
+    # Protocol collectors can expose a component/version that is not the
+    # endpoint's primary product. The CVE Program component index may generate
+    # candidates directly; validation will establish whether the host context
+    # actually makes the CVE applicable.
+    host_vendor_by_host: dict[str, str] = {}
     for identity in host_identities or []:
-        host_identity_by_host.setdefault(str(identity.get('host') or ''), []).append(identity)
-    resolved_host_cpe_cache: dict[str, list[str]] = {}
+        host = str(identity.get('host') or '')
+        vendor = str(identity.get('vendor') or '').strip()
+        if host and vendor and host not in host_vendor_by_host:
+            host_vendor_by_host[host] = vendor
 
     for observation in component_observations or []:
         host = str(observation.get('host') or '')
-        component = str(observation.get('component') or '').strip().lower()
-        component_version = str(observation.get('version') or '').strip()
-        if not host or not component or not component_version:
+        component = str(observation.get('component') or '').strip()
+        version = str(observation.get('version') or '').strip()
+        if not host or not component or not version:
             continue
-        identities = host_identity_by_host.get(host) or []
-        vendor = ''
-        if identities:
-            vendor = str(identities[0].get('vendor') or '')
-        candidates, candidate_diagnostics = mitre_search_component_candidates(
+        matches, held = mitre_search_component_candidates(
             component,
-            component_version,
-            host_vendor=vendor,
+            version,
+            host_vendor=host_vendor_by_host.get(host, ''),
         )
-        if diagnostics is not None:
-            diagnostics.extend({
-                'host': host,
-                'port': observation.get('port'),
-                'protocol': observation.get('protocol'),
-                'identity_kind': 'protocol_component',
-                'component': component,
-                'version': component_version,
-                **dict(item),
-            } for item in candidate_diagnostics)
-        if not candidates:
-            continue
+        service = {
+            'host': host,
+            'port': observation.get('port'),
+            'protocol': observation.get('protocol'),
+            'service': observation.get('service') or component,
+            'product': component,
+            'version': version,
+            'identity_kind': 'protocol_component',
+            'identity_scope': 'platform_component',
+            'evidence_sources': list(observation.get('evidence_sources') or []),
+        }
+        append_diagnostics(service, 'platform_component', held, identity_kind='protocol_component')
 
-        if host not in resolved_host_cpe_cache:
-            context_cpes: list[str] = []
-            for identity in identities:
-                context_cpes.extend(str(value) for value in identity.get('cpe') or [] if str(value).strip())
-                product = str(identity.get('product') or identity.get('name') or '').strip()
-                observed_host_version = str(identity.get('build') or identity.get('version') or identity.get('release') or '').strip()
-                if product and observed_host_version and bool(nvd_status().get('enabled')):
-                    resolved, cpe_diagnostics = resolve_official_cpes(
-                        product,
-                        observed_host_version,
-                        part='o',
-                        vendor=str(identity.get('vendor') or ''),
-                    )
-                    context_cpes.extend(resolved)
-                    if diagnostics is not None:
-                        diagnostics.extend({
-                            'host': host,
-                            'asset_scope': 'host',
-                            'identity_kind': 'component_context_resolution',
-                            'observed_version': observed_host_version,
-                            **dict(item),
-                        } for item in cpe_diagnostics)
-            resolved_host_cpe_cache[host] = list(dict.fromkeys(context_cpes))
-        host_cpes = resolved_host_cpe_cache[host]
+        # Narrative Microsoft/Windows component records require directly observed
+        # Windows host context. MSRC may corroborate or positively contradict the
+        # same pre-existing CVE IDs, but missing MSRC/fixed-build context is not a
+        # negative Candidate gate. The advisory lookup is batched and internally
+        # cached so it never scales per matching CVE record.
+        windows_context = direct_windows_by_host.get(host)
+        narrative_microsoft_ids: set[str] = set()
+        for match in matches:
+            matched_entry = match.get('matched_affected_entry') or {}
+            matched_vendor_blob = ' '.join(
+                str(value or '')
+                for value in (
+                    matched_entry.get('vendor') if isinstance(matched_entry, dict) else '',
+                    *(match.get('affected_vendors') or []),
+                    *(match.get('affected_products') or []),
+                )
+            ).lower()
+            if (
+                str(match.get('match_basis') or '') == 'prose_affected_component_version_scrape'
+                and ('microsoft' in matched_vendor_blob or 'windows' in matched_vendor_blob)
+            ):
+                cve_id = str(match.get('cve_id') or '').upper().strip()
+                if cve_id:
+                    narrative_microsoft_ids.add(cve_id)
 
-        for match in candidates:
-            cve_id = str(match.get('cve_id') or '')
-            corroborated, corroboration_basis, corroboration_diagnostic = nvd_corroborate_component_context(
-                cve_id,
-                component,
-                component_version,
-                host_cpes,
+        advisory_by_id: dict[str, dict[str, Any]] = {}
+        if narrative_microsoft_ids and windows_context:
+            advisory_rows, advisory_diagnostics = windows_advisory_corroborate_cves_for_observed_windows_context(
+                str(windows_context.get('product') or windows_context.get('name') or ''),
+                str(windows_context.get('build') or windows_context.get('version') or windows_context.get('release') or ''),
+                sorted(narrative_microsoft_ids),
             )
-            if diagnostics is not None:
-                diagnostics.append({
-                    'host': host,
-                    'port': observation.get('port'),
-                    'protocol': observation.get('protocol'),
-                    'identity_kind': 'protocol_component',
-                    'component': component,
-                    'version': component_version,
-                    **dict(corroboration_diagnostic),
-                })
-            if not corroborated:
-                continue
+            append_diagnostics(service, 'platform_component', advisory_diagnostics, identity_kind='protocol_component')
+            advisory_by_id = {
+                str(item.get('cve_id') or '').upper(): dict(item)
+                for item in advisory_rows
+                if str(item.get('cve_id') or '').strip()
+            }
 
-            service = {
-                'host': host,
-                'port': observation.get('port'),
-                'protocol': observation.get('protocol'),
-                'service': observation.get('service') or component,
-                'product': str((match.get('matched_product_tokens') or [component])[0] or component),
-                'version': component_version,
-                'identity_kind': 'protocol_component',
-                'identity_scope': 'platform_component',
-                'evidence_sources': observation.get('evidence_sources') or [],
-                'confidence_score': 1.0,
-                'recommended_for_cve': True,
-            }
-            match = dict(match)
-            match['applicability_corroboration'] = {
-                'source': 'NVD exact-CVE configuration/CPE data',
-                'basis': corroboration_basis,
-                'mode': str(corroboration_diagnostic.get('corroboration_mode') or ''),
-                'host_cpes': host_cpes,
-            }
-            reference_type, reason = _classify_cve_match(service, match)
-            if reference_type.startswith('Excluded'):
-                continue
-            row = _build_cve_row(service, match, reference_type, reason)
+        for match in matches:
+            effective_match = dict(match)
+            matched_entry = effective_match.get('matched_affected_entry') or {}
+            matched_vendor_blob = ' '.join(
+                str(value or '')
+                for value in (
+                    matched_entry.get('vendor') if isinstance(matched_entry, dict) else '',
+                    *(effective_match.get('affected_vendors') or []),
+                    *(effective_match.get('affected_products') or []),
+                )
+            ).lower()
+            narrative_component_match = str(effective_match.get('match_basis') or '') == 'prose_affected_component_version_scrape'
+            microsoft_windows_context = 'microsoft' in matched_vendor_blob or 'windows' in matched_vendor_blob
+            if narrative_component_match and microsoft_windows_context:
+                if not windows_context:
+                    append_diagnostics(service, 'platform_component', [{
+                        'cve_id': effective_match.get('cve_id'),
+                        'reason': 'windows_release_context_not_observed',
+                        'matcher_status': 'held',
+                        'detail': 'Narrative Microsoft/Windows component affected data was retained for audit but not promoted without directly observed Windows product/build context.',
+                    }], identity_kind='protocol_component')
+                    continue
+                advisory_context = advisory_by_id.get(str(effective_match.get('cve_id') or '').upper())
+                context_state = str((advisory_context or {}).get('context_state') or 'uncorroborated')
+                if context_state == 'contradicted':
+                    append_diagnostics(service, 'platform_component', [{
+                        'cve_id': effective_match.get('cve_id'),
+                        'reason': 'windows_release_context_contradicted',
+                        'matcher_status': 'diagnostic',
+                        'detail': 'Microsoft advisory context conflicts with the directly observed Windows release context. This is retained as diagnostic metadata only and does not add or remove the CVE Program Candidate.',
+                    }], identity_kind='protocol_component')
+                    effective_match['windows_advisory_context_state'] = 'contradicted'
+                if context_state == 'corroborated':
+                    effective_match['match_basis'] = 'prose_component_version_with_windows_product_context'
+                    effective_match['windows_advisory_context'] = advisory_context
+                elif advisory_context:
+                    effective_match['windows_advisory_context_state'] = context_state
+            row = _build_cve_row(
+                service,
+                effective_match,
+                'Candidate CVE',
+                'CVE Program structured component affected data matched an observed protocol/component product and version.',
+            )
+            if effective_match.get('windows_advisory_context'):
+                row['windows_advisory_context'] = copy.deepcopy(effective_match['windows_advisory_context'])
+                row['candidate_evidence_note'] = (
+                    str(row.get('candidate_evidence_note') or '').strip() + ' '
+                    + 'Direct Windows context is corroborated by Microsoft affected-product data for the same Candidate CVE ID; patch/KB state remains unestablished.'
+                ).strip()
+            elif effective_match.get('windows_advisory_context_state'):
+                row['windows_advisory_context_state'] = str(effective_match.get('windows_advisory_context_state'))
             row['match_scope'] = 'platform_component'
-            row['affected_asset'] = f"Protocol component on {service.get('port')}/{service.get('protocol')}"
-            row['applicability_corroboration'] = match['applicability_corroboration']
+            row['affected_asset'] = f"Observed component on {observation.get('port')}/{observation.get('protocol')}"
             row['patch_state'] = 'Not established from unauthenticated protocol evidence'
-            canonical_product = _normalise_product_name(str((match.get('matched_product_tokens') or [component])[0] or component))
-            key = (host, cve_id, canonical_product, component_version.lower(), str(service.get('protocol') or '').lower())
-            if key in strict_index:
-                _merge_cve_duplicate(strict_index[key], service)
-            else:
-                strict_index[key] = row
-                strict_matches.append(row)
+            add_candidate(row, service, effective_match, 'platform_component')
 
-    # Host operating-system identities use the same structured CVE engine but
-    # remain asset-scoped rather than being attached to an arbitrary port.
+    # Host operating-system candidates. The caller supplies only identities
+    # marked candidate_eligible by platform_identity.py.
     for identity in host_identities or []:
         if str(identity.get('scope') or 'host_os') != 'host_os':
             continue
-        # Advisory-resolution candidates are never observations.  Keep this
-        # guard even though reconciliation already excludes them so stale or
-        # externally supplied scan state cannot turn remediation metadata into
-        # CVE applicability.
-        if bool(identity.get('resolution_candidate')) or str(identity.get('evidence_kind') or '') == 'official_product_resolution':
+        if 'candidate_eligible' in identity and not bool(identity.get('candidate_eligible')):
+            continue
+        if bool(identity.get('resolution_candidate')) or str(identity.get('evidence_kind') or '') in {'official_product_resolution','service_os_hint'}:
             if diagnostics is not None:
                 diagnostics.append({
                     'host': identity.get('host'), 'port': 'host', 'protocol': 'host',
                     'service': 'Host Operating System',
                     'product': identity.get('product') or identity.get('name'),
                     'version': identity.get('build') or identity.get('version') or identity.get('release'),
-                    'identity_kind': identity.get('evidence_kind') or 'official_product_resolution',
-                    'identity_scope': 'host_os',
-                    'reason': 'advisory_identity_not_observed',
-                    'matcher_status': 'held',
-                    'detail': 'Advisory/remediation product candidates are not accepted as observed host identity for CVE applicability.',
+                    'identity_kind': 'host_os', 'identity_scope': 'host_os',
+                    'reason': 'advisory_identity_not_observed', 'matcher_status': 'held',
+                    'detail': 'Advisory/service-level identity context was not observed as an authoritative host OS and was not used to generate a Candidate CVE.',
                 })
             continue
         product = str(identity.get('product') or identity.get('name') or identity.get('family') or '').strip()
-        observed_version = str(identity.get('build') or identity.get('version') or identity.get('release') or '').strip()
-        identity_cpes = list(identity.get('cpe') or [])
-        if (
-            not identity_cpes
-            and product
-            and observed_version
-            and os.getenv("NVD_CPE_RESOLUTION_ENABLED", "0").strip().lower()
-            in {"1", "true", "yes", "on"}
-        ):
-            resolved_cpes, cpe_diagnostics = resolve_official_cpes(
-                product,
-                observed_version,
-                part="o",
-            )
-            identity_cpes.extend(resolved_cpes)
-            if diagnostics is not None:
-                diagnostics.extend({
-                    "host": identity.get("host"),
-                    "asset_scope": "host",
-                    "observed_version": observed_version,
-                    **dict(item),
-                } for item in cpe_diagnostics)
-        if identity_cpes:
-            identity["cpe"] = list(dict.fromkeys(identity_cpes))
-        cpe_text = ' '.join(identity_cpes)
-        if not (product or cpe_text):
+        version = str(identity.get('build') or identity.get('version') or identity.get('release') or '').strip()
+        if not product or not version:
             continue
-        matches, held_refs = mitre_search_with_held(
+        cpe_text = ' '.join(str(value) for value in identity.get('cpe') or [] if str(value).strip())
+        matches, held = mitre_search_with_held(
             product,
-            observed_version,
+            version,
             'host operating system',
             cpe_text,
             scope='host_os',
-            confidence_score=None,
-            recommended_for_cve=True,
+            include_search_summary=True,
         )
-        if diagnostics is not None:
-            for held in held_refs:
-                diagnostics.append({
-                    'host': identity.get('host'), 'port': 'host', 'protocol': 'host',
-                    'service': 'Host Operating System', 'product': product, 'version': observed_version,
-                    'identity_kind': 'host_os', 'identity_scope': 'host_os', **dict(held),
-                })
-        for m in matches:
-            if m.get('source') != OFFICIAL_CVE_SOURCE:
-                continue
-            canonical_product = _normalise_product_name(str((m.get('matched_product_tokens') or [product])[0] or product))
-            row = _build_host_cve_row(identity, m)
-            key = (
-                str(identity.get('host') or ''),
-                str(m.get('cve_id') or ''),
-                canonical_product,
-                'host_os',
+        service = {
+            **dict(identity),
+            'host': identity.get('host'),
+            'port': 'host',
+            'protocol': 'host',
+            'service': 'Host Operating System',
+            'product': product,
+            'version': version,
+            'identity_scope': 'host_os',
+            'identity_kind': 'host_os',
+            'evidence_sources': list(identity.get('sources') or []),
+        }
+        append_diagnostics(service, 'host_os', held, identity_kind='host_os')
+        effective_matches = list(matches)
+        direct_windows_context = direct_windows_by_host.get(str(identity.get('host') or ''))
+        advisory_context_by_id: dict[str, dict[str, Any]] = {}
+        # Microsoft advisory data is enrichment/corroboration only. It receives
+        # only CVE IDs already generated by the CVE Program matcher and cannot
+        # promote held/custom-version records into Candidate CVEs.
+        existing_candidate_ids = {
+            str(item.get('cve_id') or '').upper()
+            for item in effective_matches
+            if str(item.get('cve_id') or '').strip()
+        }
+        if direct_windows_context and existing_candidate_ids:
+            advisory_rows, advisory_diagnostics = windows_advisory_corroborate_cves_for_observed_windows_context(
+                str(direct_windows_context.get('product') or direct_windows_context.get('name') or product),
+                str(direct_windows_context.get('build') or direct_windows_context.get('version') or direct_windows_context.get('release') or version),
+                existing_candidate_ids,
             )
-            if key in strict_index:
-                _merge_host_cve_duplicate(strict_index[key], identity)
+            append_diagnostics(service, 'host_os', advisory_diagnostics, identity_kind='host_os')
+            advisory_context_by_id = {
+                str(item.get('cve_id') or '').upper(): dict(item)
+                for item in advisory_rows
+                if str(item.get('cve_id') or '').strip()
+            }
+        seen_match_ids_basis: set[tuple[str, str]] = set()
+        for match in effective_matches:
+            signature = (str(match.get('cve_id') or '').upper(), str(match.get('match_basis') or ''))
+            if signature in seen_match_ids_basis:
                 continue
-            strict_index[key] = row
-            strict_matches.append(row)
+            seen_match_ids_basis.add(signature)
+            row = _build_host_cve_row(identity, match)
+            advisory_context = advisory_context_by_id.get(str(match.get('cve_id') or '').upper())
+            if advisory_context:
+                row['windows_advisory_context_state'] = str(advisory_context.get('context_state') or 'uncorroborated')
+                if str(advisory_context.get('context_state') or '') == 'corroborated':
+                    row['windows_advisory_context'] = copy.deepcopy(advisory_context)
+                    row['candidate_evidence_note'] = (
+                        str(row.get('candidate_evidence_note') or '').strip() + ' '
+                        + 'Microsoft advisory affected-product context corroborates this already-generated CVE Program Candidate; it did not create or remove the Candidate.'
+                    ).strip()
+            add_candidate(row, service, match, 'host_os')
 
-        # MSRC remediation intelligence is intentionally not consulted here.
-        # It may enrich patch/remediation state only after a canonical CVE
-        # reference already exists (see the post-match enrichment stage).
-
-
-    return strict_matches, relevant_information
+    candidates.sort(key=lambda row: (
+        str(row.get('host') or ''),
+        str(row.get('cve_id') or ''),
+        str(row.get('product') or ''),
+        str(row.get('version') or ''),
+        str(row.get('protocol') or ''),
+    ))
+    review = list(candidates) if return_review_candidates else []
+    return candidates, review
 
 
 def _canonicalise_downstream_mapping(
@@ -4135,7 +4836,10 @@ def _collector_service_applicable(plan_entry: dict[str, Any], service: dict[str,
     families = [str(x).lower() for x in plan_entry.get('families') or [] if str(x).strip()]
     if not families:
         return True
-    text = ' '.join(str(service.get(k) or '') for k in ('service','product','extrainfo','identity_context')).lower().replace('_',' ').replace('-',' ')
+    transport_security = str(service.get('transport_security') or '').strip().lower()
+    if transport_security == 'tls' and any(family in {'tls', 'https'} for family in families):
+        return True
+    text = ' '.join(str(service.get(k) or '') for k in ('service','product','extrainfo','identity_context','transport_security')).lower().replace('_',' ').replace('-',' ')
     text = re.sub(r'\s+', ' ', text).strip()
     aliases = {
         'http': ('http','web','tomcat','apache coyote'), 'https': ('https','ssl','tls'), 'tls': ('tls','ssl','https'),
@@ -4501,21 +5205,41 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
     )
     if incoming_options.get('technique_mode'):
         scan_options['technique_mode'] = incoming_options.get('technique_mode')
+    workflow_context = incoming_options.get('workflow_context') or {}
+    if isinstance(workflow_context, dict) and workflow_context:
+        scan_options['workflow_context'] = dict(workflow_context)
+    pivot_assessment_targets = _register_pivot_targets(
+        scan_id,
+        (scan_options.get('workflow_context') or {}).get('pivot_targets') or [],
+    )
+    if pivot_assessment_targets:
+        scan_options['workflow_context']['pivot_transport'] = {
+            'type': 'socks_proxy',
+            'targets': sorted(pivot_assessment_targets),
+            'tcp_connect_only': True,
+            'raw_ip_udp_l2_not_applicable': True,
+        }
     scan_store.update(scan_id, scan_options=scan_options)
     if scan_options.get('validation_errors'):
         message = '; '.join(scan_options.get('validation_errors') or [])
         scan_store.log(scan_id, f'Scan settings rejected before target interaction: {message}', 'ERROR')
         scan_store.update(scan_id, status=scan_store.STATUS_FAILED, error=message, completed_at=scan_store.now())
         scan_store.persist(scan_id)
+        _clear_pivot_targets(scan_id)
         return
     def enabled(tool_id: str) -> bool:
         return is_tool_enabled(scan_options, tool_id)
-    scan_store.init_tasks(scan_id, TASKS)
+    existing_tasks = (scan_store.get(scan_id) or {}).get('tasks') or []
+    if existing_tasks:
+        scan_store.append_tasks(scan_id, TASKS, phase='assessment')
+    else:
+        scan_store.init_tasks(scan_id, TASKS, phase='assessment')
     if scan_options.get('policy_status') != 'loaded':
         message = f"Recon policy is {scan_options.get('policy_status')}; scan stopped before target interaction."
         scan_store.log(scan_id, message, 'ERROR')
         scan_store.update(scan_id, status=scan_store.STATUS_FAILED, error=message, completed_at=scan_store.now())
         scan_store.persist(scan_id)
+        _clear_pivot_targets(scan_id)
         return
     if scan_options.get('policy_conflicts'):
         scan_store.log(
@@ -4553,6 +5277,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             completed_at=scan_store.now(),
         )
         scan_store.persist(scan_id)
+        _clear_pivot_targets(scan_id)
         return
     coverage=[]; raw=[]; observations=[]; web=[]; smb=[]; services=[]; udp_services=[]; udp_discovery_rows=[]; evidence_recovery_history=[]; service_level_checks=[]; environment_intelligence=[]; environment_context_indicators=[]; selected_objectives=[]; evidence_gaps=[]; scope_validation={}; enterprise_review_policy={}; passive_intelligence={}; modern_active_validation={}
     windows_patch_inventories: list[dict[str, Any]] = []
@@ -4634,6 +5359,8 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         # 1
         task='Target Preparation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         targets=expand_target_input(target_input, Config.MAX_EXPANDED_TARGETS)
+        pivot_targets_current = _pivot_targets(scan_id).intersection(targets)
+        direct_targets_current = [host for host in targets if host not in pivot_targets_current]
         engagement_policy = load_engagement_policy()
         enterprise_review_policy = load_enterprise_review_policy()
         scope_validation = validate_scope(targets, target_input, engagement_policy)
@@ -4654,10 +5381,26 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         host_requested = host_discovery_cfg.get('requested') or {}
         host_effective = host_discovery_cfg.get('effective') or {}
         host_policy_blocked = set(host_discovery_cfg.get('policy_blocked') or [])
-        host_reachability_observed: set[str] = set()
+        # A pivot-only target was already observed during the operator-controlled
+        # Phase 2 SOCKS enumeration. Retain that reachability evidence here rather
+        # than attempting ICMP/L2/raw-IP probes that the SOCKS transport cannot carry.
+        host_reachability_observed: set[str] = set(pivot_targets_current)
 
         task='Environment Characterisation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         for host in targets:
+            if host in pivot_targets_current:
+                reason = f'{host}: retained Phase 2 SOCKS discovery evidence; this collector requires direct/raw-IP semantics and is not applicable through the pivot.'
+                coverage.append(_coverage('ping', scan_store.STATUS_EMPTY, 'ICMP echo reachability and TTL evidence', reason, '', {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'}))
+                coverage.append(_coverage('dig', scan_store.STATUS_EMPTY, 'Reverse DNS / PTR evidence', reason, '', {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'}))
+                coverage.append(_coverage('route_trace', scan_store.STATUS_EMPTY, 'Bounded route-path evidence', reason, '', {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'}))
+                environment_intelligence.append({
+                    'host': host,
+                    'type': 'pivot_reachability',
+                    'network_layer': _classify_network_layer(host),
+                    'access_transport': 'socks_proxy',
+                    'evidence_source': 'retained_phase2_discovery',
+                })
+                continue
             # ICMP echo is evidence only. Service discovery may still use -Pn,
             # therefore ICMP failure never suppresses an authorised target.
             if host_effective.get('icmp_echo'):
@@ -4726,37 +5469,57 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         task='Host Availability Check'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         live=[]
         live_set: set[str] = set(host_reachability_observed)
+        workflow_context = scan_options.get('workflow_context') or {}
+        workflow_interface = str(workflow_context.get('route_interface') or '').strip()
 
         if host_effective.get('arp_discovery'):
-            if not private_all:
-                coverage.append(_coverage('arp-scan', scan_store.STATUS_EMPTY, 'Scoped ARP reachability evidence', 'ARP discovery is only applicable to local/private targets.', '', {'success': True, 'lifecycle_state': 'not_applicable'}))
-            else:
+            for host in sorted(pivot_targets_current):
+                coverage.append(_coverage(
+                    'arp-scan',
+                    scan_store.STATUS_EMPTY,
+                    'Scoped ARP reachability evidence',
+                    f'{host}: ARP/L2 discovery is not applicable through the established SOCKS pivot; retained Phase 2 discovery evidence is used instead.',
+                    '',
+                    {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'},
+                ))
+            arp_targets = [host for host in direct_targets_current if is_private_ip(host)]
+            nonlocal_direct_targets = [host for host in direct_targets_current if host not in arp_targets]
+            if nonlocal_direct_targets:
+                coverage.append(_coverage(
+                    'arp-scan',
+                    scan_store.STATUS_EMPTY,
+                    'Scoped ARP reachability evidence',
+                    'ARP discovery is not applicable to non-private/direct targets: ' + ', '.join(nonlocal_direct_targets),
+                    '',
+                    {'success': True, 'lifecycle_state': 'not_applicable'},
+                ))
+            if arp_targets:
                 arp_bin = which('arp-scan')
                 if arp_bin:
-                    raw_socket_ready, raw_socket_detail = raw_packet_socket_readiness()
-                    if raw_socket_ready is False:
-                        coverage.append(_coverage(
-                            'arp-scan', scan_store.STATUS_EMPTY, 'Scoped ARP reachability evidence',
-                            raw_socket_detail, '',
-                            {'success': True, 'lifecycle_state': 'insufficient_privilege'},
-                        ))
-                    else:
-                        for host in targets:
-                            p=outfile('arp_scan',host,'txt')
-                            r=run_cmd(command_builders.arp_scan(arp_bin, host),p,60)
-                            text=Path(p).read_text(errors='ignore') if Path(p).exists() else ''
-                            found=set(re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b',text))
-                            if host in found:
-                                live_set.add(host)
-                            command_ok = bool(r.get('success'))
-                            produced = command_ok and host in found
+                    # The arp-scan executable can carry CAP_NET_RAW/CAP_NET_ADMIN
+                    # independently of the Python process. Execute it and report
+                    # the actual terminal result rather than blocking solely on a
+                    # parent-process raw-socket probe.
+                    for host in arp_targets:
+                        p=outfile('arp_scan',host,'txt')
+                        r=run_cmd(command_builders.arp_scan(arp_bin, host, interface=workflow_interface),p,60)
+                        text=Path(p).read_text(errors='ignore') if Path(p).exists() else ''
+                        found=set(re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b',text))
+                        if host in found:
+                            live_set.add(host)
+                        command_ok = bool(r.get('success'))
+                        produced = command_ok and host in found
+                        stderr_text = ' '.join(str(r.get(key) or '') for key in ('stderr','error')).lower()
+                        if not command_ok and any(token in stderr_text for token in ('permission denied','operation not permitted','must be root','cap_net_raw')):
+                            r['lifecycle_state'] = 'insufficient_privilege'
+                        else:
                             r['lifecycle_state'] = execution_lifecycle(r, produced)
-                            if not command_ok:
-                                note = f'{host}: ARP collector failed; stderr/exit evidence retained.'
-                            else:
-                                note = f'{host}: {"reply observed" if host in found else "no matching ARP reply retained"}'
-                            coverage.append(_coverage('arp-scan', _status_from_result(r, produced), 'Scoped ARP reachability evidence', note, str(p), r))
-                            _add_raw(raw,'arp-scan',host,'',str(p),'text',bool(text.strip()))
+                        if not command_ok:
+                            note = f'{host}: ARP collector failed; stderr/exit evidence retained.'
+                        else:
+                            note = f'{host}: {"reply observed" if host in found else "no matching ARP reply retained"}'
+                        coverage.append(_coverage('arp-scan', _status_from_result(r, produced), 'Scoped ARP reachability evidence', note, str(p), r))
+                        _add_raw(raw,'arp-scan',host,'',str(p),'text',bool(text.strip()))
                 else:
                     coverage.append(_coverage('arp-scan', scan_store.STATUS_EMPTY, 'Scoped ARP reachability evidence', 'arp-scan binary is not available.', '', {'success': True, 'lifecycle_state': 'tool_unavailable'}))
         else:
@@ -4764,17 +5527,26 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             coverage.append(_coverage('arp-scan', scan_store.STATUS_EMPTY, 'Scoped ARP reachability evidence', 'ARP discovery was not executed.', '', {'success': True, 'lifecycle_state': state}))
 
         if host_effective.get('nmap_host_discovery'):
+            for host in sorted(pivot_targets_current):
+                coverage.append(_coverage(
+                    'nmap_host_discovery',
+                    scan_store.STATUS_EMPTY,
+                    'Nmap host availability evidence',
+                    f'{host}: Nmap -sn is not applicable through a TCP SOCKS pivot; retained Phase 2 discovery evidence is used and Phase 3 continues with -Pn/-sT.',
+                    '',
+                    {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'},
+                ))
             nmap=which('nmap')
-            if nmap:
-                p=outfile('nmap_host_discovery',target_input,'xml')
-                r=run_cmd(command_builders.nmap_host_discovery(nmap, targets, p),p,600,True)
+            if nmap and direct_targets_current:
+                p=outfile('nmap_host_discovery',','.join(direct_targets_current),'xml')
+                r=run_cmd(command_builders.nmap_host_discovery(nmap, direct_targets_current, p, interface=workflow_interface),p,600,True)
                 _rows, host_discovery = parse_nmap_capture(p, 'nmap_host_discovery', expect_ports=False)
                 nmap_live = [str(item.get('address')) for item in host_discovery.get('hosts') or [] if item.get('status') == 'up' and item.get('address')]
                 live_set.update(nmap_live)
                 r['lifecycle_state'] = execution_lifecycle(r, bool(nmap_live))
-                coverage.append(_coverage('nmap_host_discovery', _status_from_result(r, bool(nmap_live)), 'Nmap host availability evidence', f'{len(nmap_live)} live host(s) found', str(p), r))
+                coverage.append(_coverage('nmap_host_discovery', _status_from_result(r, bool(nmap_live)), 'Nmap host availability evidence', f'{len(nmap_live)} live direct host(s) found', str(p), r))
                 _add_raw(raw,'nmap_host_discovery','','',str(p),'nmap_xml',bool(nmap_live))
-            else:
+            elif direct_targets_current and not nmap:
                 coverage.append(_coverage('nmap_host_discovery', scan_store.STATUS_EMPTY, 'Nmap host availability evidence', 'nmap binary is not available.', '', {'success': True, 'lifecycle_state': 'tool_unavailable'}))
         else:
             state = 'disabled_policy' if 'nmap_host_discovery' in host_policy_blocked else 'disabled_operator'
@@ -5036,17 +5808,39 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 coverage.append(_coverage('nmap_os_identity', scan_store.STATUS_EMPTY, 'Cross-platform host OS fingerprint evidence', 'nmap is not available for active OS fingerprinting.', '', {'success': True, 'lifecycle_state': 'tool_unavailable'}))
             else:
                 for host in live:
+                    if host in pivot_targets_current:
+                        coverage.append(_coverage(
+                            'nmap_os_identity',
+                            scan_store.STATUS_EMPTY,
+                            'Cross-platform host OS fingerprint evidence',
+                            f'{host}: active Nmap OS fingerprinting requires raw-IP packet semantics and is not applicable through the TCP SOCKS pivot.',
+                            '',
+                            {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'},
+                        ))
+                        continue
                     open_ports = list(open_map.get(host) or [])
                     completed = set(completed_tcp_ports_by_host.get(host) or set())
                     non_open_candidates = sorted(completed - set(open_ports))
                     if not open_ports:
                         coverage.append(_coverage('nmap_os_identity', scan_store.STATUS_EMPTY, 'Cross-platform host OS fingerprint evidence', f'{host}: no observed open TCP endpoint was available for bounded OS fingerprinting.', '', {'success': True, 'lifecycle_state': 'not_applicable'}))
                         continue
-                    probe_ports = list(dict.fromkeys(open_ports[:2] + non_open_candidates[:1]))
+                    # Nmap wants at least one open and one closed TCP port; a
+                    # second closed port materially improves the closed-port
+                    # probe set without widening authorised coverage.
+                    probe_ports = list(dict.fromkeys(open_ports[:2] + non_open_candidates[:2]))
                     out = outfile('nmap_os_identity', host, 'xml')
                     timeout = int(collector_setting(scan_options.get('collector_plan') or {}, 'nmap_os_identity', 'timeout_seconds', 240) or 240)
                     before_count = len(host_identity_map.get(host) or [])
-                    cmd = command_builders.nmap_os_fingerprint(nmap, host, probe_ports, list(_policy_required(_load_recon_policy(), 'service_fingerprint_timing')), out)
+                    # OS fingerprinting uses its own timing profile. Reusing the
+                    # service-fingerprint profile applied --scan-delay, which
+                    # overrides Nmap's fixed inter-probe interval and corrupts
+                    # the timing-derived SEQ tests that OS detection relies on.
+                    _os_policy = _load_recon_policy()
+                    _os_timing = list(
+                        _os_policy.get('os_fingerprint_timing')
+                        or _policy_required(_os_policy, 'service_fingerprint_timing')
+                    )
+                    cmd = command_builders.nmap_os_fingerprint(nmap, host, probe_ports, _os_timing, out)
                     r = run_cmd(cmd, out, timeout, True)
                     _rows, _parsed_os = parse_nmap_capture(out, 'nmap_os_identity', host, expect_ports=True)
                     produced = len(host_identity_map.get(host) or []) > before_count
@@ -5063,6 +5857,16 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         task='Low-Impact Service Discovery'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         if enabled('udp_discovery') and nmap:
             for host in live:
+                if host in pivot_targets_current:
+                    coverage.append(_coverage(
+                        'udp_discovery',
+                        scan_store.STATUS_EMPTY,
+                        'Operator-selected UDP discovery',
+                        f'{host}: UDP scanning is not applicable through the established TCP SOCKS pivot; no direct UDP traffic was sent.',
+                        '',
+                        {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'},
+                    ))
+                    continue
                 if acl_pause_requested(host):
                     coverage.append(_coverage('udp_discovery', scan_store.STATUS_EMPTY, 'Policy stop condition', f'UDP follow-up paused for {host} after corroborated ACL behaviour.', ''))
                     continue
@@ -5183,6 +5987,9 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             and identity_cfg.get('version_recovery', recovery_cfg.get('enabled', True))
             and identity_cfg.get('adaptive_evidence_recovery', True)
         )
+        include_uncertain_udp_recovery = False
+        uncertain_udp_recovery_limit = 0
+        recovery_budget_exhausted = False
         if recovery_enabled:
             initial_intensity = max(0, min(9, int(identity_cfg.get('version_intensity') or 0)))
             recovery_target = max(0, min(9, int(identity_cfg.get('recovery_intensity', recovery_cfg.get('nmap_version_intensity') or initial_intensity))))
@@ -5194,10 +6001,52 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             recovery_batch_size = max(1, int(advanced_recovery.get('ports_per_batch') or 5))
             recovery_timing = list(_policy_required(_load_recon_policy(), 'service_fingerprint_timing'))
             udp_recovery_enabled = bool(identity_cfg.get('udp_evidence_recovery', True))
+            include_uncertain_udp_recovery = bool(
+                identity_cfg.get(
+                    'recover_uncertain_udp',
+                    recovery_cfg.get('include_uncertain_udp', False),
+                )
+            )
+            uncertain_udp_recovery_limit = max(
+                0,
+                min(256, int(recovery_cfg.get('uncertain_udp_max_ports') or 0)),
+            )
+            tcp_recovery_timeout = max(
+                1,
+                min(
+                    recovery_timeout,
+                    int(recovery_cfg.get('tcp_command_timeout_seconds') or recovery_timeout),
+                ),
+            )
+            udp_recovery_timeout = max(
+                1,
+                min(
+                    recovery_timeout,
+                    int(recovery_cfg.get('udp_command_timeout_seconds') or min(recovery_timeout, 45)),
+                ),
+            )
+            recovery_budget_seconds = max(
+                1,
+                int(recovery_cfg.get('recovery_budget_seconds') or 120),
+            )
+            recovery_started = time.monotonic()
+            retry_failed_recovery = bool(advanced_recovery.get('retry_failed_batches', True))
+            retry_count_recovery = max(0, int(advanced_recovery.get('retry_count') or 0))
+            recovery_parallel_enabled = bool(advanced_recovery.get('parallel_scanning', False))
+            recovery_parallel_workers = (
+                max(1, int(advanced_recovery.get('parallel_workers') or 1))
+                if recovery_parallel_enabled else 1
+            )
+
+            def recovery_budget_remaining() -> float:
+                return float(recovery_budget_seconds) - (time.monotonic() - recovery_started)
 
             for pass_index, intensity in enumerate(intensity_ladder, start=1):
                 attempted_this_pass = 0
                 for protocol in ('tcp', 'udp'):
+                    if recovery_budget_remaining() <= 0:
+                        recovery_budget_exhausted = True
+                        break
                     if protocol == 'udp' and not udp_recovery_enabled:
                         continue
                     if protocol == 'tcp':
@@ -5208,13 +6057,19 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                             udp_discovery_rows,
                         )
                     candidates = recovery_candidates(
-                        source_rows, protocol=protocol, include_uncertain_udp=(protocol == 'udp')
+                        source_rows,
+                        protocol=protocol,
+                        include_uncertain_udp=(protocol == 'udp' and include_uncertain_udp_recovery),
+                        uncertain_udp_limit=uncertain_udp_recovery_limit,
                     )
                     candidates_by_host: dict[str, list[dict[str, Any]]] = {}
                     for candidate in candidates:
                         candidates_by_host.setdefault(str(candidate.get('host') or ''), []).append(candidate)
 
                     for recovery_host, host_candidates in sorted(candidates_by_host.items()):
+                        if recovery_budget_remaining() <= 0:
+                            recovery_budget_exhausted = True
+                            break
                         if not recovery_host or acl_pause_requested(recovery_host):
                             if recovery_host:
                                 evidence_recovery_history.append({
@@ -5227,11 +6082,12 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                         recovery_batches = recovery_port_batches(selected, max_ports=max_ports, batch_size=recovery_batch_size)
                         if not recovery_batches:
                             continue
-                        selected = [port for batch in recovery_batches for port in batch]
                         tool_id = f'adaptive_evidence_recovery_{protocol}_pass_{pass_index}'
+                        jobs: list[tuple[int, list[int], Path, list[str]]] = []
+                        missing_by_batch: dict[int, dict[str, list[str]]] = {}
                         for batch_index, recovery_ports in enumerate(recovery_batches, start=1):
                             attempted_this_pass += len(recovery_ports)
-                            missing_by_port = {
+                            missing_by_batch[batch_index] = {
                                 str(int(row.get('port') or 0)): list(row.get('recovery_missing_evidence') or [])
                                 for row in host_candidates
                                 if int(row.get('port') or 0) in recovery_ports
@@ -5242,7 +6098,24 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                                 banner_script=bool(identity_cfg.get('banner_script', True)),
                                 protocol=protocol,
                             )
-                            result = run_cmd(command, output_path, recovery_timeout, True)
+                            jobs.append((batch_index, recovery_ports, output_path, command))
+
+                        remaining_budget = recovery_budget_remaining()
+                        if remaining_budget <= 0:
+                            recovery_budget_exhausted = True
+                            break
+                        protocol_timeout = tcp_recovery_timeout if protocol == 'tcp' else udp_recovery_timeout
+                        bounded_timeout = max(1, min(protocol_timeout, int(max(1.0, remaining_budget))))
+                        wave_results = _run_port_batch_wave(
+                            scan_id,
+                            jobs,
+                            timeout_seconds=bounded_timeout,
+                            retry_failed_batches=retry_failed_recovery,
+                            retry_count=retry_count_recovery,
+                            parallel_workers=recovery_parallel_workers,
+                        )
+
+                        for batch_index, recovery_ports, output_path, result in wave_results:
                             recovered_rows, recovered_parsed = parse_nmap_capture(
                                 output_path, tool_id, recovery_host, protocol_hint=protocol
                             )
@@ -5268,7 +6141,9 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                                     [row for row in all_services if str(row.get('protocol') or '').lower() == protocol],
                                     udp_discovery_rows if protocol == 'udp' else [],
                                 ),
-                                protocol=protocol, include_uncertain_udp=(protocol == 'udp'),
+                                protocol=protocol,
+                                include_uncertain_udp=(protocol == 'udp' and include_uncertain_udp_recovery),
+                                uncertain_udp_limit=uncertain_udp_recovery_limit,
                             )
                             unresolved_keys = {
                                 (str(row.get('host') or ''), int(row.get('port') or 0))
@@ -5284,12 +6159,13 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                                 'batch': batch_index,
                                 'intensity': intensity,
                                 'attempted_ports': list(recovery_ports),
-                                'missing_evidence_by_port': missing_by_port,
+                                'missing_evidence_by_port': missing_by_batch.get(batch_index, {}),
                                 'confirmed_open_rows': len(confirmed_rows),
                                 'additional_evidence_rows': len(additional_evidence),
                                 'remaining_unresolved_ports': remaining_batch,
                                 'lifecycle_state': result.get('lifecycle_state'),
                                 'output_file': str(output_path),
+                                'timeout_seconds': bounded_timeout,
                             })
                             coverage.append(_coverage(
                                 tool_id,
@@ -5300,14 +6176,36 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                                 result,
                             ))
                             _add_raw(raw, tool_id, recovery_host, '', str(output_path), 'nmap_xml', produced)
-                if attempted_this_pass == 0:
+
+                    if recovery_budget_exhausted:
+                        break
+                if recovery_budget_exhausted or attempted_this_pass == 0:
                     break
+
+            if recovery_budget_exhausted:
+                elapsed = max(0.0, time.monotonic() - recovery_started)
+                evidence_recovery_history.append({
+                    'status': 'recovery_budget_exhausted',
+                    'budget_seconds': recovery_budget_seconds,
+                    'elapsed_seconds': round(elapsed, 3),
+                })
+                coverage.append(_coverage(
+                    'adaptive_evidence_recovery_budget',
+                    scan_store.STATUS_EMPTY,
+                    'Adaptive evidence recovery budget',
+                    f'Recovery budget of {recovery_budget_seconds} second(s) was exhausted; unresolved endpoint evidence remains reported as unresolved.',
+                    '',
+                    {'success': True, 'lifecycle_state': 'deferred'},
+                ))
 
         recovery_planning_rows = merge_endpoint_observations(all_services, udp_discovery_rows)
         remaining_recovery_endpoints: list[dict[str, Any]] = []
         for protocol in ('tcp', 'udp'):
             for row in recovery_candidates(
-                recovery_planning_rows, protocol=protocol, include_uncertain_udp=(protocol == 'udp')
+                recovery_planning_rows,
+                protocol=protocol,
+                include_uncertain_udp=(protocol == 'udp' and include_uncertain_udp_recovery),
+                uncertain_udp_limit=uncertain_udp_recovery_limit,
             ):
                 remaining_recovery_endpoints.append({
                     'host': str(row.get('host') or ''),
@@ -5324,6 +6222,9 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             'recovery_intensity': int(identity_cfg.get('recovery_intensity', recovery_cfg.get('nmap_version_intensity') or 0)),
             'configured_attempts': int(identity_cfg.get('recovery_attempts') or 1),
             'ports_per_batch': int((scan_options.get('advanced_settings') or {}).get('ports_per_batch') or 5),
+            'uncertain_udp_recovery_enabled': bool(include_uncertain_udp_recovery) if recovery_enabled else False,
+            'uncertain_udp_recovery_limit': int(uncertain_udp_recovery_limit) if recovery_enabled else 0,
+            'budget_exhausted': bool(recovery_budget_exhausted) if recovery_enabled else False,
             'before': recovery_before,
             'after': recovery_snapshot(recovery_planning_rows),
             'remaining_unresolved_endpoints': remaining_recovery_endpoints,
@@ -5614,6 +6515,13 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
 
         # Modern active validation: adaptive, evidence-only checks for enterprise services.
         # These collectors stay inside recon: no brute force, no exploitation, no authenticated access.
+        # Discovery service names (including HTTPS) are evidence available before
+        # collector planning. Attach them now so applicability decisions can use
+        # the complete observed transport/service context.
+        all_services = _attach_discovery_observed_identities(all_services, discovery_evidence)
+        for _service_row in all_services:
+            _refresh_transport_security(_service_row)
+
         task='Modern Active Validation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         passive_intelligence = {'dns': [], 'reverse_dns': [], 'tls': [], 'certificate_transparency': [], 'findings': {}, 'relationships': [], 'dns_relationships': [], 'certificate_correlation': [], 'summary': [], 'policy': {}}
         modern_active_validation = {'smb_host_identity': [], 'netbios_identity': [], 'msrpc_metadata': [], 'ntlm_http_identity': [], 'ntlm_rdp_identity': [], 'ntlm_mssql_identity': [], 'ntlm_smtp_identity': [], 'ntlm_imap_identity': [], 'ntlm_pop3_identity': [], 'ntlm_nntp_identity': [], 'ntlm_telnet_identity': [], 'ldap_rootdse': [], 'kerberos_info': [], 'tls_cipher_validation': [], 'rdp_negotiation': [], 'api_discovery': [], 'targeted_web_discovery': [], 'kubernetes_exposure': [], 'container_exposure': [], 'vpn_validation': [], 'nuclei_safe': [], 'telnet_readiness': [], 'snmp_readiness': [], 'mssql_info': [], 'vnc_info': [], 'tomcat_ajp_readiness': [], 'redis_info': [], 'elasticsearch_info': [], 'ldapsearch_rootdse': [], 'snmp_targeted_oids': [], 'dns_context': [], 'http_security_context': [], 'rpcinfo_native': [], 'showmount_native': [], 'ssh_audit_native': [], 'ssh_crypto_profiles': [], 'federation_detection': [], 'tls_intelligence': [], 'noise_evaluation': {}, 'information_gathering_summary': [], 'summary': [], 'policy': {}, 'budget': {}}
@@ -6178,7 +7086,13 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
 
         # 16 Evidence consolidation
         task='Evidence Consolidation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
-        all_services=_merge_smb_version_evidence(all_services, smb)
+        smb_version_evidence_items = list(smb or [])
+        smb_version_evidence_items.extend(list((modern_active_validation or {}).get('smb_host_identity') or []))
+        smb_version_evidence_items.extend([
+            item for item in (service_level_checks or [])
+            if isinstance(item, dict) and str(item.get('tool') or '') in {'smb_host_identity', 'smb_protocol_security'}
+        ])
+        all_services=_merge_smb_version_evidence(all_services, smb_version_evidence_items)
 
         all_services = _attach_discovery_observed_identities(all_services, discovery_evidence)
         all_services = _attach_web_observed_identities(all_services, web)
@@ -6202,7 +7116,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 'service': service.get('service'), 'product': service.get('product'), 'version': service.get('version'),
                 'confidence_score': service.get('confidence_score', 0.0),
                 'contradictions': service.get('contradictions') or [],
-                'note': 'Fingerprint confidence is advisory; CVE applicability lookup was not suppressed.',
+                'note': 'Fingerprint confidence is advisory; Candidate CVE lookup was not suppressed.',
             }
             for service in all_services if not service.get('recommended_for_cve')
         ]
@@ -6275,10 +7189,14 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         )
         host_os_inventory = host_identity_inventory(host_identity_map)
         host_os_gaps = host_identity_gaps(host_identity_map, live)
-        # CVE matching consumes only identities selected by generic evidence
-        # reconciliation. All raw/conflicting observations remain in
-        # host_identity_inventory for audit and reporting.
-        flat_host_os_identities = [dict(identity) for row in host_os_inventory for identity in (row.get('cve_identities') or [])]
+        # Candidate CVE matching may consume precise probabilistic OS hypotheses,
+        # but the displayed/established OS remains separate. All raw/conflicting
+        # observations stay in host_identity_inventory for audit and reporting.
+        flat_host_os_identities = [
+            dict(identity)
+            for row in host_os_inventory
+            for identity in (row.get('candidate_identities') or [])
+        ]
         platform_components = platform_component_inventory(all_services)
         protocol_component_observations = _build_protocol_component_observations(
             service_level_checks,
@@ -6320,21 +7238,21 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         cve_matcher_diagnostics: list[dict[str, Any]] = list(
             windows_identity_resolution_diagnostics
         )
-        if mitre.get('available'):
-            cve_matches, _ = _match_cves(
-                all_services,
-                cve_matcher_diagnostics,
-                flat_host_os_identities,
-                windows_patch_inventories,
-                protocol_component_observations,
-            )
-        else:
-            cve_matches = []
+        cve_matches, cve_review_candidates = _match_cves(
+            all_services,
+            cve_matcher_diagnostics,
+            flat_host_os_identities,
+            windows_patch_inventories,
+            protocol_component_observations,
+            return_review_candidates=True,
+        )
+        if not mitre.get('available'):
             cve_matcher_diagnostics.append({
-                'reason': 'cve_sources_unavailable',
-                'matcher_status': 'unavailable',
+                'reason': 'cve_program_index_unavailable',
+                'matcher_status': 'degraded',
                 'index_file': mitre.get('index_file'),
                 'rebuild_command': mitre.get('rebuild_command'),
+                'detail': 'CVE Program candidate generation was unavailable. NVD is enrichment-only and cannot create replacement Candidate CVEs.',
             })
         # Microsoft remediation intelligence augments already-canonical Windows
         # host-OS CVE references only. It never creates a CVE match and never
@@ -6351,18 +7269,36 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 _add_raw(raw, 'msrc_windows_patch_assessment', '', 'host', str(patch_assessment_path), 'json', True)
 
         nvd_cvss_enrichment_diagnostics: list[dict[str, Any]] = []
+        # NVD is exact-ID enrichment only. It receives only CVE IDs already
+        # generated by the CVE Program Candidate CVE engine and cannot change
+        # the candidate set.
+        candidate_ids_before_nvd = {
+            str(row.get('cve_id') or '').upper()
+            for row in cve_matches if row.get('cve_id')
+        }
         _enrich_missing_cvss_from_nvd(cve_matches, nvd_cvss_enrichment_diagnostics)
-        # CISA KEV is post-match threat intelligence only. It cannot create,
+        candidate_ids_after_nvd = {
+            str(row.get('cve_id') or '').upper()
+            for row in cve_matches if row.get('cve_id')
+        }
+        if candidate_ids_before_nvd != candidate_ids_after_nvd:
+            raise RuntimeError('NVD enrichment changed the Candidate CVE set; enrichment must be exact-ID metadata only.')
+        # CISA KEV is post-candidate threat intelligence only. It cannot create,
         # suppress, or promote a CVE reference.
-        kev_source = enrich_cisa_kev_rows(cve_matches)
+        kev_source = enrich_cisa_kev_rows(cve_review_candidates)
         selected_cvss_version = str((scan_options.get('cvss_selection') or {}).get('version') or '3.1')
-        # CVSS starts here, after canonical CVE applicability already exists.
-        # It may score/order the findings view, but it cannot change discovery,
-        # recovery, identities, applicability, or the set/count of CVE matches.
+        # CVSS starts here, after applicability/candidate states already exist.
+        # It may score/order the review, but it cannot promote a candidate.
         cvss_scoring_verifiers = cvss_verifier_status()
-        apply_cvss_selection(cve_matches, selected_cvss_version)
-        _refresh_cve_display_context(cve_matches)
+        apply_cvss_selection(cve_review_candidates, selected_cvss_version)
+        _refresh_cve_display_context(cve_review_candidates)
         cve_matches_by_host = _group_cve_matches_by_host(cve_matches)
+        cve_review_candidates_by_host = _group_cve_matches_by_host(cve_review_candidates)
+        cve_review_summary = _build_cve_review_summary(cve_matches, cve_review_candidates, cve_matcher_diagnostics)
+        if isinstance(mitre.get('windows_advisory'), dict):
+            mitre['windows_advisory']['candidate_context_matches'] = int(cve_review_summary.get('windows_build_context_candidates') or 0)
+            mitre['windows_advisory']['custom_version_resolutions'] = int(cve_review_summary.get('vendor_version_resolutions') or 0)
+        cve_matcher_audit = _build_cve_matcher_audit(cve_matcher_diagnostics)
         nvd_source = nvd_status()
         nvd_source['scan_start'] = dict(nvd_source_at_scan_start)
         nvd_source['scan_completion'] = {
@@ -6376,21 +7312,87 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             0, int(nvd_source.get('cached_cve_context_queries') or 0) - int(nvd_source_at_scan_start.get('cached_cve_context_queries') or 0)
         )
         mitre['nvd_enrichment'] = dict(nvd_source)
+        candidate_generation_state = str(cve_review_summary.get('candidate_generation_state') or 'available')
         matcher_degraded = any(str(item.get('matcher_status') or '').lower() in {'error', 'degraded'} for item in cve_matcher_diagnostics)
-        cve_review_completeness = 'degraded' if matcher_degraded else 'complete'
-        _finish(scan_id, task, scan_store.STATUS_SUCCESS if cve_matches else scan_store.STATUS_EMPTY, f'{len(cve_matches)} official CVE reference item(s) linked from structured observed identities; {len(cve_matcher_diagnostics)} matcher diagnostic item(s) retained; review completeness={cve_review_completeness}.')
-        _publish_partial(scan_id, cve_matches=cve_matches, cve_matches_by_host=cve_matches_by_host, host_identity_inventory=host_os_inventory, host_identity_gaps=host_os_gaps, platform_component_identities=reported_components, cve_skipped_services=cve_skipped_services, cve_matcher_diagnostics=cve_matcher_diagnostics, mitre_source=mitre, windows_patch_inventory=windows_patch_inventories, windows_patch_assessments=windows_patch_assessments, msrc_patch_diagnostics=msrc_patch_diagnostics, msrc_source=msrc_status(), kev_source=kev_source, nvd_source=nvd_source, cve_review_completeness=cve_review_completeness)
+        cve_review_completeness = (
+            'unavailable' if candidate_generation_state == 'unavailable'
+            else ('degraded' if matcher_degraded else 'complete')
+        )
+        if candidate_generation_state == 'unavailable':
+            cve_task_status = scan_store.STATUS_FAILED
+            cve_task_message = (
+                'Candidate CVE generation unavailable because the configured CVE Program index was not available. '
+                'NVD enrichment cannot create replacement candidates.'
+            )
+        else:
+            cve_task_status = scan_store.STATUS_SUCCESS if cve_review_candidates else scan_store.STATUS_EMPTY
+            cve_task_message = (
+                f"{len(cve_matches)} unvalidated Candidate CVE item(s); "
+                f"{cve_review_summary.get('structured_records_evaluated', 0)} structured record(s) evaluated; "
+                f"{len(cve_matcher_diagnostics)} matcher diagnostic item(s); review completeness={cve_review_completeness}."
+            )
+        _finish(
+            scan_id, task,
+            cve_task_status,
+            cve_task_message,
+        )
+        _publish_partial(
+            scan_id,
+            cve_matches=cve_matches, cve_matches_by_host=cve_matches_by_host,
+            cve_review_candidates=cve_review_candidates, cve_review_candidates_by_host=cve_review_candidates_by_host,
+            cve_review_summary=cve_review_summary, cve_matcher_audit=cve_matcher_audit,
+            host_identity_inventory=host_os_inventory, host_identity_gaps=host_os_gaps,
+            platform_component_identities=reported_components, cve_skipped_services=cve_skipped_services,
+            cve_matcher_diagnostics=cve_matcher_diagnostics, mitre_source=mitre,
+            windows_patch_inventory=windows_patch_inventories, windows_patch_assessments=windows_patch_assessments,
+            msrc_patch_diagnostics=msrc_patch_diagnostics, msrc_source=msrc_status(), kev_source=kev_source,
+            nvd_source=nvd_source, cve_review_completeness=cve_review_completeness,
+            cve_review_status=(
+                'Candidate CVE generation unavailable — CVE Program index not loaded'
+                if candidate_generation_state == 'unavailable'
+                else f'{len(cve_review_candidates)} Candidate CVE item(s) generated; downstream validation pending'
+            ),
+        )
 
         # 18 Caldera Handoff
         task='Handoff Preparation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         exploit_validation_candidates=_build_exploit_validation_candidates(all_services, cve_matches, security_observations, web_summary if 'web_summary' in locals() else {}, smb_summary if 'smb_summary' in locals() else {})
         # Detailed readiness is finalised during report preparation after web/SMB summaries are built.
-        caldera_handoff={'enabled_for_execution': False, 'note':'Recon package prepared for teammate exploitation/AI/CALDERA modules. Recon does not execute exploits or obtain access.', 'host_os_identities': flat_host_os_identities, 'services': [{'host':s['host'],'port':s['port'],'protocol':s['protocol'],'service':s['service'],'product':s.get('product',''),'version':s.get('version',''),'confidence_score':s.get('confidence_score',0.0),'recommended_for_cve':bool(s.get('recommended_for_cve',False))} for s in all_services], 'cve_matches': cve_matches, 'cve_matches_by_host': cve_matches_by_host, 'exploit_validation_candidates': exploit_validation_candidates}
+        caldera_handoff={'enabled_for_execution': False, 'note':'Recon package prepared for teammate validation/exploitation/AI/CALDERA modules. Recon does not assert CVE applicability, execute exploits, or obtain access.', 'cve_semantics':'candidate_unvalidated', 'validation_boundary':'Downstream validation decides applicability/exploitability.', 'host_os_identities': flat_host_os_identities, 'services': [{'host':s['host'],'port':s['port'],'protocol':s['protocol'],'service':s['service'],'product':s.get('product',''),'version':s.get('version',''),'confidence_score':s.get('confidence_score',0.0),'recommended_for_cve':bool(s.get('recommended_for_cve',False))} for s in all_services], 'cve_matches': cve_matches, 'cve_matches_by_host': cve_matches_by_host, 'exploit_validation_candidates': exploit_validation_candidates}
         _finish(scan_id, task, scan_store.STATUS_SUCCESS, 'Caldera handoff context prepared')
 
         # 19 Report
         task='Report Preparation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         public_coverage = _public_tool_coverage(_sort_coverage(coverage))
+
+        # Preserve operator request, terminal execution, and reason as separate
+        # fields for Phase 3 host-level evidence controls. Phase 2 mandatory
+        # subnet discovery is retained in workflow/command history and is not
+        # confused with this optional Phase 3 configuration.
+        host_discovery_requested = (scan_options.get('host_discovery') or {}).get('effective') or {}
+        host_discovery_tool_map = {
+            'arp_discovery': 'arp-scan',
+            'icmp_echo': 'ping',
+            'nmap_host_discovery': 'nmap_host_discovery',
+            'reverse_dns': 'dig',
+            'route_trace': 'route_trace',
+        }
+        host_discovery_execution: dict[str, Any] = {}
+        for setting_name, tool_name in host_discovery_tool_map.items():
+            rows = [row for row in public_coverage if str(row.get('tool') or '') == tool_name]
+            lifecycle_states = [str(row.get('lifecycle_state') or '') for row in rows]
+            executed = any(state.startswith('executed_') for state in lifecycle_states)
+            produced_evidence = any(state == 'executed_evidence' for state in lifecycle_states)
+            host_discovery_execution[setting_name] = {
+                'tool': tool_name,
+                'requested': bool(host_discovery_requested.get(setting_name)),
+                'executed': executed,
+                'produced_evidence': produced_evidence,
+                'statuses': [str(row.get('status') or '') for row in rows],
+                'lifecycle_states': lifecycle_states,
+                'notes': [str(row.get('note') or '') for row in rows if row.get('note')],
+                'commands': [str(row.get('command') or '') for row in rows if row.get('command')],
+            }
         service_summary = _build_service_summary(all_services, cve_matches)
         web_summary = _summarise_web_inventory(web)
         smb_summary = _summarise_smb_inventory(smb)
@@ -6512,24 +7514,38 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             public_coverage=public_coverage,
             cve_matches=cve_matches,
         )
+        scan_summary['cve_candidate_review'] = copy.deepcopy(cve_review_summary)
+        scan_summary.setdefault('cve_review', {}).update({
+            'generation_state': str(cve_review_summary.get('candidate_generation_state') or 'available'),
+            'candidate_cves_retained': int(cve_review_summary.get('candidate_cves_retained') or 0),
+            'unique_candidate_ids': int(cve_review_summary.get('unique_candidate_ids') or 0),
+            'target_candidate_records': int(cve_review_summary.get('target_candidate_records') or 0),
+            'identity_correlations_retained': int(cve_review_summary.get('identity_correlations_retained') or 0),
+        })
         canonical_cve_contract = {
-            'version': 'scanner-canonical-v4-baseline-references',
+            'version': 'scanner-candidate-v6',
             'source': OFFICIAL_CVE_SOURCE,
             'vulnerability_scoring': {
                 'selection': scan_options.get('cvss_selection') or {'version': '3.1', 'label': 'CVSS 3.1'},
                 'stage': 'post_match_only',
                 'verifiers': cvss_scoring_verifiers,
-                'rule': 'CVSS 3.1 and 4.0 score already-matched CVE findings only; no conversion or fallback is permitted.',
+                'rule': 'CVSS 3.1 and 4.0 enrich already-generated Candidate CVEs only; scoring cannot create, suppress or validate a candidate.',
             },
-            'baseline_cve_references': cve_matches,
-            'cve_references': cve_matches,
+            'candidate_cve_references': cve_matches,
+            'baseline_cve_references': cve_matches,  # compatibility alias
+            'cve_references': cve_matches,           # compatibility alias
             'cve_references_by_host': cve_matches_by_host,
+            'review_candidates': cve_review_candidates,
+            'review_candidates_by_host': cve_review_candidates_by_host,
+            'review_summary': cve_review_summary,
             'held_diagnostics': cve_matcher_diagnostics,
             'diagnostics': cve_matcher_diagnostics,
             'review_completeness': cve_review_completeness,
+            'candidate_semantics': 'Every CVE row is an unvalidated Candidate CVE generated from CVE Program structured affected data.',
+            'nvd_rule': 'NVD receives exact candidate CVE IDs for metadata/CVSS enrichment only and cannot add, remove, promote or suppress candidates.',
             'downstream_rule': (
-                'Consume scanner-owned baseline CVE references and retained evidence as classification-neutral records. '
-                'Do not require or infer a separate CVE status label from the scanner contract.'
+                'Consume scanner-owned Candidate CVEs as validation inputs only. '
+                'Downstream validation decides applicability/exploitability before any approved execution.'
             ),
         }
         selected_plan_readiness = preflight_readiness
@@ -6556,7 +7572,24 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             held_diagnostics=cve_matcher_diagnostics,
             cve_source_available=bool(mitre.get('available')),
         )
-        package={'scan_id':scan_id,'target_input':target_input,'scan_options':scan_options,'scan_coverage':scan_coverage,'scan_summary':scan_summary,'hosts':live,'host_identity_inventory':host_os_inventory,'host_identity_gaps':host_os_gaps,'host_os_identities':flat_host_os_identities,'platform_component_identities':reported_components,'protocol_component_observations':protocol_component_observations,'fingerprint_advisories':fingerprint_advisories,'scope_validation':scope_validation,'enterprise_readiness':enterprise_readiness,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation,'enumeration_intelligence':enumeration_intelligence,'operational_maturity':operational_maturity,'decision_register':decision_register,'evidence_manifest':evidence_manifest,'mitre_source':mitre,'nvd_source':nvd_source,'msrc_source':msrc_source,'kev_source':kev_source,'windows_patch_inventory':windows_patch_inventories,'windows_patch_assessments':windows_patch_assessments,'msrc_patch_diagnostics':msrc_patch_diagnostics,'tool_coverage':public_coverage,'collector_coverage_matrix':collector_coverage_matrix,'unresolved_identity_queue':unresolved_identity_queue,'service_inventory':all_services,'service_summary':service_summary,'service_workbench':service_workbench,'attack_surface_sections':attack_surface_sections,'cve_matches':cve_matches,'cve_matches_by_host':cve_matches_by_host,'cve_findings_by_target':cve_matches_by_host,'baseline_cves':canonical_cve_contract['baseline_cve_references'],'cve_matcher_diagnostics':cve_matcher_diagnostics,'cve_review_completeness':cve_review_completeness,'nvd_cvss_enrichment_diagnostics':nvd_cvss_enrichment_diagnostics,'vulnerability_scoring':{'selection': scan_options.get('cvss_selection') or {'version':'3.1','label':'CVSS 3.1'}, 'stage':'post_match_only', 'verifiers':cvss_scoring_verifiers, 'rule':'CVSS never changes scan execution, evidence recovery, identity, applicability, or CVE count.'},'evidence_recovery':evidence_recovery_summary,'canonical_cve_contract':canonical_cve_contract,'service_level_checks':service_level_checks,'security_relevant_observations':security_observations,'observed_security_conditions':observed_security_conditions,'observed_security_evidence':observed_security_evidence,'key_exposure_indicators':key_exposure_indicators,'tcp_service_count':len([x for x in all_services if x.get('protocol')=='tcp']),'udp_service_count':len([x for x in all_services if x.get('protocol')=='udp']),'web_inventory':web,'web_summary':web_summary,'smb_inventory':smb,'smb_summary':smb_summary,'raw_evidence_index':raw,'caldera_handoff':caldera_handoff,'environment_summary':_build_environment_summary(environment_intelligence, environment_context_indicators),'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'exploit_validation_candidates':exploit_validation_candidates,'authentication_surface_readiness':authentication_surface_readiness,'web_exploitation_readiness':web_exploitation_readiness,'suggested_follow_up_objectives':follow_up_objectives,'escalation_paused':False}
+        current_scan = scan_store.get(scan_id) or {}
+        workflow = dict(current_scan.get('workflow') or {})
+        phase_results = dict(workflow.get('phase_results') or {})
+        assessment_phase = dict(phase_results.get('assessment') or {})
+        assessment_phase.update({
+            'status': 'completed',
+            'targets': list(targets),
+            'target_count': len(targets),
+            'service_count': len(all_services),
+            'cve_count': len(cve_matches),
+        })
+        phase_results['assessment'] = assessment_phase
+        workflow.update({
+            'assessment_targets': list(targets),
+            'assessment_target': target_input,
+            'phase_results': phase_results,
+        })
+        package={'scan_id':scan_id,'target_input':target_input,'workflow':workflow,'phase_results':phase_results,'internal_host_inventory':workflow.get('discovered_hosts') or [],'scan_options':scan_options,'scan_coverage':scan_coverage,'scan_summary':scan_summary,'hosts':live,'host_identity_inventory':host_os_inventory,'host_identity_gaps':host_os_gaps,'host_os_identities':flat_host_os_identities,'platform_component_identities':reported_components,'protocol_component_observations':protocol_component_observations,'fingerprint_advisories':fingerprint_advisories,'scope_validation':scope_validation,'enterprise_readiness':enterprise_readiness,'passive_intelligence':passive_intelligence,'passive_local_inventory': locals().get('passive_local_inventory', {}),'modern_active_validation':modern_active_validation,'enumeration_intelligence':enumeration_intelligence,'operational_maturity':operational_maturity,'decision_register':decision_register,'evidence_manifest':evidence_manifest,'mitre_source':mitre,'nvd_source':nvd_source,'msrc_source':msrc_source,'kev_source':kev_source,'windows_patch_inventory':windows_patch_inventories,'windows_patch_assessments':windows_patch_assessments,'msrc_patch_diagnostics':msrc_patch_diagnostics,'tool_coverage':public_coverage,'host_discovery_execution':host_discovery_execution,'collector_coverage_matrix':collector_coverage_matrix,'unresolved_identity_queue':unresolved_identity_queue,'service_inventory':all_services,'service_summary':service_summary,'service_workbench':service_workbench,'attack_surface_sections':attack_surface_sections,'cve_matches':cve_matches,'cve_matches_by_host':cve_matches_by_host,'cve_findings_by_target':cve_matches_by_host,'cve_review_candidates':cve_review_candidates,'cve_review_candidates_by_host':cve_review_candidates_by_host,'cve_review_summary':cve_review_summary,'cve_matcher_audit':cve_matcher_audit,'baseline_cves':canonical_cve_contract['candidate_cve_references'],'cve_matcher_diagnostics':cve_matcher_diagnostics,'cve_review_completeness':cve_review_completeness,'nvd_cvss_enrichment_diagnostics':nvd_cvss_enrichment_diagnostics,'vulnerability_scoring':{'selection': scan_options.get('cvss_selection') or {'version':'3.1','label':'CVSS 3.1'}, 'stage':'post_match_only', 'verifiers':cvss_scoring_verifiers, 'rule':'CVSS/NVD enrichment never changes scan execution, evidence recovery, identity, Candidate CVE count, or validation state.'},'evidence_recovery':evidence_recovery_summary,'canonical_cve_contract':canonical_cve_contract,'service_level_checks':service_level_checks,'security_relevant_observations':security_observations,'observed_security_conditions':observed_security_conditions,'observed_security_evidence':observed_security_evidence,'key_exposure_indicators':key_exposure_indicators,'tcp_service_count':len([x for x in all_services if x.get('protocol')=='tcp']),'udp_service_count':len([x for x in all_services if x.get('protocol')=='udp']),'web_inventory':web,'web_summary':web_summary,'smb_inventory':smb,'smb_summary':smb_summary,'raw_evidence_index':raw,'caldera_handoff':caldera_handoff,'environment_summary':_build_environment_summary(environment_intelligence, environment_context_indicators),'attack_surface_objectives':selected_objectives,'evidence_gaps':evidence_gaps,'exploit_validation_candidates':exploit_validation_candidates,'authentication_surface_readiness':authentication_surface_readiness,'web_exploitation_readiness':web_exploitation_readiness,'suggested_follow_up_objectives':follow_up_objectives,'escalation_paused':False}
         package.update({
             'result_state': result_state,
             'selected_plan_readiness': selected_plan_readiness,
@@ -6630,9 +7663,39 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         out=scan_store.result_path(f'{scan_id}_handoff.json'); out.write_text(json.dumps(_sanitise_export_paths(package), indent=2, default=str), encoding='utf-8')
         package['handoff_file']=str(out)
         _finish(scan_id, task, scan_store.STATUS_SUCCESS, 'Report and handoff package assembled')
-        scan_store.update(scan_id,status=scan_store.STATUS_SUCCESS,completed_at=scan_store.now(),results=package,**analysis_fields)
+        scan_store.update(scan_id,status=scan_store.STATUS_SUCCESS,workflow_stage='completed',workflow=workflow,completed_at=scan_store.now(),results=package,**analysis_fields)
         scan_store.persist(scan_id)
+        _clear_pivot_targets(scan_id)
     except Exception as e:
         scan_store.log(scan_id, f'Pipeline error: {e}', 'ERROR')
-        scan_store.update(scan_id,status=scan_store.STATUS_FAILED,error=str(e),completed_at=scan_store.now())
+        current_scan = scan_store.get(scan_id) or {}
+        workflow = dict(current_scan.get('workflow') or {})
+        phase_results = dict(workflow.get('phase_results') or {})
+        assessment_phase = dict(phase_results.get('assessment') or {})
+        failed_targets = []
+        try:
+            failed_targets = expand_target_input(target_input, Config.MAX_EXPANDED_TARGETS)
+        except Exception:
+            failed_targets = []
+        assessment_phase.update({
+            'status': 'failed',
+            'targets': failed_targets,
+            'target_count': len(failed_targets),
+            'error': str(e),
+        })
+        phase_results['assessment'] = assessment_phase
+        workflow.update({
+            'assessment_targets': failed_targets,
+            'assessment_target': target_input,
+            'phase_results': phase_results,
+        })
+        scan_store.update(
+            scan_id,
+            status=scan_store.STATUS_FAILED,
+            workflow_stage='assessment_failed',
+            workflow=workflow,
+            error=str(e),
+            completed_at=scan_store.now(),
+        )
         scan_store.persist(scan_id)
+        _clear_pivot_targets(scan_id)

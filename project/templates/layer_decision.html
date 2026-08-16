@@ -1,0 +1,1143 @@
+<!doctype html>
+<html>
+<head>
+  <title>Phase 2 Internal Discovery · PenPilot</title>
+
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+  >
+
+  <link rel="stylesheet" href="/static/style.css?v=topology-v12">
+
+  <style>
+    .phase-flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin: 18px 0 26px;
+    }
+
+    .phase-flow .flow-card {
+      border: 1px solid var(--border, #d9e1ea);
+      border-radius: 14px;
+      padding: 14px;
+      background: #0d1219;
+      min-height: 126px;
+      margin-bottom: 16px;
+    }
+
+    .flow-step {
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: #2f9e44;
+      color: #fff;
+      font-weight: 800;
+    }
+
+    .flow-card h3 {
+      margin: 8px 0 6px;
+      font-size: 1rem;
+    }
+
+    .flow-card p {
+      margin: 0;
+      font-size: .82rem;
+    }
+
+    .operator-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .next-network-card {
+      border: 1px solid var(--border, #d9e1ea);
+      border-radius: .75rem;
+      padding: .9rem 1rem;
+      margin-top: 12px;
+      box-sizing: border-box;
+      min-height: 118px;
+    }
+
+    .next-network-card.selected {
+      outline: 2px solid #3b82f6;
+    }
+
+    .network-facts {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 8px 12px;
+      margin-top: 10px;
+    }
+
+    .status-dot {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 700;
+    }
+
+    .status-dot::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #f59e0b;
+    }
+
+    .status-dot.reachable::before {
+      background: #22c55e;
+    }
+
+    .status-dot.unreachable::before {
+      background: #ef4444;
+    }
+
+    .evidence-box {
+      border-left: 3px solid #3b82f6;
+      padding-left: 12px;
+      margin-top: 12px;
+    }
+
+    .decision-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .inventory-mini {
+      max-height: 320px;
+      overflow: auto;
+    }
+
+    .branch-radio {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .branch-radio input {
+      margin-top: 5px;
+    }
+
+    .current-device-card {
+      border: 1px solid var(--border, #d9e1ea);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .status-legend {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .status-legend span {
+      font-size: .82rem;
+    }
+
+    .legend-dot {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+
+    .legend-green {
+      background: #22c55e;
+    }
+
+    .legend-amber {
+      background: #f59e0b;
+    }
+
+    .legend-red {
+      background: #ef4444;
+    }
+
+    @media (max-width: 900px) {
+      .phase-flow {
+        grid-template-columns: 1fr;
+      }
+
+      .operator-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<main class="shell layer-decision-shell">
+
+  <!-- ==========================================
+       Main Navigation Bar
+       ========================================== -->
+
+  <nav class="main-navbar">
+
+    <div class="navbar-brand">
+  <span class="brand-icon">
+    <i class="bi bi-shield-check"></i>
+  </span>
+  <span>PenPilot</span>
+</div>
+
+    <div class="navbar-links">
+
+      <a href="#current-layer" class="navbar-link">
+        <span>Current Layer</span>
+      </a>
+
+      <a href="#retained-assets" class="navbar-link">
+        <span>Retained Assets</span>
+      </a>
+
+      {% if visited_segments|length > 1 %}
+      <a href="#visited-layers" class="navbar-link">
+        <span>Visited Layers</span>
+      </a>
+      {% endif %}
+
+    </div>
+
+    <div class="navbar-controls">
+
+      <a href="{{ url_for('index') }}" class="navbar-new-scan">
+        <i class="bi bi-plus-lg"></i>
+        <span>New Scan</span>
+      </a>
+
+      <button
+        class="theme-toggle"
+        type="button"
+        title="Light Mode"
+        aria-label="Light Mode"
+      >
+        <i class="bi bi-sun-fill"></i>
+      </button>
+
+    </div>
+
+  </nav>
+
+
+  <!-- ==========================================
+       Phase 2 Header
+       ========================================== -->
+
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">
+        PHASE 2 · NETWORK DISCOVERY
+      </div>
+
+      <h1>Discover and Link Network Layers</h1>
+
+      <p class="muted">
+        Discover observable devices on the current authorised subnet,
+        inspect operator-selected devices for continuation evidence,
+        and retain the resulting device-to-network relationships.
+      </p>
+    </div>
+  </header>
+
+
+  {% if mission_error %}
+  <section class="panel scan-warning" role="alert">
+    <strong>Latest workflow message</strong>
+    <p>{{ mission_error }}</p>
+  </section>
+  {% endif %}
+
+
+  {% set selectable_inventory = all_discovered_hosts
+      |selectattr('selectable')
+      |rejectattr('is_scanner')
+      |list %}
+
+
+  <!-- ==========================================
+       Phase 2 Workflow
+       ========================================== -->
+
+  <section class="phase-flow" aria-label="Phase 2 workflow">
+
+    <article class="flow-card">
+      <span class="flow-step">1</span>
+      <h3>Enumerate Current Subnet</h3>
+      <p class="muted">
+        Retain observable devices in the authorised current network.
+      </p>
+    </article>
+
+    <article class="flow-card">
+      <span class="flow-step">2</span>
+      <h3>Identify Devices</h3>
+      <p class="muted">
+        Present retained hostname, vendor, device-role and reachability
+        evidence without guessing missing identity.
+      </p>
+    </article>
+
+    <article class="flow-card">
+      <span class="flow-step">3</span>
+      <h3>Inspect Selected Devices</h3>
+      <p class="muted">
+        Check one or more operator-selected devices for explicit
+        continuation-network evidence.
+      </p>
+    </article>
+
+    <article class="flow-card">
+      <span class="flow-step">4</span>
+      <h3>Link Networks</h3>
+      <p class="muted">
+        Show which discovered device exposed each continuation network.
+      </p>
+    </article>
+
+    <article class="flow-card">
+      <span class="flow-step">5</span>
+      <h3>Continue or Finish</h3>
+      <p class="muted">
+        Continue to one verified branch or finish Phase 2 with all retained
+        assets available for Phase 3.
+      </p>
+    </article>
+
+  </section>
+
+
+  <!-- ==========================================
+       Current Discovery Layer
+       ========================================== -->
+
+  <section id="current-layer" class="panel">
+
+    <div class="section-head">
+
+      <div>
+        <span class="label">CURRENT DISCOVERY LAYER</span>
+
+        <h2 class="mono">
+          {{ current_segment.get('network','Unknown') }}
+        </h2>
+
+        <p class="muted small">
+          Layer {{ current_segment.get('layer_index',0) }}
+          · {{ current_hosts|length }} non-scanner device(s) observed
+          · {{ all_discovered_hosts|length }} total retained asset(s)
+        </p>
+      </div>
+
+      <span class="status-pill">
+        {{ selectable_inventory|length }} Phase 3 eligible
+      </span>
+
+    </div>
+
+
+    <span class="label">CURRENT SUBNET INVENTORY</span>
+
+    <div class="operator-grid">
+
+      <div>
+        <div class="operator-column-head">
+        <h3>Devices Discovered on Current Subnet</h3>
+
+        <p class="muted small">
+          Select one or more discovered devices to inspect for network
+          continuation. Device labels are based only on retained discovery
+          evidence.
+        </p>
+      </div>
+
+        <form
+          action="{{ url_for('scan_layer_decision', scan_id=scan_id) }}"
+          method="POST"
+          id="deviceQueryForm"
+        >
+
+          <input
+            type="hidden"
+            name="_csrf_token"
+            value="{{ operator_csrf_token }}"
+          />
+
+          <div class="target-checkbox-grid">
+
+            {% for host in current_hosts %}
+
+            <label class="target-checkbox-card">
+
+              <input
+                type="checkbox"
+                name="device_ips"
+                value="{{ host.get('ip') or host.get('address') }}"
+                {% if host.get('topology_selected') %}checked{% endif %}
+              />
+
+              <span class="target-checkbox-content">
+
+                <strong class="mono">
+                  {{ host.get('ip') or host.get('address') }}
+                </strong>
+
+                <small>
+                  {% if host.get('hostname') %}
+                    {{ host.get('hostname') }} ·
+                  {% endif %}
+
+                  {{ host.get(
+                    'device_identity_label',
+                    'Device Role Not Established'
+                  ) }}
+                </small>
+
+                {% if host.get('mac_vendor') or host.get('mac') %}
+                <small class="muted">
+                  {{ host.get('mac_vendor') or 'MAC observed' }}
+
+                  {% if host.get('mac') %}
+                    · {{ host.get('mac') }}
+                  {% endif %}
+                </small>
+                {% endif %}
+
+                <small class="muted">
+                  {{ host.get(
+                    'device_identity_quality',
+                    'No additional identity evidence retained'
+                  ) }}
+
+                  {% if host.get('origin') == 'operator_supplied'
+                     or host.get('record_type') == 'entry_target' %}
+                    · Entry target
+                  {% endif %}
+                </small>
+
+              </span>
+
+            </label>
+
+            {% else %}
+
+            <p class="muted">
+              No non-scanner device is retained in this layer.
+            </p>
+
+            {% endfor %}
+
+          </div>
+
+
+          <div class="decision-row">
+
+            <button
+              class="btn"
+              id="continueDiscoveryBtn"
+              type="submit"
+              name="action"
+              value="discover_device"
+              {% if not current_hosts %}disabled{% endif %}
+            >
+              Find Next Networks
+            </button>
+
+          </div>
+
+
+          {% if topology_continuation.get('selected_device_ips') %}
+
+          <div class="current-device-card selected-device-card">
+
+            <span class="label">SELECTED DEVICES</span>
+
+            <strong class="mono">
+              {{ topology_continuation.get('selected_device_ips')|join(', ') }}
+            </strong>
+
+            <p class="muted small">
+              {{ topology_continuation.get('message','') }}
+            </p>
+
+          </div>
+
+          {% endif %}
+
+
+          <p id="deviceError" class="form-error" hidden>
+            Select one or more discovered devices.
+          </p>
+
+        </form>
+
+      </div>
+
+
+      <!-- ======================================
+           Continuation Networks
+           ====================================== -->
+
+      <div>
+        <div class="operator-column-head">
+          <h3>Continuation Networks</h3>
+        </div>
+        {% if continuation_paths %}
+
+        <form
+          action="{{ url_for('scan_layer_decision', scan_id=scan_id) }}"
+          method="POST"
+          id="pathForm"
+        >
+
+          <input
+            type="hidden"
+            name="_csrf_token"
+            value="{{ operator_csrf_token }}"
+          />
+
+          {% for path in continuation_paths %}
+
+          {% set eligible =
+            path.get('enumeration_eligible')
+            and path.get('verification_state') not in [
+              'visited',
+              'scope_exceeds_discovery_limit',
+              'outside_engagement_scope'
+            ]
+          %}
+
+          {% set reach = path.get('reachability_state','unknown') %}
+
+
+          <label
+            class="next-network-card branch-radio
+            {% if not eligible %}disabled{% endif %}"
+          >
+
+            <input
+              type="radio"
+              name="path_id"
+              value="{{ path.get('path_id') }}"
+              {% if not eligible %}disabled{% endif %}
+            />
+
+            <span style="width:100%">
+
+              <strong class="mono">
+                {{ path.get('destination_network','Unknown') }}
+              </strong>
+
+              <span class="network-facts">
+
+                <span class="muted">
+                  Source Device
+                </span>
+
+                <span>
+                  <span class="mono">
+                    {{ path.get('source_device_ip') or 'Unknown' }}
+                  </span>
+
+                  {% if path.get('source_device_hostname') %}
+                    · {{ path.get('source_device_hostname') }}
+                  {% endif %}
+
+                  · {{ path.get(
+                    'source_device_label',
+                    'Device role not established'
+                  ) }}
+                </span>
+
+
+                <span class="muted">
+                  Interface
+                </span>
+
+                <span>
+                  {{ path.get('device_interface') or 'Not reported' }}
+                </span>
+
+
+                <span class="muted">
+                  IP Address
+                </span>
+
+                <span class="mono">
+                  {{ path.get(
+                    'destination_interface_ip'
+                  ) or 'Not reported' }}
+                </span>
+
+
+                <span class="muted">
+                  Subnet
+                </span>
+
+                <span class="mono">
+                  {{ path.get('destination_network') }}
+                </span>
+
+
+                <span class="muted">
+                  Reachability
+                </span>
+
+                <span class="status-dot {{ reach }}">
+                  {{ reach|replace('_',' ')|title }}
+                </span>
+
+              </span>
+
+
+              <div class="evidence-box">
+
+                <span class="label">
+                  EVIDENCE SOURCE
+                </span>
+
+                <div class="small">
+                  {{ path.get(
+                    'evidence_source_label',
+                    'Observed network evidence'
+                  ) }}
+                </div>
+
+                <div class="muted small">
+                  {{ (path.get('evidence_sources') or [])|join(', ') }}
+                </div>
+
+              </div>
+
+
+              {% if path.get('verification_error') %}
+
+              <p class="form-error small">
+                {{ path.get('verification_error') }}
+              </p>
+
+              {% endif %}
+
+            </span>
+
+          </label>
+
+          {% endfor %}
+
+
+          <div class="top-gap">
+
+            <span class="label">
+              ACCESS METHOD
+            </span>
+
+            <label class="form-check">
+
+              <input
+                class="form-check-input"
+                type="radio"
+                name="access_transport"
+                value="direct"
+                checked
+              />
+
+              <span class="form-check-label">
+                Direct scanner path
+              </span>
+
+            </label>
+
+
+            <label class="form-check">
+
+              <input
+                class="form-check-input"
+                type="radio"
+                name="access_transport"
+                value="pivot"
+                {% if not pivot_ready %}disabled{% endif %}
+              />
+
+              <span class="form-check-label">
+                Existing SOCKS pivot
+
+                {% if not pivot_ready %}
+                  · not ready
+                {% endif %}
+              </span>
+
+            </label>
+
+          </div>
+
+
+          <div class="decision-row">
+
+            <button
+              class="btn"
+              type="submit"
+              name="action"
+              value="continue_path"
+            >
+              Continue Discovery
+
+              <span class="sr-only">
+                · Continue to Selected Network
+              </span>
+            </button>
+
+
+            <button
+              class="btn ghost"
+              type="submit"
+              name="action"
+              value="finish_phase2"
+            >
+              Stop Phase 2 · Proceed to Phase 3
+            </button>
+
+          </div>
+
+
+          <p id="pathError" class="form-error" hidden>
+            Select one discovered continuation network.
+          </p>
+
+        </form>
+
+
+        {% else %}
+
+
+        <div class="next-network-card">
+
+          <p class="muted">
+            No continuation network has been established yet.
+            Select one or more current-subnet devices and inspect
+            their network evidence.
+          </p>
+
+        </div>
+
+
+        <div class="status-legend">
+
+          <span>
+            <i class="legend-dot legend-green"></i>
+            Reachable · verified
+          </span>
+
+          <span>
+            <i class="legend-dot legend-amber"></i>
+            Unknown · not yet tested
+          </span>
+
+          <span>
+            <i class="legend-dot legend-red"></i>
+            Unreachable · blocked/failed
+          </span>
+
+        </div>
+
+
+        <form
+          action="{{ url_for('scan_layer_decision', scan_id=scan_id) }}"
+          method="POST"
+        >
+
+          <input
+            type="hidden"
+            name="_csrf_token"
+            value="{{ operator_csrf_token }}"
+          />
+
+
+          <div class="continuation-actions">
+
+
+            {% if inconclusive_operator_targets %}
+
+            <label class="form-check">
+
+              <input
+                class="form-check-input"
+                type="checkbox"
+                name="allow_inconclusive_operator_targets"
+                value="1"
+              />
+
+              <span class="form-check-label">
+                Allow the inconclusive Phase 1 entry IP in Phase 3.
+              </span>
+
+            </label>
+
+            {% endif %}
+
+
+            <div class="decision-row">
+
+              <button
+                class="btn ghost"
+                type="submit"
+                name="action"
+                value="finish_phase2"
+                {% if not selectable_inventory
+                      and not inconclusive_operator_targets %}
+                  disabled
+                {% endif %}
+              >
+                Stop Phase 2 · Proceed to Phase 3
+              </button>
+
+
+              <button
+                class="btn ghost"
+                type="submit"
+                name="action"
+                value="retry_layer"
+              >
+                Retry Current Layer
+              </button>
+
+            </div>
+
+          </div>
+
+        </form>
+
+        {% endif %}
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- ==========================================
+       Retained Inventory
+       ========================================== -->
+
+  <section id="retained-assets" class="panel">
+
+    <div class="section-head">
+
+      <div>
+
+        <span class="label">
+          RETAINED INVENTORY
+        </span>
+
+        <h2>
+          All discovered assets
+        </h2>
+
+        <p class="muted small">
+          Every eligible retained asset from the entry host and discovered
+          network layers remains selectable in Phase 3.
+          The scanner/controller is excluded.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="table-scroll inventory-mini">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>IP</th>
+            <th>Type</th>
+            <th>Layer(s)</th>
+            <th>Reachability</th>
+            <th>Phase 3</th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          {% for host in all_discovered_hosts %}
+
+          <tr>
+
+            <td class="mono">
+              {{ host.get('ip') or host.get('address') }}
+            </td>
+
+            <td>
+              {{ host.get(
+                'device_type'
+              ) or host.get('role','Host')|replace('_',' ')|title }}
+            </td>
+
+            <td>
+              {{ (
+                host.get('discovery_layers')
+                or [host.get('discovery_phase','Unknown')]
+              )|join(', ') }}
+            </td>
+
+            <td>
+              {{ host.get(
+                'reachability_state',
+                'observed'
+              )|replace('_',' ')|title }}
+            </td>
+
+            <td>
+
+              {% if host.get('selectable')
+                    and not host.get('is_scanner') %}
+
+              <span class="status-pill">
+                Eligible
+              </span>
+
+              {% else %}
+
+              <span class="muted">
+                Excluded
+              </span>
+
+              {% endif %}
+
+            </td>
+
+          </tr>
+
+          {% else %}
+
+          <tr>
+            <td colspan="5" class="muted">
+              No retained assets yet.
+            </td>
+          </tr>
+
+          {% endfor %}
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  </section>
+
+
+  <!-- ==========================================
+       Visited Layers
+       ========================================== -->
+
+  {% if visited_segments|length > 1 %}
+
+  <section id="visited-layers" class="panel">
+
+    <div class="section-head">
+
+      <div>
+        <span class="label">
+          DISCOVERY HISTORY
+        </span>
+
+        <h2>
+          Visited Layers
+        </h2>
+      </div>
+
+    </div>
+
+
+    <form
+      action="{{ url_for('scan_layer_decision', scan_id=scan_id) }}"
+      method="POST"
+      id="revisitForm"
+    >
+
+      <input
+        type="hidden"
+        name="_csrf_token"
+        value="{{ operator_csrf_token }}"
+      />
+
+
+      <div class="table-scroll">
+
+        <table>
+
+          <thead>
+            <tr>
+              <th>Select</th>
+              <th>Layer</th>
+              <th>Network</th>
+              <th>Hosts</th>
+              <th>Access</th>
+            </tr>
+          </thead>
+
+          <tbody>
+
+            {% for segment in visited_segments %}
+
+            {% set is_current =
+              segment.get('segment_id')
+              == current_segment.get('segment_id')
+            %}
+
+            <tr>
+
+              <td>
+                <input
+                  type="radio"
+                  name="segment_id"
+                  value="{{ segment.get('segment_id') }}"
+                  {% if is_current %}disabled{% endif %}
+                />
+              </td>
+
+              <td>
+                {{ segment.get('layer_index',0) }}
+              </td>
+
+              <td class="mono">
+                {{ segment.get('network') }}
+              </td>
+
+              <td>
+                {{ segment.get('hosts',[])|length }}
+              </td>
+
+              <td>
+                {{ 'Current'
+                  if is_current
+                  else (
+                    segment.get('access_transport')
+                    or segment.get('access_mode','')
+                  )
+                }}
+              </td>
+
+            </tr>
+
+            {% endfor %}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+
+      <div class="decision-row">
+
+        <button
+          class="btn ghost"
+          type="submit"
+          name="action"
+          value="revisit_segment"
+        >
+          Switch to Selected Layer
+        </button>
+
+      </div>
+
+
+      <p id="revisitError" class="form-error" hidden>
+        Select a previously visited layer.
+      </p>
+
+    </form>
+
+  </section>
+
+  {% endif %}
+
+</main>
+
+
+<script>
+  const deviceForm =
+    document.getElementById('deviceQueryForm');
+
+  const deviceError =
+    document.getElementById('deviceError');
+
+
+  deviceForm?.addEventListener('submit', e => {
+
+    if (e.submitter?.value !== 'discover_device') {
+      return;
+    }
+
+    if (!deviceForm.querySelector(
+      'input[name="device_ips"]:checked'
+    )) {
+      e.preventDefault();
+      deviceError.hidden = false;
+    }
+
+  });
+
+
+  const pathForm =
+    document.getElementById('pathForm');
+
+  const pathError =
+    document.getElementById('pathError');
+
+
+  pathForm?.addEventListener('submit', e => {
+
+    if (e.submitter?.value !== 'continue_path') {
+      return;
+    }
+
+    if (!pathForm.querySelector(
+      'input[name="path_id"]:checked'
+    )) {
+      e.preventDefault();
+      pathError.hidden = false;
+    }
+
+  });
+
+
+  const revisitForm =
+    document.getElementById('revisitForm');
+
+  const revisitError =
+    document.getElementById('revisitError');
+
+
+  revisitForm?.addEventListener('submit', e => {
+
+    if (e.submitter?.value !== 'revisit_segment') {
+      return;
+    }
+
+    if (!revisitForm.querySelector(
+      'input[name="segment_id"]:checked'
+    )) {
+      e.preventDefault();
+      revisitError.hidden = false;
+    }
+
+  });
+</script>
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+
+</body>
+</html>

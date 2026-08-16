@@ -49,10 +49,6 @@ HOLD_REASONS: dict[str, tuple[str, str]] = {
         'The observed evidence did not establish a product identity suitable for structured affected-product matching.',
         'Collect a clearer product identity, preferably a product/version fingerprint or CPE.',
     ),
-    'fingerprint_confidence_advisory': (
-        'Fingerprint confidence is advisory context only and does not create or suppress CVE applicability.',
-        'No action is required unless stronger identity evidence is desired.',
-    ),
     'cve_index_unavailable': (
         'The official CVE catalogue was unavailable, so no applicability decision could be made.',
         'Rebuild or restore the official CVE index and re-run correlation.',

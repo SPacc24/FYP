@@ -161,6 +161,7 @@ def _service_details(
         "devicetype": service_el.get("devicetype", "") if service_el is not None else "",
         "method": service_el.get("method", "") if service_el is not None else "",
         "conf": service_el.get("conf", "") if service_el is not None else "",
+        "tunnel": service_el.get("tunnel", "") if service_el is not None else "",
     }
     raw_cpes = (
         [str(node.text or "").strip() for node in service_el.findall("cpe") if str(node.text or "").strip()]
@@ -397,6 +398,7 @@ def _manual_port_row(
             "devicetype": _attribute(service_attrs, "devicetype"),
             "method": _attribute(service_attrs, "method"),
             "conf": _attribute(service_attrs, "conf"),
+            "tunnel": _attribute(service_attrs, "tunnel"),
         },
         "evidence_sources": ["nmap"],
         "raw_evidence_file": str(path),

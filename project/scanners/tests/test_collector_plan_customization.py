@@ -229,7 +229,7 @@ class CollectorPlanCustomizationTests(unittest.TestCase):
         self.assertEqual(by_id['smb_protocol_security']['runtime_requirement'], 'nmap')
 
     def test_start_page_has_structured_plan_controls_without_raw_command_input(self):
-        html = (PROJECT_DIR / 'templates' / 'index.html').read_text(encoding='utf-8')
+        html = (PROJECT_DIR / 'templates' / 'assessment_config.html').read_text(encoding='utf-8')
         for marker in (
             'EVIDENCE COLLECTION PLAN', 'HOST DISCOVERY', 'SERVICE IDENTIFICATION',
             'collector_plan_json', 'host_discovery_json', 'service_identity_json',

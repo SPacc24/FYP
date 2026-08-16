@@ -188,7 +188,7 @@ class CrossPlatformIdentityTests(TestCase):
         self.assertEqual(inventory["cve_identities"], [])
         self.assertEqual(inventory["identities"][0]["reconciliation_status"], "supporting_only")
 
-    def test_single_highest_accuracy_unambiguous_fingerprint_can_be_fallback_cve_identity(self):
+    def test_single_highest_accuracy_probabilistic_fingerprint_remains_unresolved_candidate_input(self):
         identity_map: dict[str, list[dict]] = {}
         merge_host_identity_map(identity_map, [
             {
@@ -205,9 +205,11 @@ class CrossPlatformIdentityTests(TestCase):
             },
         ])
         inventory = host_identity_inventory(identity_map)[0]
-        self.assertEqual(len(inventory["cve_identities"]), 1)
-        self.assertEqual(inventory["cve_identities"][0]["product"], "Example OS Three")
-        self.assertEqual(inventory["cve_identities"][0]["reconciliation_status"], "fallback_fingerprint")
+        self.assertEqual(inventory["cve_identities"], [])
+        self.assertEqual(inventory["best"], {})
+        self.assertEqual(inventory["identity_state"], "unresolved_probabilistic")
+        self.assertTrue(any(row.get("product") == "Example OS Three" for row in inventory["candidate_identities"]))
+        self.assertTrue(all(row.get("reconciliation_status") == "candidate_fingerprint" for row in inventory["candidate_identities"]))
 
     def test_component_inventory_only_uses_direct_component_observations(self):
         services = [{

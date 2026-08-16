@@ -62,12 +62,90 @@ def tracepath_path(tracepath_bin: str, host: str, max_hops: int) -> list[str]:
     return [tracepath_bin, '-n', '-m', str(int(max_hops)), str(host)]
 
 
-def arp_scan(arp_bin: str, host: str) -> list[str]:
-    return [arp_bin, str(host)]
+def nmap_resilient_host_discovery(
+    nmap_bin: str,
+    subnet: str,
+    output_file: Path | str,
+    *,
+    interface: str = '',
+) -> list[str]:
+    """Build a complementary bounded IP-layer host-discovery pass.
+
+    The normal local Nmap discovery may prefer ARP on Ethernet. This second
+    pass disables ARP discovery so ICMP/TCP probes can independently retain
+    hosts that do not answer the first method.
+    """
+    cmd = [
+        nmap_bin,
+        '-sn',
+        '-n',
+        '--disable-arp-ping',
+        '-PE',
+        '-PS22,80,443,445,3389',
+        '-PA80,443',
+        '--max-retries',
+        '1',
+        '--host-timeout',
+        '8s',
+        '-oX',
+        str(output_file),
+    ]
+    if str(interface or '').strip():
+        cmd += ['-e', str(interface).strip()]
+    cmd.append(str(subnet))
+    return cmd
 
 
-def nmap_host_discovery(nmap_bin: str, targets: Sequence[str], output_file: Path | str) -> list[str]:
-    return [nmap_bin, '-sn', '-oX', str(output_file), *[str(t) for t in targets]]
+def arp_scan(arp_bin: str, host: str, *, interface: str = '') -> list[str]:
+    cmd = [arp_bin]
+    if str(interface or '').strip():
+        cmd += ['--interface', str(interface).strip()]
+    cmd.append(str(host))
+    return cmd
+
+
+def nmap_host_discovery(
+    nmap_bin: str,
+    targets: Sequence[str],
+    output_file: Path | str,
+    *,
+    interface: str = '',
+) -> list[str]:
+    # Host inventory is IP-address based.  Reverse DNS is collected separately
+    # when explicitly requested, so discovery itself must not block on a broken
+    # or unreachable resolver supplied by the host environment.
+    cmd = [nmap_bin, '-sn', '-n', '-oX', str(output_file)]
+    if str(interface or '').strip():
+        cmd += ['-e', str(interface).strip()]
+    return [*cmd, *[str(t) for t in targets]]
+
+
+def tracepath_observation(tracepath_bin: str, target: str, max_hops: int) -> list[str]:
+    """Build a bounded, numeric tracepath observation command."""
+
+    return [
+        str(tracepath_bin),
+        '-n',
+        '-m',
+        str(int(max_hops)),
+        str(target),
+    ]
+
+
+def traceroute_observation(traceroute_bin: str, target: str, max_hops: int) -> list[str]:
+    """Build a bounded, numeric traceroute observation command."""
+
+    return [
+        str(traceroute_bin),
+        '-n',
+        '-m',
+        str(int(max_hops)),
+        '-w',
+        '1',
+        '-q',
+        '1',
+        str(target),
+    ]
 
 
 def nmap_tcp_discovery(nmap_bin: str, host: str, ports: Iterable[int], timing: Sequence[str], output_file: Path | str) -> list[str]:
@@ -103,8 +181,28 @@ def nmap_service_fingerprint(
     return cmd
 
 
-def nmap_os_fingerprint(nmap_bin: str, host: str, ports: Iterable[int], timing: Sequence[str], output_file: Path | str) -> list[str]:
-    return [nmap_bin, '-Pn', '-O', '--osscan-limit', '--osscan-guess', '--max-os-tries', '1', '-p', _ports(ports), *_args(timing), '-oX', str(output_file), str(host)]
+def nmap_os_fingerprint(
+    nmap_bin: str,
+    host: str,
+    ports: Iterable[int],
+    timing: Sequence[str],
+    output_file: Path | str,
+    *,
+    max_os_tries: int = 2,
+) -> list[str]:
+    """Build a bounded OS fingerprint command.
+
+    ``max_os_tries`` defaults to 2 so a single degraded sample cannot become the
+    reported fingerprint set. The caller still supplies the timing profile; an
+    OS-specific profile must not contain ``--scan-delay``, which overrides the
+    fixed inter-probe interval Nmap's SEQ tests depend on.
+    """
+    tries = max(1, min(int(max_os_tries), 5))
+    return [
+        nmap_bin, '-Pn', '-O', '--osscan-limit', '--osscan-guess',
+        '--max-os-tries', str(tries), '-p', _ports(ports),
+        *_args(timing), '-oX', str(output_file), str(host),
+    ]
 
 
 def nmap_advertised_followup(nmap_bin: str, host: str, ports: Iterable[int], timing: Sequence[str], output_file: Path | str) -> list[str]:
@@ -197,3 +295,101 @@ def git_clone_shallow(git_bin: str, repo_url: str, destination: Path | str) -> l
 
 def git_pull_ff_only(git_bin: str, repo_dir: Path | str) -> list[str]:
     return [git_bin, '-C', str(repo_dir), 'pull', '--ff-only']
+
+
+def nmap_external_reachability(nmap_bin: str, host: str, output_file: Path | str) -> list[str]:
+    """Build Phase 1 low-impact host-discovery probes without a port scan."""
+    return [
+        nmap_bin,
+        '-sn',
+        '-n',
+        '-PE',
+        '-PS80,443',
+        '-PA80,443',
+        '--host-timeout',
+        '15s',
+        '-oX',
+        str(output_file),
+        str(host),
+    ]
+
+
+def nmap_internal_host_discovery(
+    nmap_bin: str,
+    subnet: str,
+    output_file: Path | str,
+    *,
+    interface: str = '',
+) -> list[str]:
+    """Build Phase 2 inventory-only host discovery for one authorised subnet."""
+    cmd = [nmap_bin, '-sn', '-n', '-oX', str(output_file)]
+    if str(interface or '').strip():
+        cmd += ['-e', str(interface).strip()]
+    cmd.append(str(subnet))
+    return cmd
+
+
+def tshark_passive_topology_observation(
+    tshark_bin: str,
+    interface: str,
+    capture_filter: str,
+    duration_seconds: int,
+) -> list[str]:
+    """Build a bounded passive topology-advertisement capture command."""
+    return [
+        tshark_bin,
+        '-i',
+        str(interface),
+        '-a',
+        f'duration:{int(duration_seconds)}',
+        '-n',
+        '-f',
+        str(capture_filter),
+        '-V',
+    ]
+
+
+def nmap_upnp_topology_metadata(
+    nmap_bin: str,
+    device: str,
+    output_file: Path | str,
+) -> list[str]:
+    """Build the bounded UPnP metadata probe used only as supplemental evidence."""
+    return [
+        nmap_bin,
+        '-Pn',
+        '-n',
+        '-sU',
+        '-p',
+        '1900',
+        '--script',
+        'upnp-info',
+        '--script-timeout',
+        '8s',
+        '--host-timeout',
+        '15s',
+        '-oX',
+        str(output_file),
+        str(device),
+    ]
+
+
+def curl_topology_root_metadata(
+    curl_bin: str,
+    scheme: str,
+    device: str,
+) -> list[str]:
+    """Build a short, byte-bounded root-page metadata observation command."""
+    return [
+        curl_bin,
+        '-k',
+        '-sS',
+        '-L',
+        '--connect-timeout',
+        '2',
+        '--max-time',
+        '5',
+        '--range',
+        '0-262143',
+        f'{scheme}://{device}/',
+    ]

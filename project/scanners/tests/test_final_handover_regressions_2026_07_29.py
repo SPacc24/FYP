@@ -147,7 +147,7 @@ def test_legacy_component_point_version_wins_over_unrelated_platform_versions():
     }
     ok, basis = mitre_cve._structured_component_version_match(entry, 'smb', '1')
     assert ok is True
-    assert basis == 'structured_affected_component_exact_version'
+    assert basis == 'prose_affected_component_version_scrape'
 
 
 def test_component_adjacent_point_version_does_not_collapse_newer_minor_version():
@@ -200,7 +200,7 @@ def test_legacy_component_candidate_search_uses_component_attached_version(tmp_p
     with patch.object(mitre_cve, 'INDEX', index):
         rows, diagnostics = mitre_cve.search_component_candidates('smb', '1', host_vendor='Example')
     assert [row['cve_id'] for row in rows] == ['CVE-2099-92003']
-    assert rows[0]['match_basis'] == 'structured_affected_component_exact_version'
+    assert rows[0]['match_basis'] == 'prose_affected_component_version_scrape'
     assert not [d for d in diagnostics if d.get('matcher_status') == 'error']
 
 
@@ -214,7 +214,7 @@ def test_component_cve_is_emitted_only_for_host_whose_platform_corroborates():
         'cvss_metrics': {},
         'matched_product_tokens': ['Example SMB'],
         'matched_version_tokens': ['1'],
-        'match_basis': 'structured_affected_component_exact_version',
+        'match_basis': 'prose_affected_component_version_scrape',
         'product_match_basis': 'structured_affected_component_product',
         'affected_vendors': ['Example Corporation'],
         'affected_products': ['Example SMB'],
@@ -232,16 +232,13 @@ def test_component_cve_is_emitted_only_for_host_whose_platform_corroborates():
         {'host': '192.0.2.31', 'port': 445, 'protocol': 'tcp', 'service': 'netbios-ssn', 'component': 'smb', 'version': '1', 'evidence_sources': ['fixture']},
     ]
 
-    def corroborate(_cve_id, _component, _version, host_cpes):
-        ok = 'cpe:/o:example:example_os:1.0' in host_cpes
-        return ok, ('exact platform match' if ok else ''), {'corroboration_mode': 'canonical_component_plus_host_configuration'}
-
-    with patch('scanners.enumerator.mitre_search_component_candidates', return_value=((candidate,), ())), \
-         patch('scanners.enumerator.nvd_corroborate_component_context', side_effect=corroborate), \
-         patch('scanners.enumerator.nvd_status', return_value={'enabled': False}):
+    with patch('scanners.enumerator.mitre_search_component_candidates', return_value=((candidate,), ())):
         rows, _ = _match_cves([], host_identities=identities, component_observations=components)
 
     component_rows = [row for row in rows if row.get('cve_id') == 'CVE-2099-92004']
-    assert len(component_rows) == 1
-    assert component_rows[0]['host'] == '192.0.2.30'
-    assert component_rows[0]['applicability_evidence']['affected_host'] == '192.0.2.30'
+    # Recon keeps both evidence-linked candidates. Host/platform applicability is
+    # intentionally left to the downstream validation stage.
+    assert len(component_rows) == 2
+    assert {row['host'] for row in component_rows} == {'192.0.2.30', '192.0.2.31'}
+    assert all(row['candidate_status'] == 'candidate' for row in component_rows)
+    assert all(row['validation_state'] == 'not_performed' for row in component_rows)

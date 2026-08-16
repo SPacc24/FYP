@@ -73,12 +73,6 @@ class Config:
     PIVOT_CHISEL_BINARY = os.getenv('PIVOT_CHISEL_BINARY', '/usr/bin/chisel')
     PIVOT_DEFAULT_SOCKS_PORT = int(os.getenv('PIVOT_DEFAULT_SOCKS_PORT', '1080'))
     PIVOT_DEFAULT_CHISEL_PORT = int(os.getenv('PIVOT_DEFAULT_CHISEL_PORT', '8080'))
-    PIVOT_INTERNAL_RANGES = [
-        item.strip()
-        for item in os.getenv('PIVOT_INTERNAL_RANGES', '10.10.10.0/24,10.10.20.0/24').split(',')
-        if item.strip()
-    ]
-
     NMAP_DEFAULT_PORTS = os.getenv('NMAP_DEFAULT_PORTS', '1-1024')
     NMAP_DEFAULT_INTENSITY = os.getenv('NMAP_DEFAULT_INTENSITY', '3')
     NMAP_DEFAULT_PROFILE = os.getenv('NMAP_DEFAULT_PROFILE', 'basic')

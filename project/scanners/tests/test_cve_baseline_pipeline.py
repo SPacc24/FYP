@@ -70,7 +70,7 @@ def _search(index: Path, services: list[dict]):
     return rows, diagnostics, legacy
 
 
-def test_arbitrary_exact_product_version_becomes_baseline_reference(tmp_path: Path):
+def test_arbitrary_exact_product_version_becomes_candidate_cve(tmp_path: Path):
     cve_id = "CVE-2099-70001"
     record = _record(
         cve_id,
@@ -95,10 +95,12 @@ def test_arbitrary_exact_product_version_becomes_baseline_reference(tmp_path: Pa
 
     assert legacy == []
     assert [row["cve_id"] for row in rows] == [cve_id]
-    assert rows[0]["reference_type"] == "Baseline CVE Reference"
+    assert rows[0]["reference_type"] == "Candidate CVE"
+    assert rows[0]["validation_state"] == "not_performed"
     assert "classification" not in rows[0]
     assert "cve_status" not in rows[0]
-    assert any(item["reason"] == "fingerprint_confidence_advisory" for item in diagnostics)
+    assert not any(item.get("reason") == "fingerprint_confidence_advisory" for item in diagnostics)
+    assert "candidate_evidence_strength" not in rows[0]
     assert mitre_cve._lookup_is_current(index, mitre_cve._lookup_path(index))
 
 
@@ -224,7 +226,7 @@ def test_complementary_direct_host_identity_reaches_official_matcher(tmp_path: P
     assert "cve_status" not in rows[0]
     assert not any(item.get("reason") == "observed_version_missing" for item in diagnostics)
 
-def test_official_record_without_retained_product_version_basis_is_not_a_baseline_reference():
+def test_official_record_without_retained_product_version_basis_is_not_a_candidate_cve():
     reference_type, reason = _classify_cve_match(
         {},
         {
@@ -233,7 +235,7 @@ def test_official_record_without_retained_product_version_basis_is_not_a_baselin
         },
     )
 
-    assert reference_type == "Excluded - Incomplete Baseline Evidence"
+    assert reference_type == "Excluded - Incomplete Candidate Evidence"
     assert "concrete matched version" in reason
 
 
