@@ -3594,72 +3594,6 @@ def _segment_from_topology_path(path: dict[str, Any], layer_index: int, access_t
     }
 
 
-def _pivot_hosts_for_segment(scan_id: str, segment: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    from pivot.runtime import get_pivot_engine
-
-    engine = get_pivot_engine()
-    if not engine.is_socks_ready():
-        raise DiscoveryWorkflowError("The operator-established SOCKS pivot is not ready.")
-    network = str(segment.get("network") or "")
-    results = engine.scan_network(network, timeout=180)
-    hosts: list[dict[str, Any]] = []
-    for row in results:
-        address = str(row.get("ip") or "").strip()
-        try:
-            ipaddress.ip_address(address)
-        except ValueError:
-            continue
-        hosts.append(
-            {
-                "host_id": _stable_id("host", segment.get("segment_id"), address),
-                "segment_id": segment.get("segment_id"),
-                "ip": address,
-                "address": address,
-                "status": "up",
-                "reachability_state": "responsive",
-                "reachability_evidence": [
-                    {
-                        "source": "pivot_tcp_connect_scan",
-                        "state": "open_service_observed",
-                        "open_port_count": int(row.get("port_count") or 0),
-                    }
-                ],
-                "hostname": "",
-                "hostname_observations": [],
-                "mac": "",
-                "mac_vendor": "",
-                "role": "host",
-                "is_scanner": False,
-                "selectable": True,
-                "record_type": "discovered_host",
-                "origin": "pivot_network_enumeration",
-                "origins": ["pivot_network_enumeration"],
-                "independently_discovered": True,
-                "discovered_by": ["pivot_tcp_connect_scan"],
-                "verification_methods": ["pivot_tcp_connect_scan"],
-                "pivot_open_ports": list(row.get("open_ports") or []),
-            }
-        )
-    execution = {
-        "pivot_tcp_connect_discovery": {
-            "requested": True,
-            "executed": True,
-            "success": True,
-            "evidence_produced": bool(hosts),
-            "host_count": len(hosts),
-            "transport": "socks_proxy",
-        },
-        "arp_discovery": {
-            "requested": False,
-            "applicable": False,
-            "executed": False,
-            "evidence_produced": False,
-            "unavailable_reason": "not_available_through_socks_proxy",
-        },
-    }
-    return _sort_hosts(hosts), execution
-
-
 def continue_discovery_with_topology_path(
     scan_id: str,
     path_id: str,
@@ -3681,7 +3615,7 @@ def continue_discovery_with_topology_path(
         if not path.get("enumeration_eligible"):
             raise DiscoveryWorkflowError("The selected network exceeds the configured bounded discovery limit or was already visited.")
         transport = str(access_transport or "direct").strip().lower()
-        if transport not in {"direct", "pivot"}:
+        if transport not in {"direct"}:
             raise DiscoveryWorkflowError("Unsupported continuation access transport.")
 
         verification: dict[str, Any]
@@ -3701,22 +3635,11 @@ def continue_discovery_with_topology_path(
                     workflow_stage="awaiting_layer_decision",
                     workflow=workflow,
                     current_task="Waiting for operator decision",
-                    next_task="Choose another branch, use an established pivot, or finish Phase 2",
+                    next_task="Choose another branch or finish Phase 2",
                     error=str(verification.get("reason") or "Direct reachability was not established."),
                 )
                 scan_store.persist(scan_id)
                 return
-        else:
-            from pivot.runtime import get_pivot_engine
-
-            if not get_pivot_engine().is_socks_ready():
-                raise DiscoveryWorkflowError("The operator-established SOCKS pivot is not ready.")
-            verification = {
-                "reachable": True,
-                "state": "pivot_ready",
-                "reason": "",
-                "evidence": [{"source": "operator_established_socks_pivot", "state": "ready"}],
-            }
 
         layer_index = len(workflow.get("segment_order") or [])
         segment = _segment_from_topology_path(path, layer_index, transport)
@@ -3825,8 +3748,6 @@ def _enumerate_and_pause(
     scan_store.set_task(scan_id, task_name, scan_store.STATUS_RUNNING)
     if str(segment.get("scope_kind") or "") == "entry_host":
         hosts, execution = discover_host_scope(segment, dict(workflow.get("entry_result") or {}))
-    elif str(segment.get("access_transport") or segment.get("access_mode") or "") == "pivot":
-        hosts, execution = _pivot_hosts_for_segment(scan_id, segment)
     else:
         hosts, execution = discover_internal_hosts(
             scan_id,

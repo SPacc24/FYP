@@ -75,36 +75,25 @@ _CURRENT_SCAN_ID = contextvars.ContextVar('current_scan_id', default='')
 
 logger = logging.getLogger(__name__)
 
-# Phase 3 can contain targets reached only through the operator-established
-# SOCKS pivot. Keep the access map keyed by scan ID because TCP discovery
-# batches run in worker threads where ContextVar values are not inherited.
-_PIVOT_TARGETS_BY_SCAN: dict[str, set[str]] = {}
+# Pivot-based (SOCKS/Chisel) transport has been removed from this platform.
+# Cross-VLAN access is achieved through a different mechanism, so all internal
+# scanning now runs as direct/raw-IP collection only. These functions remain as
+# no-op stubs (rather than being deleted outright) so every call site elsewhere
+# in this module keeps working unmodified: nothing is ever registered as a
+# pivot-only target, and no command is ever proxy-wrapped.
 _PIVOT_TARGETS_LOCK = threading.Lock()
 
 
 def _register_pivot_targets(scan_id: str, targets: Iterable[str]) -> set[str]:
-    normalised: set[str] = set()
-    for value in targets or []:
-        try:
-            normalised.add(str(ipaddress.ip_address(str(value).strip())))
-        except ValueError:
-            continue
-    with _PIVOT_TARGETS_LOCK:
-        if normalised:
-            _PIVOT_TARGETS_BY_SCAN[str(scan_id)] = normalised
-        else:
-            _PIVOT_TARGETS_BY_SCAN.pop(str(scan_id), None)
-    return normalised
+    return set()
 
 
 def _pivot_targets(scan_id: str) -> set[str]:
-    with _PIVOT_TARGETS_LOCK:
-        return set(_PIVOT_TARGETS_BY_SCAN.get(str(scan_id)) or set())
+    return set()
 
 
 def _clear_pivot_targets(scan_id: str) -> None:
-    with _PIVOT_TARGETS_LOCK:
-        _PIVOT_TARGETS_BY_SCAN.pop(str(scan_id), None)
+    return None
 
 
 def _command_mentions_target(cmd: list[str], target: str) -> bool:
@@ -114,72 +103,8 @@ def _command_mentions_target(cmd: list[str], target: str) -> bool:
 
 
 def _pivot_wrap_command(scan_id: str, cmd: list[str]) -> tuple[list[str] | None, str]:
-    """Adapt one TCP-capable target command for the established SOCKS pivot.
-
-    Returns ``(None, reason)`` when the collector cannot produce truthful
-    evidence through a TCP SOCKS transport. Direct-target commands are returned
-    unchanged.
-    """
-    targets = _pivot_targets(scan_id)
-    if not targets or not cmd:
-        return cmd, ''
-    matched = {target for target in targets if _command_mentions_target(cmd, target)}
-    if not matched:
-        return cmd, ''
-
-    exe = Path(str(cmd[0])).name.lower()
-    # Local/passive commands can contain target strings in a filter or filename;
-    # they are not data-plane connections and must not be proxy-wrapped.
-    if exe in {'tshark', 'p0f', 'git', 'jq'}:
-        return cmd, ''
-
-    proxychains = which('proxychains4')
-    if not proxychains:
-        return None, 'proxychains4_unavailable_for_pivot_target'
-    try:
-        from pivot.runtime import get_pivot_engine
-        engine = get_pivot_engine()
-        if not engine.is_socks_ready():
-            return None, 'operator_established_socks_pivot_not_ready'
-        config_path = getattr(
-            engine,
-            'proxychains_config_path',
-            str(Path(__file__).resolve().parent.parent / 'proxychains4.conf'),
-        )
-    except Exception:
-        config_path = str(Path(__file__).resolve().parent.parent / 'proxychains4.conf')
-
-    if exe == 'nmap':
-        args = [str(value) for value in cmd]
-        # These evidence types need raw IP/UDP/L2 semantics and cannot be
-        # represented honestly through a TCP SOCKS tunnel.
-        if '-sU' in args:
-            return None, 'udp_scanning_not_supported_through_socks_pivot'
-        if '-O' in args:
-            return None, 'active_os_fingerprinting_not_supported_through_socks_pivot'
-        if '-sn' in args:
-            return None, 'nmap_host_discovery_not_supported_through_socks_pivot'
-        args = [value for value in args if value != '-sS']
-        insert_at = 1
-        if '-Pn' not in args:
-            args.insert(insert_at, '-Pn')
-            insert_at += 1
-        if '-sT' not in args:
-            args.insert(insert_at, '-sT')
-        return [proxychains, '-q', '-f', config_path, *args], ''
-
-    # These tools use ordinary TCP sockets and can be routed by ProxyChains.
-    proxy_compatible = {
-        'curl', 'openssl', 'ssh-audit', 'smbclient', 'smbmap', 'ldapsearch',
-        'rpcinfo', 'showmount', 'pg_isready', 'telnet', 'nc', 'netcat',
-        'enum4linux-ng',
-    }
-    if exe in proxy_compatible:
-        return [proxychains, '-q', '-f', config_path, *[str(value) for value in cmd]], ''
-
-    # Never silently fall back to direct traffic for a target whose retained
-    # Phase 2 access method is pivot-only.
-    return None, f'{exe or "collector"}_not_proxy_compatible'
+    """Pivot transport has been removed; every command runs unwrapped/direct."""
+    return cmd, ''
 
 def _describe_command(cmd: list[str]) -> str:
     if not cmd:

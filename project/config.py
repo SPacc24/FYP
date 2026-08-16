@@ -70,9 +70,6 @@ class Config:
     LAB_CREDENTIAL_AUDIT_DELAY_SECONDS = max(float(os.getenv('LAB_CREDENTIAL_AUDIT_DELAY_SECONDS', '1.5')), 1.0)
     MITRE_CVE_REPO = os.getenv('MITRE_CVE_REPO', 'https://github.com/CVEProject/cvelistV5.git')
 
-    PIVOT_CHISEL_BINARY = os.getenv('PIVOT_CHISEL_BINARY', '/usr/bin/chisel')
-    PIVOT_DEFAULT_SOCKS_PORT = int(os.getenv('PIVOT_DEFAULT_SOCKS_PORT', '1080'))
-    PIVOT_DEFAULT_CHISEL_PORT = int(os.getenv('PIVOT_DEFAULT_CHISEL_PORT', '8080'))
     NMAP_DEFAULT_PORTS = os.getenv('NMAP_DEFAULT_PORTS', '1-1024')
     NMAP_DEFAULT_INTENSITY = os.getenv('NMAP_DEFAULT_INTENSITY', '3')
     NMAP_DEFAULT_PROFILE = os.getenv('NMAP_DEFAULT_PROFILE', 'basic')
