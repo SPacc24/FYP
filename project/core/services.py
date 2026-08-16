@@ -21,7 +21,7 @@ from storage.db import Database
 log = logging.getLogger(__name__)
 
 
-# caldera services 
+# ── CALDERA services ──────────────────────────────────────────────────
 
 caldera_client = CalderaClient(
     base_url=Config.CALDERA_URL,
@@ -33,7 +33,7 @@ coverage_checker = CoverageChecker(caldera_client)
 risk_scorer = RiskScorer()
 
 
-# Validation services
+# ── Validation services ───────────────────────────────────────────────
 
 exploitability_validator = ExploitabilityValidator()
 
@@ -45,7 +45,8 @@ web_validation_service = WebValidationService(
     operating_system=Config.LAB_WEB_OS,
 )
 
-# controlled web lab service 
+
+# ── Controlled web lab service ────────────────────────────────────────
 
 web_exploiter = WebExploiter(
     lhost=Config.WEB_CALLBACK_ADVERTISE_HOST,
@@ -58,14 +59,14 @@ web_exploiter = WebExploiter(
 )
 
 
-# controlled SMB lab service 
+# ── Controlled SMB lab service ────────────────────────────────────────
 
 smb_exploiter = SmbExploiter(
     enabled=Config.ENABLE_SMB_EXPLOITATION,
 )
 
 
-# Metasploit services 
+# ── Metasploit services ───────────────────────────────────────────────
 
 metasploit_client = MetasploitRpcClient(
     base_url=Config.METASPLOIT_RPC_URL,
@@ -86,7 +87,7 @@ metasploit_service = MetasploitService(
 )
 
 
-# Proof-of-access service
+# ── Proof-of-access service ───────────────────────────────────────────
 
 proof_ticket_manager = ProofTicketManager(
     secret=Config.PROOF_OF_ACCESS_SECRET,
@@ -101,7 +102,7 @@ if Config.PROOF_OF_ACCESS_ENABLED and not proof_ticket_manager.active:
     )
 
 
-# Database
+# ── Database ──────────────────────────────────────────────────────────
 
 db = Database(
     host=Config.MYSQL_HOST,
@@ -112,6 +113,8 @@ db = Database(
 
 
 def init_services() -> None:
+    """Initialize services that require startup-time actions."""
+
     try:
         db.init_schema()
     except Exception:
