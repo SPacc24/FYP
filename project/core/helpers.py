@@ -105,11 +105,6 @@ def _safe_risk_calculate(vulns, op_results):
 
 
 def _load_current_scan_results():
-    """
-    Prefer the persisted normalised scan package because it contains
-    web_inventory and the other post-Nmap evidence. Fall back to the raw Nmap
-    XML only when no stored result package is available.
-    """
     scan_id = session.get("scan_id")
     data = scan_store.load(scan_id) if scan_id else None
     results = (data or {}).get("results") or {}
@@ -127,7 +122,7 @@ def _load_current_scan_results():
         log.exception("Could not reload scan results for validation")
         return None
 
-
+# adapt persisted scanner results 
 def _stored_results_to_parsed_results(results: dict, scan_record: dict | None = None) -> dict:
     """Adapt persisted scanner results without converting hypotheses into facts."""
     scan_record = scan_record or {}
@@ -271,7 +266,7 @@ def _save_active_scan_fields(**fields):
     except OSError as exc:
         log.warning("Could not persist active scan fields for %s: %s", scan_id, exc)
 
-
+# create remediation guidance when caldera is not running
 def _fallback_remediations(parsed_results: dict, mapping_results: dict) -> list[dict]:
     """Create useful remediation guidance even when CALDERA has not run."""
     rows: list[dict] = []
@@ -327,7 +322,7 @@ def _fallback_remediations(parsed_results: dict, mapping_results: dict) -> list[
         })
     return rows[:20]
 
-
+# build report input
 def _build_active_report_context(data: dict | None = None) -> dict:
     """
     Build the same report inputs for the inline API, full report page, and
@@ -459,7 +454,7 @@ def _ensure_scan_analysis(data: dict) -> dict:
     session["target_os"] = parsed_results.get("os", session.get("target_os", "Unknown"))
     return data
 
-
+# format nmap into a structured format
 def _normalise_target_os(os_value) -> dict:
     """
     Convert Nmap/pivot OS evidence into a consistent deployment platform.
