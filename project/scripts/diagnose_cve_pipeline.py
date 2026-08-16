@@ -25,8 +25,9 @@ def main() -> int:
     data = json.loads(latest.read_text(encoding='utf-8'))
     print(f'\nLatest result: {latest}')
     print('Services:', len(data.get('service_inventory') or []))
-    print('Confirmed CVEs:', len(data.get('cve_matches') or []))
-    print('Candidate CVEs:', len(data.get('relevant_cve_information') or []))
+    matches = list(data.get('baseline_cves') or data.get('cve_matches') or [])
+    print('Baseline CVE references:', len(matches))
+    print('Matcher diagnostics:', len(data.get('cve_matcher_diagnostics') or []))
     skipped = data.get('cve_skipped_services') or []
     print('Skipped services:', len(skipped))
     reasons = Counter(str(x.get('reason') or 'unknown') for x in (data.get('cve_matcher_diagnostics') or []))

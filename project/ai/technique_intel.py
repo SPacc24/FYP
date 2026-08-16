@@ -145,10 +145,7 @@ def get_mitre_technique_info(technique_id: str) -> dict:
         "mitre_url": build_mitre_url(technique_id),
     }
 
-
-# ---------------------------------------------------
 # CVE / NVD HELPERS
-# ---------------------------------------------------
 
 def load_cve_cache() -> dict:
     return read_json_file(CVE_CACHE_FILE, {})

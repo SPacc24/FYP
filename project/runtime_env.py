@@ -62,6 +62,7 @@ DEFAULT_VALUES: tuple[tuple[str, str], ...] = (
     ("PIVOT_CHISEL_BINARY", "/usr/bin/chisel"),
     ("PIVOT_DEFAULT_SOCKS_PORT", "1080"),
     ("PIVOT_DEFAULT_CHISEL_PORT", "8080"),
+    ("INFRA_TOPOLOGY_PROFILES_JSON", "{}"),
 )
 
 

@@ -328,13 +328,41 @@ def parse_external_validation(tool_id: str, output: str) -> dict[str, Any]:
     return parsed
 
 
+def parse_external_result(tool_id: str, result: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Translate command execution into evidence without treating errors as facts."""
+    if not bool(result.get('success')):
+        reason = str(result.get('completion_reason') or '').lower()
+        state = 'execution_timeout' if reason == 'timeout' or bool(result.get('timed_out')) else 'execution_failed'
+        return ({
+            'tool': tool_id,
+            'evidence_state': state,
+            'fields': {},
+            'information_gained': '',
+            'completion_reason': result.get('completion_reason') or ('timeout' if state == 'execution_timeout' else 'command_error'),
+        }, False)
+    parsed = parse_external_validation(tool_id, str(result.get('stdout') or ''))
+    produced = str(parsed.get('evidence_state') or '').lower() == 'observed'
+    return parsed, produced
+
+
 def build_information_gathering_summary(data: dict[str, Any]) -> list[str]:
     """Create concise information-gathering summary lines for reports and handoff."""
     summary: list[str] = []
     for key in ['ldapsearch_rootdse','snmp_targeted_oids','dns_context','http_security_context','rpcinfo_native','showmount_native','ssh_audit_native','postgres_readiness_native','native_protocol_enrichment','federation_detection','tls_intelligence']:
         rows = data.get(key) or []
-        if rows:
-            summary.append(f'{key.replace("_", " ")}: {len(rows)} targeted information-gathering item(s) retained.')
+        retained = []
+        for row in rows:
+            if not isinstance(row, dict):
+                retained.append(row)
+                continue
+            parsed = row.get('parsed') or {}
+            state = str(parsed.get('evidence_state') or row.get('evidence_state') or '').lower()
+            lifecycle = str(row.get('lifecycle_state') or '').lower()
+            if state in {'execution_timeout', 'execution_failed', 'transport_error'} or lifecycle in {'executed_timeout', 'executed_failed'}:
+                continue
+            retained.append(row)
+        if retained:
+            summary.append(f'{key.replace("_", " ")}: {len(retained)} targeted information-gathering item(s) retained.')
     return summary
 
 

@@ -3,315 +3,289 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AutoPenTest Recon</title>
+  <title>PenPilot Network Discovery</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-   <link rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
-
 <body>
- <!-- ==========================================
-     Main Navigation Bar
-     ========================================== -->
-
-<nav class="main-navbar">
-
-  <!-- Brand -->
-  <a href="#" class="navbar-brand">
-    <span class="brand-icon">
-      <i class="bi bi-shield-check"></i>
-    </span>
-
-    <span>AutoPenTest</span>
-  </a>
-
-  <!-- Navigation -->
-  <div class="navbar-links">
-    <a href="#target" class="navbar-link">
-      <i class="bi bi-bullseye"></i>
-      <span>Target</span>
-    </a>
-
-    <a href="#strategy" class="navbar-link">
-      <i class="bi bi-radar"></i>
-      <span>Strategy</span>
-    </a>
-
-    <a href="#mapping" class="navbar-link">
-      <i class="bi bi-diagram-3"></i>
-      <span>Mapping</span>
-    </a>
-
-    <a href="#tools" class="navbar-link">
-      <i class="bi bi-tools"></i>
-      <span>Tools</span>
-    </a>
-  </div>
-
-  <!-- Right Controls -->
-  <div class="navbar-controls">
-
-    <!-- Light Mode Placeholder -->
-    <button
-      class="theme-toggle"
-      type="button"
-      title="Light Mode (Coming Soon)"
-      aria-label="Light Mode"
-    >
-      <i class="bi bi-sun-fill"></i>
-    </button>
-
-  </div>
-
-</nav>
 
   <main class="shell hero index-shell">
-  <section class="hero-card wide-hero index-card">
 
-    <div class="hero-top">
+    <nav class="main-navbar">
+      <div class="navbar-brand">
+  <span class="brand-icon">
+    <i class="bi bi-shield-check"></i>
+  </span>
+  <span>PenPilot</span>
+</div>
 
-      <div class="index-head">
-        <p class="eyebrow">FULL / CUSTOM RECON</p>
-        <h1>Attack Surface Discovery</h1>
-        <p class="muted">
-          Enter a target and start authorised recon. Full Recon maximises evidence collection without exploitation, brute force, scoring, or teammate-module changes. Custom Recon runs only the selected collectors.
-        </p>
+      <div class="navbar-controls">
+        <button
+          class="theme-toggle"
+          type="button"
+          title="Light Mode"
+          aria-label="Light Mode">
+          <i class="bi bi-sun-fill"></i>
+        </button>
       </div>
+    </nav>
 
-      {% if not operator_authenticated %}
-      <section class="operator-panel index-section hero-operator">
-        <span class="label">Operator Access</span>
+    <section class="hero-card wide-hero index-card">
+      <div class="hero-top">
+        <div class="index-head">
+          <p class="eyebrow">PHASE 1 · ENTRY DISCOVERY</p>
+          <h1>Start from one authorised IP address</h1>
+        </div>
 
-        {% if operator_token_configured %}
-          <p class="muted small">
-            Unlock this browser session before starting scans or running lab tools.
-          </p>
+        <section class="operator-panel index-section hero-operator">
+          <span class="label">Operator Access</span>
 
-          <div class="operator-unlock-row">
-            <input
-              id="operatorTokenInput"
-              type="password"
-              placeholder="Operator token"
-              autocomplete="current-password" />
+          {% if operator_token_configured %}
 
-            <button
-              class="btn ghost mini"
-              id="operatorUnlockBtn"
-              type="button">
-              Unlock
-            </button>
-          </div>
+            <p class="muted small">
+              Unlock this browser session before starting Phase 1.
+            </p>
 
-          <p class="muted small" id="operatorUnlockStatus"></p>
+            <div class="operator-unlock-row">
+              <input
+                id="operatorTokenInput"
+                type="password"
+                placeholder="Operator token"
+                autocomplete="current-password"
+                {% if operator_authenticated %}disabled{% endif %}
+              />
 
-        {% else %}
-          <p class="muted small">
-            Remote operator actions are disabled because OPERATOR_TOKEN is not configured.
-            Use the Kali browser locally or set OPERATOR_TOKEN in project/.env and restart Flask.
-          </p>
-        {% endif %}
-      </section>
-      {% endif %}
+              <button
+                class="btn ghost mini"
+                id="operatorUnlockBtn"
+                type="button"
+                {% if operator_authenticated %}disabled{% endif %}
+              >
+                {% if operator_authenticated %}
+                  Activated
+                {% else %}
+                  Unlock
+                {% endif %}
+              </button>
+            </div>
 
-    </div>
+            <div
+              id="operatorAccessStatus"
+              class="operator-status-bar {% if operator_authenticated %}is-success{% else %}is-idle{% endif %}"
+            >
+              <i
+                id="operatorStatusIcon"
+                class="bi {% if operator_authenticated %}bi-check-circle-fill{% else %}bi-lock-fill{% endif %}"
+              ></i>
+
+              <span id="operatorStatusText">
+                {% if operator_authenticated %}
+                  Operator access activated
+                {% else %}
+                  Operator access not activated
+                {% endif %}
+              </span>
+            </div>
+
+          {% else %}
+
+            <div class="operator-status-bar is-error">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              <span>
+                Operator token is not configured. Remote operator actions are disabled.
+              </span>
+            </div>
+
+          {% endif %}
+        </section>
+      </div>
 
     <div class="index-layout">
       <div class="index-form-column">
-
-        <form action="{{ url_for('scan') }}" method="POST" id="scanForm" onsubmit="document.getElementById('startBtn').disabled=true;document.getElementById('startBtn').innerText='Starting Recon...';">
+        <form action="{{ url_for('scan_discover') }}" method="POST" id="discoveryForm" >
           <input type="hidden" name="_csrf_token" id="csrfTokenInput" value="{{ operator_csrf_token }}" />
 
-          <section class="index-section target-card target-section">
-            <label for="target">
+          <section id="phase1" class="index-section target-card target-section">
+            <label for="externalTarget">
               <div class="section-header">
                 <span class="step-number">1</span>
-                <span class="label">TARGET</span>
+                <span class="label">PHASE 1 · ENTRY DISCOVERY</span>
               </div>
-              <input id="target" type="text" name="target" placeholder="e.g. single IP, CIDR range, or space-separated targets" required />
+              <input id="externalTarget" type="text" name="external_target" placeholder="Single entry IP address" required />
             </label>
+            <div class="recon-output-grid top-gap" aria-label="Phase 1 actions">
+              <article class="tool-toggle"><span><b>Operator Entry</b><small>Starts from the operator-provided IP address.</small></span></article>
+              <article class="tool-toggle"><span><b>Validate Initial Host</b><small>Validates the authorised entry address and checks host reachability.</small></span></article>
+              <article class="tool-toggle"><span><b>Collect Discovery Context</b><small>Retains local interface and neighbour observations used to begin Phase 2 network discovery.</small></span></article>
+              <article class="tool-toggle"><span><b>Retain Entry Asset</b><small>Preserves the verified entry asset so it remains available for later assessment.</small></span></article>
+            </div>
           </section>
 
-          <div class="config-grid">
-            <section id="strategy" class="index-section recon-strategy-section">
-              <div class="section-header">
-                <span class="step-number">2</span>
-                  <span class="label">RECON STRATEGY</span>
-              </div>
-              <div class="profile-select">
-                <label class="radio-card active" data-profile-card="full">
-                  <input type="radio" name="profile" value="full" checked>
-                  <b>Full Recon</b>
-                  <span>Performs a comprehensive authorised assessment with service discovery, vulnerability detection, and MITRE ATT&CK mapping.</span>
-                </label>
-                <label class="radio-card" data-profile-card="custom">
-                  <input type="radio" name="profile" value="custom">
-                  <b>Custom Recon</b>
-                  <span>Runs only the reconnaissance modules you select. Invalid or unknown tool IDs are ignored.</span>
-                </label>
-              </div>
-            </section>
-
-            <section id="mapping" class="index-section attack-mode-section">
-                <div class="section-header">
-                  <span class="step-number">3</span>
-                  <span class="label">TECHNIQUE MAPPING</span>
-                </div>
-              <label>
-                <select name="technique_mode" required>
-                  <option value="auto" {% if session.get('technique_mode','hybrid') == 'auto' %}selected{% endif %}>Auto - AI selects techniques automatically</option>
-                  <option value="hybrid" {% if session.get('technique_mode','hybrid') == 'hybrid' %}selected{% endif %}>Hybrid - AI recommends, analyst can edit</option>
-                  <option value="manual" {% if session.get('technique_mode','hybrid') == 'manual' %}selected{% endif %}>Manual - analyst selects techniques manually</option>
-                </select>
-              </label>
-               <p class="mapping-description">Choose how techniques will be mapped during the assessment.</p>
-            </section>
+          <div class="index-actions">
+            <button id="startBtn" class="btn" type="submit">
+              <i class="bi bi-radar"></i>
+              <span id="startBtnText">Discover Network</span>
+              <i class="bi bi-arrow-right"></i>
+            </button>
+            <p class="note">
+            </p>
           </div>
-
-           <section id="tools" class="tool-picker index-section">
-
-  <div class="tool-picker-head">
-    <div>
-      <div class="section-header">
-        <span class="step-number">4</span>
-        <span class="label">TOOL SELECTION</span>
+        </form>
       </div>
-
-      <h2>Evidence Collection Tools</h2>
-
-      <p class="tool-selection-description">
-        Choose the evidence collection tools to include in this assessment.
-      </p>
     </div>
+  </section>
+</main>
 
-    <div class="tool-picker-actions">
-      <button class="btn ghost mini" type="button" id="selectAll">
-        Enable All
-      </button>
+<footer class="footer"><p>Automated Penetration Testing · Group 6 · Continuous Discovery Workflow</p></footer>
 
-      <button class="btn ghost mini" type="button" id="selectFull">
-        Full Defaults
-      </button>
-    </div>
+<script>
+let operatorActivated = {{ 'true' if operator_authenticated else 'false' }};
 
-  </div>
+const unlockBtn = document.getElementById('operatorUnlockBtn');
+const tokenInput = document.getElementById('operatorTokenInput');
+const statusBar = document.getElementById('operatorAccessStatus');
+const statusText = document.getElementById('operatorStatusText');
+const statusIcon = document.getElementById('operatorStatusIcon');
+const discoveryForm = document.getElementById('discoveryForm');
 
-  <p class="muted small">
-    CVE review stays active. These cards control evidence-collection tools only.
-  </p>
+function setOperatorStatus(type, message) {
+  if (!statusBar || !statusText || !statusIcon) return;
 
-  <div class="tool-grid">
-    {% for tool in tool_options %}
+  statusBar.classList.remove(
+    'is-idle',
+    'is-success',
+    'is-error',
+    'is-checking'
+  );
 
-    <label class="tool-toggle" data-full="{{ '1' if tool.full else '0' }}">
-      <input
-        type="checkbox"
-        name="tools"
-        value="{{ tool.id }}"
-        {% if tool.full %}checked{% endif %}
-      >
+  statusBar.classList.add(type);
 
-      <span>
-        <b>{{ tool.label }}</b>
-        <small>
-  <span class="tool-category">{{ tool.category }}</span>
-  <span class="tool-purpose">{{ tool.purpose }}</span>
-</small>
-      </span>
-    </label>
-
-    {% endfor %}
-  </div>
-
-</section>
-
-            <section class="index-section">
-              <span class="label">What the recon module will produce</span>
-              <div class="recon-output-grid">
-                <article class="tool-toggle"><span><b>Environment Intelligence</b><small>TTL, route, DNS and initial response behaviour.</small></span></article>
-                <article class="tool-toggle"><span><b>Attack Surface Workbench</b><small>Web, remote access, file sharing, database and infrastructure surfaces.</small></span></article>
-                <article class="tool-toggle"><span><b>Evidence Gap Review</b><small>Missing product, version, CPE and service-context evidence.</small></span></article>
-                <article class="tool-toggle"><span><b>MITRE CVE Correlation</b><small>Official CVE matches based on collected service evidence.</small></span></article>
-                <article class="tool-toggle"><span><b>Exploit-Validation Handoff</b><small>Candidate handoff records for exploitation/AI/CALDERA teammates. No exploitation is performed by recon.</small></span></article>
-              </div>
-            </section>
-
-            <div class="index-actions">
-<button
-    id="startBtn"
-    class="btn"
-    type="submit"
-    {% if not operator_authenticated %}disabled{% endif %}
->
-    <i class="bi bi-rocket-takeoff"></i>
-
-    <span>Launch Recon</span>
-
-    <i class="bi bi-arrow-right"></i>
-</button>
-
-  <p class="note">
-    Recon only: no scoring, no ranking, no prioritisation, no exploitation,
-    no fake-IP evasion. The module uses adaptive low-impact collection and
-    preserves evidence for downstream teams.
-  </p>
-</div>
-          </form>
-        </div>
-      </div>
-    </section>
-  </main>
-  <footer class="footer">
-  <p>
-    Automated Penetration Testing · Group 6 · Full / Custom Recon Build
-  </p>
-</footer>
-
-  <script>
-  function applyProfile(profile){
-    document.querySelectorAll('[data-profile-card]').forEach(c => c.classList.toggle('active', c.dataset.profileCard === profile));
-    if(profile === 'custom') return;
-    document.querySelectorAll('.tool-toggle').forEach(row => {
-      const cb = row.querySelector('input[type="checkbox"]');
-      if(cb) cb.checked = row.dataset.full === '1';
-    });
+  if (type === 'is-success') {
+    statusIcon.className = 'bi bi-check-circle-fill';
+  } else if (type === 'is-error') {
+    statusIcon.className = 'bi bi-x-circle-fill';
+  } else if (type === 'is-checking') {
+    statusIcon.className = 'bi bi-arrow-repeat';
+  } else {
+    statusIcon.className = 'bi bi-lock-fill';
   }
-  document.querySelectorAll('input[name="profile"]').forEach(r => r.addEventListener('change', e => applyProfile(e.target.value)));
-  document.querySelectorAll('.tool-toggle input').forEach(cb => cb.addEventListener('change', () => {
-    const customRadio = document.querySelector('input[name="profile"][value="custom"]');
-    if (customRadio) customRadio.checked = true;
-    applyProfile('custom');
-}));
-  document.getElementById('selectAll')?.addEventListener('click', () => {document.querySelector('input[value="custom"]').checked=true;applyProfile('custom');document.querySelectorAll('.tool-toggle input').forEach(cb=>cb.checked=true);});
-  document.getElementById('selectFull')?.addEventListener('click', () => {document.querySelector('input[name="profile"][value="full"]').checked=true;applyProfile('full');});
 
-  document.getElementById('operatorUnlockBtn')?.addEventListener('click', async () => {
-    const input = document.getElementById('operatorTokenInput');
-    const status = document.getElementById('operatorUnlockStatus');
-    const token = input?.value || '';
-    if (status) status.textContent = 'Checking operator token...';
-    try {
-      const response = await fetch('{{ url_for("operator_unlock") }}', {
+  statusText.textContent = message;
+}
+
+
+unlockBtn?.addEventListener('click', async () => {
+  const token = tokenInput?.value.trim() || '';
+
+  if (!token) {
+    setOperatorStatus(
+      'is-error',
+      'Enter the operator token first.'
+    );
+    tokenInput?.focus();
+    return;
+  }
+
+  setOperatorStatus(
+    'is-checking',
+    'Checking operator token...'
+  );
+
+  try {
+    const response = await fetch(
+      '{{ url_for("operator_unlock") }}',
+      {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({operator_token: token})
-      });
-      const data = await response.json();
-      if (!response.ok || !data.ok) {
-        if (status) status.textContent = data.error || 'Operator unlock failed.';
-        return;
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operator_token: token
+        })
       }
-      if (status) status.textContent = 'Operator session unlocked.';
-      if (data.csrf_token) {
-        const csrfInput = document.getElementById('csrfTokenInput');
-        if (csrfInput) csrfInput.value = data.csrf_token;
-      }
-      const startBtn = document.getElementById('startBtn');
-      if (startBtn) startBtn.disabled = false;
-    } catch (err) {
-      if (status) status.textContent = 'Could not unlock operator session.';
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.ok) {
+      operatorActivated = false;
+
+      setOperatorStatus(
+        'is-error',
+        data.error || 'Incorrect operator token.'
+      );
+
+      tokenInput?.focus();
+      tokenInput?.select();
+      return;
     }
-  });
-  </script>
+
+    operatorActivated = true;
+
+    if (data.csrf_token) {
+      const csrfInput = document.getElementById('csrfTokenInput');
+
+      if (csrfInput) {
+        csrfInput.value = data.csrf_token;
+      }
+    }
+
+    setOperatorStatus(
+      'is-success',
+      'Operator access activated.'
+    );
+
+    if (tokenInput) {
+      tokenInput.value = '';
+      tokenInput.disabled = true;
+    }
+
+    if (unlockBtn) {
+      unlockBtn.textContent = 'Activated';
+      unlockBtn.disabled = true;
+    }
+
+  } catch (error) {
+    operatorActivated = false;
+
+    setOperatorStatus(
+      'is-error',
+      'Could not verify operator access.'
+    );
+  }
+});
+
+
+discoveryForm?.addEventListener('submit', event => {
+  if (!operatorActivated) {
+    event.preventDefault();
+
+    alert(
+      'Operator access is required before starting network discovery. Please enter the operator token and unlock the session first.'
+    );
+
+    setOperatorStatus(
+      'is-error',
+      'Operator access required before discovery.'
+    );
+
+    tokenInput?.focus();
+    return;
+  }
+
+  const startBtn = document.getElementById('startBtn');
+  const startBtnText = document.getElementById('startBtnText');
+
+  if (startBtn) {
+    startBtn.disabled = true;
+  }
+
+  if (startBtnText) {
+    startBtnText.textContent = 'Starting Discovery...';
+  }
+});
+</script>
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
 </body>
 </html>

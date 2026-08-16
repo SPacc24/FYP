@@ -8,15 +8,16 @@ This project is intended only for owned or explicitly authorised cyber range and
 
 - Web dashboard for scan setup, progress tracking, results review, ATT&CK technique selection, CALDERA execution, validation evidence, AI chat, and report export.
 - Async reconnaissance pipeline for Nmap, Gobuster, SMB, SSH, SNMP, LDAP, TLS, RDP, Hydra, and supporting tools where available.
-- Evidence normalisation for hosts, services, command logs, tool coverage, candidate references, and handoff JSON.
+- Evidence normalisation for hosts, services, command logs, tool coverage, CVE matches, and handoff JSON.
 - Official CVE List matching using a local CVEProject/cvelistV5 mirror, with strict product/version evidence checks.
-- Service-centric Attack Surface Workbench with confirmed CVEs, candidate CVE references, evidence gaps, and service-check output.
+- Service-centric Attack Surface Workbench with evidence-backed baseline CVE references, evidence gaps, and service-check output.
 - MITRE ATT&CK mapping and optional Ollama-assisted technique planning with deterministic fallback.
 - CALDERA integration for agent readiness checks, Sandcat deploy-command display, ability coverage checks, custom adversary creation, operation polling, and result parsing.
 - Lab-safe exploitability validation for non-destructive checks such as TCP reachability, HTTP default-content checks, and FTP anonymous-login validation.
 - Optional controlled proof-of-access tickets for authorised lab demonstrations.
 - Risk scoring, remediation guidance, HTML/PDF/text reporting, and MySQL persistence helpers.
 - Pytest coverage for planner behavior, CALDERA integration, validation helpers, report quality, scan profiles, and frontend quality checks.
+- Operator-controlled Phase 2 topology discovery: query authorised routers/firewalls read-only for their interfaces/networks, choose each continuation branch, and retain all discovered assets for Phase 3. Kernel routes are not used as the source for hidden-network discovery.
 
 Recon and validation boundaries:
 
@@ -31,6 +32,13 @@ CALDERA post-access emulation when explicitly enabled
 ```
 
 The recon module does not exploit targets or make execution decisions by itself. CALDERA execution requires explicit configuration and an authorised trusted agent.
+
+
+## Phase 1 → Phase 2 → Phase 3 Discovery Workflow
+
+Phase 1 begins from one operator-supplied IP and retains that asset. Phase 2 is an operator-controlled loop: select a discovered infrastructure device, collect bounded observable network evidence, choose one evidence-backed network branch, verify an access method, enumerate that layer, and repeat only when the operator asks to continue. The operator may finish Phase 2 at any completed layer. The Phase 2 UI does not request infrastructure credentials or topology profiles.
+
+Phase 3 receives the complete retained Phase 1/2 inventory rather than only the current subnet. Routers, firewalls, servers, and endpoints can all be selected when they are eligible under the engagement policy. Pivot-only Phase 3 targets keep their Phase 2 access context: TCP-capable checks run through the established ProxyChains/SOCKS path while raw-IP, Layer-2, and UDP-only checks are reported as not applicable rather than sent directly. See `docs/TOPOLOGY_DISCOVERY_V12.md` for the active discovery state model and operator flow.
 
 ## Project Layout
 
@@ -265,7 +273,7 @@ python scripts/audit_cve_source.py
 
 1. Enter an authorised target and choose a scan profile/tool set.
 2. Wait for the scan progress page to complete, then open the results dashboard.
-3. Review service evidence, confirmed CVEs, candidate references, evidence gaps, ATT&CK recommendations, and AI planning notes.
+3. Review service evidence, evidence-backed CVE matches, matcher diagnostics, evidence gaps, ATT&CK recommendations, and AI planning notes.
 4. Optionally run lab-safe validation to collect non-destructive exposure evidence.
 5. Refresh CALDERA agent status and deploy/confirm Sandcat only inside the authorised lab.
 6. Select supported techniques and run CALDERA when execution is explicitly enabled and authorised.

@@ -2,281 +2,637 @@
   <div class="flow-card-header stage-head-with-actions">
     <div>
       <span class="label">Assessment Stage 1</span>
-      <h2>Scan Findings & Vulnerability Mapping</h2>
+      <h2>Candidate CVE Review</h2>
     </div>
     <div class="actions action-row stage-actions">
-      <button class="button secondary" id="viewAllCvesBtn" type="button">Open CVE Review</button>
       <a class="button" href="/download/pdf/{{ scan.scan_id }}">Download PDF Report</a>
-      <a class="button ghost" href="/download/handoff/{{ scan.scan_id }}">Download Handoff JSON</a>
     </div>
   </div>
 
-  {% if results %}
-    <details class="details-block" open>
-      <summary>View Scan Findings</summary>
+  <div id="cve-review" tabindex="-1">
+{% set mitre_source = results.mitre_source if results and results.mitre_source is defined else {} %}
+{% set nvd_source = results.nvd_source if results and results.nvd_source is defined else {} %}
+{% set windows_advisory = mitre_source.get('windows_advisory', {}) if mitre_source else {} %}
+<section class="mini-panel top-gap" id="vulnerability-data-freshness">
+  <div class="stage-head-with-actions">
+    <div>
+      <span class="label">Vulnerability Intelligence</span>
+      <h3>Data Freshness</h3>
+    </div>
+  </div>
+  <div class="scan-assurance-grid freshness-grid">
+    <article class="scan-assurance-card"><span class="label">CVE Program Index</span><strong>{{ 'Available' if mitre_source.get('local_index_available') else 'Unavailable' }}</strong><span class="small muted">{{ mitre_source.get('records_indexed','N/A') }} record(s)</span></article>
+    <article class="scan-assurance-card freshness-time-card">
+      <span class="label">Index Updated</span>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Port</th>
-              <th>State</th>
-              <th>Service</th>
-              <th>Version</th>
-              <th>Product</th>
-              <th>Extra</th>
-            </tr>
-          </thead>
+      {% set index_updated = mitre_source.get('index_updated_at') %}
 
-          <tbody>
-            {% for port in results.ports if results.ports %}
-              <tr>
-                <td class="mono">{{ port.port }}</td>
-                <td>
-                  <span class="state {{ port.state|lower }}">
-                    {{ port.state }}
-                  </span>
-                </td>
-                <td>{{ port.service }}</td>
-                <td>{{ port.version }}</td>
-                <td>{{ port.product }}</td>
-                <td class="small">{{ port.extrainfo }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </details>
-  {% else %}
-    <p class="muted">No scan data available yet.</p>
-  {% endif %}
+      {% if index_updated %}
+        <strong class="freshness-date">
+          {{ index_updated[:10] }}
+        </strong>
 
-  <details class="details-block" open>
-    <summary>View Vulnerability Mapping</summary>
+        <span class="freshness-time">
+          {{ index_updated[11:16] }} UTC
+        </span>
+      {% else %}
+        <strong>Unknown</strong>
+      {% endif %}
 
-    {% if mapping and mapping.vulnerabilities %}
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Port</th>
-              <th>Service</th>
-              <th>CVE</th>
-              <th>Severity</th>
-              <th>Score</th>
-              <th>Description</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {% for item in mapping.vulnerabilities %}
-              <tr>
-                <td class="mono">{{ item.port }}</td>
-                <td>{{ item.service }}</td>
-
-                <td>
-                  {% if item.cve_ids %}
-                    {{ item.cve_ids | join(', ') }}
-                  {% else %}
-                    None
-                  {% endif %}
-                </td>
-
-                <td>
-                  <span class="severity {{ item.severity|lower }}">
-                    {{ item.severity }}
-                  </span>
-                </td>
-
-                <td>{{ item.priority_score }}</td>
-                <td>{{ item.title }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <p class="muted">No vulnerability matches yet.</p>
-    {% endif %}
-  </details>
-
-  <div id="cveModal" class="modal" aria-hidden="true">
-    <div class="modal-backdrop" onclick="closeCveModal()"></div>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cveModalTitle">
-      <div class="modal-head">
-        <h2 id="cveModalTitle">CVE Findings</h2>
-        <button id="closeCveModal" class="icon-btn" type="button">Close</button>
-      </div>
-
-      <div class="modal-body">
-      {% set cve_matches = results.cve_matches if results and results.cve_matches is defined else [] %}
-      {% set candidate_groups = results.candidate_cve_groups if results and results.candidate_cve_groups is defined else [] %}
-      {% set mitre_source = results.mitre_source if results and results.mitre_source is defined else {} %}
-
-      <div class="mini-panel">
-        <p class="small">
-          Source:
-          {{ mitre_source.source if mitre_source and mitre_source.source else 'Official CVE source status unavailable' }}.
-          Indexed records:
-          {{ mitre_source.records_indexed if mitre_source and mitre_source.records_indexed is defined else 'N/A' }}.
-        </p>
-        {% if not cve_matches and candidate_groups %}
-          <p class="muted small">
-            No confirmed CVE findings were linked, but candidate references were retained for analyst review.
-          </p>
-        {% elif not cve_matches %}
-          <p class="muted small">
-            No confirmed CVE findings were linked from the collected product/version evidence.
-          </p>
+      <span class="small muted">
+        {% if mitre_source.get('index_age_seconds') is not none %}
+          Updated {{ ((mitre_source.get('index_age_seconds')|int) / 3600)|round(1) }} hour(s) ago
+        {% else %}
+          Age unavailable
         {% endif %}
-      </div>
+      </span>
+    </article>    
+    <article class="scan-assurance-card freshness-time-card">
+      <span class="label">CVE Repository Head</span>
 
-      <div class="cve-filter-row small">
-        <input id="cveSearch" placeholder="Search CVE ID or keyword" />
-        <select id="cveFilterSeverity">
-          <option value="all">All severities</option>
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-      </div>
+      {% set repo_head = mitre_source.get('repo_head_at') %}
 
-      <div class="table-wrap top-gap">
-        <table id="cveTable">
-          <thead>
-            <tr>
-              <th>CVE ID</th>
-              <th>Severity</th>
-              <th>Confidence</th>
-              <th>Service/Port</th>
-              <th>Linked Techniques</th>
-              <th>Description</th>
-              <th>Links</th>
-            </tr>
-          </thead>
+      {% if repo_head %}
+        <strong class="freshness-date">
+          {{ repo_head[:10] }}
+        </strong>
 
-          <tbody>
-            {% if detected_cves %}
-              {% for cve in detected_cves %}
-                <tr class="cve-row">
-                  <td class="mono">
-                    <a href="{{ cve.official_cve_url }}" target="_blank">
-                      {{ cve.cve_id }}
-                    </a>
-                  </td>
+        <span class="freshness-time">
+          {{ repo_head[11:16] }} UTC
+        </span>
+      {% else %}
+        <strong>Unknown</strong>
+      {% endif %}
 
-                  <td>
-                    <span class="severity {{ cve.severity|lower }}">
-                      {{ cve.severity }}
-                    </span>
-                  </td>
+      <span class="small muted">
+        Source revision time
+      </span>
+    </article>
+    <article class="scan-assurance-card"><span class="label">CVSS Metadata</span><strong>{{ mitre_source.get('records_with_cvss_metadata','N/A') }}</strong><span class="small muted">3.1: {{ mitre_source.get('records_with_cvss_metadata_by_version',{}).get('3.1','N/A') }} · 4.0: {{ mitre_source.get('records_with_cvss_metadata_by_version',{}).get('4.0','N/A') }}</span></article>
+    <article class="scan-assurance-card"><span class="label">NVD Enrichment</span><strong>{{ 'Enabled' if nvd_source.get('enabled') else 'Disabled / unavailable' }}</strong><span class="small muted">Exact Candidate CVE IDs only · cached CVSS/metadata queries: {{ nvd_source.get('cached_cve_metric_queries',0) }} · NVD cannot create or remove candidates</span></article>
+    <article class="scan-assurance-card"><span class="label">NVD Cache Freshness</span><strong>{% if nvd_source.get('cache_age_seconds') is not none %}{{ ((nvd_source.get('cache_age_seconds')|int) / 3600)|round(1) }} h{% else %}No successful cache timestamp{% endif %}</strong><span class="small muted">Assessment-time enrichment state</span></article>
+    <article class="scan-assurance-card"><span class="label">Windows Advisory Index</span><strong>{{ 'Available' if windows_advisory.get('available') else 'Unavailable' }}</strong><span class="small muted">{{ windows_advisory.get('records_indexed',0) }} records · {{ windows_advisory.get('candidate_context_matches',0) }} candidate context match(es)</span></article>
+  </div>
+</section>
 
-                  <td>{{ cve.confidence }}</td>
+{% set cve_review_summary = results.cve_review_summary|default({}) %}
+<section class="mini-panel top-gap" id="cve-review-coverage">
+  <div class="stage-head-with-actions"><div><span class="label">Candidate CVE Generation</span><h3>Correlation Queue</h3></div></div>
+  {% set generation_state = cve_review_summary.get('candidate_generation_state', 'available' if mitre_source.get('local_index_available') else 'unavailable') %}
+  <div class="scan-assurance-grid correlation-queue-grid">
+    <article class="scan-assurance-card"><span class="label">Candidate Source</span><strong>{{ generation_state|replace('_',' ')|title }}</strong><span class="small muted">Official CVE Program structured affected data</span></article>
+    <article class="scan-assurance-card"><span class="label">Software Identities Reviewed</span><strong>{{ cve_review_summary.get('identities_reviewed',0) }}</strong><span class="small muted">Software product/version inputs evaluated</span></article>
+    {% set candidate_unique = cve_review_summary.get('candidate_cves_retained', cve_review_summary.get('candidate_cves_considered',0)) %}
+    {% set candidate_target_records = cve_review_summary.get('target_candidate_records', candidate_unique) %}
+    {% set candidate_correlations = cve_review_summary.get('identity_correlations_retained', candidate_target_records) %}
+    <article class="scan-assurance-card"><span class="label">Candidate CVEs</span><strong>{% if generation_state == 'unavailable' %}Unavailable{% else %}{{ candidate_unique }}{% endif %}</strong><span class="small muted">{% if generation_state != 'unavailable' and (candidate_target_records != candidate_unique or candidate_correlations != candidate_target_records) %}{{ candidate_target_records }} target/CVE record(s) · {{ candidate_correlations }} identity correlation(s){% else %}All require downstream validation{% endif %}</span></article>
+    <article class="scan-assurance-card"><span class="label">Structured Records Evaluated</span><strong>{{ cve_review_summary.get('structured_records_evaluated',0) }}</strong><span class="small muted">CVE Program records considered by structured matching</span></article>
+    <article class="scan-assurance-card"><span class="label">Structured Rejections</span><strong>{{ cve_review_summary.get('rejected_during_structured_filtering',0) }}</strong><span class="small muted">Records excluded by CVE Program product/version rules</span></article>
+    <article class="scan-assurance-card"><span class="label">Unmatched Software Identities</span><strong>{% if generation_state == 'unavailable' %}—{% else %}{{ cve_review_summary.get('unmatched_software_identities',0) }}{% endif %}</strong><span class="small muted">Concrete software identities with no structured Candidate CVE</span></article>
+    {% set candidate_count = cve_review_summary.get('candidate_cves_retained', cve_review_summary.get('candidate_cves_considered',0)) %}
+    {% set candidate_cvss = cve_review_summary.get('cvss',{}) %}
+    <article class="scan-assurance-card"><span class="label">Candidate CVSS 3.1</span><strong>{% if generation_state == 'unavailable' %}—{% else %}{{ candidate_cvss.get('3.1',{}).get('published_candidates',0) }} / {{ candidate_count }}{% endif %}</strong><span class="small muted">Candidates with a published CVSS 3.1 metric after exact-ID enrichment</span></article>
+    <article class="scan-assurance-card"><span class="label">Candidate CVSS 4.0</span><strong>{% if generation_state == 'unavailable' %}—{% else %}{{ candidate_cvss.get('4.0',{}).get('published_candidates',0) }} / {{ candidate_count }}{% endif %}</strong><span class="small muted">Candidates with a published CVSS 4.0 metric after exact-ID enrichment</span></article>
+  </div>
+  {% if generation_state == 'unavailable' %}<p class="small top-gap"><strong>Candidate CVE generation unavailable.</strong> The configured CVE Program index was not available for this assessment. NVD remains enrichment-only and cannot create replacement candidates.</p>{% endif %}
+</section>
 
-                  <td class="mono">{{ cve.service_port }}</td>
-
-                  <td>
-                    {% if cve.linked_techniques %}
-                      {% for tech in cve.linked_techniques %}
-                        {% if tech.mitre_url %}
-                          <a class="mono" href="{{ tech.mitre_url }}" target="_blank">
-                            {{ tech.id }}
-                          </a>
-                        {% else %}
-                          <span class="mono">{{ tech.id }}</span>
-                        {% endif %}
-                        {% if not loop.last %}, {% endif %}
-                      {% endfor %}
-                    {% else %}
-                      <span class="muted">No linked technique</span>
-                    {% endif %}
-                  </td>
-
-                  <td class="small">{{ cve.description }}</td>
-
-                  <td>
-                    <a class="button tiny" href="{{ cve.official_cve_url }}" target="_blank">
-                      CVE.org
-                    </a>
-
-                    {% if cve.nvd_url %}
-                      <a class="button tiny" href="{{ cve.nvd_url }}" target="_blank">
-                        NVD
-                      </a>
-                    {% endif %}
-                  </td>
-                </tr>
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td colspan="7" class="small muted">
-                  No CVEs detected or linked to mapped techniques.
-                </td>
-              </tr>
-            {% endif %}
-          </tbody>
-        </table>
-      </div>
-      </div>
+<section class="mini-panel top-gap" id="host-platform-identity">
+  <div class="stage-head-with-actions">
+    <div>
+      <span class="label">Target Identity</span>
+      <h3>Host &amp; Operating System Identity</h3>
     </div>
   </div>
+  <div class="table-wrap top-gap">
+    <table class="compact-table">
+      <thead><tr><th>Host</th><th>OS State</th><th>Established Identity</th><th>Fingerprint Candidates</th><th>Top Nmap Accuracy</th><th>CVE Candidate Use</th></tr></thead>
+      <tbody>
+      {% for host_row in results.host_identity_inventory|default([]) %}
+        {% set best = host_row.best|default({}) %}
+        <tr>
+          <td class="mono">{{ host_row.host }}</td>
+          <td>{{ host_row.identity_state|default('not_established')|replace('_',' ')|title }}</td>
+          <td>{% if best %}{{ best.product or best.name or best.family }}{% if best.build or best.version %} · <span class="mono">{{ best.build or best.version }}</span>{% endif %}{% else %}<span class="muted">Unresolved</span>{% endif %}</td>
+          <td>{{ host_row.probabilistic_candidate_count|default(host_row.probabilistic_candidates|default([])|length) }}</td>
+          <td>{% if host_row.top_nmap_accuracy is not none and host_row.top_nmap_accuracy is defined %}{{ host_row.top_nmap_accuracy }}%{% else %}—{% endif %}</td>
+          <td>{{ host_row.candidate_identities|default([])|length }} precise identity input(s)</td>
+        </tr>
+        {% if host_row.probabilistic_candidates|default([]) %}
+        <tr><td colspan="6">
+          <details>
+            <summary>View probabilistic fingerprint evidence</summary>
+            <div class="table-wrap top-gap"><table class="compact-table"><thead><tr><th>Vendor</th><th>Family</th><th>Product</th><th>Version</th><th>Accuracy</th><th>Candidate CVE Input</th><th>Evidence</th></tr></thead><tbody>
+            {% for ident in host_row.probabilistic_candidates %}
+              <tr><td>{{ ident.vendor or '—' }}</td><td>{{ ident.family or '—' }}</td><td>{{ ident.product or ident.name or '—' }}</td><td class="mono">{{ ident.build or ident.version or ident.release or '—' }}</td><td>{{ ident.accuracy or '—' }}{% if ident.accuracy %}%{% endif %}</td><td>{{ 'Yes — unvalidated' if ident.candidate_eligible else 'No — identity too broad' }}</td><td class="small">{{ ident.sources|default([])|join(', ') }}</td></tr>
+            {% endfor %}
+            </tbody></table></div>
+          </details>
+        </td></tr>
+        {% endif %}
+      {% else %}
+        <tr><td colspan="6" class="small muted">No host operating-system identity evidence was established.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if results.host_identity_gaps|default([]) %}
+  <h4 class="top-gap">Host Identity Gaps</h4>
+  <div class="table-wrap"><table class="compact-table"><thead><tr><th>Host</th><th>Observed Evidence</th><th>Remaining Gap</th><th>Quality</th></tr></thead><tbody>
+  {% for gap in results.host_identity_gaps %}<tr><td class="mono">{{ gap.host }}</td><td>{{ gap.observed_identity }}</td><td>{{ gap.remaining_gap }}</td><td>{{ gap.quality }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% endif %}
+</section>
+
+<section class="mini-panel top-gap" id="platform-component-identity">
+  <div class="stage-head-with-actions"><div><span class="label">Observed Components</span><h3>Platform &amp; Connector Identities</h3></div></div>
+  <div class="table-wrap top-gap"><table class="compact-table"><thead><tr><th>Host</th><th>Endpoint</th><th>Component</th><th>Version</th><th>Kind</th><th>Evidence</th></tr></thead><tbody>
+  {% for row in results.platform_component_identities|default([]) %}<tr><td class="mono">{{ row.host }}</td><td class="mono">{{ row.port }}/{{ row.protocol }}</td><td>{{ row.product or 'Not established' }}</td><td class="mono">{{ row.version or '—' }}</td><td>{{ row.kind|replace('_',' ') }}</td><td class="small">{{ row.sources|default([])|join(', ') }}{% if row.cpe %}<br><span class="mono">{{ row.cpe|join(', ') }}</span>{% endif %}</td></tr>{% else %}<tr><td colspan="6" class="small muted">No distinct platform/component identity was directly observed.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+{% set ui_cves = detected_cves_grouped|default(detected_cves|default([])) %}
+<h3 class="top-gap">Table 1 — Candidate CVE Review</h3>
+<div class="table-wrap">
+  <table id="cveReferenceTable">
+    <thead>
+      <tr>
+        <th>Identifier</th>
+        <th>Affected Service</th>
+        <th>Why It Matched</th>
+        <th>Published Prerequisites</th>
+        <th>Published By</th>
+        <th>Links</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if ui_cves %}
+        {% set reference_group = namespace(host='') %}
+        {% for cve in ui_cves %}
+          {% set current_host = cve.target_host|default((cve.observed_hosts|default([])|first)|default('Unattributed')) %}
+          {% if current_host != reference_group.host %}
+          <tr class="cve-host-group-row" data-target-host="{{ current_host }}"><th colspan="6">Target: <span class="mono">{{ current_host }}</span></th></tr>
+          {% set reference_group.host = current_host %}
+          {% endif %}
+          <tr class="cve-reference-row" data-target-host="{{ current_host }}">
+            <td class="mono"><a href="{{ cve.official_cve_url }}" target="_blank" rel="noopener">{{ cve.cve_id }}</a></td>
+            <td class="small">{{ cve.service_port }}</td>
+            <td class="small">
+              {{ cve.match_evidence }}
+              <div class="cve-assurance-state">
+                <span><b>Status:</b> Candidate</span>
+                <span><b>Validation:</b> {{ cve.validation_state|default('not_performed')|replace('_',' ')|title }}</span>
+              </div>
+              {% if cve.candidate_basis %}<div class="small muted top-gap"><b>Candidate basis:</b> {{ cve.candidate_basis }}</div>{% endif %}
+              {% if cve.candidate_evidence_note %}<div class="small muted">{{ cve.candidate_evidence_note }}</div>{% endif %}
+              {% if cve.candidate_sources %}<div class="small muted"><b>Candidate source:</b> {{ cve.candidate_sources|join(' · ') }}</div>{% endif %}
+            </td>
+            <td class="small">
+              {% set ctx = cve.applicability_context or {} %}
+              {% set published = ctx.get('published', {}) %}
+              {% set reqs = [] %}
+              {% for item in published.get('modules', []) %}{% if reqs.append('Module: ' ~ item) %}{% endif %}{% endfor %}
+              {% for item in published.get('platforms', []) %}{% if reqs.append('Platform: ' ~ item) %}{% endif %}{% endfor %}
+              {% if published.get('package_name') %}{% if reqs.append('Package: ' ~ published.get('package_name')) %}{% endif %}{% endif %}
+              {% if reqs %}{{ reqs|join(' · ') }}<br><span class="muted">Evidence: {{ ctx.get('status','not established')|replace('_',' ') }}</span>{% else %}<span class="muted">No machine-readable prerequisite field was available. Narrative applicability conditions may still exist.</span>{% endif %}
+            </td>
+            <td class="small">{{ cve.published_by }}</td>
+            <td>
+              <div class="cve-link-actions">
+                <a class="button tiny" href="{{ cve.official_cve_url }}" target="_blank" rel="noopener">
+                  CVE.org
+                </a>
+
+                {% if cve.nvd_url %}
+                <a class="button tiny" href="{{ cve.nvd_url }}" target="_blank" rel="noopener">
+                  NVD
+                </a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="6" class="small muted">No CVE candidates were retained from the observed host/platform or service evidence.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<div class="stage-head-with-actions top-gap">
+  <div>
+    <h3>Table 2 — Severity &amp; Triage</h3>
+  </div>
+  <div class="cve-filter-row small">
+    <input id="cveSearch" placeholder="Search CVE, service, product" />
+    <input type="hidden" id="cveCvssView" value="both">
+    <div class="cvss-view-switch" role="group" aria-label="CVSS display version">
+      <button type="button" data-cvss-view="3.1" aria-pressed="false">CVSS 3.1</button>
+      <button type="button" data-cvss-view="4.0" aria-pressed="false">CVSS 4.0</button>
+      <button type="button" data-cvss-view="both" class="active" aria-pressed="true">Both</button>
+    </div>
+    <select id="cveFilterSeverity">
+      <option value="all">All severities</option>
+      <option value="critical">Critical</option>
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+      <option value="low">Low</option>
+      <option value="none">None</option>
+    </select>
+  </div>
+</div>
+
+<div class="table-wrap top-gap">
+  <table id="cveTable">
+    <thead>
+      <tr>
+        <th>Identifier</th>
+        <th>Affected Service</th>
+        <th class="cvss31-col">CVSS 3.1</th>
+        <th class="cvss31-col">Severity</th>
+        <th class="cvss40-col">CVSS 4.0</th>
+        <th class="cvss40-col">Severity</th>
+        <th>Score Source</th>
+        <th>Vector</th>
+        <th>CVSS Integrity</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if ui_cves %}
+        {% set severity_group = namespace(host='') %}
+        {% for cve in ui_cves %}
+          {% set current_host = cve.target_host|default((cve.observed_hosts|default([])|first)|default('Unattributed')) %}
+          {% if current_host != severity_group.host %}
+          <tr class="cve-host-group-row" data-target-host="{{ current_host }}"><th colspan="9">Target: <span class="mono">{{ current_host }}</span></th></tr>
+          {% set severity_group.host = current_host %}
+          {% endif %}
+          <tr class="cve-row" data-target-host="{{ current_host }}"
+              data-score31="{{ cve.cvss_31_score if cve.cvss_31_score is not none else '' }}"
+              data-severity31="{{ cve.cvss_31_severity|lower if cve.cvss_31_score is not none else 'unscored' }}"
+              data-score40="{{ cve.cvss_40_score if cve.cvss_40_score is not none else '' }}"
+              data-severity40="{{ cve.cvss_40_severity|lower if cve.cvss_40_score is not none else 'unscored' }}">
+            <td class="mono"><a href="{{ cve.official_cve_url }}" target="_blank" rel="noopener">{{ cve.cve_id }}</a></td>
+            <td class="small">{{ cve.service_port }}</td>
+            <td class="cvss31-col">
+              {% if cve.cvss_31_score is not none %}<strong>{{ '%.1f'|format(cve.cvss_31_score) }}</strong>{% else %}<span class="muted">Not published</span>{% endif %}
+            </td>
+            <td class="cvss31-col">
+              {% if cve.cvss_31_score is not none %}<span class="severity {{ cve.cvss_31_severity|lower }}">{{ cve.cvss_31_severity }}</span>{% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="cvss40-col">
+              {% if cve.cvss_40_score is not none %}<strong>{{ '%.1f'|format(cve.cvss_40_score) }}</strong>{% else %}<span class="muted">Not published</span>{% endif %}
+            </td>
+            <td class="cvss40-col">
+              {% if cve.cvss_40_score is not none %}<span class="severity {{ cve.cvss_40_severity|lower }}">{{ cve.cvss_40_severity }}</span>{% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="small">
+              <div class="metric31-detail">3.1: {{ cve.cvss_31_source if cve.cvss_31_source else 'Not published' }}</div>
+              <div class="metric40-detail">4.0: {{ cve.cvss_40_source if cve.cvss_40_source else 'Not published' }}</div>
+              {% set nvd_state = cve.nvd_cvss_enrichment|default({}) %}
+              {% if nvd_state %}<div class="muted">NVD enrichment: {{ nvd_state.get('status','not queried')|replace('_',' ') }}{% if nvd_state.get('versions') %} (CVSS {{ nvd_state.get('versions')|join(', ') }}){% endif %}</div>{% endif %}
+            </td>
+            <td class="small mono">
+              <div class="metric31-detail">3.1: {{ cve.cvss_31_vector if cve.cvss_31_vector else 'Not published' }}</div>
+              <div class="metric40-detail">4.0: {{ cve.cvss_40_vector if cve.cvss_40_vector else 'Not published' }}</div>
+            </td>
+            <td class="small">
+              <div class="metric31-detail">3.1: {{ cve.cvss_31_verification if cve.cvss_31_score is not none else 'Not published' }}</div>
+              <div class="metric40-detail">4.0: {{ cve.cvss_40_verification if cve.cvss_40_score is not none else 'Not published' }}</div>
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="9" class="small muted">{% if generation_state == 'unavailable' %}Candidate CVE generation was unavailable because the configured CVE Program index was not available.{% else %}No Candidate CVEs were generated from the observed software identities.{% endif %}</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% set scan_summary = results.scan_summary if results and results.scan_summary is defined else {} %}
+{% set target_summary = scan_summary.targets if scan_summary and scan_summary.targets is defined else {} %}
+{% set tcp_summary = scan_summary.tcp if scan_summary and scan_summary.tcp is defined else {} %}
+{% set udp_summary = scan_summary.udp if scan_summary and scan_summary.udp is defined else {} %}
+{% set service_summary = scan_summary.services if scan_summary and scan_summary.services is defined else {} %}
+{% set evidence_summary = scan_summary.evidence_checks if scan_summary and scan_summary.evidence_checks is defined else {} %}
+{% set cve_summary = scan_summary.cve_review if scan_summary and scan_summary.cve_review is defined else {} %}
+
+<section class="mini-panel top-gap scan-assurance-panel" id="scan-assurance-summary">
+  <div class="stage-head-with-actions">
+    <div>
+      <span class="label">Scan Summary</span>
+      <h3>Coverage &amp; Assurance</h3>
+    </div>
+  </div>
+
+  {% if scan_summary %}
+  <div class="scan-assurance-grid">
+    <article class="scan-assurance-card">
+      <span class="label">Targets</span>
+      <strong>{{ target_summary.reached|default(0) }} / {{ target_summary.requested|default(0) }}</strong>
+      <span class="small muted">Reached / requested</span>
+    </article>
+    <article class="scan-assurance-card">
+      <span class="label">Selected TCP Scope</span>
+      <strong>{{ tcp_summary.scanned|default(0) }} / {{ tcp_summary.requested|default(0) }}</strong>
+      <span class="small muted">{{ tcp_summary.mode|default('unknown')|title }} strategy · scanned / selected · {{ tcp_summary.untested|default(0) }} untested · Full TCP range: {% if tcp_summary.mode|default('')|lower == 'full' %}selected{% else %}not selected{% endif %}</span>
+    </article>
+    <article class="scan-assurance-card">
+      <span class="label">Selected UDP Scope</span>
+      <strong>{{ udp_summary.scanned|default(0) }} / {{ udp_summary.requested|default(0) }}</strong>
+      <span class="small muted">{{ udp_summary.mode|default('unknown')|title }} strategy · scanned / selected · {{ udp_summary.untested|default(0) }} untested</span>
+    </article>
+    <article class="scan-assurance-card">
+      <span class="label">Observed Endpoints</span>
+      <strong>{{ service_summary.observed_endpoints|default(0) }}</strong>
+      <span class="small muted">TCP/UDP service endpoints retained</span>
+    </article>
+    <article class="scan-assurance-card">
+      <span class="label">TCP Re-Probe Coverage</span>
+      <strong>{{ service_summary.tcp_reprobed|default(service_summary.tcp_fingerprinted|default(0)) }} / {{ service_summary.tcp_open_endpoints|default(0) }}</strong>
+      <span class="small muted">Open TCP endpoints re-probed · {{ service_summary.versioned_service_endpoints|default(service_summary.versioned_products|default(0)) }} versioned endpoints</span>
+    </article>
+    <article class="scan-assurance-card">
+      <span class="label">CVE Review</span>
+      <strong>{% if cve_summary.generation_state|default('available') == 'unavailable' %}Unavailable{% else %}{{ cve_summary.unique_references|default(0) }}{% endif %}</strong>
+      <span class="small muted">{% if cve_summary.generation_state|default('available') == 'unavailable' %}CVE Program index not available{% else %}Candidate CVEs · {{ cve_summary.versioned_service_endpoints|default(cve_summary.versioned_products|default(0)) }} versioned service endpoint(s){% endif %}</span>
+    </article>
+  </div>
+
+  <div class="table-wrap top-gap">
+    <table class="compact-table">
+      <thead>
+        <tr><th>Selected Scope</th><th>Selected</th><th>Scanned</th><th>Open</th><th>Closed</th><th>Filtered</th><th>Unknown / No Response</th><th>Untested</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>TCP</strong></td>
+          <td>{{ tcp_summary.requested|default(0) }}</td>
+          <td>{{ tcp_summary.scanned|default(0) }}</td>
+          <td>{{ tcp_summary.open|default(0) }}</td>
+          <td>{{ tcp_summary.closed|default(0) }}</td>
+          <td>{{ tcp_summary.filtered|default(0) }}</td>
+          <td>{{ tcp_summary.unknown|default(0) }}</td>
+          <td>{{ tcp_summary.untested|default(0) }}</td>
+        </tr>
+        <tr>
+          <td><strong>UDP</strong></td>
+          <td>{{ udp_summary.requested|default(0) }}</td>
+          <td>{{ udp_summary.scanned|default(0) }}</td>
+          <td>{{ udp_summary.open|default(0) }}</td>
+          <td>{{ udp_summary.closed|default(0) }}</td>
+          <td>{{ udp_summary.filtered|default(0) }}</td>
+          <td>{{ udp_summary.unknown|default(0) }}</td>
+          <td>{{ udp_summary.untested|default(0) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="scan-assurance-foot top-gap">
+    <div><b>Evidence actions:</b> {{ evidence_summary.executed|default(0) }} executed · {{ evidence_summary.produced_evidence|default(0) }} produced evidence · {{ evidence_summary.no_evidence|default(0) }} completed with no evidence · {{ evidence_summary.failed|default(0) }} failed · {{ evidence_summary.not_executed|default(evidence_summary.skipped|default(0)) }} not executed</div>
+    <div class="small muted">Not executed: {{ evidence_summary.not_applicable|default(0) }} not applicable · {{ evidence_summary.disabled|default(0) }} disabled · {{ evidence_summary.unavailable|default(0) }} unavailable/input missing · {{ evidence_summary.deferred|default(0) }} deferred · {{ evidence_summary.skipped_policy|default(0) }} policy-skipped · {{ evidence_summary.not_executed_unspecified|default(0) }} unspecified</div>
+    <div class="small muted">{{ scan_summary.assurance_note|default('') }}</div>
+  </div>
+  {% else %}
+    <p class="small muted">Coverage assurance data is unavailable for this older scan. Run a new scan with the current scanner build to populate it.</p>
+  {% endif %}
+</section>
+
+{% set coverage_matrix = results.collector_coverage_matrix|default({}) %}
+{% set coverage_matrix_summary = coverage_matrix.get('summary', {}) %}
+<section class="mini-panel top-gap" id="collector-coverage-summary">
+  <div class="stage-head-with-actions">
+    <div>
+      <span class="label">Collector Coverage</span>
+      <h3>Evidence Collection Assurance</h3>
+    </div>
+  </div>
+  <div class="scan-assurance-grid">
+    <article class="scan-assurance-card"><span class="label">Endpoints</span><strong>{{ coverage_matrix_summary.get('endpoints',0) }}</strong><span class="small muted">Service endpoints evaluated</span></article>
+    <article class="scan-assurance-card"><span class="label">Applicable Actions</span><strong>{{ coverage_matrix_summary.get('applicable_actions',0) }}</strong><span class="small muted">Collector/endpoint combinations</span></article>
+    <article class="scan-assurance-card"><span class="label">Evidence Retained</span><strong>{{ coverage_matrix_summary.get('evidence_actions',0) }}</strong><span class="small muted">Actions with retained evidence</span></article>
+    <article class="scan-assurance-card"><span class="label">Failed</span><strong>{{ coverage_matrix_summary.get('failed_actions',0) }}</strong><span class="small muted">Collector actions with execution failure</span></article>
+    <article class="scan-assurance-card"><span class="label">Not Executed</span><strong>{{ coverage_matrix_summary.get('not_executed_actions',0) }}</strong><span class="small muted">Disabled, blocked, unavailable, deferred or missing lifecycle</span></article>
+    <article class="scan-assurance-card"><span class="label">Host-Level Actions</span><strong>{{ coverage_matrix_summary.get('host_lifecycle_actions',0) }}</strong><span class="small muted">Reachability/passive lifecycle records</span></article>
+  </div>
+</section>
+
+<section class="mini-panel top-gap" id="evidence-gaps">
+  <div class="stage-head-with-actions">
+    <div>
+      <span class="label">Evidence Gaps</span>
+      <h3>Unresolved Identity Queue</h3>
+    </div>
+  </div>
+  <div class="table-wrap top-gap">
+    <table class="compact-table">
+      <thead><tr><th>Host</th><th>Endpoint</th><th>Observed Identity</th><th>Remaining Gap</th><th>Recovery</th></tr></thead>
+      <tbody>
+      {% for gap in results.host_identity_gaps|default([]) %}
+        <tr><td class="mono">{{ gap.host }}</td><td class="mono">HOST</td><td>{{ gap.observed_identity }}</td><td class="small">{{ gap.remaining_gap }}</td><td>Host identity recovery attempted where applicable</td></tr>
+      {% endfor %}
+      {% for gap in results.unresolved_identity_queue|default([]) %}
+        <tr><td class="mono">{{ gap.host }}</td><td class="mono">{{ gap.port }}/{{ gap.protocol }}</td><td>{{ gap.service or 'Unknown' }}{% if gap.product %} · {{ gap.product }}{% endif %}{% if gap.version %} {{ gap.version }}{% endif %}</td><td class="small">{{ gap.gaps|join(' · ') }}</td><td>{{ 'Attempted' if gap.recovery_attempted else 'Not required / not attempted' }}</td></tr>
+      {% else %}
+        {% if not results.host_identity_gaps|default([]) %}<tr><td colspan="5" class="small muted">No unresolved identity gaps remain in the retained inventory.</td></tr>{% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="stage-head-with-actions top-gap">
+  <div>
+    <h3>Table 3 — Scan Findings</h3>
+  </div>
+  <div class="cve-filter-row small">
+    <input id="scanFindingsSearch" placeholder="Search host, port, service, product, evidence" />
+  </div>
+</div>
+<div class="table-wrap top-gap">
+  <table id="scanFindingsTable">
+    <thead>
+      <tr>
+        <th>Host</th>
+        <th>Port / Protocol</th>
+        <th>State</th>
+        <th>Service</th>
+        <th>Product</th>
+        <th>Version</th>
+        <th>Fingerprint Context</th>
+        <th>Evidence</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if results and results.service_inventory %}
+        {% for service in results.service_inventory %}
+          <tr class="scan-finding-row">
+            <td class="mono">{{ service.host or 'Unknown' }}</td>
+            <td class="mono">{{ service.port if service.port is not none else '—' }}/{{ service.protocol or '—' }}</td>
+            <td>{{ service.state or 'Observed' }}</td>
+            <td>{{ service.service or 'Unknown' }}</td>
+            <td>{{ service.product or '—' }}</td>
+            <td>{{ service.version or '—' }}</td>
+            <td class="small">{% set primary_context = service.extra or service.extrainfo or '' %}{% set identity_context = service.identity_context or '' %}{% if primary_context %}{{ primary_context }}{% endif %}{% if primary_context and identity_context %}<br>{% endif %}{% if identity_context %}<span class="muted">{{ identity_context }}</span>{% endif %}{% if not primary_context and not identity_context %}—{% endif %}</td>
+            <td class="small">
+              {% if service.evidence_sources %}
+                {% for source in service.evidence_sources %}{{ source|replace('_',' ')|title }}{% if not loop.last %} · {% endif %}{% endfor %}
+              {% elif service.evidence %}
+                {{ service.evidence }}
+              {% elif service.source %}
+                {{ service.source|replace('_',' ')|title }}
+              {% else %}
+                <span class="muted">Not labelled</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="8" class="small muted">No service findings were retained for this scan.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
 
   <script>
-    function openCveModal() {
-      const modal = document.getElementById('cveModal');
-      if (!modal) return;
-
-      modal.classList.add('open');
-      modal.setAttribute('aria-hidden', 'false');
-      applyFilter();
-    }
-
-    function closeCveModal() {
-      const modal = document.getElementById('cveModal');
-      if (!modal) return;
-
-      modal.classList.remove('open');
-      modal.setAttribute('aria-hidden', 'true');
-    }
-
     const search = document.getElementById('cveSearch');
-    const filter = document.getElementById('cveFilterSeverity');
+    const severityFilter = document.getElementById('cveFilterSeverity');
+    const cvssView = document.getElementById('cveCvssView');
+    const CVSS_VIEW_STORAGE_KEY = 'autopentest.cvss-view.v1';
 
     function getRows() {
       return Array.from(document.querySelectorAll('#cveTable tbody tr.cve-row'));
     }
 
-    function applyFilter() {
+    function numericScore(row, version) {
+      const raw = version === '4.0' ? row.dataset.score40 : row.dataset.score31;
+      const value = Number.parseFloat(raw || '');
+      return Number.isFinite(value) ? value : -1;
+    }
+
+    function activeScore(row, view) {
+      if (view === '3.1') return numericScore(row, '3.1');
+      if (view === '4.0') return numericScore(row, '4.0');
+      return Math.max(numericScore(row, '3.1'), numericScore(row, '4.0'));
+    }
+
+    function matchesSeverity(row, view, selected) {
+      if (selected === 'all') return true;
+      const s31 = row.dataset.severity31 || 'unscored';
+      const s40 = row.dataset.severity40 || 'unscored';
+      if (view === '3.1') return s31 === selected;
+      if (view === '4.0') return s40 === selected;
+      return s31 === selected || s40 === selected;
+    }
+
+    function applyCveView() {
       const q = (search?.value || '').trim().toLowerCase();
-      const selectedSeverity = (filter?.value || 'all').trim().toLowerCase();
+      const selectedSeverity = (severityFilter?.value || 'all').toLowerCase();
+      const view = cvssView?.value || 'both';
 
-      getRows().forEach(row => {
-        const rowText = row.innerText.toLowerCase();
+      document.querySelectorAll('.cvss31-col').forEach(el => { el.style.display = view === '4.0' ? 'none' : ''; });
+      document.querySelectorAll('.cvss40-col').forEach(el => { el.style.display = view === '3.1' ? 'none' : ''; });
+      document.querySelectorAll('.metric31-detail').forEach(el => { el.style.display = view === '4.0' ? 'none' : ''; });
+      document.querySelectorAll('.metric40-detail').forEach(el => { el.style.display = view === '3.1' ? 'none' : ''; });
 
-        const severityCell = row.querySelector('span.severity');
-        const rowSeverity = (severityCell?.innerText || '')
-          .trim()
-          .toLowerCase();
+      const tbody = document.querySelector('#cveTable tbody');
+      const rows = getRows();
+      const hostOrder = [];
+      const rowsByHost = new Map();
+      rows.forEach(row => {
+        const host = row.dataset.targetHost || 'Unattributed';
+        if (!rowsByHost.has(host)) {
+          rowsByHost.set(host, []);
+          hostOrder.push(host);
+        }
+        rowsByHost.get(host).push(row);
+      });
+      hostOrder.forEach(host => {
+        const hostRows = rowsByHost.get(host) || [];
+        hostRows.sort((a, b) => {
+          const scoreDifference = activeScore(b, view) - activeScore(a, view);
+          if (scoreDifference !== 0) return scoreDifference;
+          return a.innerText.localeCompare(b.innerText);
+        });
+        let visibleCount = 0;
+        hostRows.forEach(row => {
+          const searchable = `${host} ${row.innerText}`.toLowerCase();
+          const matchesSearch = !q || searchable.includes(q);
+          const severityMatches = matchesSeverity(row, view, selectedSeverity);
+          const visible = matchesSearch && severityMatches;
+          row.style.display = visible ? '' : 'none';
+          if (visible) visibleCount += 1;
+        });
+        const header = Array.from(document.querySelectorAll('#cveTable tbody tr.cve-host-group-row'))
+          .find(candidate => (candidate.dataset.targetHost || 'Unattributed') === host);
+        if (header) {
+          header.style.display = visibleCount ? '' : 'none';
+          tbody?.appendChild(header);
+        }
+        hostRows.forEach(row => tbody?.appendChild(row));
+      });
 
-        const matchesSearch = !q || rowText.includes(q);
-        const matchesSeverity =
-          selectedSeverity === 'all' || rowSeverity === selectedSeverity;
-
-        row.style.display = matchesSearch && matchesSeverity ? '' : 'none';
+      const referenceTable = document.querySelector('#cveReferenceTable tbody');
+      const referenceRows = Array.from(document.querySelectorAll('#cveReferenceTable .cve-reference-row'));
+      const referenceHosts = [];
+      const referenceByHost = new Map();
+      referenceRows.forEach(row => {
+        const host = row.dataset.targetHost || 'Unattributed';
+        if (!referenceByHost.has(host)) {
+          referenceByHost.set(host, []);
+          referenceHosts.push(host);
+        }
+        referenceByHost.get(host).push(row);
+      });
+      referenceHosts.forEach(host => {
+        const hostRows = referenceByHost.get(host) || [];
+        let visibleCount = 0;
+        hostRows.forEach(row => {
+          const visible = !q || `${host} ${row.innerText}`.toLowerCase().includes(q);
+          row.style.display = visible ? '' : 'none';
+          if (visible) visibleCount += 1;
+        });
+        const header = Array.from(document.querySelectorAll('#cveReferenceTable tbody tr.cve-host-group-row'))
+          .find(candidate => (candidate.dataset.targetHost || 'Unattributed') === host);
+        if (header) {
+          header.style.display = visibleCount ? '' : 'none';
+          referenceTable?.appendChild(header);
+        }
+        hostRows.forEach(row => referenceTable?.appendChild(row));
       });
     }
 
-    document.getElementById('closeCveModal')?.addEventListener('click', closeCveModal);
-    document.getElementById('viewAllCvesBtn')?.addEventListener('click', openCveModal);
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeCveModal();
+    const scanFindingsSearch = document.getElementById('scanFindingsSearch');
+    function applyScanFindingsSearch() {
+      const query = (scanFindingsSearch?.value || '').trim().toLowerCase();
+      document.querySelectorAll('.scan-finding-row').forEach(row => {
+        row.style.display = !query || row.innerText.toLowerCase().includes(query) ? '' : 'none';
+      });
+    }
+    scanFindingsSearch?.addEventListener('input', applyScanFindingsSearch);
+
+    search?.addEventListener('input', applyCveView);
+    severityFilter?.addEventListener('change', applyCveView);
+    function setCvssView(selected, persist = false) {
+      const allowed = new Set(['3.1', '4.0', 'both']);
+      const next = allowed.has(selected) ? selected : 'both';
+      if (cvssView) cvssView.value = next;
+      document.querySelectorAll('[data-cvss-view]').forEach(candidate => {
+        const active = candidate.dataset.cvssView === next;
+        candidate.classList.toggle('active', active);
+        candidate.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      if (persist) {
+        try { localStorage.setItem(CVSS_VIEW_STORAGE_KEY, next); } catch (_) {}
+      }
+      applyCveView();
+    }
+
+    document.querySelectorAll('[data-cvss-view]').forEach(button => {
+      button.addEventListener('click', () => setCvssView(button.dataset.cvssView || 'both', true));
     });
-
-    search?.addEventListener('input', applyFilter);
-    filter?.addEventListener('change', applyFilter);
-
-    window.openCveModal = openCveModal;
-    window.closeCveModal = closeCveModal;
+    let storedCvssView = 'both';
+    try { storedCvssView = localStorage.getItem(CVSS_VIEW_STORAGE_KEY) || 'both'; } catch (_) {}
+    setCvssView(storedCvssView, false);
   </script>
 </section>

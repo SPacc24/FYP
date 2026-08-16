@@ -416,7 +416,7 @@ def build_report_summary(
     remediations: list[dict[str, Any]],
     validation: dict[str, Any] | None = None,
     pivot: dict[str, Any] | None = None,
-    missions: list[dict[str, Any]] | None = None,
+    results: dict[str, Any] | None = None,
 ) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [f"AutoPenTest Report", f"Generated: {now}", ""]
@@ -434,7 +434,6 @@ def build_report_summary(
         )
     )
     lines.append(_section("Risk Summary", _summarize_risk(risk)))
-    lines.append(_section("Mission Orchestration", _summarize_missions(missions or [])))
     effective_remediations = remediations or _fallback_remediations(scan, mapping)
     lines.append(_section("Remediation Guidance", _summarize_remediations(effective_remediations)))
 
@@ -449,9 +448,18 @@ def generate_text_report(
     remediations: list[dict[str, Any]],
     validation: dict[str, Any] | None = None,
     pivot: dict[str, Any] | None = None,
-    missions: list[dict[str, Any]] | None = None,
+    results: dict[str, Any] | None = None,
 ) -> str:
-    report_text = build_report_summary(scan, mapping, operation, risk, remediations, validation, pivot, missions)
+    report_text = build_report_summary(
+        scan=scan,
+        mapping=mapping,
+        operation=operation,
+        risk=risk,
+        remediations=remediations,
+        validation=validation,
+        pivot=pivot,
+        results=results,
+    )
     path = REPORT_DIR / f"autopentest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     path.write_text(report_text, encoding="utf-8")
     return str(path)
@@ -460,13 +468,13 @@ def generate_text_report(
 def generate_pdf_report(
     scan_id: str = "",
     scan: dict[str, Any] | None = None,
+    results: dict[str, Any] | None = None,
     mapping: dict[str, Any] | None = None,
     validation: dict[str, Any] | None = None,
     operation: dict[str, Any] | None = None,
     risk: dict[str, Any] | None = None,
     remediations: list[dict[str, Any]] | None = None,
     pivot: dict[str, Any] | None = None,
-    missions: list[dict[str, Any]] | None = None,
 ) -> str:
     """Generate a real PDF when ReportLab is available; otherwise a .txt fall-back.
 
@@ -474,6 +482,8 @@ def generate_pdf_report(
     """
     if scan is None:
         scan = {}
+    if results is None:
+        results = {}
     if mapping is None:
         mapping = {}
     if validation is None:
@@ -636,6 +646,62 @@ def generate_pdf_report(
                 body,
             )
 
+        def style_report_table(
+            table,
+            *,
+            header=True,
+            font_size=8,
+        ):
+            """
+            Apply consistent borders, spacing and wrapping
+            to report tables.
+            """
+
+            commands = [
+                # Visible borders around every cell
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.55,
+                    colors.HexColor("#B8B8C4"),
+                ),
+
+                # Comfortable spacing inside cells
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+
+                # Long text starts at the top of the cell
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+
+                # Default body styling
+                ("FONTSIZE", (0, 0), (-1, -1), font_size),
+                (
+                    "BACKGROUND",
+                    (0, 1 if header else 0),
+                    (-1, -1),
+                    colors.HexColor("#FAFAFC"),
+                ),
+            ]
+
+            if header:
+                commands.extend([
+                    (
+                        "BACKGROUND",
+                        (0, 0),
+                        (-1, 0),
+                        colors.HexColor("#2E2559"),
+                    ),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ])
+
+            table.setStyle(TableStyle(commands))
+
+            return table
+
 
         # =========================================================
         # OPEN SERVICES
@@ -703,7 +769,530 @@ def generate_pdf_report(
 
         story.append(Spacer(1, 14))
 
+        # =========================================================
+        # VULNERABILITY INTELLIGENCE
+        # =========================================================
 
+        story.append(
+            Paragraph(
+                "Vulnerability Intelligence",
+                section_style,
+            )
+        )
+        story.append(Spacer(1, 6))
+
+        mitre_source = results.get("mitre_source") or {}
+
+        nvd_source = (
+            results.get("nvd_source")
+            or mitre_source.get("nvd_enrichment")
+            or {}
+        )
+
+        msrc_source = results.get("msrc_source") or {}
+
+        cvss_versions = (
+            mitre_source.get("records_with_cvss_metadata_by_version")
+            or {}
+        )
+
+        index_age_seconds = mitre_source.get("index_age_seconds")
+
+        if index_age_seconds is not None:
+            try:
+                index_age = (
+                    f"{float(index_age_seconds) / 3600:.1f} hours"
+                )
+            except (TypeError, ValueError):
+                index_age = _safe_text(index_age_seconds)
+        else:
+            index_age = "Unknown"
+
+        vulnerability_intelligence_data = [
+            [
+                pdf_cell("CVE Source"),
+                pdf_cell(mitre_source.get("source", "Unavailable")),
+                pdf_cell("Records Indexed"),
+                pdf_cell(mitre_source.get("records_indexed", "N/A")),
+            ],
+            [
+                pdf_cell("Index Updated"),
+                pdf_cell(
+                    mitre_source.get("index_updated_at")
+                    or "Unknown"
+                ),
+                pdf_cell("Index Age"),
+                pdf_cell(index_age),
+            ],
+            [
+                pdf_cell("CVSS 3.1 Records"),
+                pdf_cell(cvss_versions.get("3.1", "N/A")),
+                pdf_cell("CVSS 4.0 Records"),
+                pdf_cell(cvss_versions.get("4.0", "N/A")),
+            ],
+            [
+                pdf_cell("NVD Enrichment"),
+                pdf_cell(
+                    "Enabled"
+                    if nvd_source.get("enabled")
+                    else "Disabled / unavailable"
+                ),
+                pdf_cell("CVE Repository Head"),
+                pdf_cell(
+                    mitre_source.get("repo_head_at")
+                    or "Unknown"
+                ),
+            ],
+            [
+                pdf_cell("Microsoft Remediation Source"),
+                pdf_cell(
+                    "Available"
+                    if msrc_source.get("available")
+                    else (
+                        "Enabled; cache empty"
+                        if msrc_source.get("enabled")
+                        else "Disabled"
+                    )
+                ),
+                pdf_cell("Cached MSRC Lookups"),
+                pdf_cell(
+                    msrc_source.get(
+                        "cached_cve_remediation_queries",
+                        0,
+                    )
+                ),
+            ],
+        ]
+
+        vulnerability_intelligence_table = Table(
+            vulnerability_intelligence_data,
+            colWidths=[
+                31 * mm,
+                49 * mm,
+                31 * mm,
+                49 * mm,
+            ],
+        )
+
+        style_report_table(
+            vulnerability_intelligence_table,
+            header=False,
+        )
+
+        vulnerability_intelligence_table.setStyle(
+            TableStyle([
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (0, -1),
+                    colors.HexColor("#F3F0FF"),
+                ),
+                (
+                    "BACKGROUND",
+                    (2, 0),
+                    (2, -1),
+                    colors.HexColor("#F3F0FF"),
+                ),
+                (
+                    "FONTNAME",
+                    (0, 0),
+                    (0, -1),
+                    "Helvetica-Bold",
+                ),
+                (
+                    "FONTNAME",
+                    (2, 0),
+                    (2, -1),
+                    "Helvetica-Bold",
+                ),
+            ])
+        )
+
+        story.append(vulnerability_intelligence_table)
+        story.append(Spacer(1, 14))
+
+
+        # =========================================================
+        # CANDIDATE CVE GENERATION
+        # =========================================================
+
+        story.append(
+            Paragraph(
+                "Candidate CVE Generation",
+                section_style,
+            )
+        )
+        story.append(Spacer(1, 6))
+
+        review = results.get("cve_review_summary") or {}
+
+        generation_state = review.get(
+            "candidate_generation_state",
+            (
+                "available"
+                if mitre_source.get("local_index_available")
+                else "unavailable"
+            ),
+        )
+
+        candidate_count = review.get(
+            "candidate_cves_retained",
+            review.get("candidate_cves_considered", 0),
+        )
+
+        candidate_cvss = review.get("cvss") or {}
+
+        candidate_generation_data = [
+            [
+                pdf_cell("Candidate Source"),
+                pdf_cell(
+                    str(generation_state)
+                    .replace("_", " ")
+                    .title()
+                ),
+                pdf_cell("Software Identities Reviewed"),
+                pdf_cell(
+                    review.get("identities_reviewed", 0)
+                ),
+            ],
+            [
+                pdf_cell("Candidate CVEs"),
+                pdf_cell(
+                    candidate_count
+                    if generation_state != "unavailable"
+                    else "Unavailable"
+                ),
+                pdf_cell("Validation State"),
+                pdf_cell("Not performed by recon"),
+            ],
+            [
+                pdf_cell("Structured Records Evaluated"),
+                pdf_cell(
+                    review.get(
+                        "structured_records_evaluated",
+                        0,
+                    )
+                ),
+                pdf_cell("Structured Rejections"),
+                pdf_cell(
+                    review.get(
+                        "rejected_during_structured_filtering",
+                        0,
+                    )
+                ),
+            ],
+            [
+                pdf_cell("Unmatched Software Identities"),
+                pdf_cell(
+                    review.get(
+                        "unmatched_software_identities",
+                        0,
+                    )
+                    if generation_state != "unavailable"
+                    else "Not evaluated"
+                ),
+                pdf_cell("NVD Role"),
+                pdf_cell(
+                    "Exact-ID CVSS and metadata enrichment only"
+                ),
+            ],
+            [
+                pdf_cell("Candidate CVSS 3.1"),
+                pdf_cell(
+                    f"{candidate_cvss.get('3.1', {}).get('published_candidates', 0)} "
+                    f"/ {candidate_count} published"
+                ),
+                pdf_cell("Candidate CVSS 4.0"),
+                pdf_cell(
+                    f"{candidate_cvss.get('4.0', {}).get('published_candidates', 0)} "
+                    f"/ {candidate_count} published"
+                ),
+            ],
+        ]
+
+        candidate_generation_table = Table(
+            candidate_generation_data,
+            colWidths=[
+                33 * mm,
+                47 * mm,
+                33 * mm,
+                47 * mm,
+            ],
+        )
+
+        style_report_table(
+            candidate_generation_table,
+            header=False,
+        )
+
+        candidate_generation_table.setStyle(
+            TableStyle([
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (0, -1),
+                    colors.HexColor("#F3F0FF"),
+                ),
+                (
+                    "BACKGROUND",
+                    (2, 0),
+                    (2, -1),
+                    colors.HexColor("#F3F0FF"),
+                ),
+                (
+                    "FONTNAME",
+                    (0, 0),
+                    (0, -1),
+                    "Helvetica-Bold",
+                ),
+                (
+                    "FONTNAME",
+                    (2, 0),
+                    (2, -1),
+                    "Helvetica-Bold",
+                ),
+            ])
+        )
+
+        story.append(candidate_generation_table)
+        story.append(Spacer(1, 14))
+
+        # =========================================================
+        # CANDIDATE CVE REVIEW
+        # =========================================================
+
+        story.append(
+            Paragraph(
+                "Candidate CVE Review",
+                section_style,
+            )
+        )
+        story.append(Spacer(1, 6))
+
+        cve_candidates = (
+            results.get("cve_review_candidates")
+            or results.get("cve_matches")
+            or []
+        )
+
+        if cve_candidates:
+            cve_data = [
+                [
+                    "CVE",
+                    "Affected Asset",
+                    "Evidence / Match Basis",
+                    "Validation",
+                    "Potential Outcome",
+                ]
+            ]
+
+            for cve in cve_candidates:
+                cve_id = cve.get("cve_id", "Unknown")
+
+                product = (
+                    cve.get("product")
+                    or cve.get("service")
+                    or "Observed identity"
+                )
+
+                version = cve.get("version") or ""
+
+                asset_text = product
+                if version:
+                    asset_text += f" {version}"
+
+                host = cve.get("host") or "Unknown"
+                port = cve.get("port")
+                protocol = cve.get("protocol") or "tcp"
+
+                if port:
+                    asset_text += f"\n{host} · {port}/{protocol}"
+                else:
+                    asset_text += f"\n{host}"
+
+                evidence = (
+                    cve.get("display_match_reason")
+                    or cve.get("match_reason")
+                    or cve.get("match_basis")
+                    or cve.get("candidate_basis")
+                    or "Evidence-linked product/version correlation"
+                )
+
+                validation_state = (
+                    cve.get("validation_state")
+                    or "not_performed"
+                )
+
+                outcome = (
+                    cve.get("attacker_outcome")
+                    or "Potential impact requires validation."
+                )
+
+                cve_data.append([
+                    pdf_cell(cve_id),
+                    pdf_cell(asset_text),
+                    pdf_cell(evidence),
+                    pdf_cell(
+                        str(validation_state)
+                        .replace("_", " ")
+                        .title()
+                    ),
+                    pdf_cell(outcome),
+                ])
+
+            cve_table = Table(
+                cve_data,
+                colWidths=[
+                    24 * mm,  # CVE
+                    32 * mm,  # Affected asset
+                    46 * mm,  # Evidence gets most space
+                    23 * mm,  # Validation compact
+                    35 * mm,  # Outcome
+                ],
+                repeatRows=1,
+            )
+
+            style_report_table(
+                cve_table,
+                header=True,
+                font_size=7.5,
+            )
+
+            story.append(cve_table)
+
+        else:
+            story.append(
+                Paragraph(
+                    (
+                        "Candidate CVE generation was unavailable."
+                        if generation_state == "unavailable"
+                        else
+                        "No Candidate CVEs were generated from the observed software identities."
+                    ),
+                    body,
+                )
+            )
+
+        story.append(Spacer(1, 14))
+
+
+        # =========================================================
+        # PUBLISHED CVSS SEVERITY
+        # =========================================================
+
+        story.append(
+            Paragraph(
+                "Published CVSS Severity",
+                section_style,
+            )
+        )
+        story.append(Spacer(1, 6))
+
+        if cve_candidates:
+            cvss_data = [
+                [
+                    "CVE ID",
+                    "Affected Service",
+                    "CVSS 3.1",
+                    "Severity",
+                    "CVSS 4.0",
+                    "Severity",
+                ]
+            ]
+
+            for cve in cve_candidates:
+                metrics = (
+                    cve.get("effective_cvss_metrics")
+                    or cve.get("source_cvss_metrics")
+                    or {}
+                )
+
+                metric_31 = metrics.get("3.1") or {}
+                metric_40 = metrics.get("4.0") or {}
+
+                service = (
+                    cve.get("product")
+                    or cve.get("service")
+                    or "Unknown"
+                )
+
+                version = cve.get("version")
+                if version:
+                    service = f"{service} {version}"
+
+                score_31 = (
+                    metric_31.get("cvss_score")
+                    if metric_31
+                    else None
+                )
+
+                score_40 = (
+                    metric_40.get("cvss_score")
+                    if metric_40
+                    else None
+                )
+
+                cvss_31_text = (
+                    f"{float(score_31):.1f}\n"
+                    f"{metric_31.get('cvss_vector', '')}"
+                    if score_31 is not None
+                    else "Not published"
+                )
+
+                cvss_40_text = (
+                    f"{float(score_40):.1f}\n"
+                    f"{metric_40.get('cvss_vector', '')}"
+                    if score_40 is not None
+                    else "Not published"
+                )
+
+                cvss_data.append([
+                    pdf_cell(cve.get("cve_id", "Unknown")),
+                    pdf_cell(service),
+                    pdf_cell(cvss_31_text),
+                    pdf_cell(
+                        metric_31.get("cvss_severity", "—")
+                        if metric_31
+                        else "—"
+                    ),
+                    pdf_cell(cvss_40_text),
+                    pdf_cell(
+                        metric_40.get("cvss_severity", "—")
+                        if metric_40
+                        else "—"
+                    ),
+                ])
+
+            cvss_table = Table(
+                cvss_data,
+                colWidths=[
+                    24 * mm,  # CVE
+                    38 * mm,  # Service
+                    31 * mm,  # CVSS 3.1 vector
+                    18 * mm,  # Severity compact
+                    31 * mm,  # CVSS 4.0 vector
+                    18 * mm,  # Severity compact
+                ],
+                repeatRows=1,
+            )
+
+            style_report_table(
+                cvss_table,
+                header=True,
+                font_size=7.3,
+            )
+
+            story.append(cvss_table)
+
+        else:
+            story.append(
+                Paragraph(
+                    "No published CVSS records are available.",
+                    body,
+                )
+            )
+
+        story.append(Spacer(1, 16))
         # =========================================================
         # VULNERABILITY FINDINGS
         # =========================================================
@@ -1255,14 +1844,14 @@ def generate_pdf_report(
     
     except Exception:
         report_text = build_report_summary(
-            scan,
-            mapping,
-            operation,
-            risk,
-            remediations,
-            validation,
-            pivot,
-            missions,
+            scan=scan,
+            mapping=mapping,
+            operation=operation,
+            risk=risk,
+            remediations=remediations,
+            validation=validation,
+            pivot=pivot,
+            results=results,
         )
 
         path = REPORT_DIR / f"autopentest_report_{stamp}.txt"

@@ -8,7 +8,7 @@ if str(PROJECT) not in sys.path:
 from scanners.enumerator import (  # noqa: E402
     _coverage_display_status,
     _classify_cve_match,
-    ALLOWED_CVE_STATUSES,
+    BASELINE_CVE_REFERENCE,
 )
 from storage import scan_store  # noqa: E402
 from scanners.mitre_cve import OFFICIAL_CVE_SOURCE  # noqa: E402
@@ -35,21 +35,19 @@ def test_timeout_is_evidence_incomplete():
     assert status == "Timed Out - Incomplete"
 
 
-def test_cve_contract_accepts_only_candidate_and_confirmed():
-    for status in ALLOWED_CVE_STATUSES:
-        result = _classify_cve_match({
-            "source": OFFICIAL_CVE_SOURCE,
-            "classification": status,
-            "classification_reason": "Published applicability evidence.",
-        })
-        assert result == (status, "Published applicability evidence.")
-
-
-def test_cve_contract_rejects_every_other_value():
-    assert _classify_cve_match({
+def test_cve_contract_emits_one_neutral_reference_type():
+    result = _classify_cve_match({}, {
         "source": OFFICIAL_CVE_SOURCE,
-        "classification": "Different value",
-    }) is None
+        "matched_product_tokens": ["example product"],
+        "matched_version_tokens": ["1.2.3"],
+        "match_basis": "structured_exact_version",
+    })
+    assert result[0] == BASELINE_CVE_REFERENCE
+
+
+def test_cve_contract_excludes_non_official_source():
+    result = _classify_cve_match({}, {"source": "untrusted"})
+    assert result[0].startswith("Excluded")
 
 
 def test_service_level_nmap_script_descriptions_are_specific():

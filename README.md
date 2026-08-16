@@ -4,12 +4,14 @@ AutoPenTest is a Flask-based assessment dashboard for authorised cyber ranges an
 
 > **Authorised use only.** Run this project only against systems you own or have explicit written permission to test. The default engagement policy rejects public targets, but it is a demo policy—not a substitute for signed rules of engagement.
 
-For the step-by-step operating procedure, see the **[Operator Runbook](project/docs/operator_runbook.md)**.
+For the step-by-step operating procedure, see the **[Operator Runbook](project/docs/operator_runbook.md)**. For the implemented operator-controlled Phase 2 discovery loop, see **[Operator Workflow v14](project/docs/OPERATOR_WORKFLOW_V14.md)**.
 
 ## What the project does
 
 - Runs one asynchronous, policy-gated adaptive vulnerability scan. The operator selects numerical TCP/UDP coverage; observed protocol evidence selects specialist modules automatically.
 - Accepts a single IP, multiple IPs, CIDR blocks, and short or explicit IP ranges, up to the configured scope limit.
+- Provides an operator-controlled Phase 1/2 discovery flow: locally attached authorised subnets are derived from interface address/prefix evidence, while continuation branches are created only from explicit network-prefix evidence collected for operator-selected discovered devices.
+- Retains eligible assets across every discovered layer and hands the complete inventory to Phase 3; stopping Phase 2 ends traversal rather than closing the assessment.
 - Collects adaptive host-discovery evidence, operator-selected TCP/UDP exposure, port-independent service fingerprints, and protocol-specific readiness evidence.
 - Uses Nmap and optional native tools for web, SSH, SMB, LDAP, DNS, SNMP, RPC/NFS, RDP, WinRM, database, container, Kubernetes, VPN, and TLS observations.
 - Builds a service-centric attack-surface workbench with raw evidence links, evidence gaps, security observations, and tool-coverage status.
@@ -256,6 +258,12 @@ MySQL is not required for the primary JSON-backed dashboard flow. When reachable
 
 Enable this only for an authorised demonstration. A qualifying completed CALDERA link can produce a signed ticket which the supplied PowerShell or shell client redeems and records as a harmless local JSON marker. See `project/docs/proof_of_access.md` for the full trust and deployment flow.
 
+### Operator-controlled Phase 2 network discovery
+
+Phase 2 separates local discovery, continuation-network evidence, and reachability verification. If the Phase 1 entry IP belongs to a directly attached authorised scanner interface network, that local CIDR is derived from the interface address/prefix and enumerated first. For deeper traversal, the operator can select one or more retained devices and press **Find Next Networks**. PenPilot checks those selections sequentially, retains device identity evidence conservatively, and presents any explicit continuation networks linked to the source device. The active workflow does not ask for infrastructure credentials or a topology profile. Only explicit observed network prefixes become continuation branches; hidden RFC1918 ranges are not guessed.
+
+The operator then chooses a branch and either direct access or an already established SOCKS pivot. PenPilot verifies the selected access path before enumerating the next network and never automatically adds a Linux route. **Stop Phase 2** transitions to Phase 3 configuration with eligible assets from every retained discovery layer. See `project/docs/OPERATOR_WORKFLOW_V14.md` for the current state model and security invariants.
+
 ### Experimental pivot workflow
 
 The `/pivot` routes can start a Chisel reverse-SOCKS server, modify `/etc/proxychains4.conf`, scan an internal range through `proxychains`, and generate operator-run lateral-movement commands. This path assumes a compromised lab host and currently contains range-specific demonstration defaults. It may require elevated filesystem permissions and additional binaries (`chisel`, `proxychains`, Nmap, and technique-specific tools).
@@ -323,6 +331,8 @@ local CVE index has been built, then fails if a sampled indexed record is
 attributed to a non-official source.
 
 Most tests mock network services. Tests explicitly aimed at live CALDERA, MySQL, external binaries, or lab targets require those dependencies and suitable local configuration.
+
+Phase 2 regression coverage includes the v8-v12 compatibility tests plus `tests/test_v14_operator_workflow_quality.py`. The active design and operator state model are documented in `project/docs/OPERATOR_WORKFLOW_V14.md`.
 
 ## Cleanup
 

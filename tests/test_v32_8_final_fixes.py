@@ -27,7 +27,7 @@ def test_gobuster_paths_parse_even_with_timeout_marker(tmp_path):
         encoding="utf-8",
     )
 
-    rows, _warnings = parse_gobuster(str(evidence), "192.168.211.134", 8180)
+    rows, warnings = parse_gobuster(str(evidence), "192.168.211.134", 8180)
     assert warnings
     assert [r["path"] for r in rows] == ["/index.jsp", "/admin"]
 

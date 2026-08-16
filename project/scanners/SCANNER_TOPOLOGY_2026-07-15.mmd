@@ -47,8 +47,8 @@ flowchart TD
     P2 --> Q["Run only enabled, surface-triggered protocol collectors<br/>Commands use observed host/port and policy values<br/>No brute force, credentials, writes, or exploitation"]
     Q --> R["Parse every command output<br/>Expected output: structured evidence<br/>Empty output: STATUS_EMPTY + gap<br/>Nonzero/timeout/parser error: STATUS_FAILED/WARN + stderr/output reference"]
     R --> S["Fingerprint consensus<br/>Inputs: captured Nmap + HTTP + TLS + SMB + SSH/native evidence"]
-    S --> T{"Contradiction-free, version present, confidence at least threshold?"}
-    T -- "No" --> T1["Skip CVE lookup<br/>Diagnostic: confidence/version/contradiction reason"]
+    S --> T{"Concrete product/version or exact scoped CPE evidence present?"}
+    T -- "No" --> T1["Hold CVE matching evidence<br/>Diagnostic: identity/version/contradiction reason"]
     T -- "Yes" --> U{"Official CVE index available?"}
     U -- "No" --> U1["No CVE conclusion<br/>Diagnostic: index unavailable + rebuild command"]
     U -- "Yes" --> V["Derive identity only from observed product/service/CPE<br/>Reviewed alias or exact dynamic identity<br/>No port-to-CVE or target-to-CVE rule"]
@@ -58,11 +58,11 @@ flowchart TD
     X -- "No" --> Z{"Exact product plus exact/bounded affected version match?"}
     Z -- "Yes" --> Y
     Z -- "No" --> Z1["Reject record; do not emit CVE"]
-    Y --> AA["Classify context<br/>Confirmed or candidate needing validation<br/>Deduplicate without result cap"]
+    Y --> AA["Emit neutral strict baseline CVE reference<br/>Deduplicate without result cap"]
     Z1 --> AB
     T1 --> AB
     U1 --> AB
-    AA --> AB["Publish scanner-canonical-v1 contract<br/>confirmed + candidates + diagnostics"]
+    AA --> AB["Publish scanner-canonical-v4-baseline-references contract<br/>baseline references + held diagnostics<br/>classification-neutral CVE records"]
     AB --> AC["Sanitize downstream mapping<br/>Remove guessed CVE IDs/links<br/>Inject canonical records by observed host/port only"]
     AC --> AD["Assemble JSON/PDF evidence package<br/>Policy hash + exact coverage + commands/status + errors + limitations"]
     AD --> AE{"Report generation succeeds?"}

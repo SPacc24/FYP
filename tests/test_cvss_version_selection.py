@@ -64,6 +64,9 @@ def test_published_metric_integrity_preserves_exact_source_values():
         "cvss_vector": vector,
         "cvss_version": "3.1",
         "cvss_metric_integrity": "published_source_exact",
+        "cvss_verified": True,
+        "cvss_verification_status": "verified",
+        "cvss_verification_method": "internal_cvss31_formula",
     }
 
 

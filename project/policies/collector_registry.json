@@ -1,4 +1,184 @@
 {
+  "nmap_os_identity": {
+    "noise": "low-medium",
+    "automatic": true,
+    "evidence": [
+      "os_match",
+      "os_class",
+      "os_cpe"
+    ],
+    "description": "Bounded active Nmap OS fingerprinting against operator-authorised ports only."
+  },
+  "windows_patch_inventory": {
+    "noise": "none",
+    "automatic": false,
+    "credential_required": false,
+    "evidence": [
+      "windows_product",
+      "windows_version",
+      "windows_build",
+      "windows_ubr",
+      "windows_architecture",
+      "installed_kbs",
+      "patch_inventory_timestamp"
+    ],
+    "description": "Load whitelisted Windows OS/build and installed-update evidence from an operator-exported local JSON file. No credentials, target connection, remote session, or target modification."
+  },
+  "smb_host_identity": {
+    "noise": "low-medium",
+    "automatic": true,
+    "evidence": [
+      "os_identity",
+      "computer_name",
+      "domain",
+      "forest",
+      "fqdn",
+      "smb_capabilities",
+      "system_time"
+    ],
+    "nmap_scripts": [
+      "smb-os-discovery",
+      "smb2-capabilities",
+      "smb2-time"
+    ],
+    "description": "Collect SMB-exposed host and OS identity without share/user enumeration."
+  },
+  "netbios_identity": {
+    "noise": "low",
+    "automatic": true,
+    "evidence": [
+      "netbios_name",
+      "workgroup",
+      "mac_identity"
+    ],
+    "nmap_scripts": [
+      "nbstat"
+    ],
+    "description": "Collect NetBIOS naming identity only."
+  },
+  "msrpc_metadata": {
+    "noise": "low-medium",
+    "automatic": true,
+    "evidence": [
+      "rpc_endpoints"
+    ],
+    "nmap_scripts": [
+      "msrpc-enum"
+    ],
+    "description": "Collect Microsoft RPC endpoint mapper metadata; advertised endpoints are not automatically scanned."
+  },
+  "ntlm_http_identity": {
+    "noise": "low-medium",
+    "automatic": true,
+    "evidence": [
+      "computer_name",
+      "domain",
+      "dns_name",
+      "product_version"
+    ],
+    "nmap_scripts": [
+      "http-ntlm-info"
+    ],
+    "description": "Collect NTLM host identity metadata over an observed HTTP/WinRM surface without successful authentication."
+  },
+  "ntlm_rdp_identity": {
+    "noise": "low-medium",
+    "automatic": true,
+    "evidence": [
+      "computer_name",
+      "domain",
+      "dns_name",
+      "product_version"
+    ],
+    "nmap_scripts": [
+      "rdp-ntlm-info"
+    ],
+    "description": "Collect NTLM host identity metadata over observed RDP without successful authentication."
+  },
+  "ntlm_mssql_identity": {
+    "noise": "low-medium",
+    "automatic": true,
+    "evidence": [
+      "computer_name",
+      "domain",
+      "dns_name",
+      "product_version"
+    ],
+    "nmap_scripts": [
+      "ms-sql-ntlm-info"
+    ],
+    "description": "Collect NTLM host identity metadata over observed MSSQL without successful authentication."
+  },
+  "ntlm_smtp_identity": {
+    "noise": "low-medium",
+    "automatic": false,
+    "evidence": [
+      "computer_name",
+      "domain",
+      "dns_name",
+      "product_version"
+    ],
+    "nmap_scripts": [
+      "smtp-ntlm-info"
+    ],
+    "description": "Collect NTLM metadata when observed SMTP supports the negotiation."
+  },
+  "ntlm_imap_identity": {
+    "noise": "low-medium",
+    "automatic": false,
+    "evidence": [
+      "computer_name",
+      "domain",
+      "dns_name",
+      "product_version"
+    ],
+    "nmap_scripts": [
+      "imap-ntlm-info"
+    ],
+    "description": "Collect NTLM metadata when observed IMAP supports the negotiation."
+  },
+  "ntlm_pop3_identity": {
+    "noise": "low-medium",
+    "automatic": false,
+    "evidence": [
+      "computer_name",
+      "domain",
+      "dns_name",
+      "product_version"
+    ],
+    "nmap_scripts": [
+      "pop3-ntlm-info"
+    ],
+    "description": "Collect NTLM metadata when observed POP3 supports the negotiation."
+  },
+  "ntlm_nntp_identity": {
+    "noise": "low-medium",
+    "automatic": false,
+    "evidence": [
+      "computer_name",
+      "domain",
+      "dns_name",
+      "product_version"
+    ],
+    "nmap_scripts": [
+      "nntp-ntlm-info"
+    ],
+    "description": "Collect NTLM metadata when observed NNTP supports the negotiation."
+  },
+  "ntlm_telnet_identity": {
+    "noise": "low-medium",
+    "automatic": false,
+    "evidence": [
+      "computer_name",
+      "domain",
+      "dns_name",
+      "product_version"
+    ],
+    "nmap_scripts": [
+      "telnet-ntlm-info"
+    ],
+    "description": "Collect NTLM metadata when observed Telnet supports the negotiation."
+  },
   "nmap_syn_top_ports": {
     "noise": "low-medium",
     "automatic": true,
@@ -96,12 +276,15 @@
     "automatic": true,
     "evidence": [
       "smb_protocols",
+      "smb1_indicator",
       "smb_signing_indicator",
+      "smb_security_mode",
       "smb_dialect_hints"
     ],
     "nmap_scripts": [
-      "smb2-security-mode",
-      "smb-protocols"
+      "smb-protocols",
+      "smb-security-mode",
+      "smb2-security-mode"
     ],
     "ports": [
       445
