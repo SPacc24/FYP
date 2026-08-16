@@ -31,9 +31,7 @@ CVE_CACHE_TTL_SECONDS = 60 * 60 * 24
 REQUEST_TIMEOUT = 120
 
 
-# ---------------------------------------------------
 # MITRE ATT&CK HELPERS
-# ---------------------------------------------------
 
 def build_mitre_url(technique_id: str) -> str:
     technique_id = str(technique_id).strip()

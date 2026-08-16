@@ -14,9 +14,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-<<<<<<< HEAD
-from . import nvd_client
-=======
 from . import command_builders
 from . import nvd_client
 from . import version_compare
@@ -28,7 +25,6 @@ from .scoring_policy import (
     ScoringPolicyError,
     validate_published_metric,
 )
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BASE = PROJECT_ROOT / 'storage' / 'mitre_cve'
@@ -411,16 +407,6 @@ def status() -> dict[str, Any]:
     stale_cvss = INDEX.exists() and records > 0 and cvss_records == 0
     nvd = nvd_client.status()
     local_available = INDEX.exists() and records > 0
-<<<<<<< HEAD
-    return {
-        'source': OFFICIAL_CVE_SOURCE,
-        'source_mode': 'local_index' if local_available else ('targeted_nvd_api' if nvd.get('enabled') else 'unavailable'),
-        'available': local_available or bool(nvd.get('enabled')),
-        'local_index_available': local_available,
-        'nvd_enrichment': nvd,
-        'attribution': nvd.get('attribution', ''),
-        'matcher_status': 'error' if status_error else ('available' if (local_available or nvd.get('enabled')) else 'unavailable'),
-=======
     now = time.time()
     index_mtime = INDEX.stat().st_mtime if INDEX.exists() else 0.0
     repo_head_at = ''
@@ -443,7 +429,6 @@ def status() -> dict[str, Any]:
         'nvd_enrichment': nvd,
         'attribution': nvd.get('attribution', ''),
         'matcher_status': 'error' if status_error else ('available' if local_available else 'unavailable'),
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
         'status_error': status_error,
         'records_indexed': records,
         'records_with_cvss_metadata': cvss_records,
@@ -1619,43 +1604,6 @@ def _validated_metric(version: str, data: dict[str, Any], source: str, role: str
         try:
             score_value = float(score)
         except (TypeError, ValueError):
-<<<<<<< HEAD
-            score = 0.0
-        recommended = bool(recommended_for_cve)
-        if score < MIN_FINGERPRINT_CONFIDENCE or not recommended:
-            threshold_diag = {
-                'reason': 'fingerprint_confidence_below_cve_threshold',
-                'confidence_score': round(score, 2),
-                'minimum_confidence': MIN_FINGERPRINT_CONFIDENCE,
-                'recommended_for_cve': recommended,
-            }
-            # Never promote an uncorroborated fingerprint to a confirmed CVE.
-            # However, a concrete product+version observed directly by Nmap
-            # (normally confidence 0.60) is still useful as analyst-review
-            # candidate information. Search the same official source and tag
-            # every returned record so the report layer keeps it non-confirmed.
-            has_identity = bool(str(product or '').strip() and str(version or '').strip())
-            candidate_eligible = has_identity and score >= 0.60
-            if candidate_eligible:
-                if INDEX.exists():
-                    candidates, source_diag = _search_cached(product, version, service, cpe)
-                elif nvd_client.enabled():
-                    candidates, source_diag = nvd_client.search(product, version, service, cpe)
-                else:
-                    candidates, source_diag = tuple(), tuple()
-                candidate_rows = tuple({
-                    **dict(row),
-                    'low_confidence_candidate': True,
-                    'nvd_candidate': bool(dict(row).get('nvd_candidate', False)),
-                } for row in candidates)
-                return candidate_rows, (threshold_diag, *tuple(source_diag))
-            return tuple(), (threshold_diag,)
-    if INDEX.exists():
-        confirmed, held = _search_cached(product, version, service, cpe)
-    else:
-        confirmed, held = nvd_client.search(product, version, service, cpe)
-    return tuple(copy.deepcopy(list(confirmed))), tuple(copy.deepcopy(list(held)))
-=======
             return {}
         metric = {
             'cvss_score': score_value,
@@ -1711,7 +1659,6 @@ def _validated_metric(version: str, data: dict[str, Any], source: str, role: str
     metric['cvss_source'] = source
     metric['cvss_provider_role'] = role
     return metric
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
 
 
 def _extract_metrics_from_node(node: Any, role: str = 'CNA') -> dict[str, dict[str, Any]]:

@@ -1,0 +1,88 @@
+{
+  "mission_id": "msn_ad_hoc_06056051d562",
+  "playbook_id": "edge_to_internal_proof",
+  "playbook_title": "Edge to internal impact proof",
+  "goal": "Evidence-closed-loop ad-hoc bridge mission",
+  "summary": "Auto-created by execution bridge for direct exploitation run.",
+  "risk_posture": "validate",
+  "status": "running",
+  "created_at": "2026-08-16T09:34:21.762268+00:00",
+  "updated_at": "2026-08-16T09:34:21.766296+00:00",
+  "scan_id": "",
+  "scope": {},
+  "notes": "Ad-hoc mission \u2014 created automatically because operator ran exploitation outside a formal mission.",
+  "stage_index": 0,
+  "current_stage_id": "surface_recon",
+  "stages": [],
+  "flags": [],
+  "evidence_flags": {
+    "http_present": false,
+    "https_present": false,
+    "smb_present": false,
+    "ssh_present": false,
+    "rdp_present": false,
+    "ms17_cve_evidence": false,
+    "bluekeep_cve_evidence": false,
+    "ms08_067_cve_evidence": false,
+    "smbghost_cve_evidence": false,
+    "zerologon_cve_evidence": false,
+    "printnightmare_cve_evidence": false,
+    "ms14_068_cve_evidence": false,
+    "kerberos_present": false,
+    "msrpc_present": false,
+    "winrm_present": false,
+    "mysql_present": false,
+    "telnet_present": false
+  },
+  "action_queue": [
+    {
+      "queue_id": "act_45cdc936bdcdcc3b",
+      "catalog_key": "",
+      "target": "192.168.56.20",
+      "title": "",
+      "status": "failed",
+      "source": "ad_hoc_bridge",
+      "queued_at": "2026-08-16T09:34:21.762268+00:00",
+      "execution_outcome": "failed",
+      "execution_detail": "Safe scanner completed.",
+      "executed_at": "2026-08-16T09:34:21.765297+00:00"
+    }
+  ],
+  "attack_graph": {
+    "nodes": [
+      {
+        "id": "zone:edge",
+        "kind": "zone",
+        "label": "Authorised edge / Ethernet scope",
+        "status": "active"
+      }
+    ],
+    "edges": [],
+    "stats": {
+      "hosts": 0,
+      "services": 0,
+      "catalog_matches": 0,
+      "hosts_with_catalog": 0
+    },
+    "matched_catalog_keys": []
+  },
+  "branch_events": [],
+  "event_log": [
+    {
+      "at": "2026-08-16T09:34:21.762268+00:00",
+      "kind": "mission_start",
+      "message": "Ad-hoc bridge mission auto-created"
+    },
+    {
+      "at": "2026-08-16T09:34:21.765297+00:00",
+      "kind": "outcome_recorded",
+      "message": "failed: act_45cdc936bdcdcc3b Safe scanner completed."
+    }
+  ],
+  "evidence": {},
+  "proofs": [],
+  "research_queue": [],
+  "pending_approvals": [],
+  "parsed_results_snapshot": {},
+  "debrief": {}
+}

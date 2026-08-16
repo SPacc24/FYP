@@ -1491,11 +1491,7 @@ function escapeHtml(value) {
     return;
   }
 
-<<<<<<< HEAD
-  function activate(name, updateHash = true) {
-=======
   function activate(name, updateHash = true, shouldScroll = true) {
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
     const valid = panes.some(
       (pane) => pane.dataset.dashboardPane === name
     );
@@ -1527,15 +1523,9 @@ function escapeHtml(value) {
     const tabBar =
       document.querySelector(".results-tabs");
 
-<<<<<<< HEAD
-    if (tabBar) {
-      window.scrollTo({
-        top: Math.max(0, tabBar.offsetTop - 14),
-=======
     if (tabBar && shouldScroll) {
       window.scrollTo({
         top: Math.max(0, tabBar.offsetTop - 100),
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
         behavior: "smooth",
       });
     }
@@ -1558,10 +1548,7 @@ function escapeHtml(value) {
 
   activate(
     (location.hash || "").replace("#", "") || "overview",
-<<<<<<< HEAD
-=======
     false,
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
     false
   );
 })();
@@ -1645,9 +1632,6 @@ document.addEventListener("DOMContentLoaded", function () {
       .getElementById("flowPostExploit")
       ?.classList.add("complete");
   }
-<<<<<<< HEAD
-});
-=======
 });
 
 // ==========================================
@@ -1701,4 +1685,3 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 })();
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c

@@ -2504,8 +2504,6 @@ html {
 .msf-result-card code { display:block; margin-top:.35rem; white-space:normal; overflow-wrap:anywhere; }
 #missionEventLog { max-height:320px; overflow:auto; overflow-wrap:anywhere; word-break:break-word; }
 #missionEventLog > div { min-width:0; }
-<<<<<<< HEAD
-=======
 
 /* CVE review: three-table layout */
 #cve-review #cveReferenceTable {
@@ -7212,4 +7210,3 @@ html[data-theme="light"] .operator-status-bar.is-error {
   align-items: center;
   justify-content: center;
 }
->>>>>>> 2521ca7f0d3b647d15fa553b1f1ef53400160f3c
