@@ -7,112 +7,113 @@ REPORT_DIR = Path(__file__).resolve().parent.parent / "storage" / "reports"
 REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _safe_text(value: Any) -> str:
+def _safe_text(value: Any, default: str = "N/A") -> str:
     if value is None:
-        return "N/A"
+        return default
     if isinstance(value, list):
-        return ", ".join(str(v) for v in value) if value else "None"
+        return ", ".join(str(item) for item in value) if value else "None"
+    if isinstance(value, dict):
+        return ", ".join(f"{key}: {value}" for key, value in value.items())
     return str(value)
 
 
 def _section(title: str, lines: list[str]) -> str:
-    border = "=" * max(len(title), 4)
+    border = "=" * len(title)
     return f"{title}\n{border}\n" + "\n".join(lines) + "\n\n"
 
 
+def _summarize_scan(scan: dict[str, Any]) -> list[str]:
+    lines = [
+        f"Target IP: {_safe_text(scan.get('target_ip'), 'Unknown')}",
+        f"Detected OS: {_safe_text(scan.get('os'), 'Unknown')}",
+        f"Port range: {_safe_text(scan.get('port_range'), '1-1024')}",
+        f"Scan output: {_safe_text(scan.get('output_file'), 'Not saved')}",
+    ]
+
+    ports = scan.get("ports") or scan.get("service_inventory") or []
+    if not ports:
+        lines.append("Open/reported services: None")
+        return lines
+
+    lines.append("Open/reported services:")
+    for port in ports:
+        service = " ".join(
+            str(value)
+            for value in (
+                port.get("service", ""),
+                port.get("product", ""),
+                port.get("version", ""),
+            )
+            if value
+        ).strip()
+
+        lines.append(
+            f"- {port.get('port', 'N/A')}/"
+            f"{port.get('protocol', 'tcp')} "
+            f"{port.get('state', 'unknown')} "
+            f"{service or 'unknown'}"
+        )
+
+    return lines
+
+
 def _summarize_vulnerabilities(mapping: dict[str, Any]) -> list[str]:
-    lines = []
-    vulnerabilities = mapping.get("vulnerabilities", [])
-    top = vulnerabilities[:5]
+    vulnerabilities = mapping.get("vulnerabilities") or []
 
     if not vulnerabilities:
         return ["No vulnerability findings were mapped."]
 
-    lines.append(f"Total mapped findings: {len(vulnerabilities)}")
-    lines.append("Top findings:")
-    for vuln in top:
+    lines = [f"Total mapped findings: {len(vulnerabilities)}", "Findings:"]
+
+    for vulnerability in vulnerabilities:
         lines.append(
-            f"- {vuln.get('host', 'Unknown')}:{vuln.get('port', 'N/A')} {vuln.get('service', 'unknown')} "
-            f"[{vuln.get('severity', 'Unknown')}] {vuln.get('title', '')}"
+            f"- {vulnerability.get('host', 'Unknown')}:"
+            f"{vulnerability.get('port', 'N/A')} "
+            f"{vulnerability.get('service', 'unknown')} "
+            f"[{vulnerability.get('severity', 'Unknown')}] "
+            f"{vulnerability.get('title', 'Untitled finding')}"
         )
-    if mapping.get("top_risks"):
-        lines.append("\nRecommended focus areas:")
-        for risk in mapping.get("top_risks", [])[:3]:
-            lines.append(
-                f"- {risk.get('host', 'Unknown')}:{risk.get('port', 'N/A')} "
-                f"{risk.get('service', 'unknown')} - {risk.get('title', '')}"
-            )
-    return lines
 
-
-def _summarize_scan_findings(scan: dict[str, Any]) -> list[str]:
-    lines = [
-        f"Target IP: {_safe_text(scan.get('target_ip', 'Unknown'))}",
-        f"Detected OS: {_safe_text(scan.get('os', 'Unknown'))}",
-        f"Port range: {_safe_text(scan.get('port_range', '1-1024'))}",
-        f"Scan output: {_safe_text(scan.get('output_file', 'Not saved'))}",
-    ]
-    ports = scan.get("ports", []) or []
-    if ports:
-        lines.append("Open/reported services:")
-        for port in ports[:20]:
+    top_risks = mapping.get("top_risks") or []
+    if top_risks:
+        lines.append("")
+        lines.append("Recommended focus areas:")
+        for risk in top_risks:
             lines.append(
-                f"- {port.get('port', 'N/A')}/{port.get('protocol', 'tcp')} "
-                f"{port.get('state', 'unknown')} {port.get('service', 'unknown')} "
-                f"{port.get('product', '')} {port.get('version', '')}".strip()
+                f"- {risk.get('host', 'Unknown')}:"
+                f"{risk.get('port', 'N/A')} "
+                f"{risk.get('service', 'unknown')} - "
+                f"{risk.get('title', 'Untitled finding')}"
             )
+
     return lines
 
 
 def _summarize_attack_plan(mapping: dict[str, Any]) -> list[str]:
-    lines = []
-    plan = mapping.get("caldera_plan", {})
+    plan = mapping.get("caldera_plan") or {}
+
     if not plan:
-        return ["No planned Caldera techniques available."]
-
-    lines.append(f"Selection reason: {plan.get('selection_reason', 'Not available')}")
-    lines.append("Selected techniques:")
-    for tech in plan.get("selected_techniques", []):
-        lines.append(
-            f"- {tech.get('id', 'N/A')} {tech.get('name', '')} "
-            f"[{tech.get('attack_path_stage', 'Validation')}] ({tech.get('max_severity', '')})"
-        )
-    return lines
-
-
-def _summarize_operation(operation: dict[str, Any]) -> list[str]:
-    if not operation:
-        return ["No Caldera operation has been executed yet."]
+        return ["No planned MITRE ATT&CK techniques are available."]
 
     lines = [
-        f"Operation ID: {operation.get('operation_id', 'N/A')}",
-        f"Operation name: {operation.get('operation_name', 'N/A')}",
-        f"State: {operation.get('state', 'N/A')}",
-        f"Total techniques executed: {operation.get('total', 0)}",
-        f"Successful: {operation.get('success_count', 0)}",
-        f"Failed: {operation.get('fail_count', 0)}",
-        f"Timed out: {operation.get('timed_out', False)}",
+        f"Selection reason: "
+        f"{_safe_text(plan.get('selection_reason'), 'Not available')}"
     ]
 
-    if operation.get("techniques_run"):
-        lines.append("\nTechnique execution summary:")
-        for step in operation.get("techniques_run", []):
-            lines.append(
-                f"- {step.get('technique_id', 'N/A')} {step.get('technique_name', '')} "
-                f"[{step.get('tactic', 'unknown')}] - {step.get('status', 'unknown')}"
-            )
-            if step.get("command"):
-                lines.append(f"  Command: {step.get('command')}")
-            if step.get("evidence_summary"):
-                lines.append(f"  Evidence summary: {step.get('evidence_summary')}")
-            if step.get("parsed_evidence"):
-                for evidence in step.get("parsed_evidence", [])[:6]:
-                    lines.append(f"  - {evidence}")
-            elif step.get("output"):
-                output = str(step.get("output", "")).strip()
-                lines.append(f"  Raw output: {output[:500]}")
-            else:
-                lines.append("  Execution completed but no evidence returned.")
+    techniques = plan.get("selected_techniques") or []
+    if not techniques:
+        lines.append("Selected techniques: None")
+        return lines
+
+    lines.append("Selected techniques:")
+    for technique in techniques:
+        lines.append(
+            f"- {technique.get('id', 'N/A')} "
+            f"{technique.get('name', 'Unknown technique')} "
+            f"[{technique.get('attack_path_stage', 'Validation')}] "
+            f"({technique.get('max_severity', 'N/A')})"
+        )
+
     return lines
 
 
@@ -121,290 +122,256 @@ def _summarize_validation(validation: dict[str, Any]) -> list[str]:
         return ["No lab exploitability validation has been executed yet."]
 
     lines = [
-        f"Mode: {validation.get('mode', 'lab_safe_validation')}",
-        f"Target: {validation.get('target', 'Unknown')}",
+        f"Mode: {_safe_text(validation.get('mode'), 'lab_safe_validation')}",
+        f"Target: {_safe_text(validation.get('target'), 'Unknown')}",
         f"Checks executed: {validation.get('total_checked', 0)}",
         f"Confirmed findings: {validation.get('confirmed', 0)}",
         f"Potential exposures: {validation.get('potential', 0)}",
         f"Failed checks: {validation.get('failed', 0)}",
-        f"Summary: {validation.get('narrative', 'N/A')}",
+        f"Summary: {_safe_text(validation.get('narrative'))}",
     ]
 
-    if validation.get("findings"):
-        lines.append("\nValidation evidence:")
-        for finding in validation.get("findings", []):
+    findings = validation.get("findings") or []
+    if findings:
+        lines.append("")
+        lines.append("Validation evidence:")
+        for finding in findings:
             lines.append(
-                f"- {finding.get('status', 'unknown').upper()} "
-                f"{finding.get('service', 'unknown')}:{finding.get('port', 'N/A')} "
-                f"{finding.get('title', '')}"
+                f"- {str(finding.get('status', 'unknown')).upper()} "
+                f"{finding.get('service', 'unknown')}:"
+                f"{finding.get('port', 'N/A')} "
+                f"{finding.get('title', 'Untitled finding')}"
             )
-            lines.append(f"  Evidence: {finding.get('evidence', '')}")
-            lines.append(f"  Next step: {finding.get('next_step', '')}")
+            if finding.get("evidence"):
+                lines.append(f"  Evidence: {finding['evidence']}")
+            if finding.get("next_step"):
+                lines.append(f"  Next step: {finding['next_step']}")
 
     advice = validation.get("attack_advice") or {}
-    if advice.get("attack_paths"):
-        lines.append("\nOllama attack-path advice:")
-        lines.append(f"Source: {advice.get('source', 'unknown')}")
-        lines.append(f"Summary: {advice.get('summary', 'N/A')}")
-        for path in advice.get("attack_paths", [])[:5]:
+    attack_paths = advice.get("attack_paths") or []
+    if attack_paths:
+        lines.extend(
+            [
+                "",
+                "Ollama attack-path advice:",
+                f"Source: {_safe_text(advice.get('source'), 'unknown')}",
+                f"Summary: {_safe_text(advice.get('summary'))}",
+            ]
+        )
+
+        for path in attack_paths:
             lines.append(
                 f"- {path.get('title', 'Safe validation path')} "
-                f"({path.get('confidence', 'low')}) via {path.get('recommended_validation', 'manual_review')}"
+                f"({path.get('confidence', 'low')}) via "
+                f"{path.get('recommended_validation', 'manual_review')}"
             )
-            lines.append(f"  Techniques: {_safe_text(path.get('technique_ids', []))}")
-            lines.append(f"  Reasoning: {path.get('reasoning', '')}")
-            lines.append(f"  Next step: {path.get('next_step', '')}")
+            lines.append(
+                f"  Techniques: "
+                f"{_safe_text(path.get('technique_ids', []))}"
+            )
+            if path.get("reasoning"):
+                lines.append(f"  Reasoning: {path['reasoning']}")
+            if path.get("next_step"):
+                lines.append(f"  Next step: {path['next_step']}")
 
     metasploit = validation.get("metasploit_results") or {}
-    if metasploit.get("runs"):
-        lines.append("\nMetasploit RPC execution records:")
-        lines.append(f"Last summary: {metasploit.get('last_summary', 'N/A')}")
-        for run in metasploit.get("runs", [])[:5]:
+    runs = metasploit.get("runs") or []
+    if runs:
+        lines.extend(
+            [
+                "",
+                "Metasploit RPC execution records:",
+                f"Last summary: {_safe_text(metasploit.get('last_summary'))}",
+            ]
+        )
+
+        for run in runs:
             action = run.get("action") or {}
             lines.append(
-                f"- {run.get('timestamp', 'N/A')} "
-                f"{action.get('module_type', 'module')}/{action.get('module_name', 'unknown')} "
-                f"against {action.get('target', 'Unknown')}:{action.get('port', 'N/A')}"
+                f"- {_safe_text(run.get('timestamp'))} "
+                f"{action.get('module_type', 'module')}/"
+                f"{action.get('module_name', 'unknown')} "
+                f"against {action.get('target', 'Unknown')}:"
+                f"{action.get('port', 'N/A')}"
             )
-            lines.append(f"  Policy: {action.get('policy_key', 'N/A')} ({action.get('risk', 'unknown')} risk)")
-            lines.append(f"  Result: {run.get('summary', 'N/A')}")
+            lines.append(
+                f"  Policy: {action.get('policy_key', 'N/A')} "
+                f"({action.get('risk', 'unknown')} risk)"
+            )
+            lines.append(
+                f"  Result: {_safe_text(run.get('summary'))}"
+            )
+
     return lines
 
 
-def _summarize_pivot(pivot: dict[str, Any]) -> list[str]:
-    if not pivot:
-        return ["No pivot assessment has been performed."]
+def _summarize_operation(operation: dict[str, Any]) -> list[str]:
+    if not operation:
+        return ["No CALDERA operation has been executed yet."]
 
     lines = [
-        f"Status: {_safe_text(pivot.get('status'))}",
-        f"Summary: {_safe_text(pivot.get('summary'))}",
-        f"Generated at: {_safe_text(pivot.get('generated_at'))}",
-        f"Entry host: {_safe_text(pivot.get('entry_host'))}",
-        f"CALDERA operation successful: {pivot.get('operation_success', False)}",
-        f"Pivot possible: {pivot.get('pivot_possible', False)}",
-        f"Post-pivot candidates: {pivot.get('candidate_count', 0)}",
-        f"Pivot risk component: {pivot.get('risk_component', 0.0)}",
+        f"Operation ID: {_safe_text(operation.get('operation_id'))}",
+        f"Operation name: {_safe_text(operation.get('operation_name'))}",
+        f"State: {_safe_text(operation.get('state'))}",
+        f"Total techniques executed: {operation.get('total', 0)}",
+        f"Successful: {operation.get('success_count', 0)}",
+        f"Failed: {operation.get('fail_count', 0)}",
+        f"Timed out: {operation.get('timed_out', False)}",
     ]
 
-    # Future tunnel fields—displayed automatically when the backend provides them.
-    tunnel_status = pivot.get("tunnel_status")
-    if tunnel_status:
-        lines.extend([
-            "",
-            "Tunnel details:",
-            f"- Status: {_safe_text(tunnel_status)}",
-            f"- Established at: {_safe_text(pivot.get('tunnel_started_at'))}",
-            f"- Closed at: {_safe_text(pivot.get('tunnel_closed_at'))}",
-        ])
+    techniques = operation.get("techniques_run") or []
+    if not techniques:
+        return lines
 
-    ai_plan = pivot.get("ai_plan") or {}
-    if ai_plan:
-        lines.append("\nPivot AI findings:")
+    lines.extend(["", "Technique execution summary:"])
+
+    for technique in techniques:
         lines.append(
-            f"- Summary: "
-            f"{_safe_text(ai_plan.get('summary') or ai_plan.get('selection_reason'))}"
-        )
-        lines.append(
-            f"- Selected techniques: "
-            f"{_safe_text(ai_plan.get('selected_technique_ids', []))}"
+            f"- {technique.get('technique_id', 'N/A')} "
+            f"{technique.get('technique_name', '')} "
+            f"[{technique.get('tactic', 'unknown')}] - "
+            f"{technique.get('status', 'unknown')}"
         )
 
-    pivot_mapping = pivot.get("mapping") or {}
-    mitre_techniques = (
-        pivot_mapping.get("recommended_techniques", []) or []
-    )
+        if technique.get("command"):
+            lines.append(f"  Command: {technique['command']}")
 
-    if mitre_techniques:
-        lines.append("\nPivot MITRE ATT&CK findings:")
-
-        for technique in mitre_techniques:
+        if technique.get("evidence_summary"):
             lines.append(
-                f"- {technique.get('id') or technique.get('technique_id', 'N/A')} "
-                f"{technique.get('name') or technique.get('technique_name', '')} "
-                f"[{technique.get('tactic', 'unknown')}]"
+                f"  Evidence summary: {technique['evidence_summary']}"
             )
 
-            if technique.get("reason"):
-                lines.append(
-                    f"  Evidence: {technique.get('reason')}"
-                )
-
-    targets = pivot.get("reachable_targets", []) or []
-    if targets:
-        lines.append("\nDiscovered post-pivot targets:")
-
-        for target in targets:
-            host = target.get("host", "Unknown")
-            hostname = target.get("hostname") or "N/A"
-
-            lines.append(
-                f"- {host} ({hostname}) | "
-                f"OS: {target.get('os', 'Unknown')} | "
-                f"Segment: {target.get('segment', 'unknown')} | "
-                f"Relation: {target.get('segment_relation', 'unknown')} | "
-                f"Live agent: {target.get('has_live_agent', False)}"
-            )
-
-            services = target.get("services", []) or []
-            if services:
-                lines.append("  Services:")
-
-                for service in services:
-                    lines.append(
-                        f"  - {service.get('port', 'N/A')}/"
-                        f"{service.get('protocol', 'tcp')} "
-                        f"{service.get('state', 'unknown')} "
-                        f"{service.get('service', 'unknown')} "
-                        f"{service.get('product', '')} "
-                        f"{service.get('version', '')}".strip()
-                    )
-
-            reasons = target.get("reasons", []) or []
-            if reasons:
-                lines.append("  Evidence:")
-
-                for reason in reasons:
-                    lines.append(f"  - {reason}")
-
-    paths = pivot.get("paths", []) or []
-    if paths:
-        lines.append("\nAttack path / network topology:")
-
-        for path in paths:
-            relation = str(
-                path.get("relation", "unknown")
-            ).replace("_", " ")
-
-            lines.append(
-                f"- {path.get('from', 'Unknown')} "
-                f"-> {path.get('to', 'Unknown')} "
-                f"[{relation}]"
-            )
-
-            if path.get("reason"):
-                lines.append(f"  Evidence: {path.get('reason')}")
-
-    limitations = pivot.get("limitations", []) or []
-    if limitations:
-        lines.append("\nLimitations:")
-
-        for limitation in limitations:
-            lines.append(f"- {limitation}")
+        parsed = technique.get("parsed_evidence") or []
+        if parsed:
+            for evidence in parsed[:6]:
+                lines.append(f"  - {evidence}")
+        elif technique.get("output"):
+            output = str(technique["output"]).strip()
+            lines.append(f"  Raw output: {output[:500]}")
+        else:
+            lines.append("  Execution completed but no evidence returned.")
 
     return lines
-
-def _summarize_missions(missions: list[dict[str, Any]]) -> list[str]:
-    if not missions:
-        return ["No mission has been orchestrated for this assessment."]
-
-    lines: list[str] = []
-    lines.append(f"Total missions: {len(missions)}")
-    for mission in missions:
-        lines.append(f"\n  Mission {mission.get('mission_id', 'N/A')}")
-        lines.append(f"  Status: {_safe_text(mission.get('status'))}")
-        lines.append(f"  Playbook: {_safe_text(mission.get('playbook_id'))}")
-        lines.append(f"  Risk posture: {_safe_text(mission.get('risk_posture'))}")
-        debrief = mission.get("debrief") or {}
-        if debrief:
-            lines.append(f"  Outcome: {_safe_text(debrief.get('reason'))}")
-            lines.append(f"  Goal met: {_safe_text(debrief.get('goal_met'))}")
-            lines.append(f"  Total actions: {debrief.get('total_actions', '?')}")
-            lines.append(f"  Successful: {debrief.get('successful_actions', 0)}")
-            lines.append(f"  Failed: {debrief.get('failed_actions', 0)}")
-        queue = mission.get("action_queue") or []
-        if queue:
-            lines.append(f"  Action queue ({len(queue)} items):")
-            for a in queue[:10]:
-                lines.append(
-                    f"    - {a.get('title') or a.get('catalog_key', '?')} "
-                    f"[{a.get('status', '?')}] "
-                    f"{a.get('target', '')}:{a.get('port', '')}"
-                )
-        proofs = mission.get("proofs") or []
-        if proofs:
-            lines.append(f"  Proofs ({len(proofs)}):")
-            for p in proofs[:5]:
-                lines.append(
-                    f"    - {p.get('proof_type', '?')} "
-                    f"{p.get('catalog_key', '')} "
-                    f"({p.get('target', '')})"
-                )
-    return lines
-
 
 def _summarize_risk(risk: dict[str, Any]) -> list[str]:
     if not risk:
         return ["Risk score has not been calculated."]
 
     return [
-        f"Final risk score: {risk.get('score', 'N/A')} / 10",
-        f"Label: {risk.get('label', 'N/A')}",
-        f"Badge: {risk.get('badge', 'N/A')}",
-        f"Colour: {risk.get('colour', 'N/A')}",
-        f"Breakdown: {risk.get('breakdown', {})}",
+        f"Final risk score: {_safe_text(risk.get('score'))} / 10",
+        f"Label: {_safe_text(risk.get('label'))}",
+        f"Breakdown: {_safe_text(risk.get('breakdown'))}",
     ]
 
 
-def _fallback_remediations(scan: dict[str, Any], mapping: dict[str, Any]) -> list[dict[str, Any]]:
-    """Produce actionable baseline guidance when CALDERA-specific advice is absent."""
+def _fallback_remediations(
+    scan: dict[str, Any],
+    mapping: dict[str, Any],
+) -> list[dict[str, Any]]:
     ports = scan.get("ports") or scan.get("service_inventory") or []
-    text = " ".join(str(x) for x in ports).lower() + " " + str(mapping).lower()
+    text = f"{ports} {mapping}".lower()
+
     fixes: list[str] = []
-    if any(token in text for token in ("445", "139", "smb", "microsoft-ds", "netbios")):
-        fixes += [
-            "Disable SMBv1 where operationally possible and apply all supported Microsoft security updates.",
-            "Restrict TCP 139/445 to trusted management and file-server segments only.",
-            "Require SMB signing, strong unique credentials, and remove unnecessary administrative shares.",
-        ]
-    if any(token in text for token in ("3389", "rdp", "ms-wbt-server")):
-        fixes += [
-            "Restrict RDP to a VPN or management network, enable Network Level Authentication, and enforce MFA where supported.",
-            "Review RDP account lockout, logging, and permitted user groups.",
-        ]
-    if any(token in text for token in ("5985", "winrm", "wsman")):
-        fixes += [
-            "Restrict WinRM to approved administration hosts and prefer HTTPS transport with strong authentication.",
-        ]
-    if any(token in text for token in ("windows xp", "server 2003")):
-        fixes.insert(0, "Migrate the unsupported legacy Windows host to a currently supported operating system.")
-    fixes.append("Re-run the assessment after remediation and compare the new evidence with this baseline.")
-    unique=[]
-    for fix in fixes:
-        if fix not in unique: unique.append(fix)
-    return [{
-        "type": "baseline",
-        "technique_id": "HARDENING",
-        "technique_name": "Evidence-based hardening",
-        "tactic": "remediation",
-        "summary": "Baseline remediation generated from observed services and platform evidence.",
-        "fixes": unique,
-    }]
+
+    if any(token in text for token in (
+        "445", "139", "smb", "microsoft-ds", "netbios"
+    )):
+        fixes.extend(
+            [
+                "Disable SMBv1 where operationally possible and apply supported Microsoft security updates.",
+                "Restrict TCP 139/445 to trusted management and file-server segments.",
+                "Require SMB signing, strong unique credentials, and remove unnecessary administrative shares.",
+            ]
+        )
+
+    if any(token in text for token in (
+        "3389", "rdp", "ms-wbt-server"
+    )):
+        fixes.extend(
+            [
+                "Restrict RDP to approved management networks or VPN access.",
+                "Enable Network Level Authentication and enforce MFA where supported.",
+                "Review RDP account lockout, logging, and permitted user groups.",
+            ]
+        )
+
+    if any(token in text for token in (
+        "5985", "5986", "winrm", "wsman"
+    )):
+        fixes.append(
+            "Restrict WinRM to approved administration hosts and prefer HTTPS transport with strong authentication."
+        )
+
+    if any(token in text for token in (
+        "windows xp", "server 2003"
+    )):
+        fixes.insert(
+            0,
+            "Migrate unsupported legacy Windows hosts to a currently supported operating system.",
+        )
+
+    fixes.append(
+        "Re-run the assessment after remediation and compare the new evidence with the baseline."
+    )
+
+    unique_fixes = list(dict.fromkeys(fixes))
+
+    return [
+        {
+            "type": "baseline",
+            "technique_id": "HARDENING",
+            "technique_name": "Evidence-based hardening",
+            "tactic": "remediation",
+            "summary": (
+                "Baseline remediation generated from observed services "
+                "and platform evidence."
+            ),
+            "fixes": unique_fixes,
+        }
+    ]
 
 
-def _summarize_remediations(remediations: list[dict[str, Any]]) -> list[str]:
+def _summarize_remediations(
+    remediations: list[dict[str, Any]],
+) -> list[str]:
     if not remediations:
         return ["No remediation guidance is available."]
 
     lines: list[str] = []
+
     for advice in remediations:
         if advice.get("type") == "vulnerability":
             lines.append(
-                f"- [VULN] {advice.get('severity', 'Unknown')} {advice.get('title', '')} "
-                f"on {advice.get('affected_host', 'Unknown')}:{advice.get('affected_port', 'N/A')}"
+                f"- [VULN] {advice.get('severity', 'Unknown')} "
+                f"{advice.get('title', '')} on "
+                f"{advice.get('affected_host', 'Unknown')}:"
+                f"{advice.get('affected_port', 'N/A')}"
             )
-            lines.append(f"  Summary: {advice.get('summary', '')}")
-            lines.append(f"  Fix: {advice.get('fixes', ['No fix available'])[0]}")
+            lines.append(
+                f"  Summary: {_safe_text(advice.get('summary'))}"
+            )
+
+            fixes = advice.get("fixes") or []
+            if fixes:
+                lines.append(f"  Fix: {fixes[0]}")
         else:
             lines.append(
-                f"- [TECH] {advice.get('technique_id', 'N/A')} {advice.get('technique_name', '')} "
+                f"- [TECH] {advice.get('technique_id', 'N/A')} "
+                f"{advice.get('technique_name', '')} "
                 f"({advice.get('tactic', 'unknown')})"
             )
-            lines.append(f"  Summary: {advice.get('summary', '')}")
-            fixes = advice.get('fixes', [])
-            for fix in fixes[:3]:
-                lines.append(f"    • {fix}")
-            if advice.get('mitre_url'):
-                lines.append(f"  MITRE ATT&CK: {advice.get('mitre_url')}")
+            lines.append(
+                f"  Summary: {_safe_text(advice.get('summary'))}"
+            )
+
+            for fix in (advice.get("fixes") or [])[:3]:
+                lines.append(f"  - {fix}")
+
+            if advice.get("mitre_url"):
+                lines.append(
+                    f"  MITRE ATT&CK: {advice['mitre_url']}"
+                )
+
     return lines
 
 
@@ -415,29 +382,46 @@ def build_report_summary(
     risk: dict[str, Any],
     remediations: list[dict[str, Any]],
     validation: dict[str, Any] | None = None,
-    pivot: dict[str, Any] | None = None,
     results: dict[str, Any] | None = None,
 ) -> str:
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    lines = [f"AutoPenTest Report", f"Generated: {now}", ""]
+    """Build the plain-text AutoPenTest report."""
 
-    lines.append(_section("Target Summary", _summarize_scan_findings(scan)))
+    del results  # Reserved for PDF-specific enrichment.
 
-    lines.append(_section("Vulnerability Mapping", _summarize_vulnerabilities(mapping)))
-    lines.append(_section("Attack Plan", _summarize_attack_plan(mapping)))
-    lines.append(_section("Lab Exploitability Validation", _summarize_validation(validation or {})))
-    lines.append(_section("Operation Results", _summarize_operation(operation)))
-    lines.append(
-    _section(
-        "Lateral Movement / Pivot Assessment",
-        _summarize_pivot(pivot or {}),
-        )
-    )
-    lines.append(_section("Risk Summary", _summarize_risk(risk)))
-    effective_remediations = remediations or _fallback_remediations(scan, mapping)
-    lines.append(_section("Remediation Guidance", _summarize_remediations(effective_remediations)))
+    generated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    return "\n".join(lines).strip() + "\n"
+    sections = [
+        _section(
+            "AutoPenTest Report",
+            [
+                f"Generated: {generated}",
+                f"Target: {_safe_text(scan.get('target_ip'), 'Unknown')}",
+            ],
+        ),
+        _section("Target Summary", _summarize_scan(scan)),
+        _section(
+            "Vulnerability Mapping",
+            _summarize_vulnerabilities(mapping),
+        ),
+        _section("Attack Plan", _summarize_attack_plan(mapping)),
+        _section(
+            "Lab Exploitability Validation",
+            _summarize_validation(validation or {}),
+        ),
+        _section(
+            "CALDERA Operation Results",
+            _summarize_operation(operation),
+        ),
+        _section("Risk Summary", _summarize_risk(risk)),
+        _section(
+            "Remediation Guidance",
+            _summarize_remediations(
+                remediations or _fallback_remediations(scan, mapping)
+            ),
+        ),
+    ]
+
+    return "".join(sections).rstrip() + "\n"
 
 
 def generate_text_report(
@@ -447,9 +431,10 @@ def generate_text_report(
     risk: dict[str, Any],
     remediations: list[dict[str, Any]],
     validation: dict[str, Any] | None = None,
-    pivot: dict[str, Any] | None = None,
     results: dict[str, Any] | None = None,
 ) -> str:
+    """Generate and save a plain-text report."""
+
     report_text = build_report_summary(
         scan=scan,
         mapping=mapping,
@@ -457,10 +442,13 @@ def generate_text_report(
         risk=risk,
         remediations=remediations,
         validation=validation,
-        pivot=pivot,
         results=results,
     )
-    path = REPORT_DIR / f"autopentest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+
+    path = REPORT_DIR / (
+        f"autopentest_report_"
+        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    )
     path.write_text(report_text, encoding="utf-8")
     return str(path)
 
@@ -474,34 +462,20 @@ def generate_pdf_report(
     operation: dict[str, Any] | None = None,
     risk: dict[str, Any] | None = None,
     remediations: list[dict[str, Any]] | None = None,
-    pivot: dict[str, Any] | None = None,
 ) -> str:
-    """Generate a real PDF when ReportLab is available; otherwise a .txt fall-back.
-
-    Never wrote binary-looking .pdf files that were actually plain text.
+    """Generate the AutoPenTest PDF report.
     """
-    if scan is None:
-        scan = {}
-    if results is None:
-        results = {}
-    if mapping is None:
-        mapping = {}
-    if validation is None:
-        validation = {}
-    if pivot is None:
-        pivot = {}
-    if operation is None:
-        operation = {}
-    if risk is None:
-        risk = {}
-    if remediations is None:
-        remediations = []
 
-    # report_text = build_report_summary(
-    #        scan, mapping, operation, risk, remediations, validation, pivot, missions
-    # )
-     
+    scan = scan or {}
+    results = results or {}
+    mapping = mapping or {}
+    validation = validation or {}
+    operation = operation or {}
+    risk = risk or {}
+    remediations = remediations or []
+
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
     try:
         from reportlab.lib import colors
         from reportlab.lib.enums import TA_CENTER
@@ -509,7 +483,6 @@ def generate_pdf_report(
         from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import mm
         from reportlab.platypus import (
-            PageBreak,
             Paragraph,
             SimpleDocTemplate,
             Spacer,
@@ -519,6 +492,7 @@ def generate_pdf_report(
         from xml.sax.saxutils import escape
 
         path = REPORT_DIR / f"autopentest_report_{stamp}.pdf"
+
         doc = SimpleDocTemplate(
             str(path),
             pagesize=A4,
@@ -526,7 +500,10 @@ def generate_pdf_report(
             rightMargin=18 * mm,
             topMargin=16 * mm,
             bottomMargin=16 * mm,
+            title="AutoPenTest Report",
+            author="AutoPenTest",
         )
+
         styles = getSampleStyleSheet()
 
         title_style = ParagraphStyle(
@@ -548,7 +525,7 @@ def generate_pdf_report(
             leading=14,
             alignment=TA_CENTER,
             textColor=colors.HexColor("#666666"),
-            spaceAfter=20,
+            spaceAfter=10,
         )
 
         section_style = ParagraphStyle(
@@ -562,27 +539,73 @@ def generate_pdf_report(
             spaceAfter=8,
         )
 
-        body = ParagraphStyle(
+        body_style = ParagraphStyle(
             "ReportBody",
             parent=styles["BodyText"],
             fontName="Helvetica",
-            fontSize=9,
-            leading=13,
+            fontSize=8.5,
+            leading=12,
             textColor=colors.HexColor("#222222"),
             spaceAfter=3,
         )
 
+        small_style = ParagraphStyle(
+            "ReportSmall",
+            parent=body_style,
+            fontSize=7.5,
+            leading=10,
+        )
+
         story: list[Any] = []
-        story.append(Spacer(1, 35))
 
-        story.append(Paragraph("AutoPenTest", title_style))
-        story.append(Paragraph("Automated Penetration Testing Report", subtitle_style))
+        def cell(value: Any, small: bool = False) -> Paragraph:
+            style = small_style if small else body_style
+            return Paragraph(escape(_safe_text(value)), style)
 
-        story.append(
-            Paragraph(
-                f"<b>Generated:</b> {datetime.now().strftime('%d %B %Y %H:%M')}",
-                subtitle_style,
-            )
+        def table_style(
+            header: bool = True,
+            background: str = "#FAFAFC",
+        ) -> TableStyle:
+            commands = [
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
+                ("BACKGROUND", (0, 1 if header else 0), (-1, -1),
+                 colors.HexColor(background)),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+
+            if header:
+                commands.extend(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0),
+                         colors.HexColor("#2E2559")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ]
+                )
+
+            return TableStyle(commands)
+
+        # ---------------------------------------------------------
+        # Cover / executive summary
+        # ---------------------------------------------------------
+        story.extend(
+            [
+                Spacer(1, 35),
+                Paragraph("AutoPenTest", title_style),
+                Paragraph(
+                    "Automated Penetration Testing Report",
+                    subtitle_style,
+                ),
+                Paragraph(
+                    f"<b>Generated:</b> "
+                    f"{datetime.now().strftime('%d %B %Y %H:%M')}",
+                    subtitle_style,
+                ),
+            ]
         )
 
         if scan_id:
@@ -593,143 +616,85 @@ def generate_pdf_report(
                 )
             )
 
-        story.append(Spacer(1, 30))
-        info_data = [
-            ["Target", _safe_text(scan.get("target_ip", "Unknown"))],
-            ["Operating System", _safe_text(scan.get("os", "Unknown"))],
-            ["Report Generated", datetime.now().strftime("%d %B %Y %H:%M")],
-        ]
+        story.append(Spacer(1, 25))
 
-        info_table = Table(info_data, colWidths=[55 * mm, 105 * mm])
-
-        info_table.setStyle(
-            TableStyle([
-                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F3F0FF")),
-                ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ])
+        overview = Table(
+            [
+                ["Target", cell(scan.get("target_ip"), True)],
+                ["Operating System", cell(scan.get("os"), True)],
+                ["Port Range", cell(scan.get("port_range", "1-1024"), True)],
+                [
+                    "Risk",
+                    cell(
+                        f"{_safe_text(risk.get('score'))} / 10 "
+                        f"({_safe_text(risk.get('label'))})",
+                        True,
+                    ),
+                ],
+            ],
+            colWidths=[45 * mm, 115 * mm],
         )
-
-        story.append(info_table)
-        story.append(PageBreak())
+        overview.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (0, -1),
+                     colors.HexColor("#F3F0FF")),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.5,
+                     colors.HexColor("#CCCCCC")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        story.append(overview)
 
         story.append(Paragraph("Executive Summary", section_style))
-        story.append(Spacer(1, 6))
-
         story.append(
             Paragraph(
-                "This report summarises the findings from the automated penetration testing assessment, "
-                "including discovered services, identified vulnerabilities, MITRE ATT&CK mappings, "
-                "adversary emulation results, and remediation recommendations.",
-                body,
+                "This report presents the results of the AutoPenTest "
+                "assessment, covering reconnaissance, vulnerability "
+                "intelligence, exploitability validation, MITRE ATT&CK "
+                "planning, CALDERA execution, risk "
+                "evaluation, and remediation guidance.",
+                body_style,
             )
         )
 
-        story.append(Spacer(1, 12))
-
-        # =========================================================
-        # HELPER FOR SAFE, WRAPPING TABLE CELLS
-        # =========================================================
-        def pdf_cell(value):
-            """
-            Convert any value into a ReportLab Paragraph.
-
-            Paragraph cells wrap automatically instead of overflowing
-            into neighbouring columns.
-            """
-            return Paragraph(
-                escape(_safe_text(value)),
-                body,
-            )
-
-        def style_report_table(
-            table,
-            *,
-            header=True,
-            font_size=8,
-        ):
-            """
-            Apply consistent borders, spacing and wrapping
-            to report tables.
-            """
-
-            commands = [
-                # Visible borders around every cell
-                (
-                    "GRID",
-                    (0, 0),
-                    (-1, -1),
-                    0.55,
-                    colors.HexColor("#B8B8C4"),
-                ),
-
-                # Comfortable spacing inside cells
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-
-                # Long text starts at the top of the cell
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-
-                # Default body styling
-                ("FONTSIZE", (0, 0), (-1, -1), font_size),
-                (
-                    "BACKGROUND",
-                    (0, 1 if header else 0),
-                    (-1, -1),
-                    colors.HexColor("#FAFAFC"),
-                ),
-            ]
-
-            if header:
-                commands.extend([
-                    (
-                        "BACKGROUND",
-                        (0, 0),
-                        (-1, 0),
-                        colors.HexColor("#2E2559"),
-                    ),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ])
-
-            table.setStyle(TableStyle(commands))
-
-            return table
-
-
-        # =========================================================
-        # OPEN SERVICES
-        # =========================================================
+        # ---------------------------------------------------------
+        # Open services
+        # ---------------------------------------------------------
         story.append(Paragraph("Open Services", section_style))
-        story.append(Spacer(1, 6))
 
-        ports = scan.get("ports", []) or []
+        ports = scan.get("ports") or scan.get("service_inventory") or []
 
         if ports:
-            port_data = [
+            data = [
                 ["Port", "Protocol", "State", "Service", "Product", "Version"]
             ]
 
             for port in ports:
-                port_data.append([
-                    pdf_cell(port.get("port", "N/A")),
-                    pdf_cell(
-                        _safe_text(port.get("protocol", "tcp")).upper()
-                    ),
-                    pdf_cell(port.get("state", "unknown")),
-                    pdf_cell(port.get("service", "unknown")),
-                    pdf_cell(port.get("product", "")),
-                    pdf_cell(port.get("version", "")),
-                ])
+                data.append(
+                    [
+                        cell(port.get("port"), True),
+                        cell(
+                            _safe_text(
+                                port.get("protocol", "tcp")
+                            ).upper(),
+                            True,
+                        ),
+                        cell(port.get("state", "unknown"), True),
+                        cell(port.get("service", "unknown"), True),
+                        cell(port.get("product", ""), True),
+                        cell(port.get("version", ""), True),
+                    ]
+                )
 
-            port_table = Table(
-                port_data,
+            table = Table(
+                data,
                 colWidths=[
                     15 * mm,
                     19 * mm,
@@ -740,64 +705,39 @@ def generate_pdf_report(
                 ],
                 repeatRows=1,
             )
-
-            port_table.setStyle(
-                TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E2559")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
-                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FAFAFA")),
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ])
-            )
-
-            story.append(port_table)
-
+            table.setStyle(table_style())
+            story.append(table)
         else:
             story.append(
                 Paragraph(
                     "No open or reported services were found.",
-                    body,
+                    body_style,
                 )
             )
 
-        story.append(Spacer(1, 14))
-
-        # =========================================================
-        # VULNERABILITY INTELLIGENCE
-        # =========================================================
-
+        # ---------------------------------------------------------
+        # Vulnerability intelligence
+        # ---------------------------------------------------------
         story.append(
-            Paragraph(
-                "Vulnerability Intelligence",
-                section_style,
-            )
+            Paragraph("Vulnerability Intelligence", section_style)
         )
-        story.append(Spacer(1, 6))
 
         mitre_source = results.get("mitre_source") or {}
-
         nvd_source = (
             results.get("nvd_source")
             or mitre_source.get("nvd_enrichment")
             or {}
         )
-
         msrc_source = results.get("msrc_source") or {}
 
         cvss_versions = (
-            mitre_source.get("records_with_cvss_metadata_by_version")
+            mitre_source.get(
+                "records_with_cvss_metadata_by_version"
+            )
             or {}
         )
 
         index_age_seconds = mitre_source.get("index_age_seconds")
-
         if index_age_seconds is not None:
             try:
                 index_age = (
@@ -808,44 +748,38 @@ def generate_pdf_report(
         else:
             index_age = "Unknown"
 
-        vulnerability_intelligence_data = [
+        data = [
             [
-                pdf_cell("CVE Source"),
-                pdf_cell(mitre_source.get("source", "Unavailable")),
-                pdf_cell("Records Indexed"),
-                pdf_cell(mitre_source.get("records_indexed", "N/A")),
+                cell("CVE Source"),
+                cell(mitre_source.get("source", "Unavailable")),
+                cell("Records Indexed"),
+                cell(mitre_source.get("records_indexed", "N/A")),
             ],
             [
-                pdf_cell("Index Updated"),
-                pdf_cell(
-                    mitre_source.get("index_updated_at")
-                    or "Unknown"
-                ),
-                pdf_cell("Index Age"),
-                pdf_cell(index_age),
+                cell("Index Updated"),
+                cell(mitre_source.get("index_updated_at", "Unknown")),
+                cell("Index Age"),
+                cell(index_age),
             ],
             [
-                pdf_cell("CVSS 3.1 Records"),
-                pdf_cell(cvss_versions.get("3.1", "N/A")),
-                pdf_cell("CVSS 4.0 Records"),
-                pdf_cell(cvss_versions.get("4.0", "N/A")),
+                cell("CVSS 3.1 Records"),
+                cell(cvss_versions.get("3.1", "N/A")),
+                cell("CVSS 4.0 Records"),
+                cell(cvss_versions.get("4.0", "N/A")),
             ],
             [
-                pdf_cell("NVD Enrichment"),
-                pdf_cell(
+                cell("NVD Enrichment"),
+                cell(
                     "Enabled"
                     if nvd_source.get("enabled")
                     else "Disabled / unavailable"
                 ),
-                pdf_cell("CVE Repository Head"),
-                pdf_cell(
-                    mitre_source.get("repo_head_at")
-                    or "Unknown"
-                ),
+                cell("CVE Repository Head"),
+                cell(mitre_source.get("repo_head_at", "Unknown")),
             ],
             [
-                pdf_cell("Microsoft Remediation Source"),
-                pdf_cell(
+                cell("Microsoft Remediation Source"),
+                cell(
                     "Available"
                     if msrc_source.get("available")
                     else (
@@ -854,78 +788,46 @@ def generate_pdf_report(
                         else "Disabled"
                     )
                 ),
-                pdf_cell("Cached MSRC Lookups"),
-                pdf_cell(
-                    msrc_source.get(
-                        "cached_cve_remediation_queries",
-                        0,
-                    )
-                ),
+                cell("Cached MSRC Lookups"),
+                cell(msrc_source.get(
+                    "cached_cve_remediation_queries", 0
+                )),
             ],
         ]
 
-        vulnerability_intelligence_table = Table(
-            vulnerability_intelligence_data,
-            colWidths=[
-                31 * mm,
-                49 * mm,
-                31 * mm,
-                49 * mm,
-            ],
+        table = Table(
+            data,
+            colWidths=[31 * mm, 49 * mm, 31 * mm, 49 * mm],
         )
-
-        style_report_table(
-            vulnerability_intelligence_table,
-            header=False,
-        )
-
-        vulnerability_intelligence_table.setStyle(
-            TableStyle([
-                (
-                    "BACKGROUND",
-                    (0, 0),
-                    (0, -1),
-                    colors.HexColor("#F3F0FF"),
-                ),
-                (
-                    "BACKGROUND",
-                    (2, 0),
-                    (2, -1),
-                    colors.HexColor("#F3F0FF"),
-                ),
-                (
-                    "FONTNAME",
-                    (0, 0),
-                    (0, -1),
-                    "Helvetica-Bold",
-                ),
-                (
-                    "FONTNAME",
-                    (2, 0),
-                    (2, -1),
-                    "Helvetica-Bold",
-                ),
-            ])
-        )
-
-        story.append(vulnerability_intelligence_table)
-        story.append(Spacer(1, 14))
-
-
-        # =========================================================
-        # CANDIDATE CVE GENERATION
-        # =========================================================
-
-        story.append(
-            Paragraph(
-                "Candidate CVE Generation",
-                section_style,
+        table.setStyle(
+            TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 0.4,
+                     colors.HexColor("#CCCCCC")),
+                    ("BACKGROUND", (0, 0), (0, -1),
+                     colors.HexColor("#F3F0FF")),
+                    ("BACKGROUND", (2, 0), (2, -1),
+                     colors.HexColor("#F3F0FF")),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ]
             )
         )
-        story.append(Spacer(1, 6))
+        story.append(table)
+
+        # ---------------------------------------------------------
+        # Candidate CVEs
+        # ---------------------------------------------------------
+        story.append(
+            Paragraph("Candidate CVE Review", section_style)
+        )
 
         review = results.get("cve_review_summary") or {}
-
         generation_state = review.get(
             "candidate_generation_state",
             (
@@ -935,148 +837,14 @@ def generate_pdf_report(
             ),
         )
 
-        candidate_count = review.get(
-            "candidate_cves_retained",
-            review.get("candidate_cves_considered", 0),
-        )
-
-        candidate_cvss = review.get("cvss") or {}
-
-        candidate_generation_data = [
-            [
-                pdf_cell("Candidate Source"),
-                pdf_cell(
-                    str(generation_state)
-                    .replace("_", " ")
-                    .title()
-                ),
-                pdf_cell("Software Identities Reviewed"),
-                pdf_cell(
-                    review.get("identities_reviewed", 0)
-                ),
-            ],
-            [
-                pdf_cell("Candidate CVEs"),
-                pdf_cell(
-                    candidate_count
-                    if generation_state != "unavailable"
-                    else "Unavailable"
-                ),
-                pdf_cell("Validation State"),
-                pdf_cell("Not performed by recon"),
-            ],
-            [
-                pdf_cell("Structured Records Evaluated"),
-                pdf_cell(
-                    review.get(
-                        "structured_records_evaluated",
-                        0,
-                    )
-                ),
-                pdf_cell("Structured Rejections"),
-                pdf_cell(
-                    review.get(
-                        "rejected_during_structured_filtering",
-                        0,
-                    )
-                ),
-            ],
-            [
-                pdf_cell("Unmatched Software Identities"),
-                pdf_cell(
-                    review.get(
-                        "unmatched_software_identities",
-                        0,
-                    )
-                    if generation_state != "unavailable"
-                    else "Not evaluated"
-                ),
-                pdf_cell("NVD Role"),
-                pdf_cell(
-                    "Exact-ID CVSS and metadata enrichment only"
-                ),
-            ],
-            [
-                pdf_cell("Candidate CVSS 3.1"),
-                pdf_cell(
-                    f"{candidate_cvss.get('3.1', {}).get('published_candidates', 0)} "
-                    f"/ {candidate_count} published"
-                ),
-                pdf_cell("Candidate CVSS 4.0"),
-                pdf_cell(
-                    f"{candidate_cvss.get('4.0', {}).get('published_candidates', 0)} "
-                    f"/ {candidate_count} published"
-                ),
-            ],
-        ]
-
-        candidate_generation_table = Table(
-            candidate_generation_data,
-            colWidths=[
-                33 * mm,
-                47 * mm,
-                33 * mm,
-                47 * mm,
-            ],
-        )
-
-        style_report_table(
-            candidate_generation_table,
-            header=False,
-        )
-
-        candidate_generation_table.setStyle(
-            TableStyle([
-                (
-                    "BACKGROUND",
-                    (0, 0),
-                    (0, -1),
-                    colors.HexColor("#F3F0FF"),
-                ),
-                (
-                    "BACKGROUND",
-                    (2, 0),
-                    (2, -1),
-                    colors.HexColor("#F3F0FF"),
-                ),
-                (
-                    "FONTNAME",
-                    (0, 0),
-                    (0, -1),
-                    "Helvetica-Bold",
-                ),
-                (
-                    "FONTNAME",
-                    (2, 0),
-                    (2, -1),
-                    "Helvetica-Bold",
-                ),
-            ])
-        )
-
-        story.append(candidate_generation_table)
-        story.append(Spacer(1, 14))
-
-        # =========================================================
-        # CANDIDATE CVE REVIEW
-        # =========================================================
-
-        story.append(
-            Paragraph(
-                "Candidate CVE Review",
-                section_style,
-            )
-        )
-        story.append(Spacer(1, 6))
-
-        cve_candidates = (
+        candidates = (
             results.get("cve_review_candidates")
             or results.get("cve_matches")
             or []
         )
 
-        if cve_candidates:
-            cve_data = [
+        if candidates:
+            data = [
                 [
                     "CVE",
                     "Affected Asset",
@@ -1086,29 +854,23 @@ def generate_pdf_report(
                 ]
             ]
 
-            for cve in cve_candidates:
-                cve_id = cve.get("cve_id", "Unknown")
-
+            for cve in candidates:
                 product = (
                     cve.get("product")
                     or cve.get("service")
                     or "Observed identity"
                 )
-
                 version = cve.get("version") or ""
-
-                asset_text = product
-                if version:
-                    asset_text += f" {version}"
+                asset = f"{product} {version}".strip()
 
                 host = cve.get("host") or "Unknown"
                 port = cve.get("port")
                 protocol = cve.get("protocol") or "tcp"
-
-                if port:
-                    asset_text += f"\n{host} · {port}/{protocol}"
-                else:
-                    asset_text += f"\n{host}"
+                asset += (
+                    f"\n{host} · {port}/{protocol}"
+                    if port
+                    else f"\n{host}"
+                )
 
                 evidence = (
                     cve.get("display_match_reason")
@@ -1119,8 +881,7 @@ def generate_pdf_report(
                 )
 
                 validation_state = (
-                    cve.get("validation_state")
-                    or "not_performed"
+                    cve.get("validation_state") or "not_performed"
                 )
 
                 outcome = (
@@ -1128,68 +889,51 @@ def generate_pdf_report(
                     or "Potential impact requires validation."
                 )
 
-                cve_data.append([
-                    pdf_cell(cve_id),
-                    pdf_cell(asset_text),
-                    pdf_cell(evidence),
-                    pdf_cell(
-                        str(validation_state)
-                        .replace("_", " ")
-                        .title()
-                    ),
-                    pdf_cell(outcome),
-                ])
+                data.append(
+                    [
+                        cell(cve.get("cve_id", "Unknown"), True),
+                        cell(asset, True),
+                        cell(evidence, True),
+                        cell(
+                            str(validation_state)
+                            .replace("_", " ")
+                            .title(),
+                            True,
+                        ),
+                        cell(outcome, True),
+                    ]
+                )
 
-            cve_table = Table(
-                cve_data,
+            table = Table(
+                data,
                 colWidths=[
-                    24 * mm,  # CVE
-                    32 * mm,  # Affected asset
-                    46 * mm,  # Evidence gets most space
-                    23 * mm,  # Validation compact
-                    35 * mm,  # Outcome
+                    24 * mm,
+                    32 * mm,
+                    46 * mm,
+                    23 * mm,
+                    35 * mm,
                 ],
                 repeatRows=1,
             )
-
-            style_report_table(
-                cve_table,
-                header=True,
-                font_size=7.5,
-            )
-
-            story.append(cve_table)
-
+            table.setStyle(table_style(font_size=7.5) if False else table_style())
+            story.append(table)
         else:
-            story.append(
-                Paragraph(
-                    (
-                        "Candidate CVE generation was unavailable."
-                        if generation_state == "unavailable"
-                        else
-                        "No Candidate CVEs were generated from the observed software identities."
-                    ),
-                    body,
-                )
+            message = (
+                "Candidate CVE generation was unavailable."
+                if generation_state == "unavailable"
+                else "No candidate CVEs were generated from the observed software identities."
             )
+            story.append(Paragraph(message, body_style))
 
-        story.append(Spacer(1, 14))
-
-
-        # =========================================================
-        # PUBLISHED CVSS SEVERITY
-        # =========================================================
-
+        # ---------------------------------------------------------
+        # Published CVSS
+        # ---------------------------------------------------------
         story.append(
-            Paragraph(
-                "Published CVSS Severity",
-                section_style,
-            )
+            Paragraph("Published CVSS Severity", section_style)
         )
-        story.append(Spacer(1, 6))
 
-        if cve_candidates:
-            cvss_data = [
+        if candidates:
+            data = [
                 [
                     "CVE ID",
                     "Affected Service",
@@ -1200,7 +944,7 @@ def generate_pdf_report(
                 ]
             ]
 
-            for cve in cve_candidates:
+            for cve in candidates:
                 metrics = (
                     cve.get("effective_cvss_metrics")
                     or cve.get("source_cvss_metrics")
@@ -1220,628 +964,386 @@ def generate_pdf_report(
                 if version:
                     service = f"{service} {version}"
 
-                score_31 = (
-                    metric_31.get("cvss_score")
-                    if metric_31
-                    else None
-                )
+                score_31 = metric_31.get("cvss_score")
+                score_40 = metric_40.get("cvss_score")
 
-                score_40 = (
-                    metric_40.get("cvss_score")
-                    if metric_40
-                    else None
-                )
-
-                cvss_31_text = (
+                cvss_31 = (
                     f"{float(score_31):.1f}\n"
                     f"{metric_31.get('cvss_vector', '')}"
                     if score_31 is not None
                     else "Not published"
                 )
 
-                cvss_40_text = (
+                cvss_40 = (
                     f"{float(score_40):.1f}\n"
                     f"{metric_40.get('cvss_vector', '')}"
                     if score_40 is not None
                     else "Not published"
                 )
 
-                cvss_data.append([
-                    pdf_cell(cve.get("cve_id", "Unknown")),
-                    pdf_cell(service),
-                    pdf_cell(cvss_31_text),
-                    pdf_cell(
-                        metric_31.get("cvss_severity", "—")
-                        if metric_31
-                        else "—"
-                    ),
-                    pdf_cell(cvss_40_text),
-                    pdf_cell(
-                        metric_40.get("cvss_severity", "—")
-                        if metric_40
-                        else "—"
-                    ),
-                ])
+                data.append(
+                    [
+                        cell(cve.get("cve_id", "Unknown"), True),
+                        cell(service, True),
+                        cell(cvss_31, True),
+                        cell(metric_31.get("cvss_severity", "—"), True),
+                        cell(cvss_40, True),
+                        cell(metric_40.get("cvss_severity", "—"), True),
+                    ]
+                )
 
-            cvss_table = Table(
-                cvss_data,
+            table = Table(
+                data,
                 colWidths=[
-                    24 * mm,  # CVE
-                    38 * mm,  # Service
-                    31 * mm,  # CVSS 3.1 vector
-                    18 * mm,  # Severity compact
-                    31 * mm,  # CVSS 4.0 vector
-                    18 * mm,  # Severity compact
+                    24 * mm,
+                    38 * mm,
+                    31 * mm,
+                    18 * mm,
+                    31 * mm,
+                    18 * mm,
                 ],
                 repeatRows=1,
             )
-
-            style_report_table(
-                cvss_table,
-                header=True,
-                font_size=7.3,
-            )
-
-            story.append(cvss_table)
-
+            table.setStyle(table_style())
+            story.append(table)
         else:
             story.append(
                 Paragraph(
                     "No published CVSS records are available.",
-                    body,
+                    body_style,
                 )
             )
 
-        story.append(Spacer(1, 16))
-        # =========================================================
-        # VULNERABILITY FINDINGS
-        # =========================================================
-        story.append(Paragraph("Vulnerability Findings", section_style))
-        story.append(Spacer(1, 6))
+        # ---------------------------------------------------------
+        # Vulnerability findings
+        # ---------------------------------------------------------
+        story.append(
+            Paragraph("Vulnerability Findings", section_style)
+        )
 
-        vulnerabilities = mapping.get("vulnerabilities", []) or []
+        vulnerabilities = mapping.get("vulnerabilities") or []
 
         if vulnerabilities:
-            vulnerability_data = [
+            data = [
                 ["Severity", "Host", "Port", "Service", "Finding"]
             ]
 
             for vulnerability in vulnerabilities:
-                vulnerability_data.append([
-                    pdf_cell(
-                        _safe_text(
-                            vulnerability.get("severity", "Unknown")
-                        ).title()
-                    ),
-                    pdf_cell(vulnerability.get("host", "Unknown")),
-                    pdf_cell(vulnerability.get("port", "N/A")),
-                    pdf_cell(vulnerability.get("service", "unknown")),
-                    pdf_cell(
-                        vulnerability.get("title", "Untitled finding")
-                    ),
-                ])
+                data.append(
+                    [
+                        cell(
+                            _safe_text(
+                                vulnerability.get(
+                                    "severity", "Unknown"
+                                )
+                            ).title()
+                        ),
+                        cell(vulnerability.get("host", "Unknown")),
+                        cell(vulnerability.get("port", "N/A")),
+                        cell(vulnerability.get("service", "unknown")),
+                        cell(
+                            vulnerability.get(
+                                "title", "Untitled finding"
+                            )
+                        ),
+                    ]
+                )
 
-            vulnerability_table = Table(
-                vulnerability_data,
-                colWidths=[
-                    21 * mm,
-                    29 * mm,
-                    15 * mm,
-                    27 * mm,
-                    68 * mm,
-                ],
+            table = Table(
+                data,
+                colWidths=[21 * mm, 29 * mm, 15 * mm, 27 * mm, 68 * mm],
                 repeatRows=1,
             )
 
-            vulnerability_style = [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E2559")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
-
-            for row_number, vulnerability in enumerate(
-                vulnerabilities,
-                start=1,
+            commands = table_style()
+            for row, vulnerability in enumerate(
+                vulnerabilities, start=1
             ):
                 severity = str(
                     vulnerability.get("severity", "")
                 ).lower()
 
-                if severity == "critical":
-                    background = colors.HexColor("#FDE8E8")
-                elif severity == "high":
-                    background = colors.HexColor("#FFF0E0")
-                elif severity == "medium":
-                    background = colors.HexColor("#FFF8D8")
-                elif severity == "low":
-                    background = colors.HexColor("#E8F5E9")
-                else:
-                    background = colors.HexColor("#F5F5F5")
+                background = {
+                    "critical": "#FDE8E8",
+                    "high": "#FFF0E0",
+                    "medium": "#FFF8D8",
+                    "low": "#E8F5E9",
+                }.get(severity, "#F5F5F5")
 
-                vulnerability_style.append(
-                    (
-                        "BACKGROUND",
-                        (0, row_number),
-                        (-1, row_number),
-                        background,
-                    )
+                commands.add(
+                    "BACKGROUND",
+                    (0, row),
+                    (-1, row),
+                    colors.HexColor(background),
                 )
 
-            vulnerability_table.setStyle(
-                TableStyle(vulnerability_style)
-            )
-
-            story.append(vulnerability_table)
-
+            table.setStyle(commands)
+            story.append(table)
         else:
             story.append(
                 Paragraph(
                     "No vulnerability findings were mapped.",
-                    body,
+                    body_style,
                 )
             )
 
-        story.append(Spacer(1, 14))
+        # ---------------------------------------------------------
+        # MITRE ATT&CK
+        # ---------------------------------------------------------
+        story.append(
+            Paragraph("MITRE ATT&CK Mapping", section_style)
+        )
 
-
-        # =========================================================
-        # MITRE ATT&CK MAPPING
-        # =========================================================
-        story.append(Paragraph("MITRE ATT&CK Mapping", section_style))
-        story.append(Spacer(1, 6))
-
-        plan = mapping.get("caldera_plan", {}) or {}
-        techniques = plan.get("selected_techniques", []) or []
+        plan = mapping.get("caldera_plan") or {}
+        techniques = plan.get("selected_techniques") or []
 
         if techniques:
-            mitre_data = [
+            data = [
                 ["Technique ID", "Technique", "Stage", "Severity"]
             ]
 
             for technique in techniques:
-                mitre_data.append([
-                    pdf_cell(technique.get("id", "N/A")),
-                    pdf_cell(technique.get("name", "Unknown technique")),
-                    pdf_cell(
-                        technique.get(
-                            "attack_path_stage",
-                            "N/A",
-                        )
-                    ),
-                    pdf_cell(
-                        technique.get(
-                            "max_severity",
-                            "N/A",
-                        )
-                    ),
-                ])
+                data.append(
+                    [
+                        cell(technique.get("id", "N/A")),
+                        cell(
+                            technique.get(
+                                "name", "Unknown technique"
+                            )
+                        ),
+                        cell(
+                            technique.get(
+                                "attack_path_stage", "N/A"
+                            )
+                        ),
+                        cell(
+                            technique.get(
+                                "max_severity", "N/A"
+                            )
+                        ),
+                    ]
+                )
 
-            mitre_table = Table(
-                mitre_data,
-                colWidths=[
-                    27 * mm,
-                    63 * mm,
-                    48 * mm,
-                    22 * mm,
-                ],
+            table = Table(
+                data,
+                colWidths=[27 * mm, 63 * mm, 48 * mm, 22 * mm],
                 repeatRows=1,
             )
-
-            mitre_table.setStyle(
-                TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E2559")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
-                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FAFAFA")),
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ])
-            )
-
-            story.append(mitre_table)
-
+            table.setStyle(table_style())
+            story.append(table)
         else:
             story.append(
                 Paragraph(
                     "No MITRE ATT&CK techniques were selected.",
-                    body,
+                    body_style,
                 )
             )
 
-        story.append(Spacer(1, 14))
-
-
-        # =========================================================
-        # CALDERA OPERATION RESULTS
-        # =========================================================
+        # ---------------------------------------------------------
+        # CALDERA operation
+        # ---------------------------------------------------------
         story.append(
-            Paragraph(
-                "CALDERA Operation Results",
-                section_style,
-            )
+            Paragraph("CALDERA Operation Results", section_style)
         )
-        story.append(Spacer(1, 6))
 
         if operation:
-            operation_data = [
-                [
-                    "Operation ID",
-                    pdf_cell(operation.get("operation_id", "N/A")),
-                ],
-                [
-                    "Operation Name",
-                    pdf_cell(operation.get("operation_name", "N/A")),
-                ],
-                [
-                    "State",
-                    pdf_cell(operation.get("state", "N/A")),
-                ],
-                [
-                    "Techniques Executed",
-                    pdf_cell(operation.get("total", 0)),
-                ],
-                [
-                    "Successful",
-                    pdf_cell(operation.get("success_count", 0)),
-                ],
-                [
-                    "Failed",
-                    pdf_cell(operation.get("fail_count", 0)),
-                ],
-                [
-                    "Timed Out",
-                    pdf_cell(operation.get("timed_out", False)),
-                ],
+            data = [
+                ["Operation ID", cell(operation.get("operation_id"))],
+                ["Operation Name", cell(operation.get("operation_name"))],
+                ["State", cell(operation.get("state"))],
+                ["Techniques Executed", cell(operation.get("total", 0))],
+                ["Successful", cell(operation.get("success_count", 0))],
+                ["Failed", cell(operation.get("fail_count", 0))],
+                ["Timed Out", cell(operation.get("timed_out", False))],
             ]
 
-            operation_table = Table(
-                operation_data,
-                colWidths=[
-                    45 * mm,
-                    115 * mm,
-                ],
-            )
-
-            operation_table.setStyle(
-                TableStyle([
-                    ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F3F0FF")),
-                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ])
-            )
-
-            story.append(operation_table)
-
-            techniques_run = operation.get("techniques_run", []) or []
-
-            if techniques_run:
-                story.append(Spacer(1, 10))
-
-                execution_data = [
-                    ["Technique ID", "Technique", "Tactic", "Status"]
-                ]
-
-                for technique in techniques_run:
-                    execution_data.append([
-                        pdf_cell(
-                            technique.get("technique_id", "N/A")
-                        ),
-                        pdf_cell(
-                            technique.get("technique_name", "")
-                        ),
-                        pdf_cell(
-                            technique.get("tactic", "unknown")
-                        ),
-                        pdf_cell(
-                            _safe_text(
-                                technique.get("status", "unknown")
-                            ).title()
-                        ),
-                    ])
-
-                execution_table = Table(
-                    execution_data,
-                    colWidths=[
-                        27 * mm,
-                        66 * mm,
-                        39 * mm,
-                        28 * mm,
-                    ],
-                    repeatRows=1,
-                )
-
-                execution_table.setStyle(
-                    TableStyle([
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E2559")),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                        ("FONTSIZE", (0, 0), (-1, -1), 8),
-                        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
-                        ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FAFAFA")),
+            table = Table(data, colWidths=[45 * mm, 115 * mm])
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (0, -1),
+                         colors.HexColor("#F3F0FF")),
+                        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                        ("GRID", (0, 0), (-1, -1), 0.4,
+                         colors.HexColor("#CCCCCC")),
                         ("TOPPADDING", (0, 0), (-1, -1), 6),
                         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
                         ("LEFTPADDING", (0, 0), (-1, -1), 5),
                         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
                         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ])
+                    ]
                 )
+            )
+            story.append(table)
 
-                story.append(execution_table)
+            executed = operation.get("techniques_run") or []
+            if executed:
+                story.append(Spacer(1, 10))
 
+                data = [
+                    ["Technique ID", "Technique", "Tactic", "Status"]
+                ]
+
+                for technique in executed:
+                    data.append(
+                        [
+                            cell(technique.get("technique_id", "N/A"), True),
+                            cell(technique.get("technique_name", ""), True),
+                            cell(technique.get("tactic", "unknown"), True),
+                            cell(
+                                _safe_text(
+                                    technique.get(
+                                        "status", "unknown"
+                                    )
+                                ).title(),
+                                True,
+                            ),
+                        ]
+                    )
+
+                table = Table(
+                    data,
+                    colWidths=[27 * mm, 66 * mm, 39 * mm, 28 * mm],
+                    repeatRows=1,
+                )
+                table.setStyle(table_style())
+                story.append(table)
         else:
             story.append(
                 Paragraph(
                     "No CALDERA operation has been executed yet.",
-                    body,
+                    body_style,
                 )
             )
 
-        story.append(Spacer(1, 14))
+        # ---------------------------------------------------------
+        # Risk
+        # ---------------------------------------------------------
+        story.append(
+            Paragraph("Risk Summary", section_style)
+        )
 
-
-        # =========================================================
-        # RISK SUMMARY
-        # =========================================================
-        story.append(Paragraph("Risk Summary", section_style))
-        story.append(Spacer(1, 6))
-
-        risk_score = _safe_text(risk.get("score", "N/A"))
-        risk_label = _safe_text(
-            risk.get("label", "N/A")
-        ).title()
-
-        risk_data = [
+        data = [
             [
                 "Overall Risk Score",
-                pdf_cell(f"{risk_score} / 10"),
+                cell(f"{_safe_text(risk.get('score'))} / 10"),
             ],
             [
                 "Risk Level",
-                pdf_cell(risk_label),
+                cell(_safe_text(risk.get("label")).title()),
             ],
         ]
 
-        risk_table = Table(
-            risk_data,
-            colWidths=[
-                45 * mm,
-                115 * mm,
-            ],
-        )
-
-        risk_table.setStyle(
-            TableStyle([
-                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F3F0FF")),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("FONTNAME", (1, 0), (1, -1), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 10),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
-                ("TOPPADDING", (0, 0), (-1, -1), 9),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ])
-        )
-
-        story.append(risk_table)
-        story.append(Spacer(1, 14))
-
-
-        # =========================================================
-        # LAB EXPLOITABILITY VALIDATION
-        # =========================================================
-        story.append(
-            Paragraph(
-                "Lab Exploitability Validation",
-                section_style,
-            )
-        )
-        story.append(Spacer(1, 6))
-
-        validation = validation or {}
-
-        validation_data = [
-            [
-                "Mode",
-                pdf_cell(validation.get("mode", "N/A")),
-            ],
-            [
-                "Target",
-                pdf_cell(validation.get("target", "N/A")),
-            ],
-            [
-                "Checks Executed",
-                pdf_cell(validation.get("total_checked", 0)),
-            ],
-            [
-                "Confirmed",
-                pdf_cell(validation.get("confirmed", 0)),
-            ],
-            [
-                "Potential",
-                pdf_cell(validation.get("potential", 0)),
-            ],
-            [
-                "Failed",
-                pdf_cell(validation.get("failed", 0)),
-            ],
-        ]
-
-        validation_table = Table(
-            validation_data,
-            colWidths=[
-                45 * mm,
-                115 * mm,
-            ],
-        )
-
-        validation_table.setStyle(
-            TableStyle([
-                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F3F0FF")),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ])
-        )
-
-        story.append(validation_table)
-        story.append(Spacer(1, 14))
-
-
-        # =========================================================
-        # PIVOT ASSESSMENT
-        # =========================================================
-        story.append(Paragraph("Pivot Assessment", section_style))
-        story.append(Spacer(1, 6))
-
-        pivot = pivot or {}
-
-        pivot_data = [
-            [
-                "Status",
-                pdf_cell(pivot.get("status", "N/A")),
-            ],
-            [
-                "Entry Host",
-                pdf_cell(pivot.get("entry_host", "N/A")),
-            ],
-            [
-                "Pivot Possible",
-                pdf_cell(pivot.get("pivot_possible", False)),
-            ],
-            [
-                "Reachable Targets",
-                pdf_cell(pivot.get("candidate_count", 0)),
-            ],
-        ]
-
-        pivot_table = Table(
-            pivot_data,
-            colWidths=[
-                45 * mm,
-                115 * mm,
-            ],
-        )
-
-        pivot_table.setStyle(
-            TableStyle([
-                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F3F0FF")),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ])
-        )
-
-        story.append(pivot_table)
-        story.append(Spacer(1, 14))
-
-
-        # =========================================================
-        # REMEDIATION RECOMMENDATIONS
-        # =========================================================
-        story.append(
-            Paragraph(
-                "Remediation Recommendations",
-                section_style,
-            )
-        )
-        story.append(Spacer(1, 6))
-
-        if remediations:
-            remediation_data = [
-                ["Type", "Recommendation"]
-            ]
-
-            for item in remediations:
-                fixes = item.get("fixes", []) or []
-
-                if fixes:
-                    fixes_text = "<br/>".join(
-                        f"• {escape(_safe_text(fix))}"
-                        for fix in fixes[:3]
-                    )
-                else:
-                    fixes_text = "No recommendation provided."
-
-                remediation_data.append([
-                    pdf_cell(
-                        _safe_text(
-                            item.get("type", "General")
-                        ).title()
-                    ),
-                    Paragraph(
-                        fixes_text,
-                        body,
-                    ),
-                ])
-
-            remediation_table = Table(
-                remediation_data,
-                colWidths=[
-                    35 * mm,
-                    125 * mm,
-                ],
-                repeatRows=1,
-            )
-
-            remediation_table.setStyle(
-                TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E2559")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
-                    ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#FAFAFA")),
-                    ("TOPPADDING", (0, 0), (-1, -1), 7),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        table = Table(data, colWidths=[45 * mm, 115 * mm])
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (0, -1),
+                     colors.HexColor("#F3F0FF")),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (1, 0), (1, -1), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.5,
+                     colors.HexColor("#CCCCCC")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 9),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
                     ("LEFTPADDING", (0, 0), (-1, -1), 5),
                     ("RIGHTPADDING", (0, 0), (-1, -1), 5),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ])
+                ]
             )
+        )
+        story.append(table)
 
-            story.append(remediation_table)
+        # ---------------------------------------------------------
+        # Validation
+        # ---------------------------------------------------------
+        story.append(
+            Paragraph("Lab Exploitability Validation", section_style)
+        )
 
+        data = [
+            ["Mode", cell(validation.get("mode", "N/A"))],
+            ["Target", cell(validation.get("target", "N/A"))],
+            ["Checks Executed", cell(validation.get("total_checked", 0))],
+            ["Confirmed", cell(validation.get("confirmed", 0))],
+            ["Potential", cell(validation.get("potential", 0))],
+            ["Failed", cell(validation.get("failed", 0))],
+        ]
+
+        table = Table(data, colWidths=[45 * mm, 115 * mm])
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (0, -1),
+                     colors.HexColor("#F3F0FF")),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.4,
+                     colors.HexColor("#CCCCCC")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        story.append(table)
+
+        # ---------------------------------------------------------
+        # Remediation
+        # ---------------------------------------------------------
+        story.append(
+            Paragraph("Remediation Recommendations", section_style)
+        )
+
+        effective_remediations = (
+            remediations
+            or _fallback_remediations(scan, mapping)
+        )
+
+        if effective_remediations:
+            data = [["Type", "Recommendation"]]
+
+            for item in effective_remediations:
+                fixes = item.get("fixes") or []
+
+                if fixes:
+                    recommendation = "<br/>".join(
+                        f"• {escape(_safe_text(fix))}"
+                        for fix in fixes[:5]
+                    )
+                else:
+                    recommendation = "No recommendation provided."
+
+                data.append(
+                    [
+                        cell(
+                            _safe_text(
+                                item.get("type", "General")
+                            ).title()
+                        ),
+                        Paragraph(recommendation, body_style),
+                    ]
+                )
+
+            table = Table(
+                data,
+                colWidths=[35 * mm, 125 * mm],
+                repeatRows=1,
+            )
+            table.setStyle(table_style())
+            story.append(table)
         else:
             story.append(
                 Paragraph(
-                    "No remediation recommendations available.",
-                    body,
+                    "No remediation recommendations are available.",
+                    body_style,
                 )
             )
 
-        story.append(Spacer(1, 14))
-
-        
         doc.build(story)
         return str(path)
-    
+
     except Exception:
         report_text = build_report_summary(
             scan=scan,
@@ -1850,7 +1352,6 @@ def generate_pdf_report(
             risk=risk,
             remediations=remediations,
             validation=validation,
-            pivot=pivot,
             results=results,
         )
 
