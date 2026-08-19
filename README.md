@@ -194,7 +194,3 @@ AutoPenTest is designed around an evidence-driven workflow:
 - Results are persisted as evidence for reporting.
 
 The platform should only be operated against targets for which the project team has explicit authorisation.
-
-## Handover notes
-
-The final handover should include the source repository, configuration template, installation instructions, user guide, test artefacts, report templates, project documentation and relevant demonstration materials. Future developers can extend service-specific validation/exploitation coverage, AI planning, CALDERA integration and enterprise deployment capabilities without changing the core evidence-driven workflow.
