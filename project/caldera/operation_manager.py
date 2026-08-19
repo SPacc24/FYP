@@ -49,11 +49,14 @@ class OperationManager:
         Backwards-compatible constructor.
         Accepts either a CalderaClient instance or (base_url, api_key) pair.
         """
+        # Delay import to avoid circular import at module load time
         from caldera.api_client import CalderaClient
 
         if hasattr(caldera_client_or_url, "get_online_agents"):
+            # Already a client-like object
             self.client = caldera_client_or_url
         elif isinstance(caldera_client_or_url, str):
+            # base_url provided; create a CalderaClient
             self.client = CalderaClient(base_url=caldera_client_or_url, api_key=api_key)
         else:
             raise ValueError("OperationManager requires a CalderaClient instance or a base_url string")
@@ -80,10 +83,12 @@ class OperationManager:
             str(agent.get('paw') or '').lower().strip(),
         }
         agent_ips = {ip.lower() for ip in self._normalise_agent_ips(agent)}
+        # Priority: exact IP match, then hostname/paw, then platform match
         if target_norm in agent_ips:
             return True
         if target_norm in agent_hosts:
             return True
+        # Allow loose match against platform/OS strings if target appears to be an OS
         platform = str(agent.get('platform') or '').lower()
         if target_norm in platform or platform in target_norm:
             return True
@@ -118,6 +123,7 @@ class OperationManager:
                 if agent.get("trusted") and agent.get("alive") and agent.get("paw")
             ]
 
+            # If no target provided, any trusted+alive+paw agent means readiness
             if not target:
                 matching_agents = sorted(agents, key=self._agent_sort_key, reverse=True)
                 ready = len(matching_agents) > 0
@@ -135,6 +141,7 @@ class OperationManager:
                     "message": message
                 }
 
+            # Prioritise exact IP matches when a target context is provided
             ip_matched = []
             host_matched = []
             os_matched = []
@@ -151,6 +158,7 @@ class OperationManager:
                 if target and str(target).lower() in platform:
                     os_matched.append(agent)
 
+            # Choose which matching list to expose as "online_agents" (priority order)
             if ip_matched:
                 matching_agents = sorted(ip_matched, key=self._agent_sort_key, reverse=True)
                 ready = True
@@ -333,6 +341,7 @@ class OperationManager:
         if 'cleanup' in text or 'deleter' in text:
             score -= 25
 
+        # De-prioritise container / docker specific abilities for non-container targets
         if any(tok in text for tok in ['container', 'docker', 'kubernetes']):
             score -= 40
 
@@ -611,8 +620,10 @@ class OperationManager:
             stdout = self._stringify_output(link.get('stdout') or raw_output)
             stderr = self._stringify_output(link.get('stderr') or link.get('error') or '')
 
+        # Normalize boolean-y outputs returned by some Caldera abilities
         try:
             if isinstance(stdout, str) and stdout.lower() in {'true', 'false'} and command_completed is not None:
+                # boolean completion indicator, not useful as stdout
                 stdout = ''
             if isinstance(raw_output, str) and raw_output.lower() in {'true', 'false'} and command_completed is not None:
                 raw_output = ''

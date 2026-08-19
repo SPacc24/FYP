@@ -7,7 +7,6 @@ import os
 import re
 import sqlite3
 import subprocess
-import shutil
 import threading
 from functools import lru_cache
 from datetime import datetime, timezone
@@ -1711,26 +1710,11 @@ def _extract_metric(data: dict[str, Any]) -> dict[str, Any]:
 
 def build_index() -> dict[str, Any]:
     BASE.mkdir(parents=True, exist_ok=True)
-    repo = OFFICIAL_CVE_REPO
-
-    # A previous clone attempt can be interrupted (Ctrl+C, no disk space, no
-    # network) and leave REPO_DIR present but without a .git directory. In
-    # that state `git pull` fails with "not a git repository" and silently
-    # leaves the index empty (since git_pull_ff_only runs with check=False).
-    # Detect that broken state and force a fresh clone instead of pulling.
-    if REPO_DIR.exists() and not (REPO_DIR / '.git').exists():
-        shutil.rmtree(REPO_DIR, ignore_errors=True)
-
     if not REPO_DIR.exists():
+        repo = OFFICIAL_CVE_REPO
         subprocess.run(command_builders.git_clone_shallow('git', repo, REPO_DIR), check=True)
     else:
-        pull = subprocess.run(command_builders.git_pull_ff_only('git', REPO_DIR), check=False)
-        if pull.returncode != 0:
-            # Pull failed for a reason other than the missing-.git case above
-            # (e.g. corrupted repo, diverged history). Re-clone from scratch
-            # rather than silently indexing zero records.
-            shutil.rmtree(REPO_DIR, ignore_errors=True)
-            subprocess.run(command_builders.git_clone_shallow('git', repo, REPO_DIR), check=True)
+        subprocess.run(command_builders.git_pull_ff_only('git', REPO_DIR), check=False)
 
     count = 0
     cvss_count = 0

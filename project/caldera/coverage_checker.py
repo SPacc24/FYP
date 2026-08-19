@@ -78,6 +78,7 @@ class CoverageChecker:
             if not technique_id:
                 continue
 
+            # Normalize: some abilities store technique as nested dict
             if isinstance(technique_id, dict):
                 technique_id = technique_id.get("attack_id")
 

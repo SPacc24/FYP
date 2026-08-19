@@ -166,6 +166,7 @@ class CalderaClient:
             "hostname": host,
             "ip_addresses": ip_addresses,
 
+            # Compatibility fields for existing code.
             "host_ip_addrs": ip_addresses,
             "ip": ", ".join(ip_addresses),
 
@@ -281,14 +282,17 @@ class CalderaClient:
                 matches.append(ability)
 
         return matches
-    
+
+    # Compatibility aliases / helpers for older test scripts and callers
     def ping(self):
 
         try:
+            # Prefer the health endpoint when available
             self.health_check()
             return True
         except CalderaAPIError:
             try:
+                # Fallback to listing agents as a pragmatic connectivity check
                 self.list_agents()
                 return True
             except CalderaAPIError:

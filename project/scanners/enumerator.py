@@ -75,11 +75,111 @@ _CURRENT_SCAN_ID = contextvars.ContextVar('current_scan_id', default='')
 
 logger = logging.getLogger(__name__)
 
+# Phase 3 can contain targets reached only through the operator-established
+# SOCKS pivot. Keep the access map keyed by scan ID because TCP discovery
+# batches run in worker threads where ContextVar values are not inherited.
+_PIVOT_TARGETS_BY_SCAN: dict[str, set[str]] = {}
+_PIVOT_TARGETS_LOCK = threading.Lock()
+
+
+def _register_pivot_targets(scan_id: str, targets: Iterable[str]) -> set[str]:
+    normalised: set[str] = set()
+    for value in targets or []:
+        try:
+            normalised.add(str(ipaddress.ip_address(str(value).strip())))
+        except ValueError:
+            continue
+    with _PIVOT_TARGETS_LOCK:
+        if normalised:
+            _PIVOT_TARGETS_BY_SCAN[str(scan_id)] = normalised
+        else:
+            _PIVOT_TARGETS_BY_SCAN.pop(str(scan_id), None)
+    return normalised
+
+
+def _pivot_targets(scan_id: str) -> set[str]:
+    with _PIVOT_TARGETS_LOCK:
+        return set(_PIVOT_TARGETS_BY_SCAN.get(str(scan_id)) or set())
+
+
+def _clear_pivot_targets(scan_id: str) -> None:
+    with _PIVOT_TARGETS_LOCK:
+        _PIVOT_TARGETS_BY_SCAN.pop(str(scan_id), None)
+
+
 def _command_mentions_target(cmd: list[str], target: str) -> bool:
     """Match an IP in argv without relying on shell parsing."""
     pattern = re.compile(rf'(?<![0-9A-Fa-f:.]){re.escape(target)}(?![0-9A-Fa-f:.])')
     return any(pattern.search(str(arg)) for arg in cmd)
 
+
+def _pivot_wrap_command(scan_id: str, cmd: list[str]) -> tuple[list[str] | None, str]:
+    """Adapt one TCP-capable target command for the established SOCKS pivot.
+
+    Returns ``(None, reason)`` when the collector cannot produce truthful
+    evidence through a TCP SOCKS transport. Direct-target commands are returned
+    unchanged.
+    """
+    targets = _pivot_targets(scan_id)
+    if not targets or not cmd:
+        return cmd, ''
+    matched = {target for target in targets if _command_mentions_target(cmd, target)}
+    if not matched:
+        return cmd, ''
+
+    exe = Path(str(cmd[0])).name.lower()
+    # Local/passive commands can contain target strings in a filter or filename;
+    # they are not data-plane connections and must not be proxy-wrapped.
+    if exe in {'tshark', 'p0f', 'git', 'jq'}:
+        return cmd, ''
+
+    proxychains = which('proxychains4')
+    if not proxychains:
+        return None, 'proxychains4_unavailable_for_pivot_target'
+    try:
+        from pivot.runtime import get_pivot_engine
+        engine = get_pivot_engine()
+        if not engine.is_socks_ready():
+            return None, 'operator_established_socks_pivot_not_ready'
+        config_path = getattr(
+            engine,
+            'proxychains_config_path',
+            str(Path(__file__).resolve().parent.parent / 'proxychains4.conf'),
+        )
+    except Exception:
+        config_path = str(Path(__file__).resolve().parent.parent / 'proxychains4.conf')
+
+    if exe == 'nmap':
+        args = [str(value) for value in cmd]
+        # These evidence types need raw IP/UDP/L2 semantics and cannot be
+        # represented honestly through a TCP SOCKS tunnel.
+        if '-sU' in args:
+            return None, 'udp_scanning_not_supported_through_socks_pivot'
+        if '-O' in args:
+            return None, 'active_os_fingerprinting_not_supported_through_socks_pivot'
+        if '-sn' in args:
+            return None, 'nmap_host_discovery_not_supported_through_socks_pivot'
+        args = [value for value in args if value != '-sS']
+        insert_at = 1
+        if '-Pn' not in args:
+            args.insert(insert_at, '-Pn')
+            insert_at += 1
+        if '-sT' not in args:
+            args.insert(insert_at, '-sT')
+        return [proxychains, '-q', '-f', config_path, *args], ''
+
+    # These tools use ordinary TCP sockets and can be routed by ProxyChains.
+    proxy_compatible = {
+        'curl', 'openssl', 'ssh-audit', 'smbclient', 'smbmap', 'ldapsearch',
+        'rpcinfo', 'showmount', 'pg_isready', 'telnet', 'nc', 'netcat',
+        'enum4linux-ng',
+    }
+    if exe in proxy_compatible:
+        return [proxychains, '-q', '-f', config_path, *[str(value) for value in cmd]], ''
+
+    # Never silently fall back to direct traffic for a target whose retained
+    # Phase 2 access method is pivot-only.
+    return None, f'{exe or "collector"}_not_proxy_compatible'
 
 def _describe_command(cmd: list[str]) -> str:
     if not cmd:
@@ -296,12 +396,50 @@ def run_cmd(cmd: list[str], output_file: Path | None = None, timeout: int = 300,
     sid = _CURRENT_SCAN_ID.get()
     original_cmd = [str(value) for value in cmd]
     purpose = _describe_command(original_cmd)
-    adapted_cmd = original_cmd
-    cmd = original_cmd
+    adapted_cmd, pivot_skip_reason = _pivot_wrap_command(sid, original_cmd) if sid else (original_cmd, '')
+    if adapted_cmd is None:
+        if output_file:
+            try:
+                Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+                if not Path(output_file).exists():
+                    Path(output_file).write_text('', encoding='utf-8')
+            except OSError:
+                pass
+        result = {
+            'success': True,
+            'returncode': 0,
+            'stdout': '',
+            'stderr': '',
+            'error': '',
+            'output_file': str(output_file or ''),
+            'pivot_transport': 'socks_proxy',
+            'pivot_not_applicable': True,
+            'pivot_skip_reason': pivot_skip_reason,
+            'lifecycle_state': 'not_applicable',
+        }
+        if sid:
+            command_text = ' '.join(original_cmd)
+            scan_store.log_command(
+                sid,
+                command=command_text,
+                purpose=purpose,
+                output='',
+                output_summary=f'Not applicable through SOCKS pivot: {pivot_skip_reason}',
+                status='Not Applicable - Pivot Transport',
+                exit_code=0,
+                output_file=str(output_file or ''),
+                output_truncated=False,
+            )
+        return result
+
+    cmd = [str(value) for value in adapted_cmd]
     command_text = ' '.join(cmd)
     exe = Path(str(cmd[0])).name.lower() if cmd else ''
     _active_command_delay()
     result = _run_cmd(cmd, output_file=output_file, timeout=timeout, tool_writes_file=tool_writes_file)
+    if cmd != original_cmd:
+        result['pivot_transport'] = 'socks_proxy'
+        result['pivot_wrapped'] = True
     if not result.get('success'):
         result['lifecycle_state'] = execution_lifecycle(result, False)
     diagnosis = detect_tool_error(
@@ -767,6 +905,7 @@ def _collect_passive_local_inventory(
     workflow_context = (scan_options or {}).get('workflow_context') or {}
     workflow_iface = str(workflow_context.get('route_interface') or '').strip()
     requested_iface = str(collector_setting(collector_plan, 'passive_packet_inventory', 'interface', '') or '').strip()
+    # Phased missions bind interface-dependent collectors to the Phase 1 route.
     # Legacy/non-phased scans retain the existing explicit/default behaviour.
     iface = workflow_iface or requested_iface or _default_capture_interface()
     if not iface:
@@ -5069,12 +5208,24 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
     workflow_context = incoming_options.get('workflow_context') or {}
     if isinstance(workflow_context, dict) and workflow_context:
         scan_options['workflow_context'] = dict(workflow_context)
+    pivot_assessment_targets = _register_pivot_targets(
+        scan_id,
+        (scan_options.get('workflow_context') or {}).get('pivot_targets') or [],
+    )
+    if pivot_assessment_targets:
+        scan_options['workflow_context']['pivot_transport'] = {
+            'type': 'socks_proxy',
+            'targets': sorted(pivot_assessment_targets),
+            'tcp_connect_only': True,
+            'raw_ip_udp_l2_not_applicable': True,
+        }
     scan_store.update(scan_id, scan_options=scan_options)
     if scan_options.get('validation_errors'):
         message = '; '.join(scan_options.get('validation_errors') or [])
         scan_store.log(scan_id, f'Scan settings rejected before target interaction: {message}', 'ERROR')
         scan_store.update(scan_id, status=scan_store.STATUS_FAILED, error=message, completed_at=scan_store.now())
         scan_store.persist(scan_id)
+        _clear_pivot_targets(scan_id)
         return
     def enabled(tool_id: str) -> bool:
         return is_tool_enabled(scan_options, tool_id)
@@ -5088,6 +5239,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         scan_store.log(scan_id, message, 'ERROR')
         scan_store.update(scan_id, status=scan_store.STATUS_FAILED, error=message, completed_at=scan_store.now())
         scan_store.persist(scan_id)
+        _clear_pivot_targets(scan_id)
         return
     if scan_options.get('policy_conflicts'):
         scan_store.log(
@@ -5125,6 +5277,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             completed_at=scan_store.now(),
         )
         scan_store.persist(scan_id)
+        _clear_pivot_targets(scan_id)
         return
     coverage=[]; raw=[]; observations=[]; web=[]; smb=[]; services=[]; udp_services=[]; udp_discovery_rows=[]; evidence_recovery_history=[]; service_level_checks=[]; environment_intelligence=[]; environment_context_indicators=[]; selected_objectives=[]; evidence_gaps=[]; scope_validation={}; enterprise_review_policy={}; passive_intelligence={}; modern_active_validation={}
     windows_patch_inventories: list[dict[str, Any]] = []
@@ -5206,7 +5359,8 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         # 1
         task='Target Preparation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         targets=expand_target_input(target_input, Config.MAX_EXPANDED_TARGETS)
-        direct_targets_current = list(targets)
+        pivot_targets_current = _pivot_targets(scan_id).intersection(targets)
+        direct_targets_current = [host for host in targets if host not in pivot_targets_current]
         engagement_policy = load_engagement_policy()
         enterprise_review_policy = load_enterprise_review_policy()
         scope_validation = validate_scope(targets, target_input, engagement_policy)
@@ -5227,7 +5381,26 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         host_requested = host_discovery_cfg.get('requested') or {}
         host_effective = host_discovery_cfg.get('effective') or {}
         host_policy_blocked = set(host_discovery_cfg.get('policy_blocked') or [])
+        # A pivot-only target was already observed during the operator-controlled
+        # Phase 2 SOCKS enumeration. Retain that reachability evidence here rather
+        # than attempting ICMP/L2/raw-IP probes that the SOCKS transport cannot carry.
+        host_reachability_observed: set[str] = set(pivot_targets_current)
+
+        task='Environment Characterisation'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         for host in targets:
+            if host in pivot_targets_current:
+                reason = f'{host}: retained Phase 2 SOCKS discovery evidence; this collector requires direct/raw-IP semantics and is not applicable through the pivot.'
+                coverage.append(_coverage('ping', scan_store.STATUS_EMPTY, 'ICMP echo reachability and TTL evidence', reason, '', {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'}))
+                coverage.append(_coverage('dig', scan_store.STATUS_EMPTY, 'Reverse DNS / PTR evidence', reason, '', {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'}))
+                coverage.append(_coverage('route_trace', scan_store.STATUS_EMPTY, 'Bounded route-path evidence', reason, '', {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'}))
+                environment_intelligence.append({
+                    'host': host,
+                    'type': 'pivot_reachability',
+                    'network_layer': _classify_network_layer(host),
+                    'access_transport': 'socks_proxy',
+                    'evidence_source': 'retained_phase2_discovery',
+                })
+                continue
             # ICMP echo is evidence only. Service discovery may still use -Pn,
             # therefore ICMP failure never suppresses an authorised target.
             if host_effective.get('icmp_echo'):
@@ -5300,6 +5473,15 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         workflow_interface = str(workflow_context.get('route_interface') or '').strip()
 
         if host_effective.get('arp_discovery'):
+            for host in sorted(pivot_targets_current):
+                coverage.append(_coverage(
+                    'arp-scan',
+                    scan_store.STATUS_EMPTY,
+                    'Scoped ARP reachability evidence',
+                    f'{host}: ARP/L2 discovery is not applicable through the established SOCKS pivot; retained Phase 2 discovery evidence is used instead.',
+                    '',
+                    {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'},
+                ))
             arp_targets = [host for host in direct_targets_current if is_private_ip(host)]
             nonlocal_direct_targets = [host for host in direct_targets_current if host not in arp_targets]
             if nonlocal_direct_targets:
@@ -5345,6 +5527,15 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             coverage.append(_coverage('arp-scan', scan_store.STATUS_EMPTY, 'Scoped ARP reachability evidence', 'ARP discovery was not executed.', '', {'success': True, 'lifecycle_state': state}))
 
         if host_effective.get('nmap_host_discovery'):
+            for host in sorted(pivot_targets_current):
+                coverage.append(_coverage(
+                    'nmap_host_discovery',
+                    scan_store.STATUS_EMPTY,
+                    'Nmap host availability evidence',
+                    f'{host}: Nmap -sn is not applicable through a TCP SOCKS pivot; retained Phase 2 discovery evidence is used and Phase 3 continues with -Pn/-sT.',
+                    '',
+                    {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'},
+                ))
             nmap=which('nmap')
             if nmap and direct_targets_current:
                 p=outfile('nmap_host_discovery',','.join(direct_targets_current),'xml')
@@ -5617,6 +5808,16 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
                 coverage.append(_coverage('nmap_os_identity', scan_store.STATUS_EMPTY, 'Cross-platform host OS fingerprint evidence', 'nmap is not available for active OS fingerprinting.', '', {'success': True, 'lifecycle_state': 'tool_unavailable'}))
             else:
                 for host in live:
+                    if host in pivot_targets_current:
+                        coverage.append(_coverage(
+                            'nmap_os_identity',
+                            scan_store.STATUS_EMPTY,
+                            'Cross-platform host OS fingerprint evidence',
+                            f'{host}: active Nmap OS fingerprinting requires raw-IP packet semantics and is not applicable through the TCP SOCKS pivot.',
+                            '',
+                            {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'},
+                        ))
+                        continue
                     open_ports = list(open_map.get(host) or [])
                     completed = set(completed_tcp_ports_by_host.get(host) or set())
                     non_open_candidates = sorted(completed - set(open_ports))
@@ -5656,6 +5857,16 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         task='Low-Impact Service Discovery'; scan_store.set_task(scan_id, _task_name(task), scan_store.STATUS_RUNNING)
         if enabled('udp_discovery') and nmap:
             for host in live:
+                if host in pivot_targets_current:
+                    coverage.append(_coverage(
+                        'udp_discovery',
+                        scan_store.STATUS_EMPTY,
+                        'Operator-selected UDP discovery',
+                        f'{host}: UDP scanning is not applicable through the established TCP SOCKS pivot; no direct UDP traffic was sent.',
+                        '',
+                        {'success': True, 'lifecycle_state': 'not_applicable', 'pivot_transport': 'socks_proxy'},
+                    ))
+                    continue
                 if acl_pause_requested(host):
                     coverage.append(_coverage('udp_discovery', scan_store.STATUS_EMPTY, 'Policy stop condition', f'UDP follow-up paused for {host} after corroborated ACL behaviour.', ''))
                     continue
@@ -7454,6 +7665,7 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
         _finish(scan_id, task, scan_store.STATUS_SUCCESS, 'Report and handoff package assembled')
         scan_store.update(scan_id,status=scan_store.STATUS_SUCCESS,workflow_stage='completed',workflow=workflow,completed_at=scan_store.now(),results=package,**analysis_fields)
         scan_store.persist(scan_id)
+        _clear_pivot_targets(scan_id)
     except Exception as e:
         scan_store.log(scan_id, f'Pipeline error: {e}', 'ERROR')
         current_scan = scan_store.get(scan_id) or {}
@@ -7486,3 +7698,4 @@ def run_pipeline(scan_id: str, target_input: str, scan_options: dict[str, Any] |
             completed_at=scan_store.now(),
         )
         scan_store.persist(scan_id)
+        _clear_pivot_targets(scan_id)
