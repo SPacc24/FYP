@@ -37,8 +37,6 @@ from routes.pentest_routes import register_routes as register_pentest_routes
 from routes.proof_routes import register_routes as register_proof_routes
 from routes.results_routes import register_routes as register_results_routes
 from routes.scan_routes import register_routes as register_scan_routes
-from routes.pivot_routes import register_routes as register_pivot_routes
-from routes.mission_routes import register_routes as register_mission_routes
 from routes.smb_routes import register_routes as register_smb_routes
 
 logging.basicConfig(level=logging.INFO)
@@ -99,8 +97,6 @@ def create_app() -> Flask:
     register_results_routes(app)
     register_pentest_routes(app)
     register_smb_routes(app)
-    register_pivot_routes(app)
-    register_mission_routes(app)
     return app
 
 

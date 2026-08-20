@@ -39,6 +39,41 @@ def generate_ai_technique_plan(
         mapping_result
     )
 
+    if len(allowed_techniques) == 1:
+        tech = allowed_techniques[0]
+
+        return {
+            "selected_technique_ids": [tech.get("id")],
+            "reasoning": (
+                f"{tech.get('id')} ({tech.get('name')}) "
+                "is the only ATT&CK technique supported by the scan context."
+            ),
+        }
+
+    print("\n" + "=" * 60)
+    print("AI PLANNER DEBUG")
+    print("=" * 60)
+
+    print("mapping_result type:", type(mapping_result))
+
+    if isinstance(mapping_result, dict):
+        print("mapping_result keys:", list(mapping_result.keys()))
+
+    print("allowed_techniques count:", len(allowed_techniques))
+
+    print("\nALLOWED TECHNIQUES:")
+    for tech in allowed_techniques:
+        print(
+            "  ID:",
+            tech.get("id"),
+            "| NAME:",
+            tech.get("name"),
+            "| SEVERITY:",
+            tech.get("max_severity"),
+        )
+
+    print("=" * 60 + "\n")
+
     llm_techniques = []
 
     for tech in allowed_techniques[:8]:
@@ -74,7 +109,7 @@ def generate_ai_technique_plan(
                     "mitre_description",
                     "",
                 ),
-                300,
+                250,
             ),
         })
 

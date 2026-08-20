@@ -1114,7 +1114,6 @@ body:has(.input-page) .footer {
 .compact-list li {
   margin-bottom: 8px;
 }
-/* done by nao & mat */
 
 /* Blended final layout overrides */
 .dashboard-wireframe {
@@ -5827,12 +5826,17 @@ html[data-theme="light"] .results-page .eyebrow {
    LIGHT MODE — ATTACK SURFACE WORKBENCH
    ========================================================= */
 
+<<<<<<< HEAD
 body.light-mode .left-workbench {
+=======
+html[data-theme="light"] .left-workbench {
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
   background: #f8fbff;
   border-color: #bfd1e5;
   color: #14233b;
 }
 
+<<<<<<< HEAD
 body.light-mode .left-workbench h2,
 body.light-mode .left-workbench h3,
 body.light-mode .left-workbench h4 {
@@ -5844,39 +5848,74 @@ body.light-mode .left-workbench .muted {
 }
 
 body.light-mode .left-workbench .label {
+=======
+html[data-theme="light"] .left-workbench h2,
+html[data-theme="light"] .left-workbench h3,
+html[data-theme="light"] .left-workbench h4 {
+  color: #14233b;
+}
+
+html[data-theme="light"] .left-workbench .muted {
+  color: #617694;
+}
+
+html[data-theme="light"] .left-workbench .label {
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
   color: #2f78d8;
 }
 
 
 /* Service cards */
 
+<<<<<<< HEAD
 body.light-mode .left-workbench .service-card {
+=======
+html[data-theme="light"] .left-workbench .service-card {
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
   background: #eaf2fb;
   border-color: #b9cee4;
   color: #14233b;
 }
 
+<<<<<<< HEAD
 body.light-mode .left-workbench .service-card h4,
 body.light-mode .left-workbench .service-card b,
 body.light-mode .left-workbench .service-card li {
+=======
+html[data-theme="light"] .left-workbench .service-card h4,
+html[data-theme="light"] .left-workbench .service-card b,
+html[data-theme="light"] .left-workbench .service-card li {
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
   color: #14233b;
 }
 
 
 /* Service metadata */
 
+<<<<<<< HEAD
 body.light-mode .left-workbench .service-meta {
   color: #617694;
 }
 
 body.light-mode .left-workbench .service-meta b {
+=======
+html[data-theme="light"] .left-workbench .service-meta {
+  color: #617694;
+}
+
+html[data-theme="light"] .left-workbench .service-meta b {
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
   color: #14233b;
 }
 
 
 /* Service state */
 
+<<<<<<< HEAD
 body.light-mode .left-workbench .service-state {
+=======
+html[data-theme="light"] .left-workbench .service-state {
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
   background: #dce9f7;
   border-color: #b9cee4;
   color: #2f78d8;
@@ -5885,8 +5924,13 @@ body.light-mode .left-workbench .service-state {
 
 /* Pills */
 
+<<<<<<< HEAD
 body.light-mode .left-workbench .pill,
 body.light-mode .left-workbench .muted-pill {
+=======
+html[data-theme="light"] .left-workbench .pill,
+html[data-theme="light"] .left-workbench .muted-pill {
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
   background: #dce9f7;
   border-color: #b9cee4;
   color: #315f94;
@@ -5895,34 +5939,58 @@ body.light-mode .left-workbench .muted-pill {
 
 /* Evidence sections */
 
+<<<<<<< HEAD
 body.light-mode .left-workbench .service-block {
+=======
+html[data-theme="light"] .left-workbench .service-block {
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
   background: #f5f9fe;
   border-color: #c6d7e8;
   color: #14233b;
 }
 
+<<<<<<< HEAD
 body.light-mode .left-workbench .service-block b {
   color: #14233b;
 }
 
 body.light-mode .left-workbench .service-block .muted {
+=======
+html[data-theme="light"] .left-workbench .service-block b {
+  color: #14233b;
+}
+
+html[data-theme="light"] .left-workbench .service-block .muted {
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
   color: #617694;
 }
 
 
 /* Expandable service evidence */
 
+<<<<<<< HEAD
 body.light-mode .left-workbench .mini-details {
+=======
+html[data-theme="light"] .left-workbench .mini-details {
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
   background: #f5f9fe;
   border-color: #c6d7e8;
   color: #14233b;
 }
 
+<<<<<<< HEAD
 body.light-mode .left-workbench .mini-details summary {
   color: #2f78d8;
 }
 
 body.light-mode .left-workbench .mini-details li {
+=======
+html[data-theme="light"] .left-workbench .mini-details summary {
+  color: #2f78d8;
+}
+
+html[data-theme="light"] .left-workbench .mini-details li {
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
   color: #14233b;
 }
 /* =========================================================
@@ -7209,4 +7277,34 @@ html[data-theme="light"] .operator-status-bar.is-error {
   display: flex;
   align-items: center;
   justify-content: center;
+<<<<<<< HEAD
+=======
+}
+
+/* ==========================================
+   TECHNICAL APPENDIX NAVBAR
+   ========================================== */
+.appendix-page .main-navbar {
+  margin-bottom: 24px;
+}
+
+.appendix-page .appendix-hero {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* ==========================================
+   TECHNICAL APPENDIX NAVBAR ALIGNMENT
+   ========================================== */
+
+.appendix-page .main-navbar {
+  width: 100% !important;
+  max-width: none !important;
+
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  margin-bottom: 24px;
+
+  box-sizing: border-box;
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20
 }

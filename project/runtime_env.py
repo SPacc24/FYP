@@ -11,11 +11,13 @@ from typing import Callable
 PROJECT_DIR = Path(__file__).resolve().parent
 ENV_PATH = PROJECT_DIR / ".env"
 
-PLACEHOLDER_VALUES = {
+# Values that indicate a secret has not been configured yet.
+SECRET_PLACEHOLDERS = {
     "",
     "change-me",
     "replace-me",
     "replace-with-at-least-32-random-characters",
+    "replace-with-a-random-password",
     "<generated-secret-key>",
     "<generated-operator-token>",
     "<generated-rpc-password>",
@@ -30,17 +32,50 @@ SECRET_FACTORIES: tuple[tuple[str, Callable[[], str]], ...] = (
     ("METASPLOIT_RPC_PASS", lambda: secrets.token_hex(24)),
 )
 
+# This is the canonical runtime configuration list. Every variable supported by
+# config.py is represented here so a new checkout gets a complete .env file.
 DEFAULT_VALUES: tuple[tuple[str, str], ...] = (
+    # Application
     ("DEBUG", "false"),
-    ("APP_HOST", "0.0.0.0"),
+    ("APP_HOST", "127.0.0.1"),
+    ("PORT", "5000"),
+    ("ALLOW_INSECURE_OPERATOR_ACCESS", "0"),
+
+    # AI / Ollama
     ("OLLAMA_URL", "http://localhost:11434/api/generate"),
     ("OLLAMA_MODEL", "llama3.2:1b"),
     ("OLLAMA_TIMEOUT", "180"),
-    ("ENABLE_CALDERA_EXECUTION", "0"),
+
+    # CVE / NVD
+    ("NVD_ENRICHMENT_ENABLED", "1"),
+    ("NVD_CPE_RESOLUTION_ENABLED", "0"),
+    ("NVD_API_KEY", ""),
+    ("NVD_REQUEST_DELAY_SECONDS", "6.5"),
+    ("NVD_REQUEST_TIMEOUT_SECONDS", "20"),
+    ("NVD_CACHE_TTL_SECONDS", "604800"),
+    ("MITRE_CVE_REPO", "https://github.com/CVEProject/cvelistV5.git"),
+
+    # Windows / MSRC
+    ("WINDOWS_INVENTORY_DIR", ""),
+    ("MSRC_REQUEST_TIMEOUT_SECONDS", "45"),
+    ("MSRC_HISTORY_YEARS", "15"),
+
+    # Database
+    ("MYSQL_HOST", "127.0.0.1"),
+    ("MYSQL_USER", "autopentest"),
+    ("MYSQL_PASS", ""),
+    ("MYSQL_DB", "autopentest"),
+
+    # CALDERA
     ("CALDERA_URL", "http://127.0.0.1:8888"),
+    ("CALDERA_API_KEY", ""),
+    ("ENABLE_CALDERA_EXECUTION", "0"),
+    ("MAX_EXPANDED_TARGETS", "256"),
     ("AGENT_GROUP", "red"),
     ("KALI_IP", "127.0.0.1"),
     ("OPERATION_TIMEOUT", "180"),
+
+    # Metasploit
     ("ENABLE_METASPLOIT", "0"),
     ("ENABLE_METASPLOIT_EXPLOITS", "0"),
     ("METASPLOIT_RPC_URL", "https://127.0.0.1:55552"),
@@ -52,16 +87,63 @@ DEFAULT_VALUES: tuple[tuple[str, str], ...] = (
     ("METASPLOIT_LPORT", "4445"),
     ("METASPLOIT_SESSION_TIMEOUT", "45"),
     ("METASPLOIT_SESSION_POLL_INTERVAL", "2"),
+
+    # Web callback
+    ("WEB_CALLBACK_BIND_HOST", "0.0.0.0"),
+    ("WEB_CALLBACK_ADVERTISE_HOST", ""),
+    ("WEB_CALLBACK_PORT", "4444"),
+    ("WEB_CALLBACK_TIMEOUT", "15"),
+    ("WEB_CALLBACK_MAX_BYTES", "8192"),
+
+    # Proof of access
     ("PROOF_OF_ACCESS_ENABLED", "false"),
     ("PROOF_OF_ACCESS_TTL", "300"),
+
+    # Recon / enumeration
+    ("ENABLE_CONTEXT_FOOTPRINTING", "0"),
+    ("ENABLE_ARP_SCAN", "0"),
+    ("ENABLE_HTTPX", "0"),
+    ("ENABLE_DEEP_WEB_DISCOVERY", "0"),
+    ("ENABLE_SMBMAP", "0"),
+    ("ENABLE_HYDRA", "0"),
+    ("GOBUSTER_WORDLIST", "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt"),
+    ("HYDRA_CREDENTIAL_FILE", ""),
+
+    # Nmap
+    ("NMAP_DEFAULT_PORTS", "1-1024"),
+    ("NMAP_DEFAULT_INTENSITY", "3"),
+    ("NMAP_DEFAULT_PROFILE", "basic"),
+
+    # Web validation
     ("ENABLE_WEB_VALIDATION", "0"),
     ("WEB_VALIDATION_TIMEOUT", "5"),
     ("WEB_VALIDATION_MAX_RESPONSE_BYTES", "65536"),
     ("WEB_VALIDATION_MAX_REDIRECTS", "2"),
     ("LAB_WEB_OS", "windows"),
-    ("PIVOT_CHISEL_BINARY", "/usr/bin/chisel"),
-    ("PIVOT_DEFAULT_SOCKS_PORT", "1080"),
-    ("PIVOT_DEFAULT_CHISEL_PORT", "8080"),
+    ("LAB_WEB_EXPECTED_TITLE", "AutoPentest Lab Diagnostics"),
+    ("LAB_WEB_SCHEME", "http"),
+    ("LAB_WEB_PORT", "80"),
+
+    # Web exploitation
+    ("ENABLE_WEB_EXPLOITATION", "0"),
+    ("LAB_WEB_EXPLOIT_ENDPOINT", ""),
+    ("LAB_WEB_EXPLOIT_PARAMETER", "host"),
+    ("LAB_WEB_EXPLOIT_METHOD", "POST"),
+    ("LAB_WEB_EXPLOIT_PLATFORM", "linux"),
+
+    # SMB exploitation
+    ("ENABLE_SMB_EXPLOITATION", "0"),
+    ("SMB_DEFAULT_USERNAME", "smbtest"),
+    ("SMB_DEFAULT_SHARE", "PrivEscLab"),
+    ("SMB_HYDRA_TIMEOUT", "90"),
+
+    # Controlled lab credential audit
+    ("ENABLE_LAB_CREDENTIAL_AUDIT", "0"),
+    ("LAB_CREDENTIAL_AUDIT_FILE", ""),
+    ("LAB_CREDENTIAL_AUDIT_MAX_ATTEMPTS", "8"),
+    ("LAB_CREDENTIAL_AUDIT_DELAY_SECONDS", "1.5"),
+
+    # Infrastructure topology
     ("INFRA_TOPOLOGY_PROFILES_JSON", "{}"),
 )
 
@@ -110,10 +192,8 @@ def read_env_values(env_path: Path | None = None) -> dict[str, str]:
     return values
 
 
-def _needs_value(value: str | None) -> bool:
-    if value is None:
-        return True
-    return _strip_quotes(value) in PLACEHOLDER_VALUES
+def _needs_secret(value: str | None) -> bool:
+    return value is None or _strip_quotes(value) in SECRET_PLACEHOLDERS
 
 
 def _line_for(key: str, value: str) -> str:
@@ -132,12 +212,16 @@ def _restrict_env_file(path: Path) -> None:
 def ensure_env_file(env_path: Path | None = None) -> EnvBootstrapResult:
     path = env_path or ENV_PATH
     created_file = not path.exists()
-    lines = path.read_text(encoding="utf-8").splitlines(keepends=True) if path.exists() else []
+    lines = (
+        path.read_text(encoding="utf-8").splitlines(keepends=True)
+        if path.exists()
+        else []
+    )
 
     if not lines:
         lines = [
             "# Auto-generated local configuration for AutoPenTest.\n",
-            "# Existing non-placeholder values are preserved when this file is refreshed.\n",
+            "# Non-secret values use the project defaults; existing values are preserved.\n",
             "\n",
         ]
 
@@ -154,20 +238,24 @@ def ensure_env_file(env_path: Path | None = None) -> EnvBootstrapResult:
     defaulted: dict[str, str] = {}
     updates: dict[str, str] = {}
 
+    # Generate only secrets that are missing or still placeholders.
     for key, factory in SECRET_FACTORIES:
-        if _needs_value(values.get(key)):
+        if _needs_secret(values.get(key)):
             value = factory()
             generated[key] = value
             updates[key] = value
 
-    for key, value in DEFAULT_VALUES:
-        if _needs_value(values.get(key)):
-            defaulted[key] = value
-            updates[key] = value
+    # Add every supported configuration key. Existing values, including valid
+    # blank optional values, are preserved.
+    for key, default in DEFAULT_VALUES:
+        if key not in values:
+            defaulted[key] = default
+            updates[key] = default
 
     if updates:
         if lines and lines[-1].strip():
             lines.append("\n")
+
         missing_keys = [key for key in updates if key not in indexes]
         if missing_keys:
             lines.append("# Auto-generated runtime defaults\n")
@@ -197,7 +285,7 @@ def startup_messages(result: EnvBootstrapResult) -> list[str]:
         return []
 
     action = "Created" if result.created_file else "Updated"
-    lines = [f"[*] {action} {result.env_path} with local runtime defaults."]
+    lines = [f"[*] {action} {result.env_path} with complete local runtime configuration."]
 
     if result.generated:
         lines.append("[*] Generated secrets: " + ", ".join(result.generated))
@@ -207,9 +295,10 @@ def startup_messages(result: EnvBootstrapResult) -> list[str]:
             lines.append(f"[*] Metasploit RPC password: {result.generated['METASPLOIT_RPC_PASS']}")
 
     if result.defaulted:
-        lines.append("[*] Added defaults: " + ", ".join(result.defaulted))
+        lines.append("[*] Added configuration values: " + ", ".join(result.defaulted))
 
-    lines.append("[*] These values were written to project/.env and will be reused.")
+    lines.append("[*] Existing non-placeholder values were preserved.")
+    lines.append("[*] The local .env file is excluded from Git and restricted to the current user on Unix-like systems.")
     return lines
 
 
@@ -222,7 +311,9 @@ def _print_secret_values(env_path: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Create or refresh project/.env for AutoPenTest.")
+    parser = argparse.ArgumentParser(
+        description="Create or refresh project/.env with the complete AutoPenTest configuration."
+    )
     parser.add_argument(
         "--show-secrets",
         action="store_true",
@@ -234,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
     for line in startup_messages(result):
         print(line)
     if not result.changed:
-        print(f"[*] {result.env_path} already contains the required local runtime values.")
+        print(f"[*] {result.env_path} already contains the complete runtime configuration.")
 
     if args.show_secrets:
         print("\n[!] Current local secrets:")

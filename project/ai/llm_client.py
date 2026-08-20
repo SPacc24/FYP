@@ -71,7 +71,7 @@ def ask_ollama(
         "options": {
             "temperature": temperature,
             "num_predict": num_predict,
-            "num_ctx": 4096,
+            "num_ctx": 8192,
         },
     }
 
@@ -136,9 +136,9 @@ def ask_llm_text(prompt: str) -> str:
 def ask_llm_json(prompt: str) -> dict:
 
     # keep the prompt length
-    if len(prompt) > 7000:
+    if len(prompt) > 4500:
         prompt = (
-            prompt[:7000]
+            prompt[:4500]
             + "\n...[scan context truncated for local LLM performance]"
         )
 

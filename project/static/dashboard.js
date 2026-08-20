@@ -1634,6 +1634,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 });
 
+<<<<<<< HEAD
 // ==========================================
 // GLOBAL THEME TOGGLE
 // ==========================================
@@ -1685,3 +1686,5 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 })();
+=======
+>>>>>>> c5515a1069d46560d1edc1eb42095135bf08df20

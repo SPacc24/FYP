@@ -178,7 +178,12 @@
 
 <main class="shell layer-decision-shell">
 
+  <!-- ==========================================
+       Main Navigation Bar
+       ========================================== -->
+
   <nav class="main-navbar">
+
     <div class="navbar-brand">
   <span class="brand-icon">
     <i class="bi bi-shield-check"></i>
@@ -224,6 +229,11 @@
 
   </nav>
 
+
+  <!-- ==========================================
+       Phase 2 Header
+       ========================================== -->
+
   <header class="topbar">
     <div>
       <div class="eyebrow">
@@ -253,6 +263,11 @@
       |selectattr('selectable')
       |rejectattr('is_scanner')
       |list %}
+
+
+  <!-- ==========================================
+       Phase 2 Workflow
+       ========================================== -->
 
   <section class="phase-flow" aria-label="Phase 2 workflow">
 
@@ -300,6 +315,11 @@
     </article>
 
   </section>
+
+
+  <!-- ==========================================
+       Current Discovery Layer
+       ========================================== -->
 
   <section id="current-layer" class="panel">
 
@@ -462,6 +482,11 @@
         </form>
 
       </div>
+
+
+      <!-- ======================================
+           Continuation Networks
+           ====================================== -->
 
       <div>
         <div class="operator-column-head">
@@ -632,27 +657,6 @@
 
             </label>
 
-
-            <label class="form-check">
-
-              <input
-                class="form-check-input"
-                type="radio"
-                name="access_transport"
-                value="pivot"
-                {% if not pivot_ready %}disabled{% endif %}
-              />
-
-              <span class="form-check-label">
-                Existing SOCKS pivot
-
-                {% if not pivot_ready %}
-                  · not ready
-                {% endif %}
-              </span>
-
-            </label>
-
           </div>
 
 
@@ -799,6 +803,11 @@
 
   </section>
 
+
+  <!-- ==========================================
+       Retained Inventory
+       ========================================== -->
+
   <section id="retained-assets" class="panel">
 
     <div class="section-head">
@@ -906,6 +915,11 @@
     </div>
 
   </section>
+
+
+  <!-- ==========================================
+       Visited Layers
+       ========================================== -->
 
   {% if visited_segments|length > 1 %}
 

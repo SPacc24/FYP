@@ -52,9 +52,18 @@ printf '[*] Preparing storage directories...\n'
 mkdir -p storage/scans storage/results storage/mitre_cve storage/msrc storage/msrc_windows storage/nvd_cache
 
 printf '[*] Creating local runtime configuration...\n'
-python scripts/bootstrap_env.py
+python runtime_env.py
 
 printf '[*] Syncing official CVE List mirror from CVEProject/cvelistV5 if network is available...\n'
+# If a previous run was interrupted (Ctrl+C, no disk space, no network partway
+# through), storage/mitre_cve/cvelistV5 can be left behind without a .git
+# directory. sync_mitre_cve_database.py now auto-recovers from this itself,
+# but we also guard here so a re-run of install.sh never inherits a stale
+# half-cloned folder.
+if [ -d storage/mitre_cve/cvelistV5 ] && [ ! -d storage/mitre_cve/cvelistV5/.git ]; then
+  printf '[*] Removing incomplete CVE List clone from a previous run...\n'
+  rm -rf storage/mitre_cve/cvelistV5
+fi
 python scripts/sync_mitre_cve_database.py || {
   printf '[WARN] Official CVE List sync did not complete. The app still runs; run this later:\n'
   printf '       cd project && . .venv/bin/activate && python scripts/sync_mitre_cve_database.py\n'

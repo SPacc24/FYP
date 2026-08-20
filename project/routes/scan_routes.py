@@ -854,12 +854,6 @@ def register_routes(app):
                 for segment_id in workflow.get("segment_order") or []
                 if (workflow.get("segments") or {}).get(segment_id)
             ]
-            try:
-                from pivot.runtime import get_pivot_engine
-                pivot_ready = bool(get_pivot_engine().is_socks_ready())
-            except Exception:
-                pivot_ready = False
-
             session["scan_id"] = scan_id
             return render_template(
                 "layer_decision.html",
@@ -872,7 +866,6 @@ def register_routes(app):
                 topology_continuation=continuation_state,
                 selected_device_ip=selected_device_ip,
                 selected_device_ips=selected_device_ips,
-                pivot_ready=pivot_ready,
                 inconclusive_operator_targets=inconclusive_operator_targets,
                 visited_segments=visited_segments,
                 mission_error=data.get("error"),
@@ -991,7 +984,7 @@ def register_routes(app):
                 return render_template(
                     "error.html", error_message="The selected network is not eligible for bounded enumeration."
                 ), 400
-            if access_transport not in {"direct", "pivot"}:
+            if access_transport not in {"direct"}:
                 return render_template("error.html", error_message="Choose a supported access method."), 400
             transitioned = scan_store.transition_status(
                 scan_id,
