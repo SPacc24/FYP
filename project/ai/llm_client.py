@@ -174,7 +174,7 @@ INPUT:
     text = ask_ollama(
         json_prompt,
         timeout=_ollama_timeout(),
-        num_predict=250,
+        num_predict=650,
         temperature=0.1,
         json_mode=True,
     )
@@ -263,9 +263,31 @@ def _repair_llm_json(parsed: dict) -> dict:
 
 # if no resoning, print this
     if not parsed.get("reasoning"):
-        parsed["reasoning"] = (
-            "AI selected techniques are based on the mapped scan context."
-        )
+        explanation_parts = []
+
+        for item in parsed.get("technique_explanations", []):
+            if not isinstance(item, dict):
+                continue
+
+            technique_id = str(item.get("technique_id", "")).strip()
+            why = str(item.get("why_recommended", "")).strip()
+
+            if technique_id and why:
+                explanation_parts.append(
+                    f"{technique_id}: {why}"
+                )
+
+        if explanation_parts:
+            parsed["reasoning"] = (
+                "The AI prioritised the following techniques based on "
+                "the scan context: "
+                + " ".join(explanation_parts)
+            )
+        else:
+            parsed["reasoning"] = (
+                "The selected techniques were prioritised using "
+                "the available MITRE ATT&CK mapping and scan evidence."
+            )
 
     bad_reasoning_phrases = (
         "Brief reasoning based on the actual scan context",
