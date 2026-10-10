@@ -3,9 +3,9 @@ import importlib.util
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-SCANNERS = ROOT / 'project' / 'scanners'
-if str(ROOT / 'project') not in sys.path:
-    sys.path.insert(0, str(ROOT / 'project'))
+SCANNERS = ROOT / 'scanners'
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from scanners import mitre_cve
 
@@ -80,18 +80,19 @@ def test_observed_nmap_version_range_is_not_treated_as_exact_version():
 def test_nvd_fallback_uses_structured_configuration_matching():
     source = (SCANNERS / 'mitre_cve.py').read_text(encoding='utf-8')
     fn = source.split('def search_with_held(', 1)[1].split('\ndef ', 1)[0]
-    assert 'nvd_client.search' in fn
+    # NVD is enrichment-only; it must never generate Candidate CVEs.
+    assert 'nvd_client.search' not in fn
     nvd_source = (SCANNERS / 'nvd_client.py').read_text(encoding='utf-8')
     assert '_configuration_match' in nvd_source
     assert 'vulnerable' in nvd_source
 
 
 def test_main_page_replaces_old_scan_and_vulnerability_tables():
-    template = (ROOT / 'project' / 'templates' / 'scan_vul.html').read_text(encoding='utf-8')
+    template = (ROOT / 'templates' / 'scan_vul.html').read_text(encoding='utf-8')
     assert 'View Scan Findings' not in template
     assert 'View Vulnerability Mapping' not in template
     assert 'cveModal' not in template
-    assert 'Table 1 — CVE References' in template
+    assert 'Table 1 — Candidate CVE Review' in template
     assert 'Table 2 — Severity &amp; Triage' in template
     assert 'Table 3 — Scan Findings' in template
     assert 'Coverage &amp; Assurance' in template
@@ -99,7 +100,7 @@ def test_main_page_replaces_old_scan_and_vulnerability_tables():
 
 
 def test_cvss_selector_controls_columns_and_sort_key():
-    template = (ROOT / 'project' / 'templates' / 'scan_vul.html').read_text(encoding='utf-8')
+    template = (ROOT / 'templates' / 'scan_vul.html').read_text(encoding='utf-8')
     assert 'data-cvss-view="3.1"' in template
     assert 'data-cvss-view="4.0"' in template
     assert 'data-cvss-view="both"' in template

@@ -1,0 +1,73 @@
+AutoPentest Lab Diagnostics - deployment on the Windows target
+==============================================================
+
+Goal: serve index.html + diagnostics.php on the Windows target (192.168.192.144)
+on port 80, so PenPilot's Controlled Web Validation matches the fingerprint and can
+confirm command execution.
+
+WARNING: diagnostics.php is intentionally vulnerable (OS command injection).
+Only run it on your isolated lab VM. Never expose it to a real or internet-facing network.
+
+------------------------------------------------------------------
+STEP 1 - Get PHP onto the Windows VM (one-time)
+------------------------------------------------------------------
+Easiest option - PHP built-in web server (no Apache needed):
+
+1. On the Windows VM, download PHP for Windows (Thread Safe zip) from:
+   https://windows.php.net/download/
+2. Unzip it to C:\php
+3. (Optional) Add C:\php to PATH, or just call C:\php\php.exe directly.
+
+Alternative: install XAMPP (https://www.apachefriends.org). If you use XAMPP,
+put the two files in C:\xampp\htdocs and start Apache; skip Step 3.
+
+------------------------------------------------------------------
+STEP 2 - Copy the web files to the Windows VM
+------------------------------------------------------------------
+Create a folder, e.g. C:\labweb, and copy BOTH files into it:
+  - index.html
+  - diagnostics.php
+
+(Transfer them from Kali via a VMware shared folder, drag-and-drop, or a USB/ISO.)
+
+------------------------------------------------------------------
+STEP 3 - Start the web server on port 80 (run each time you demo)
+------------------------------------------------------------------
+Open Command Prompt / PowerShell AS ADMINISTRATOR (port 80 needs admin), then:
+
+  C:\php\php.exe -S 0.0.0.0:80 -t C:\labweb
+
+Leave that window open. You should see "Development Server started".
+
+------------------------------------------------------------------
+STEP 4 - Allow port 80 through the Windows firewall (one-time)
+------------------------------------------------------------------
+In the same admin prompt:
+
+  netsh advfirewall firewall add rule name="LabWeb80" dir=in action=allow protocol=TCP localport=80
+
+------------------------------------------------------------------
+STEP 5 - Verify from Kali
+------------------------------------------------------------------
+On Kali:
+
+  curl -s http://192.168.192.144/diagnostics.php | grep -i title
+  # expect: <title>AutoPentest Lab Diagnostics</title>
+
+  # confirm the injection works (should print an arithmetic result on its own line):
+  curl -s -X POST -d "host=127.0.0.1 & set /a 1000+337" http://192.168.192.144/diagnostics.php
+
+------------------------------------------------------------------
+STEP 6 - Use it in PenPilot
+------------------------------------------------------------------
+1. Run a fresh scan of 192.168.192.144 in PenPilot so enumeration discovers
+   port 80 and the /diagnostics.php path (the index page links to it).
+2. Go to Stage 3 -> Controlled Web Validation -> "Find Web Validation Actions".
+   It should now list one allowlisted action instead of "No private lab target matched".
+3. Approve and run it. The result should read "confirmed" - the server returned the
+   independently derived arithmetic value, proving command execution.
+
+Notes:
+- The fingerprint values come from project/.env (LAB_WEB_* keys). This page matches the
+  current defaults: title "AutoPentest Lab Diagnostics", http, port 80, /diagnostics.php,
+  POST, parameter "host", OS windows. If you change those .env values, update this page.

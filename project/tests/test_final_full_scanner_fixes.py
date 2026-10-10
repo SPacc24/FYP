@@ -119,17 +119,25 @@ def test_nvd_exact_cve_metric_lookup_is_id_based_and_cached_without_matching():
 
 def test_nvd_enrichment_only_fills_unscored_rows_and_never_overwrites_cve_program_metric():
     cna_metric = {'3.1': {'cvss_score': 5.0, 'cvss_source': 'cna'}}
+    cna_full_metric = {
+        '3.1': {'cvss_score': 6.1, 'cvss_source': 'cna'},
+        '4.0': {'cvss_score': 6.3, 'cvss_source': 'cna'},
+    }
     nvd_metric = {'3.1': {'cvss_score': 9.8, 'cvss_source': 'NVD'}}
     rows = [
         {'cve_id': 'CVE-2099-0001', 'source_cvss_metrics': {}},
         {'cve_id': 'CVE-2099-0002', 'source_cvss_metrics': cna_metric},
+        {'cve_id': 'CVE-2099-0003', 'source_cvss_metrics': cna_full_metric},
     ]
     diagnostics = []
     with patch('scanners.enumerator.nvd_lookup_cve_metrics', return_value=(nvd_metric, {'matcher_status': 'available'})) as lookup:
         _enrich_missing_cvss_from_nvd(rows, diagnostics)
     assert rows[0]['effective_cvss_metrics']['3.1']['cvss_score'] == 9.8
     assert rows[1]['effective_cvss_metrics']['3.1']['cvss_score'] == 5.0
-    assert lookup.call_count == 1
+    assert rows[2]['effective_cvss_metrics'] == cna_full_metric
+    assert rows[2]['nvd_cvss_enrichment']['status'] == 'not_required'
+    # Rows missing 3.1 or 4.0 are queried; fully scored CVE Program rows are not.
+    assert [c.args[0] for c in lookup.call_args_list] == ['CVE-2099-0001', 'CVE-2099-0002']
 
 
 def test_nvd_enrichment_stops_repeated_queries_after_service_degrades():
@@ -284,7 +292,7 @@ def test_discovery_identity_is_preserved_as_alternate_service_name():
 
 
 def test_client_report_sources_do_not_reintroduce_retired_cve_status_terms():
-    project = Path(__file__).resolve().parents[1] / 'project'
+    project = Path(__file__).resolve().parents[1]
     paths = [
         project / 'scanners' / 'pdf_export.py',
         project / 'templates' / 'pdf_report.html',

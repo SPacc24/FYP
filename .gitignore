@@ -1,0 +1,39 @@
+# ---- OS / editor junk ----
+.DS_Store
+**/.DS_Store
+*.swp
+
+# ---- Python ----
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+**/.pytest_cache/
+.venv/
+**/.venv/
+venv/
+
+# ---- Secrets / local config (NEVER commit) ----
+.env
+**/.env
+project/lab_credentials.txt
+
+# ---- Generated scan data, caches, and intel feeds (large / sensitive) ----
+# The directories are kept via their .gitkeep files; their contents are ignored.
+project/storage/cache/
+project/storage/cisa_kev/
+project/storage/mitre_cve/
+project/storage/msrc/
+project/storage/msrc_windows/
+project/storage/nvd_cache/*
+project/storage/results/*
+project/storage/scans/*
+project/storage/missions/*
+project/storage/reports/
+project/storage/smb_evidence/
+project/storage/logs/
+# Re-include the placeholder files so empty dirs are preserved in the repo.
+!project/storage/nvd_cache/.gitkeep
+!project/storage/results/.gitkeep
+!project/storage/scans/.gitkeep
+!project/storage/missions/.gitkeep

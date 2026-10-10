@@ -1,0 +1,15 @@
+[Unit]
+Description=CALDERA C2 server for PenPilot (port 8888)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=_caldera
+WorkingDirectory=/usr/share/caldera
+ExecStart=/usr/bin/python3 server.py --insecure
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

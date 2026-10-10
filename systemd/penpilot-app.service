@@ -1,0 +1,16 @@
+[Unit]
+Description=PenPilot / AutoPenTest Flask application (port 5000)
+After=network-online.target mariadb.service ollama.service penpilot-msfrpcd.service penpilot-caldera.service
+Wants=network-online.target mariadb.service ollama.service
+
+[Service]
+Type=simple
+User=kali
+WorkingDirectory=/home/kali/Documents/IHL/FYP/project
+ExecStartPre=/home/kali/Documents/IHL/FYP/project/.venv/bin/python runtime_env.py
+ExecStart=/home/kali/Documents/IHL/FYP/project/.venv/bin/python app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

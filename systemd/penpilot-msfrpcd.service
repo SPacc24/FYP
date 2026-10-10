@@ -1,0 +1,14 @@
+[Unit]
+Description=Metasploit RPC daemon for PenPilot (port 55552, loopback)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kali
+ExecStart=/usr/local/bin/penpilot-msfrpcd.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

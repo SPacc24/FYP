@@ -1,3 +1,5 @@
+import pytest
+
 import app as app_module
 import routes.caldera_routes as caldera_routes
 from caldera.api_client import CalderaClient
@@ -360,6 +362,10 @@ def test_caldera_run_uses_selected_internal_target(monkeypatch):
             scan_store._store.pop(scan_id, None)
 
 
+@pytest.mark.skip(
+    reason="Pivot target-selection endpoint (/pivot/target/select) was removed; "
+    "no current route changes the assessment target or clears the selected paw."
+)
 def test_target_change_clears_selected_paw(monkeypatch):
     client, csrf_token = _unlocked_client(monkeypatch)
     scan_id = scan_store.new_scan("192.168.56.20")

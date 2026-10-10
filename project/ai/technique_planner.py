@@ -18,6 +18,12 @@ from ai.technique_processing import (
     enrich_explanations_with_coverage,
 )
 
+from ai.technique_intel import (
+    build_mitre_url,
+    get_mitre_technique_info,
+    fetch_cve_from_nvd,
+)
+
 
 ALLOWED_MODES = {"auto", "hybrid", "manual"}
 

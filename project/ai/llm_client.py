@@ -2,7 +2,14 @@
 import json
 import re
 import requests
+from pathlib import Path
 from urllib.parse import urljoin
+
+from dotenv import load_dotenv
+
+# Load .env so OLLAMA_MODEL/OLLAMA_URL resolve correctly even if this module is
+# imported before config.py (otherwise the model defaults to an unpulled tag).
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 DEFAULT_TIMEOUT_SECONDS = 300
 

@@ -6,7 +6,7 @@ from unittest import mock
 
 import pytest
 
-PROJECT_DIR = Path(__file__).resolve().parents[1] / "project"
+PROJECT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_DIR))
 
 from scanners import mitre_cve
@@ -58,13 +58,15 @@ def test_published_metric_integrity_rejects_cross_version_incomplete_or_inconsis
 def test_published_metric_integrity_preserves_exact_source_values():
     vector = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
     metric = validate_published_metric("3.1", 9.8, "CRITICAL", vector)
-    assert metric == {
+    expected = {
         "cvss_score": 9.8,
         "cvss_severity": "CRITICAL",
         "cvss_vector": vector,
         "cvss_version": "3.1",
         "cvss_metric_integrity": "published_source_exact",
     }
+    assert {key: metric.get(key) for key in expected} == expected
+    assert metric["cvss_verified"] is True
 
 
 def test_index_status_counts_each_published_version():

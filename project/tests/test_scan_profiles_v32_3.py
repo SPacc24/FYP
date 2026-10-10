@@ -2,7 +2,7 @@
 from pathlib import Path
 import sys
 
-ROOT = Path(__file__).resolve().parents[1] / 'project'
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scanners.scan_profiles import normalise_scan_options, is_tool_enabled, TOOL_OPTIONS, profile_tool_ids
@@ -33,7 +33,7 @@ def test_custom_profile_respects_exact_user_selection():
 
 
 def test_ui_contains_adaptive_port_coverage_controls():
-    index = (ROOT / 'templates' / 'index.html').read_text(encoding='utf-8')
+    index = (ROOT / 'templates' / 'assessment_config.html').read_text(encoding='utf-8')
     assert "Full TCP coverage scans every TCP port" in index
     assert 'Essentials' in index
     assert 'Custom TCP ports' in index

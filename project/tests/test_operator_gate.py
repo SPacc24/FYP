@@ -63,6 +63,9 @@ def test_starting_scan_preserves_operator_and_csrf_session(monkeypatch):
     monkeypatch.setattr(scan_routes.threading, "Thread", NoStartThread)
     monkeypatch.setattr(scan_routes.scan_store, "new_scan", lambda *args, **kwargs: "test-scan")
     monkeypatch.setattr(scan_routes.scan_store, "log", lambda *args, **kwargs: None)
+    monkeypatch.setattr(scan_routes.scan_store, "update", lambda *args, **kwargs: None)
+    monkeypatch.setattr(scan_routes.scan_store, "audit_event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(scan_routes.scan_store, "persist", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         scan_routes.scan_store,
         "progress",
@@ -77,12 +80,11 @@ def test_starting_scan_preserves_operator_and_csrf_session(monkeypatch):
         )
         csrf_token = unlock.get_json()["csrf_token"]
 
+        # Scan initiation is the layered discovery entry point (/scan/discover).
         started = client.post(
-            "/scan",
+            "/scan/discover",
             data={
                 "target": "192.0.2.10",
-                "scan_profile": "fast",
-                "technique_mode": "hybrid",
                 "_csrf_token": csrf_token,
             },
         )

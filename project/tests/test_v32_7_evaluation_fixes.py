@@ -2,11 +2,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PROJECT = ROOT / 'project'
+PROJECT = ROOT
 sys.path.insert(0, str(PROJECT))
 
 from scanners.parsers import parse_nmap_xml
-from scanners.enumerator import _classify_cve_match, _credential_combo_file
+from scanners.enumerator import BASELINE_CVE_REFERENCE, _classify_cve_match, _credential_combo_file
 from scanners.mitre_cve import OFFICIAL_CVE_SOURCE
 
 
@@ -35,7 +35,7 @@ def test_non_contract_cve_classification_is_not_accepted():
         'matched_version_tokens': ['1.2.3'],
         'match_basis': 'structured_exact_version',
     })
-    assert result[0] == 'Baseline CVE Reference'
+    assert result[0] == BASELINE_CVE_REFERENCE
 
 
 def test_packaged_default_credential_file_exists():

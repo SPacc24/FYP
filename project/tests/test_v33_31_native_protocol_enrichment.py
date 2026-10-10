@@ -1,4 +1,4 @@
-from project.scanners.enumerator import _apply_native_protocol_enrichment, _parse_mysql_handshake, _parse_vnc_probe, _parse_smtp_probe
+from scanners.enumerator import _apply_native_protocol_enrichment, _parse_mysql_handshake, _parse_vnc_probe, _parse_smtp_probe
 
 
 def test_native_mysql_handshake_extracts_version():

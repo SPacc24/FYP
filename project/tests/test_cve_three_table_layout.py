@@ -1,19 +1,19 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TEMPLATE = (ROOT / 'project' / 'templates' / 'scan_vul.html').read_text(encoding='utf-8')
-MITRE = (ROOT / 'project' / 'scanners' / 'mitre_cve.py').read_text(encoding='utf-8')
-ENUMERATOR = (ROOT / 'project' / 'scanners' / 'enumerator.py').read_text(encoding='utf-8')
+TEMPLATE = (ROOT / 'templates' / 'scan_vul.html').read_text(encoding='utf-8')
+MITRE = (ROOT / 'scanners' / 'mitre_cve.py').read_text(encoding='utf-8')
+ENUMERATOR = (ROOT / 'scanners' / 'enumerator.py').read_text(encoding='utf-8')
 
 
 def test_cve_review_has_exact_three_table_roles():
-    assert 'Table 1 — CVE References' in TEMPLATE
+    assert 'Table 1 — Candidate CVE Review' in TEMPLATE
     assert 'Table 2 — Severity &amp; Triage' in TEMPLATE
     assert 'Table 3 — Scan Findings' in TEMPLATE
 
 
 def test_table_one_is_reference_only():
-    block = TEMPLATE.split('Table 1 — CVE References', 1)[1].split('Table 2 — Severity &amp; Triage', 1)[0]
+    block = TEMPLATE.split('Table 1 — Candidate CVE Review', 1)[1].split('Table 2 — Severity &amp; Triage', 1)[0]
     for heading in ('Identifier', 'Affected Service', 'Why It Matched', 'Published Prerequisites', 'Published By', 'Links'):
         assert f'<th>{heading}</th>' in block
     assert '<th>Status</th>' not in block

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=PenPilot Browser Launcher
+Comment=Waits for PenPilot and Caldera, then opens them in a browser
+Exec=/usr/local/bin/penpilot-open-browser.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true

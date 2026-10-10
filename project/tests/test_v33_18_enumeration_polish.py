@@ -1,4 +1,4 @@
-from project.enumeration import build_enumeration_intelligence
+from enumeration import build_enumeration_intelligence
 
 
 def test_enumeration_intelligence_groups_roles_and_relationships():

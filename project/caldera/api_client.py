@@ -2,6 +2,7 @@
 import os
 import logging
 import ipaddress
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 from typing import Any
@@ -117,7 +118,47 @@ class CalderaClient:
         if status in {"dead", "offline", "stopped"}:
             return "offline"
 
+        # CALDERA's v2 API does not expose an explicit alive/status field; it is
+        # derived from how recently the agent last checked in relative to its
+        # sleep interval (this mirrors CALDERA's own UI). Fall back to that here.
+        derived = self._lifecycle_from_last_seen(agent)
+        if derived:
+            return derived
+
         return "unknown"
+
+    def _lifecycle_from_last_seen(self, agent):
+        raw_last_seen = (
+            agent.get("last_seen")
+            or agent.get("last_seen_time")
+            or agent.get("last_seen_at")
+        )
+        if not raw_last_seen:
+            return None
+
+        text = str(raw_last_seen).strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+
+        try:
+            last_seen = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+
+        if last_seen.tzinfo is None:
+            last_seen = last_seen.replace(tzinfo=timezone.utc)
+
+        try:
+            sleep_max = int(agent.get("sleep_max") or 0)
+        except (TypeError, ValueError):
+            sleep_max = 0
+
+        # Grace window: an agent may legitimately be up to one full sleep cycle
+        # late. Add a fixed buffer so a brief network delay isn't seen as dead.
+        threshold = max(sleep_max, 60) + 60
+        age_seconds = (datetime.now(timezone.utc) - last_seen).total_seconds()
+
+        return "online" if age_seconds <= threshold else "offline"
 
     def _normalise_ip_addresses(self, raw):
         if isinstance(raw, list):
